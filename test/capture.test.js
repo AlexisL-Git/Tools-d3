@@ -53,3 +53,28 @@ test('Recorder écrit un fichier que Player relit', () => {
   assert.deepStrictEqual(records.map((r) => r.payload.toString()), ['un', 'deux']);
   assert.ok(records[0].timestamp > 0);
 });
+
+test('le descripteur de socket est conservé', () => {
+  const out = decodeRecords(
+    Buffer.concat([
+      encodeRecord({ direction: 'in', timestamp: 1, payload: Buffer.from('a'), socket: 1234 }),
+      encodeRecord({ direction: 'out', timestamp: 2, payload: Buffer.from('b'), socket: 5678 }),
+    ])
+  );
+  assert.deepStrictEqual(out.map((r) => r.socket), [1234, 5678]);
+});
+
+test('socket vaut 0 par défaut', () => {
+  const out = decodeRecords(encodeRecord({ direction: 'in', timestamp: 1, payload: Buffer.from('x') }));
+  assert.strictEqual(out[0].socket, 0);
+});
+
+test('Recorder transmet la socket et cumule les octets', () => {
+  const file = tmpFile();
+  const rec = new Recorder(file);
+  rec.write('in', Buffer.from('abc'), 99);
+  rec.write('in', Buffer.from('de'), 99);
+  rec.close();
+  assert.strictEqual(rec.bytes, 5);
+  assert.deepStrictEqual(Player.load(file).records().map((r) => r.socket), [99, 99]);
+});

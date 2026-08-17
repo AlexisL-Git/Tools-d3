@@ -9,11 +9,13 @@ class Recorder {
     this._fd = fs.openSync(filePath, 'w');
     this.filePath = filePath;
     this.count = 0;
+    this.bytes = 0;
   }
 
-  write(direction, payload) {
-    fs.writeSync(this._fd, encodeRecord({ direction, timestamp: Date.now(), payload }));
+  write(direction, payload, socket = 0) {
+    fs.writeSync(this._fd, encodeRecord({ direction, timestamp: Date.now(), payload, socket }));
     this.count += 1;
+    this.bytes += payload.length;
   }
 
   close() {
