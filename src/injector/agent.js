@@ -22,9 +22,27 @@ function agentSource(proxyPort) {
 
     const AF_INET = 2;
 
+    // Diagnostic: le client n'utilise pas forcément connect(). S'il passe par
+    // WSAConnect ou ConnectEx, le hook ci-dessous ne verra jamais rien et la
+    // capture sera vide sans qu'on sache pourquoi. On compte les trois.
+    const counters = { connect: 0, WSAConnect: 0, ConnectEx: 0, redirected: 0 };
+    for (const name of ['WSAConnect', 'ConnectEx']) {
+      let p = null;
+      try {
+        p = (typeof Module.findGlobalExportByName === 'function')
+          ? Module.findGlobalExportByName(name)
+          : Module.findExportByName(null, name);
+      } catch (e) { p = null; }
+      if (p !== null) {
+        Interceptor.attach(p, { onEnter: function () { counters[name]++; } });
+      }
+    }
+    setInterval(function () { send({ kind: 'counters', counters: counters }); }, 5000);
+
     Interceptor.attach(connect_p, {
       onEnter: function (args) {
         this.shouldSend = false;
+        counters.connect++;
 
         const sockaddr_p = args[1];
         // sockaddr_in: [0..1] famille, [2..3] port BE, [4..7] adresse IPv4.
@@ -45,6 +63,7 @@ function agentSource(proxyPort) {
         const newport = ${proxyPort};
         sockaddr_p.add(2).writeByteArray([Math.floor(newport / 256), newport % 256]);
         sockaddr_p.add(4).writeByteArray([127, 0, 0, 1]);
+        counters.redirected++;
         this.shouldSend = true;
       },
       onLeave: function () {

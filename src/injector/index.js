@@ -12,7 +12,7 @@ async function findDofusProcesses() {
     .map((p) => ({ pid: p.pid, name: p.name }));
 }
 
-async function redirect(pid, proxyPort, { onReady = () => {} } = {}) {
+async function redirect(pid, proxyPort, { onReady = () => {}, onCounters = () => {} } = {}) {
   const session = await frida.attach(pid);
   const script = await session.createScript(agentSource(proxyPort));
 
@@ -21,7 +21,9 @@ async function redirect(pid, proxyPort, { onReady = () => {} } = {}) {
       console.error(`agent frida: ${message.description}`);
       return;
     }
-    if ((message.payload || {}).kind === 'ready') onReady(message.payload);
+    const payload = message.payload || {};
+    if (payload.kind === 'ready') onReady(payload);
+    else if (payload.kind === 'counters') onCounters(payload.counters);
   });
 
   await script.load();
