@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+message Message {
+  oneof dzlw {
+    Request request = 2;
+    Response response = 3;
+    Event event = 1;
+  }
+}
+
+message Event    { google.protobuf.Any content = 1; }
+message Response { int32 uid = 2; google.protobuf.Any content = 1; }
+message Request  { int32 uid = 2; google.protobuf.Any content = 1; }

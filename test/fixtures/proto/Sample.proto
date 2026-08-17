@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+message hdv {
+  hdt dzpx = 1;
+  int32 dzpy = 2;
+  enum hdt {
+    HDT_DDSU = 0;
+    HDT_DDSV = 1;
+  }
+}
