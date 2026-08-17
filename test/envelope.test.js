@@ -75,3 +75,20 @@ test('une trame illisible lève une erreur explicite', async () => {
   const registry = await loadRegistry([FIXTURES]);
   assert.throws(() => decodeEnvelope(registry, Buffer.from([0xff, 0xff, 0xff])), /enveloppe/);
 });
+
+test('un registre multi-roots cherche dans chaque root', async () => {
+  // Enveloppe et messages de jeu chargés séparément, comme en production :
+  // _Message.proto d'un côté, game/ de l'autre.
+  const registry = await loadRegistry([
+    path.join(FIXTURES, 'Envelope.proto'),
+    path.join(FIXTURES, 'Sample.proto'),
+  ]);
+  assert.strictEqual(registry.roots.length, 2);
+  assert.ok(registry.lookup('Message'), 'Message doit venir du premier root');
+  assert.ok(registry.lookup('hdv'), 'hdv doit venir du second root');
+  assert.strictEqual(registry.lookup('inexistant'), null);
+});
+
+test('loadRegistry rejette une source introuvable', async () => {
+  await assert.rejects(() => loadRegistry([path.join(FIXTURES, 'nexistepas.proto')]), /introuvable/);
+});
