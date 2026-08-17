@@ -4,7 +4,9 @@
 
 **Goal:** Construire un sniffer qui attache Frida à un client Dofus 3, capture le flux réseau, détermine s'il est chiffré, et — s'il ne l'est pas — le décode en messages protobuf nommés.
 
-**Architecture:** Trois couches indépendantes. Un `injector` Frida qui ne connaît rien du jeu et se contente de remonter des octets bruts. Un `codec` de fonctions pures (réassemblage de trames, décodage d'enveloppe protobuf, résolution du `type_url`) entièrement testable hors ligne. Un module `capture` d'enregistrement/rejeu sur disque qui rend tout ce qui se trouve au-dessus de l'`injector` déterministe et rejouable sans lancer le jeu.
+**Architecture:** Un proxy TCP local en interception. Frida sert uniquement à réécrire la `sockaddr` de `connect` pour rediriger le client vers `127.0.0.1:<port>` ; le client annonce sa vraie destination par une ligne `CONNECT host:port`, et un `net.Server` Node relaie dans les deux sens en lisant tout au passage. Au-dessus, un `codec` de fonctions pures (réassemblage de trames, décodage d'enveloppe protobuf, résolution du `type_url`) entièrement testable hors ligne, et un module `capture` d'enregistrement/rejeu sur disque qui rend tout le reste déterministe sans lancer le jeu.
+
+**Origine du design :** technique reprise de `back/dofus.js` du dépôt public `krm35/dofus-multi`, qui est l'amont du produit payant. Le dépôt public contient le squelette du launcher (auth Ankama, gestion de comptes, WS, lancement multi-compte) mais **aucune des six features** — celles-ci ne vivent que dans `index.jsc`, en bytecode. Le squelette est repris ; les features sont à écrire.
 
 **Tech Stack:** Node.js (CommonJS), `frida` (attach et injection d'agent), `protobufjs` (décodage), `node:test` (runner de tests intégré, zéro dépendance).
 
@@ -466,27 +468,120 @@ git commit -m "feat(capture): format d'enregistrement et rejeu sur disque"
 
 ---
 
-### Task 4: Agent Frida en lecture seule et attach
+### Task 4: Proxy TCP en interception et redirection Frida
 
-Premier contact avec le jeu. **Lecture seule** : aucun hook d'écriture, aucune modification du flux. Ce qui minimise le risque tant qu'on ne sait pas à quoi on a affaire.
+Premier contact avec le jeu. Technique reprise de `back/dofus.js` du dépôt public.
+
+Le proxy est un `net.Server` ordinaire : entièrement testable **sans Dofus et sans Frida**, en lui parlant avec deux sockets Node. C'est ce qui rend cette tâche sérieusement couverte par des tests malgré son rôle système.
 
 **Files:**
+- Create: `src/proxy/server.js`
 - Create: `src/injector/agent.js`
 - Create: `src/injector/index.js`
 - Create: `src/cli/dump.js`
+- Test: `test/proxy.test.js`
 - Test: `test/injector.test.js`
 
 **Interfaces:**
 - Consumes: `Recorder` de la Task 3
 - Produces:
+  - `createProxy({port, onData}) → Promise<{port, close(): Promise<void>}>` — `onData(direction, Buffer)` avec `direction` valant `'out'` (client → serveur) ou `'in'` (serveur → client)
+  - `parseConnectLine(buf) → {host, port, rest: Buffer} | null`
   - `findDofusProcesses() → Promise<Array<{pid, name}>>`
-  - `attach(pid, {onData}) → Promise<{detach(): Promise<void>}>` où `onData(direction, Buffer)` est appelé pour chaque lecture socket, `direction` valant `'in'`
+  - `redirect(pid, proxyPort) → Promise<{detach(): Promise<void>}>`
 
 `src/injector/agent.js` est le code exécuté **dans** le process Dofus. Il n'est pas requis par Node : il est lu comme texte et envoyé à Frida.
 
 - [ ] **Step 1: Écrire le test qui échoue**
 
-L'agent tourne dans Frida, pas dans Node — on ne peut pas l'exécuter en test unitaire. Ce qui est testable, c'est que le module expose la bonne interface et que la source de l'agent est chargeable.
+Le proxy est testable de bout en bout sans Dofus : on lui parle avec un socket Node qui joue le client, et on fait pointer la ligne `CONNECT` vers un second serveur Node qui joue le serveur Ankama.
+
+`test/proxy.test.js` :
+
+```js
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const net = require('node:net');
+const { createProxy, parseConnectLine } = require('../src/proxy/server');
+
+function listenEcho(onReceive) {
+  return new Promise((resolve) => {
+    const srv = net.createServer((sock) => {
+      sock.on('data', (d) => {
+        onReceive(d);
+        sock.write(Buffer.concat([Buffer.from('R:'), d]));
+      });
+    });
+    srv.listen(0, '127.0.0.1', () => resolve({ srv, port: srv.address().port }));
+  });
+}
+
+test('parseConnectLine extrait hôte et port', () => {
+  const out = parseConnectLine(Buffer.from('CONNECT 10.0.0.1:5555 HTTP/1.0 '));
+  assert.strictEqual(out.host, '10.0.0.1');
+  assert.strictEqual(out.port, 5555);
+});
+
+test('parseConnectLine rend null sur autre chose', () => {
+  assert.strictEqual(parseConnectLine(Buffer.from([0x01, 0x02, 0x03])), null);
+});
+
+test('parseConnectLine rend le reliquat après la ligne CONNECT', () => {
+  const buf = Buffer.concat([Buffer.from('CONNECT 1.2.3.4:99 HTTP/1.0 '), Buffer.from([0xaa, 0xbb])]);
+  assert.deepStrictEqual([...parseConnectLine(buf).rest], [0xaa, 0xbb]);
+});
+
+test('le proxy relaie dans les deux sens et observe les octets', async () => {
+  const seenByServer = [];
+  const { srv, port: upstreamPort } = await listenEcho((d) => seenByServer.push(d));
+
+  const observed = [];
+  const proxy = await createProxy({ port: 0, onData: (dir, buf) => observed.push([dir, buf]) });
+
+  const client = net.connect(proxy.port, '127.0.0.1');
+  await new Promise((r) => client.once('connect', r));
+
+  client.write(`CONNECT 127.0.0.1:${upstreamPort} HTTP/1.0 `);
+  await new Promise((r) => setTimeout(r, 50));
+  client.write(Buffer.from('ping'));
+
+  const reply = await new Promise((r) => client.once('data', r));
+  assert.strictEqual(reply.toString(), 'R:ping');
+  assert.strictEqual(Buffer.concat(seenByServer).toString(), 'ping');
+
+  const out = observed.filter(([d]) => d === 'out').map(([, b]) => b.toString()).join('');
+  const inn = observed.filter(([d]) => d === 'in').map(([, b]) => b.toString()).join('');
+  assert.strictEqual(out, 'ping', 'le sens client→serveur doit être observé');
+  assert.strictEqual(inn, 'R:ping', 'le sens serveur→client doit être observé');
+
+  client.destroy();
+  await proxy.close();
+  srv.close();
+});
+
+test('les octets envoyés avant la connexion amont sont mis en file et non perdus', async () => {
+  const seenByServer = [];
+  const { srv, port: upstreamPort } = await listenEcho((d) => seenByServer.push(d));
+  const proxy = await createProxy({ port: 0, onData: () => {} });
+
+  const client = net.connect(proxy.port, '127.0.0.1');
+  await new Promise((r) => client.once('connect', r));
+
+  // CONNECT et charge utile dans le même write : la charge arrive avant que l'amont soit prêt
+  client.write(Buffer.concat([
+    Buffer.from(`CONNECT 127.0.0.1:${upstreamPort} HTTP/1.0 `),
+    Buffer.from('early'),
+  ]));
+
+  const reply = await new Promise((r) => client.once('data', r));
+  assert.strictEqual(reply.toString(), 'R:early');
+
+  client.destroy();
+  await proxy.close();
+  srv.close();
+});
+```
 
 `test/injector.test.js` :
 
@@ -494,26 +589,24 @@ L'agent tourne dans Frida, pas dans Node — on ne peut pas l'exécuter en test 
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
 const injector = require('../src/injector');
 
 test('le module injector expose son interface', () => {
-  assert.strictEqual(typeof injector.attach, 'function');
+  assert.strictEqual(typeof injector.redirect, 'function');
   assert.strictEqual(typeof injector.findDofusProcesses, 'function');
-  assert.strictEqual(typeof injector.agentSource, 'string');
+  assert.strictEqual(typeof injector.agentSource, 'function');
 });
 
-test('la source de l agent hooke recv et WSARecv, et rien en écriture', () => {
-  const src = injector.agentSource;
-  assert.ok(src.includes("'recv'"), 'doit hooker recv');
-  assert.ok(src.includes("'WSARecv'"), 'doit hooker WSARecv');
-  assert.ok(!src.includes('Interceptor.replace'), 'lecture seule : pas de Interceptor.replace');
+test('la source de l agent hooke connect et réécrit la sockaddr', () => {
+  const src = injector.agentSource(9999);
+  assert.ok(src.includes("'connect'"), 'doit hooker connect');
+  assert.ok(src.includes('writeByteArray'), 'doit réécrire la sockaddr');
+  assert.ok(src.includes('9999'), 'doit injecter le port du proxy');
 });
 
 test('l agent ne contient aucune évasion anti-cheat', () => {
-  const src = injector.agentSource;
-  for (const interdit of ['CreateProcessW', 'gethostname', 'CreateFileW', 'IOPlatformUUID']) {
+  const src = injector.agentSource(9999);
+  for (const interdit of ['CreateProcessW', 'gethostname', 'GetHostNameW', 'CreateFileW', 'IOPlatformUUID']) {
     assert.ok(!src.includes(interdit), `hors périmètre : ${interdit}`);
   }
 });
@@ -527,80 +620,147 @@ test('findDofusProcesses ne lève pas si aucun Dofus ne tourne', async () => {
 - [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
 
 Run: `npm test`
-Expected: FAIL — `Cannot find module '../src/injector'`
+Expected: FAIL — `Cannot find module '../src/proxy/server'`
 
-- [ ] **Step 3: Écrire l'agent Frida**
+- [ ] **Step 3: Écrire le proxy**
 
-`src/injector/agent.js` :
+`src/proxy/server.js` :
+
+```js
+'use strict';
+const net = require('node:net');
+
+const CONNECT_RE = /^CONNECT ([0-9A-Za-z_.\-]+):(\d{1,5}) HTTP\/1\.0 /;
+
+function parseConnectLine(buf) {
+  const head = buf.subarray(0, Math.min(buf.length, 128)).toString('latin1');
+  const m = CONNECT_RE.exec(head);
+  if (m === null) return null;
+  return {
+    host: m[1],
+    port: Number(m[2]),
+    rest: Buffer.from(buf.subarray(Buffer.byteLength(m[0], 'latin1'))),
+  };
+}
+
+function createProxy({ port = 0, host = '127.0.0.1', onData = () => {} } = {}) {
+  const server = net.createServer((client) => {
+    let upstream = null;
+    let queue = [];
+
+    client.on('data', (chunk) => {
+      if (upstream === null) {
+        const parsed = parseConnectLine(chunk);
+        if (parsed === null) {
+          // Pas encore de ligne CONNECT : on met en file jusqu'à en recevoir une.
+          queue.push(chunk);
+          return;
+        }
+        upstream = net.connect(parsed.port, parsed.host);
+
+        upstream.on('connect', () => {
+          for (const pending of queue) {
+            onData('out', pending);
+            upstream.write(pending);
+          }
+          queue = [];
+        });
+
+        upstream.on('data', (data) => {
+          onData('in', data);
+          client.write(data);
+        });
+
+        upstream.on('error', () => client.destroy());
+        upstream.on('close', () => client.destroy());
+
+        if (parsed.rest.length > 0) queue.push(parsed.rest);
+        return;
+      }
+
+      if (upstream.connecting) {
+        queue.push(chunk);
+        return;
+      }
+      onData('out', chunk);
+      upstream.write(chunk);
+    });
+
+    client.on('error', () => {});
+    client.on('close', () => {
+      if (upstream !== null) upstream.destroy();
+    });
+  });
+
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, host, () => {
+      resolve({
+        port: server.address().port,
+        close: () =>
+          new Promise((done) => {
+            server.close(() => done());
+          }),
+      });
+    });
+  });
+}
+
+module.exports = { createProxy, parseConnectLine };
+```
+
+- [ ] **Step 4: Écrire la redirection Frida**
+
+`src/injector/agent.js` exporte une **fonction** qui produit la source de l'agent, parce que le port du proxy doit y être interpolé.
 
 ```js
 'use strict';
 
-// Exécuté à l'intérieur du process Dofus par Frida.
-// LECTURE SEULE : on observe recv/WSARecv, on ne modifie jamais le flux.
+// Produit le script exécuté à l'intérieur du process Dofus par Frida.
+// Rôle unique : rediriger connect() vers le proxy local et lui annoncer
+// la destination réelle. Aucune lecture, aucune modification du flux ici.
+function agentSource(proxyPort) {
+  return `
+    const connect_p = Module.getExportByName(null, 'connect');
+    const send_p = Module.getExportByName(null, 'send');
+    const socket_send = new NativeFunction(send_p, 'int', ['int', 'pointer', 'int', 'int']);
 
-const MAX_CHUNK = 1 << 20;
-
-function emit(bytes) {
-  if (bytes === null || bytes.byteLength === 0) return;
-  if (bytes.byteLength > MAX_CHUNK) return;
-  send({ kind: 'recv' }, bytes);
-}
-
-// recv(SOCKET s, char *buf, int len, int flags)
-const recvPtr = Module.findExportByName('ws2_32.dll', 'recv');
-if (recvPtr !== null) {
-  Interceptor.attach(recvPtr, {
-    onEnter(args) {
-      this.buf = args[1];
-    },
-    onLeave(retval) {
-      const n = retval.toInt32();
-      if (n > 0) emit(Memory.readByteArray(this.buf, n));
-    },
-  });
-}
-
-// WSARecv(SOCKET s, LPWSABUF lpBuffers, DWORD dwBufferCount, LPDWORD lpNumberOfBytesRecvd, ...)
-// WSABUF = { ULONG len; CHAR *buf; }  -> 8 octets d'alignement en x64
-const wsaRecvPtr = Module.findExportByName('ws2_32.dll', 'WSARecv');
-if (wsaRecvPtr !== null) {
-  Interceptor.attach(wsaRecvPtr, {
-    onEnter(args) {
-      this.buffers = args[1];
-      this.count = args[2].toInt32();
-      this.received = args[3];
-    },
-    onLeave(retval) {
-      if (retval.toInt32() !== 0) return;
-      if (this.received.isNull()) return;
-      let remaining = this.received.readU32();
-      for (let i = 0; i < this.count && remaining > 0; i++) {
-        const wsabuf = this.buffers.add(i * 16);
-        const len = wsabuf.readU32();
-        const ptr = wsabuf.add(8).readPointer();
-        const take = Math.min(len, remaining);
-        if (take > 0) emit(Memory.readByteArray(ptr, take));
-        remaining -= take;
+    Interceptor.attach(connect_p, {
+      onEnter: function (args) {
+        this.sockfd = args[0];
+        const sockaddr_p = args[1];
+        this.port = 256 * sockaddr_p.add(2).readU8() + sockaddr_p.add(3).readU8();
+        this.addr = '';
+        for (let i = 0; i < 4; i++) {
+          this.addr += sockaddr_p.add(4 + i).readU8();
+          if (i < 3) this.addr += '.';
+        }
+        const newport = ${proxyPort};
+        sockaddr_p.add(2).writeByteArray([Math.floor(newport / 256), newport % 256]);
+        sockaddr_p.add(4).writeByteArray([127, 0, 0, 1]);
+        this.shouldSend = true;
+      },
+      onLeave: function () {
+        if (!this.shouldSend) return;
+        const line = 'CONNECT ' + this.addr + ':' + this.port + ' HTTP/1.0 ';
+        const buf = Memory.allocUtf8String(line);
+        socket_send(this.sockfd.toInt32(), buf, line.length, 0);
       }
-    },
-  });
+    });
+
+    send({ kind: 'ready', proxyPort: ${proxyPort} });
+  `;
 }
 
-send({ kind: 'ready', hookedRecv: recvPtr !== null, hookedWSARecv: wsaRecvPtr !== null });
+module.exports = { agentSource };
 ```
-
-- [ ] **Step 4: Écrire le côté Node**
 
 `src/injector/index.js` :
 
 ```js
 'use strict';
-const fs = require('node:fs');
-const path = require('node:path');
 const frida = require('frida');
-
-const agentSource = fs.readFileSync(path.join(__dirname, 'agent.js'), 'utf8');
+const { agentSource } = require('./agent');
 
 const DOFUS_PROCESS_NAMES = ['Dofus.exe', 'dofus.exe'];
 
@@ -612,20 +772,16 @@ async function findDofusProcesses() {
     .map((p) => ({ pid: p.pid, name: p.name }));
 }
 
-async function attach(pid, { onData, onReady = () => {} } = {}) {
+async function redirect(pid, proxyPort, { onReady = () => {} } = {}) {
   const session = await frida.attach(pid);
-  const script = await session.createScript(agentSource);
+  const script = await session.createScript(agentSource(proxyPort));
 
-  script.message.connect((message, data) => {
+  script.message.connect((message) => {
     if (message.type === 'error') {
-      throw new Error(`agent frida: ${message.description}`);
+      console.error(`agent frida: ${message.description}`);
+      return;
     }
-    const payload = message.payload || {};
-    if (payload.kind === 'ready') {
-      onReady(payload);
-    } else if (payload.kind === 'recv' && data) {
-      onData('in', Buffer.from(data));
-    }
+    if ((message.payload || {}).kind === 'ready') onReady(message.payload);
   });
 
   await script.load();
@@ -638,13 +794,13 @@ async function attach(pid, { onData, onReady = () => {} } = {}) {
   };
 }
 
-module.exports = { attach, findDofusProcesses, agentSource };
+module.exports = { redirect, findDofusProcesses, agentSource };
 ```
 
 - [ ] **Step 5: Lancer les tests pour vérifier qu'ils passent**
 
 Run: `npm test`
-Expected: PASS, 17 tests au total
+Expected: PASS, 23 tests au total
 
 - [ ] **Step 6: Écrire la CLI de dump**
 
@@ -653,7 +809,8 @@ Expected: PASS, 17 tests au total
 ```js
 'use strict';
 const path = require('node:path');
-const { attach, findDofusProcesses } = require('../injector');
+const { createProxy } = require('../proxy/server');
+const { redirect, findDofusProcesses } = require('../injector');
 const { Recorder } = require('../capture/recorder');
 
 async function main() {
@@ -664,21 +821,29 @@ async function main() {
     process.exit(1);
   }
   const target = processes[0];
-  console.log(`Attach sur ${target.name} (pid ${target.pid}) pendant ${seconds}s...`);
 
   const file = path.join('captures', `dump-${target.pid}-${Date.now()}.bin`);
   const recorder = new Recorder(file);
 
-  const session = await attach(target.pid, {
-    onReady: (info) => console.log('agent prêt:', info),
+  const proxy = await createProxy({
+    port: 0,
     onData: (direction, buf) => recorder.write(direction, buf),
   });
+  console.log(`Proxy sur 127.0.0.1:${proxy.port}`);
+
+  const session = await redirect(target.pid, proxy.port, {
+    onReady: (info) => console.log('agent prêt:', info),
+  });
+  console.log(`Redirection de ${target.name} (pid ${target.pid}) pendant ${seconds}s...`);
+  console.log('IMPORTANT: le hook ne prend effet que sur les NOUVELLES connexions.');
+  console.log('Change de map, ou reconnecte le personnage, pour forcer un connect().');
 
   await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 
   await session.detach();
+  await proxy.close();
   recorder.close();
-  console.log(`${recorder.count} lectures capturées dans ${file}`);
+  console.log(`${recorder.count} enregistrements capturés dans ${file}`);
 }
 
 main().catch((err) => {
@@ -690,8 +855,8 @@ main().catch((err) => {
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/injector src/cli/dump.js test/injector.test.js
-git commit -m "feat(injector): agent Frida en lecture seule et CLI de dump"
+git add src/proxy src/injector src/cli/dump.js test/proxy.test.js test/injector.test.js
+git commit -m "feat(proxy): proxy TCP en interception et redirection connect via Frida"
 ```
 
 ---
@@ -863,7 +1028,7 @@ module.exports = { probeFraming, verdict, ENTROPY_CHIFFRE, ENTROPY_CLAIR, RATIO_
 - [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
 
 Run: `npm test`
-Expected: PASS, 25 tests au total
+Expected: PASS, 31 tests au total
 
 - [ ] **Step 5: Écrire la CLI d'analyse**
 
@@ -1174,7 +1339,7 @@ module.exports = { decodeEnvelope };
 - [ ] **Step 5: Lancer les tests pour vérifier qu'ils passent**
 
 Run: `npm test`
-Expected: PASS, 31 tests au total
+Expected: PASS, 37 tests au total
 
 - [ ] **Step 6: Commit**
 
@@ -1283,7 +1448,7 @@ module.exports = { MessageStats };
 - [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
 
 Run: `npm test`
-Expected: PASS, 35 tests au total
+Expected: PASS, 41 tests au total
 
 - [ ] **Step 5: Écrire la CLI du sniffer**
 
@@ -1292,7 +1457,8 @@ Expected: PASS, 35 tests au total
 ```js
 'use strict';
 const path = require('node:path');
-const { attach, findDofusProcesses } = require('../injector');
+const { createProxy } = require('../proxy/server');
+const { redirect, findDofusProcesses } = require('../injector');
 const { FrameReassembler } = require('../codec/framing');
 const { loadRegistry } = require('../codec/registry');
 const { decodeEnvelope } = require('../codec/envelope');
@@ -1313,20 +1479,20 @@ async function main() {
   }
   const target = processes[0];
 
-  const reassembler = new FrameReassembler();
+  // Un réassembleur par sens : ce sont deux flux TCP distincts.
+  const reassemblers = { in: new FrameReassembler(), out: new FrameReassembler() };
   const stats = new MessageStats();
   const recorder = new Recorder(path.join('captures', `sniff-${target.pid}-${Date.now()}.bin`));
 
-  console.log(`Sniffing ${target.name} (pid ${target.pid}). Ctrl+C pour arrêter.`);
-
-  const session = await attach(target.pid, {
+  const proxy = await createProxy({
+    port: 0,
     onData: (direction, buf) => {
       recorder.write(direction, buf);
       let frames;
       try {
-        frames = reassembler.push(buf);
+        frames = reassemblers[direction].push(buf);
       } catch (err) {
-        console.error(`framing: ${err.message}`);
+        console.error(`framing (${direction}): ${err.message}`);
         return;
       }
       for (const frame of frames) {
@@ -1334,13 +1500,18 @@ async function main() {
           const msg = decodeEnvelope(registry, frame);
           stats.record(msg);
           const tag = msg.unknown ? '?' : ' ';
-          console.log(`${tag} ${msg.kind.padEnd(8)} ${msg.name}`);
+          const arrow = direction === 'in' ? '<-' : '->';
+          console.log(`${tag} ${arrow} ${msg.kind.padEnd(8)} ${msg.name}`);
         } catch (err) {
           stats.record({ name: '<illisible>', unknown: true });
         }
       }
     },
   });
+
+  const session = await redirect(target.pid, proxy.port);
+  console.log(`Sniffing ${target.name} (pid ${target.pid}) via 127.0.0.1:${proxy.port}. Ctrl+C pour arrêter.`);
+  console.log('Le hook ne prend effet que sur les nouvelles connexions : change de map pour en forcer une.');
 
   const timer = setInterval(() => {
     const ratio = stats.unknownRatio();
@@ -1355,6 +1526,7 @@ async function main() {
   process.on('SIGINT', async () => {
     clearInterval(timer);
     await session.detach();
+    await proxy.close();
     recorder.close();
     console.log('\n--- messages les plus fréquents ---');
     for (const row of stats.top(20)) {
@@ -1395,10 +1567,18 @@ git commit -m "feat(cli): sniffer live avec statistiques de messages inconnus"
 
 **Couverture de la spec par ce plan.** Le plan 1 couvre : §3 (`injector`, `codec` — Tasks 2, 4, 6), §4 flux entrant intégralement (Tasks 2, 6, 7), §5.1 partiellement (le sniffer détecte la péremption des `.proto`, la ré-extraction est outillée au plan 2), §6.3 détecteur de patch (Task 7), §7.1 enregistrement/rejeu (Task 3), §7.2 lignes `codec` et `injector`, §8 étape 0 (Task 5).
 
-Renvoyé explicitement aux plans suivants : §4 flux sortant et `uid`, §5.2 diff structurel, §5.3 enregistreur corrélé, §6.1/6.2/6.4/6.5/6.6, les modules `state`, `features`, `input`, `core`, `ui`.
+Renvoyé explicitement aux plans suivants : §5.2 diff structurel, §5.3 enregistreur corrélé, §6.1/6.2/6.4/6.5/6.6, les modules `state`, `features`, `input`, `core`, `ui`.
 
-**Cohérence des types vérifiée.** `direction` vaut `'in'`/`'out'` partout (format de capture, `onData`, `Recorder.write`). `FrameReassembler.push` rend toujours un tableau. `decodeEnvelope` rend toujours les cinq clés `kind`/`uid`/`name`/`payload`/`unknown`, `uid` étant `null` pour un event. `MessageStats.record` consomme exactement la forme produite par `decodeEnvelope`.
+**Révision du transport par rapport à la spec.** La spec §3 décrivait un `injector` hookant `send`/`recv`. L'inspection du dépôt public `krm35/dofus-multi` (`back/dofus.js`) montre que l'amont procède autrement : Frida réécrit la `sockaddr` de `connect` pour rediriger vers un proxy local, et toute la lecture se fait dans un `net.Server` Node. Ce plan adopte cette technique, qui est meilleure sur trois points :
 
-**Deux dépendances hors dépôt, assumées et documentées.** Le sniffer de la Task 7 lit les `.proto` depuis `%USERPROFILE%\.cache\` — répertoire du produit payant. Les tests, eux, n'en dépendent pas : ils utilisent les fixtures committées de la Task 6. Le plan 2 devra rendre le projet autonome en outillant la ré-extraction.
+- Elle donne **les deux sens** du flux, là où un hook `recv` seul ne donnait que l'entrant.
+- Elle rend le point d'observation testable sans Frida ni Dofus (Task 4, `test/proxy.test.js`).
+- Elle simplifie l'injection prévue au plan 3 : écrire dans un socket Node remplace le montage « plage d'`uid` réservée filtrée depuis l'agent Frida » décrit en spec §4. Le filtrage des `Response` reste nécessaire, mais devient du JavaScript ordinaire dans le proxy.
 
-**Point d'arrêt obligatoire.** La Task 5 Step 6 peut conclure `CHIFFRÉ`, ce qui invalide l'hypothèse de travail des Tasks 6 et 7. Le plan l'énonce explicitement : dans ce cas, on s'arrête et on revient vers l'utilisateur avec les mesures, sans enchaîner.
+La spec §4 (flux sortant et `uid`) reste valable dans son intention ; son implémentation se déplace de l'agent Frida vers le proxy. À reporter dans la spec lors du plan 3.
+
+**Cohérence des types vérifiée.** `direction` vaut `'in'`/`'out'` partout (format de capture, `onData` du proxy, `Recorder.write`). `FrameReassembler.push` rend toujours un tableau. `decodeEnvelope` rend toujours les cinq clés `kind`/`uid`/`name`/`payload`/`unknown`, `uid` étant `null` pour un event. `MessageStats.record` consomme exactement la forme produite par `decodeEnvelope`. Le sniffer de la Task 7 instancie **un réassembleur par sens** : entrant et sortant sont deux flux TCP distincts et les mélanger corromprait le framing.
+
+**Une dépendance hors dépôt, assumée et documentée.** Le sniffer de la Task 7 lit les `.proto` depuis `%USERPROFILE%\.cache\` — répertoire du produit payant. Les tests, eux, n'en dépendent pas : ils utilisent les fixtures committées de la Task 6. Le plan 2 devra rendre le projet autonome en outillant la ré-extraction.
+
+**Point d'arrêt obligatoire.** La Task 5 Step 6 peut conclure `CHIFFRÉ`, ce qui invalide l'hypothèse de travail des Tasks 6 et 7. Le plan l'énonce explicitement : dans ce cas, on s'arrête et on revient vers l'utilisateur avec les mesures, sans enchaîner. Ce risque est cependant fortement réduit par la découverte ci-dessus : `back/dofus.js` parse l'en-tête directement sur les octets relayés (`data.readUInt16BE(0) >> 2`), ce qui n'est possible que si le flux est en clair au niveau socket.
