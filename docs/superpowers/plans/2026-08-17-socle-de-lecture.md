@@ -17,7 +17,7 @@
 - **Windows x64 uniquement.** Aucun support multi-plateforme.
 - **Aucun appel réseau sortant** depuis le launcher. Pas de télémétrie, pas de vérification de version, pas de phone-home. C'est une exigence directe du projet : on remplace un produit qui en fait.
 - **Aucune évasion anti-cheat.** Hors périmètre par décision explicite (spec §2). Ne pas hooker `CreateProcessW`, `gethostname`, `CreateFileW`, ni masquer Frida de l'énumération des process.
-- **Tests via `node --test`.** Pas de framework externe.
+- **Tests via `node --test`.** Pas de framework externe. Le script est `node --test` sans argument : sous Node 24, passer `test/` fait interpréter le chemin comme un module à charger et échoue. L'auto-découverte trouve `**/*.test.js` et ignore `node_modules`.
 - Le jeu de `.proto` de référence vit dans `C:\Users\Utilisateur\.cache\game\` et `...\connection\`. Il est **lu**, jamais modifié.
 - Les captures vont dans `captures/`, déjà exclu par `.gitignore`. Elles contiennent des données de compte — ne jamais les committer.
 

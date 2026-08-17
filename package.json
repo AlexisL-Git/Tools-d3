@@ -1,0 +1,21 @@
+{
+  "name": "mm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Launcher multi-compte Dofus 3",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test",
+    "sniff": "node src/cli/sniff.js",
+    "dump": "node src/cli/dump.js",
+    "analyze": "node src/cli/analyze.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "frida": "^17.17.0",
+    "protobufjs": "^8.7.2"
+  }
+}
