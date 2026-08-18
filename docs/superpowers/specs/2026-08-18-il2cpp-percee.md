@@ -192,3 +192,60 @@ du jeu depuis un hook échoue. L'appel devra donc se faire depuis un autre
 contexte, probablement en s'insérant dans le thread principal du jeu.
 
 C'est le vrai mur, et il n'est pas franchi.
+
+---
+
+# Étape 5 — l'appel de code du jeu est possible
+
+## Le faux mur
+
+Trois échecs successifs de `ToString()` avaient laissé croire qu'appeler du code
+managé était impossible :
+
+1. via `il2cpp_runtime_invoke` depuis un hook → `system error`
+2. par appel natif direct depuis un hook → `system error`
+3. par appel natif direct depuis un minuteur Frida → `system error`
+
+La conclusion « on ne peut pas appeler le jeu » était prématurée : un seul
+échantillon avait été testé, et c'était le pire possible. `ToString()` sur une
+classe protobuf générée passe par le formateur JSON — réflexion et allocations
+en cascade.
+
+## La mesure qui tranche
+
+Même contexte, même objet, méthode sans allocation :
+
+```
+objet capturé: hea
+GetHashCode() = 829350180
+```
+
+**L'appel réussit.** Depuis un thread de minuteur Frida, après
+`il2cpp_thread_attach(domain)`, sur un objet capturé dans un hook et conservé
+par pointeur brut.
+
+Deux enseignements :
+
+- Appeler du code du jeu **fonctionne**, hors contexte de hook
+- Le GC Boehm d'IL2CPP étant non compactant, un pointeur brut reste exploitable
+  quelques secondes sans `gchandle` — ce dernier s'était d'ailleurs révélé
+  inutilisable, `il2cpp_gchandle_new` ne rendant pas un `uint32` dans cette
+  version (troncature → adresse invalide → access violation)
+
+## Ce que cela ouvre
+
+Le chemin vers l'émission devient concret :
+
+1. Capturer un `IChannelHandlerContext` valide depuis un hook sur `WriteAsync`
+2. Obtenir un objet message — soit capturé, soit alloué par `il2cpp_object_new`
+   et rempli par écritures aux offsets déjà connus
+3. Appeler `WriteAndFlushAsync(ctx, message, MethodInfo*)` depuis un thread de
+   minuteur
+
+Les briques 1 et 3 sont validées. La brique 2 reste à éprouver.
+
+## Ligne à ne pas franchir sans décision explicite
+
+L'étape suivante **envoie une action réelle au serveur**. C'est la première fois
+que le projet écrirait au lieu d'observer, et c'est le moment où le risque de
+détection devient concret. À ne pas tenter sans accord explicite.
