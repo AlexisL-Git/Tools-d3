@@ -121,3 +121,74 @@ reprendre.
 - Injecter dans le process est **plus détectable** que tout ce qui a précédé
 - Chaque patch Dofus déplacera adresses et noms obfusqués
 - Les étapes 1 et 2 sont accessibles ; l'étape 3 est d'un autre ordre
+
+---
+
+# Étape 4 validée — lecture du contenu des messages
+
+## Ce qui ne marche pas : appeler du code du jeu
+
+`ToString()` sur une classe protobuf C# rend le message en JSON. Deux tentatives
+pour l'appeler depuis le hook — via `il2cpp_runtime_invoke`, puis par appel
+direct du pointeur natif avec la convention IL2CPP `(this, MethodInfo*)` — ont
+échoué identiquement : `system error` à chaque invocation.
+
+Cause : `ToString()` alloue une chaîne, ce qui sollicite le ramasse-miettes,
+depuis un thread déjà intercepté par Frida. Appeler du code managé depuis un
+hook est fragile par nature.
+
+Frida a intercepté l'erreur à chaque fois — le client n'a jamais planté.
+
+## Ce qui marche : lecture mémoire pure
+
+`il2cpp_class_get_fields` donne nom, offset et type de chaque champ. Il suffit
+de lire aux offsets, sans jamais appeler de code du jeu. Les champs d'offset 0
+sont statiques et sont ignorés.
+
+Types traités : `Int32`, `UInt32`, `Int64`, `UInt64`, `Boolean`, `Single`,
+`Double`, `String` (via `il2cpp_string_chars`), et récursion sur les objets
+jusqu'à une profondeur donnée.
+
+## Résultat
+
+Entrant — l'enveloppe et son `Any` :
+
+```json
+hea → { "ebfz": { "#": "hdx",
+        "ebfg": { "#": "Any", "typeUrl_": "type.ankama.com/jsj" } } }
+```
+
+Le même message une fois décodé par le jeu :
+
+```json
+GameMessage → { "#": "jsj", "epxq": 1, "epxw": 1, "epyc": "-20003", "epye": false }
+```
+
+Sortant — une action du joueur :
+
+```json
+lqc → { "fcma": 24, "fcmc": "0" }
+```
+
+**La moitié « lecture » du Replicate est acquise** : on connaît en temps réel,
+avec le détail des champs, ce que le joueur émet et ce que le serveur répond.
+
+## Découverte annexe : les .proto du cache sont périmés
+
+`hea.proto` déclare `hcw dzqm = 1`. Le runtime expose `ebfz`, `ebga`, de types
+différents. Le jeu est en 3.6.10.10 ; les `.proto` extraits datent d'avant.
+
+Conséquence heureuse : **les .proto ne servent plus**. Le runtime fournit la
+structure à jour à chaque lancement, ce qui supprime l'étape de ré-extraction
+après chaque patch. La maintenance par patch s'en trouve nettement allégée —
+restera à re-identifier les noms obfusqués, pas à reconstruire le protocole.
+
+## Reste l'étape 5
+
+Émettre. `GameRequest` est la classe d'émission, ses méthodes sont obfusquées
+(`bkmv`, `bkmx`…). Il faudra identifier celle qui envoie, puis l'appeler avec
+une instance valide — or on vient précisément de constater qu'appeler du code
+du jeu depuis un hook échoue. L'appel devra donc se faire depuis un autre
+contexte, probablement en s'insérant dans le thread principal du jeu.
+
+C'est le vrai mur, et il n'est pas franchi.

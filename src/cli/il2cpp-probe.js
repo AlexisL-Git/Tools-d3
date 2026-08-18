@@ -25,6 +25,11 @@ function source(image, ns, cls) {
     const image_get_name = fn('il2cpp_image_get_name','pointer',['pointer']);
     const class_from_name= fn('il2cpp_class_from_name','pointer',['pointer','pointer','pointer']);
     const class_get_meths= fn('il2cpp_class_get_methods','pointer',['pointer','pointer']);
+    const class_get_fields= fn('il2cpp_class_get_fields','pointer',['pointer','pointer']);
+    const field_get_name = fn('il2cpp_field_get_name','pointer',['pointer']);
+    const field_get_offset= fn('il2cpp_field_get_offset','uint32',['pointer']);
+    const field_get_type = fn('il2cpp_field_get_type','pointer',['pointer']);
+    const type_get_name  = fn('il2cpp_type_get_name','pointer',['pointer']);
     const method_get_name= fn('il2cpp_method_get_name','pointer',['pointer']);
     const method_get_pc  = fn('il2cpp_method_get_param_count','uint32',['pointer']);
 
@@ -53,7 +58,16 @@ function source(image, ns, cls) {
           if (m.isNull()) break;
           out.push({ name: S(method_get_name(m)), params: method_get_pc(m), ptr: m.readPointer().toString() });
         }
-        send({ kind:'ok', methods: out });
+        const fit = Memory.alloc(Process.pointerSize); fit.writePointer(NULL);
+        const fields = [];
+        for (;;) {
+          const f = class_get_fields(k, fit);
+          if (f.isNull()) break;
+          let tn = '?';
+          try { tn = S(type_get_name(field_get_type(f))); } catch (e) {}
+          fields.push({ name: S(field_get_name(f)), offset: field_get_offset(f), type: tn });
+        }
+        send({ kind:'ok', methods: out, fields: fields });
       }
     }
   `;
@@ -79,7 +93,12 @@ async function main() {
       const p = m.payload || {};
       if (p.kind === 'err') console.log('ECHEC:', p.msg);
       else if (p.kind === 'ok') {
-        console.log(`${p.methods.length} méthodes dans ${ns ? ns + '.' : ''}${cls} (${image}):`);
+        console.log(`${(p.fields || []).length} CHAMPS dans ${ns ? ns + '.' : ''}${cls}:`);
+        for (const f of p.fields || []) {
+          console.log(`  +0x${f.offset.toString(16).padStart(3, '0')}  ${f.name.padEnd(18)} ${f.type}`);
+        }
+        console.log(`
+${p.methods.length} méthodes:`);
         for (const x of p.methods) console.log(`  ${x.ptr}  ${x.name}/${x.params}`);
       }
       resolve();

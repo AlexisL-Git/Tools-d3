@@ -18,6 +18,7 @@ async function main() {
 
   const counts = new Map();
   let total = 0;
+  let shown = 0;
 
   script.message.connect((message) => {
     if (message.type === 'error') {
@@ -36,9 +37,9 @@ async function main() {
       total += 1;
       const key = `${p.dir} ${p.name}`;
       counts.set(key, (counts.get(key) || 0) + 1);
-      if (p.json) {
-        const oneLine = String(p.json).replace(/\s+/g, ' ').slice(0, 200);
-        console.log(`${p.dir === 'in' ? '<-' : '->'} ${p.name}  ${oneLine}`);
+      if (p.json && shown < 12) {
+        shown += 1;
+        console.log(`${p.dir === 'in' ? '<-' : '->'} ${p.name}  ${JSON.stringify(p.json).slice(0, 420)}`);
       }
     }
   });

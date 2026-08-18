@@ -38,6 +38,11 @@ function pipelineAgentSource({ maxEvents = 20000 } = {}) {
     const runtime_invoke = fn('il2cpp_runtime_invoke','pointer',['pointer','pointer','pointer','pointer']);
     const string_chars   = fn('il2cpp_string_chars','pointer',['pointer']);
     const string_length  = fn('il2cpp_string_length','int32',['pointer']);
+    const class_get_flds = fn('il2cpp_class_get_fields','pointer',['pointer','pointer']);
+    const field_get_name = fn('il2cpp_field_get_name','pointer',['pointer']);
+    const field_get_off  = fn('il2cpp_field_get_offset','uint32',['pointer']);
+    const field_get_type = fn('il2cpp_field_get_type','pointer',['pointer']);
+    const type_get_name  = fn('il2cpp_type_get_name','pointer',['pointer']);
 
     const S = p => (!p || p.isNull()) ? '' : p.readUtf8String();
     const C = s => Memory.allocUtf8String(s);
@@ -78,22 +83,68 @@ function pipelineAgentSource({ maxEvents = 20000 } = {}) {
     function diag(step, extra) {
       if (diagSent++ < 6) send({ kind: 'diag', step: step, extra: extra || '' });
     }
-    function jsonOf(objPtr) {
+    // Appel DIRECT du pointeur natif, convention IL2CPP: toute methode compilee
+    // recoit (this, ...args, MethodInfo*). Passer par il2cpp_runtime_invoke
+    // levait une erreur native systematique depuis le contexte d'un hook.
+    // Lecture des valeurs par acces memoire pur: on n'appelle JAMAIS de code du
+    // jeu. Appeler ToString() depuis un hook declenchait une allocation, donc le
+    // ramasse-miettes, depuis un thread intercepte -> erreur native systematique.
+    // Les offsets de champs suffisent, et ils sont a jour par construction.
+    const layoutCache = {};
+    function layoutOf(klass) {
+      const key = klass.toString();
+      if (layoutCache[key]) return layoutCache[key];
+      const it = Memory.alloc(Process.pointerSize); it.writePointer(NULL);
+      const fields = [];
+      for (;;) {
+        const f = class_get_flds(klass, it);
+        if (f.isNull()) break;
+        const off = field_get_off(f);
+        if (off === 0) continue;               // champ statique
+        let tn = '?';
+        try { tn = S(type_get_name(field_get_type(f))); } catch (e) {}
+        fields.push({ name: S(field_get_name(f)), off: off, type: tn });
+      }
+      layoutCache[key] = fields;
+      return fields;
+    }
+
+    function readValue(base, f, depth) {
+      const at = base.add(f.off);
       try {
-        if (!objPtr || objPtr.isNull()) { diag('objet nul'); return null; }
+        switch (f.type) {
+          case 'System.Int32':   return at.readS32();
+          case 'System.UInt32':  return at.readU32();
+          case 'System.Int64':   return at.readS64().toString();
+          case 'System.UInt64':  return at.readU64().toString();
+          case 'System.Boolean': return at.readU8() !== 0;
+          case 'System.Single':  return at.readFloat();
+          case 'System.Double':  return at.readDouble();
+          case 'System.String': {
+            const sp = at.readPointer();
+            if (sp.isNull()) return null;
+            const len = string_length(sp);
+            return len > 0 ? string_chars(sp).readUtf16String(Math.min(len, 300)) : '';
+          }
+          default: {
+            const op = at.readPointer();
+            if (op.isNull()) return null;
+            if (depth <= 0) return '{' + f.type + '}';
+            return dump(op, depth - 1);
+          }
+        }
+      } catch (e) { return '(illisible)'; }
+    }
+
+    function dump(objPtr, depth) {
+      try {
+        if (!objPtr || objPtr.isNull()) return null;
         const c = object_get_cls(objPtr);
-        if (c.isNull()) { diag('classe nulle'); return null; }
-        const mi = class_get_mfn(c, C('ToString'), 0);
-        if (mi.isNull()) { diag('ToString introuvable'); return null; }
-        const exc = Memory.alloc(Process.pointerSize);
-        exc.writePointer(NULL);
-        const res = runtime_invoke(mi, objPtr, NULL, exc);
-        if (!exc.readPointer().isNull()) { diag('exception levee'); return null; }
-        if (res.isNull()) { diag('resultat nul'); return null; }
-        const len = string_length(res);
-        if (len <= 0) { diag('longueur ' + len); return ''; }
-        return string_chars(res).readUtf16String(Math.min(len, 4000));
-      } catch (e) { diag('exception js', e.message); return null; }
+        if (c.isNull()) return null;
+        const out = { '#': S(class_get_name(c)) };
+        for (const f of layoutOf(c)) out[f.name] = readValue(objPtr, f, depth);
+        return out;
+      } catch (e) { return '(erreur)'; }
     }
 
     function nativeOf(name, pc) {
@@ -115,7 +166,7 @@ function pipelineAgentSource({ maxEvents = 20000 } = {}) {
           // On ne deroule le contenu que pour les objets applicatifs:
           // les tampons DotNetty n'ont rien d'interessant a dire.
           const skip = cls.indexOf('DotNetty') === 0;
-          send({ kind: 'msg', dir: dir, via: name, name: cls, json: skip ? null : jsonOf(args[1]) });
+          send({ kind: 'msg', dir: dir, via: name, name: cls, json: skip ? null : dump(args[1], 3) });
         }
       });
       hooked.push(name + '/' + pc + ' @ ' + p);
