@@ -73,3 +73,78 @@ C'est précisément ce travail — non publié, refait à chaque patch — qui c
 - **Voie input pure** — replicate par rejeu d'inputs Win32, sans jamais lire le protocole. Ne nécessite aucun hook réseau. Dégradé par rapport au produit payant, mais réalisable avec ce qui existe déjà.
 - **Voie IL2CPP** — la seule qui mène au Replicate sémantique. Projet de rétro-ingénierie à part entière, avec maintenance à chaque patch.
 - **Statu quo** — conserver l'abonnement pour les features, `mm-public` restant utilisable pour Wakfu et Retro.
+
+---
+
+# Addendum — la voie « input » est fermée aussi
+
+**Date :** 2026-08-18, même session.
+
+Après avoir établi que la voie réseau était fermée, la voie par rejeu d'inputs a été testée sur deux clients Dofus 3 réels (Swaggman - Crâ, Spoony - Pandawa), lancés normalement par le launcher Ankama officiel.
+
+## Ce qui fonctionne
+
+| Élément | État |
+|---|---|
+| `input_monitor.node` sur Node 24 | charge (N-API, ABI stable) |
+| `focus_window.node` sur Node 24 | charge |
+| `robotjs.node` | incompatible ABI, mais inutile |
+| `getWindowTitle(pid)` | correct : `Spoony - Pandawa - 3.6.10.10 - Release` |
+
+Le titre de fenêtre porte **nom du personnage et classe** : l'identification des clients ne nécessite donc aucune lecture du `keydata` de Zaap.
+
+Signatures découvertes (l'addon les révèle par ses propres messages d'erreur) :
+
+```
+sendKeyToPid(pid, vkCode, keyDown)
+sendMouseToPid(pid, x, y, button, down)
+sendKeyGlobal(vkCode, keyDown)
+focusWindow(pid)
+```
+
+À noter : **aucune de ces fonctions ne prend de `scanCode`**, alors que le binaire contient cette chaîne. L'addon sait lire les scan codes des événements capturés, pas les réémettre.
+
+## Méthode de mesure
+
+L'observation visuelle s'étant révélée peu fiable, l'effet a été mesuré objectivement : capture de la seule fenêtre du jeu, sous-échantillonnée sur une grille (~14 000 points), et comparaison du pourcentage de points modifiés. Le bruit de fond (animations au repos) est mesuré avant chaque test, et un garde refuse de mesurer si la fenêtre cible n'est pas au premier plan.
+
+Sensibilité validée : la méthode a détecté 62 % de changement lors d'un test contaminé où une autre fenêtre avait réagi.
+
+## Résultats
+
+Fenêtre cible vérifiée au premier plan à chaque essai.
+
+| Mécanisme | Accepté par l'OS | Bruit | Effet | Verdict |
+|---|---|---|---|---|
+| `PostMessageW` + vkCode (Échap) | oui | 0,39 % | 0,20 % | aucune réaction |
+| `SendInput` + vkCode (Échap) | oui | 0,06 % | 0,47 % | aucune réaction |
+| `SendInput` + vkCode (M) | oui | 0,15 % | 0,06 % | aucune réaction |
+| `SendInput` + **scan code** (M) | oui, 2 événements | 0,45 % | 0,00 % | aucune réaction |
+
+`focusWindow` s'est par ailleurs révélé peu fiable : un appel a fait apparaître le sélecteur de tâches de Windows au lieu de mettre le jeu au premier plan (verrou de premier plan Windows).
+
+## Conclusion
+
+**Dofus 3 ne réagit à aucune entrée injectée**, quelle que soit la méthode, y compris par scan code — la technique pourtant attendue pour un jeu en raw input. L'hypothèse cohérente est un filtrage du drapeau `LLKHF_INJECTED`, protection anti-macro usuelle dans un MMO.
+
+Cela confirme, par la mesure, ce que la liste de features du produit payant indiquait dès le départ :
+
+```
+["Replicate clicks", ["retro"], "mouse"]      inputs  -> Retro uniquement
+["Replicate",        ["dofus"], "replicate"]  protocole -> Dofus uniquement
+```
+
+L'absence de replicate par inputs sur Dofus 3 dans le produit payant n'est pas un choix de conception : c'est une impossibilité technique.
+
+**Réserve :** les tests supposent que Échap ouvre le menu et M la carte. Un raccourci différent fausserait un essai, mais pas les quatre.
+
+## État des voies explorées
+
+| Voie | Statut |
+|---|---|
+| Proxy réseau + redirection `connect` | fermée — Dofus 3 n'utilise pas les API Winsock standard |
+| Hooks `send`/`recv` sur client lancé | fermée — le jeu passe par `ReadFile` / `NtDeviceIoControlFile` |
+| Rejeu d'inputs (`PostMessage`, `SendInput`, scan codes) | fermée — entrées injectées ignorées |
+| Hooks IL2CPP dans `GameAssembly.dll` | **seule voie restante** — non explorée |
+
+Le Replicate sémantique sur Dofus 3 suppose donc de la rétro-ingénierie du moteur : localiser dans `GameAssembly.dll` les méthodes de sérialisation ou de traitement d'entrées, y poser des hooks Frida, et refaire ce travail à chaque patch. C'est exactement ce que le produit payant réalise, et ce que son abonnement finance.
