@@ -62,3 +62,26 @@ test('la neutralisation du cache est optionnelle', () => {
 test('les ports exclus sont transmis à l agent', () => {
   assert.match(connectAgentSource({ proxyPort: 8105, excludePorts: [80, 443] }), /const EXCLUDE = \[80,443\];/);
 });
+
+// Le client ouvre bien plus que la partie: HTTPS vers les CDN, et surtout
+// 127.0.0.1:26116 vers le launcher Ankama d'ou il tient sa session. Detourner
+// cette derniere coupe la session ("connection between DOFUS and the Ankama
+// Launcher has been lost"), constate le 19/08 sur un client reel.
+test('par défaut seul le port de jeu est détourné', () => {
+  assert.match(connectAgentSource({ proxyPort: 8105 }), /const ONLY = \[5555\];/);
+});
+
+test('la liste des ports détournés est réglable', () => {
+  assert.match(connectAgentSource({ proxyPort: 8105, onlyPorts: [5555, 5556] }), /const ONLY = \[5555,5556\];/);
+  assert.match(connectAgentSource({ proxyPort: 8105, onlyPorts: [] }), /const ONLY = \[\];/);
+});
+
+// La reecriture de l'adresse doit se faire APRES le filtre, sinon une
+// connexion non retenue partirait quand meme vers 127.0.0.1.
+test("l'adresse n'est réécrite qu'après la décision de détourner", () => {
+  const src = connectAgentSource({ proxyPort: 8105 });
+  const filtre = src.indexOf('ONLY.indexOf(port)');
+  const ecriture = src.indexOf('writeByteArray([127, 0, 0, 1])');
+  assert.ok(filtre > 0 && ecriture > 0, 'les deux repères doivent exister');
+  assert.ok(ecriture > filtre, "l'écriture de 127.0.0.1 doit suivre le filtre");
+});

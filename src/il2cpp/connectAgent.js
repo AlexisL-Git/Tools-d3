@@ -22,6 +22,12 @@ function connectAgentSource({
   fakeDeviceId = null,
   neutralizeCache = true,
   excludePorts = [],
+  // Le client ouvre bien plus que la partie: HTTPS vers les CDN, et surtout
+  // 127.0.0.1:26116 vers le launcher Ankama, d'ou il tient sa session.
+  // Detourner cette derniere coupe la session et le jeu affiche
+  // « The connection between DOFUS and the Ankama Launcher has been lost ».
+  // On ne detourne donc que le port de jeu, annonce par --connectionPort.
+  onlyPorts = [5555],
 } = {}) {
   if (!Number.isInteger(proxyPort) || proxyPort <= 0 || proxyPort > 65535) {
     throw new Error('proxyPort invalide');
@@ -30,6 +36,7 @@ function connectAgentSource({
     const PROXY_PORT = ${proxyPort};
     const FAKE_ID = ${JSON.stringify(fakeDeviceId)};
     const EXCLUDE = ${JSON.stringify(excludePorts)};
+    const ONLY = ${JSON.stringify(onlyPorts || [])};
     const report = [];
 
     let _ws2 = null;
@@ -54,19 +61,23 @@ function connectAgentSource({
         const o = [];
         for (let i = 0; i < 4; i++) o.push(sockaddr.add(4 + i).readU8());
         host = o.join('.');
-        sockaddr.add(4).writeByteArray([127, 0, 0, 1]);
       } else if (family === AF_INET6) {
         const parts = [];
         for (let i = 0; i < 16; i += 2) {
           parts.push(((sockaddr.add(8 + i).readU8() << 8) | sockaddr.add(9 + i).readU8()).toString(16));
         }
         host = parts.join(':');
-        sockaddr.add(8).writeByteArray([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]);
       } else {
         return null;
       }
 
+      // La reecriture n'a lieu qu'ici: si le port n'est pas retenu, l'adresse
+      // d'origine reste intacte et la connexion part normalement.
       if (EXCLUDE.indexOf(port) >= 0) return null;
+      if (ONLY.length && ONLY.indexOf(port) < 0) return null;
+
+      if (family === AF_INET) sockaddr.add(4).writeByteArray([127, 0, 0, 1]);
+      else sockaddr.add(8).writeByteArray([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]);
       sockaddr.add(2).writeByteArray([(PROXY_PORT >> 8) & 0xff, PROXY_PORT & 0xff]);
       return { host: host, port: port };
     }

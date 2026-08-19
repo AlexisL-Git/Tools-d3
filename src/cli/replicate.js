@@ -15,30 +15,50 @@ const { findDofusProcesses } = require('../injector');
 //   node src/cli/replicate.js attach [pid]            (trop tard pour les premiers connect)
 
 function parseArgs(argv) {
-  const out = { port: 8210, id: null, mode: argv[0], target: argv[1] };
+  const out = { port: 8210, id: null, exclude: [], mode: argv[0], target: argv[1] };
   for (let i = 1; i < argv.length; i++) {
     if (argv[i] === '--port') out.port = Number(argv[++i]);
     else if (argv[i] === '--id') out.id = argv[++i];
+    // Le client dialogue aussi avec le launcher Ankama en local. Detourner ces
+    // connexions-la coupe la session et le jeu affiche « connection lost ».
+    else if (argv[i] === '--exclude') out.exclude = argv[++i].split(',').map(Number);
+    else if (argv[i] === '--arg') (out.extra = out.extra || []).push(argv[++i]);
   }
   if (out.target === '--port' || out.target === '--id') out.target = null;
   return out;
 }
 
-function makeReader(label) {
+// Le compteur brut compte AVANT tout decodage. Sans lui, l'absence de sortie
+// se lit aussi bien comme « aucun trafic » que comme « du trafic illisible »,
+// et on ne peut rien conclure. Le meme piege a deja fausse deux conclusions
+// dans ce projet.
+function makeReader(label, stats) {
   const asm = new FrameReassembler();
-  let bad = 0;
   return (chunk) => {
+    stats.chunks++;
+    stats.bytes += chunk.length;
     let frames = [];
-    try { frames = asm.push(chunk); } catch (e) { console.log(`${label} ! ${e.message}`); return; }
+    try { frames = asm.push(chunk); } catch (e) { stats.erreurs++; return; }
     for (const f of frames) {
+      stats.trames++;
       const d = decodeFrameRaw(f);
-      if (d === null) { bad++; continue; }
+      if (d === null) { stats.illisibles++; continue; }
+      stats.lues++;
       const uid = d.uid === null || d.uid === -1n ? '' : ` uid=${d.uid}`;
       console.log(`${label} ${d.kind.padEnd(8)} ${String(d.type).padEnd(5)}${uid}`);
       if (d.payload) console.log(render(d.payload, '          '));
     }
-    if (bad && bad % 20 === 0) console.log(`${label} (${bad} trames non décodées)`);
   };
+}
+
+function reportStats(stats) {
+  const line = (dir, s) =>
+    `  ${dir}  ${String(s.chunks).padStart(5)} blocs / ${String(s.bytes).padStart(8)} o` +
+    `  ->  ${String(s.trames).padStart(5)} trames, ${s.lues} lues, ${s.illisibles} illisibles` +
+    (s.erreurs ? `, ${s.erreurs} erreurs de cadrage` : '');
+  console.log('— état —');
+  console.log(line('=>', stats.out));
+  console.log(line('<=', stats.in));
 }
 
 async function main() {
@@ -49,14 +69,22 @@ async function main() {
     process.exit(1);
   }
 
-  const seen = { in: makeReader('  <='), out: makeReader('=>  ') };
+  const fresh = () => ({ chunks: 0, bytes: 0, trames: 0, lues: 0, illisibles: 0, erreurs: 0 });
+  const stats = { in: fresh(), out: fresh() };
+  const seen = { in: makeReader('  <=', stats.in), out: makeReader('=>  ', stats.out) };
   const proxy = await createProxy({
     port: a.port,
     onData: (dir, buf) => seen[dir](buf),
   });
   console.log(`proxy à l'écoute sur 127.0.0.1:${proxy.port}`);
+  const ticker = setInterval(() => reportStats(stats), 15000);
+  ticker.unref();
 
-  const src = connectAgentSource({ proxyPort: proxy.port, fakeDeviceId: a.id });
+  const src = connectAgentSource({
+    proxyPort: proxy.port,
+    fakeDeviceId: a.id,
+    excludePorts: a.exclude,
+  });
 
   let session;
   let pid = null;
@@ -65,7 +93,7 @@ async function main() {
     // Le jeu est demarre suspendu: l'agent doit etre en place AVANT le premier
     // connect, sinon la session s'etablit hors de notre proxy et il est trop
     // tard pour la rattraper.
-    pid = await frida.spawn([a.target]);
+    pid = await frida.spawn([a.target, ...(a.extra || [])]);
     session = await frida.attach(pid);
   } else {
     if (a.target) pid = Number(a.target);
