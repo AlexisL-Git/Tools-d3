@@ -108,6 +108,61 @@ chiffrement du flux reste donc ouverte et se réglera là, pas ici.
 `src/codec/envelope.js` et `src/analysis/entropy.js` avaient été écrits pour une
 voie crue fermée. Ils redeviennent la charpente du projet.
 
+## La duplication, prise sur le fait
+
+Un proxy **par client**, chacun sur son propre port (8105 pour l'un, 8106 pour
+l'autre) ; le port `newport` du script est donc paramétré par client, et le
+`8102` relevé plus haut n'était que la valeur d'une session. Un troisième
+process du launcher écoute sur 8081 et 26666 — la coordination doit passer là,
+ce n'est pas encore vérifié.
+
+`src/cli/proxy-tap.js` écoute les deux proxies simultanément, socket par socket.
+Les sockets vont par paires miroir (lecture d'un côté, écriture de l'autre), ce
+qui rend le relais lisible dans les compteurs :
+
+```
+Spoony  (maitre)   3312 o entrent du client   ->   3312 o sortent vers le serveur
+Michtou (esclave)  2198 o entrent du client   ->   2387 o sortent vers le serveur
+```
+
+**189 octets sortent de l'esclave sans jamais être entrés.** Au niveau trame :
+42 entrées, 46 sorties, soit exactement 4 trames injectées.
+
+Le flux est du **protobuf en clair**, enveloppes `Any` préfixées d'un varint de
+longueur : `type.ankama.com/{jsj,jsn,kti,kmu,jhd,hjc,jbn,jrw,iwo}`. Ce sont les
+mêmes URL de type que celles lues côté IL2CPP le 18/08. Le TLS repéré au premier
+passage appartenait à d'autres sockets du launcher, pas au tunnel de jeu.
+
+## Une hypothèse démentie par le comptage
+
+Les trames injectées semblaient porter une signature : champ `0x12` au lieu de
+`0x0a`, et une queue `10 ff ff ff ff ff ff ff ff ff 01` (varint -1). Le
+dénombrement par direction l'a écartée :
+
+```
+Michtou <- son client    42 trames   tags[ 0x12:42 ]   queue -1: 42
+Michtou -> serveur       46 trames   tags[ 0x12:46 ]   queue -1: 46
+Spoony  <- son client    63 trames   tags[ 0x12:63 ]   queue -1: 61
+Spoony  -> serveur       63 trames   tags[ 0x12:63 ]   queue -1: 61
+```
+
+`0x12` est la forme de **toute** trame client→serveur. La forme `0x0a` qu'on lui
+opposait venait du sens inverse : deux directions comparées par erreur. Les
+trames injectées sont donc **indiscernables des vraies** en structure.
+
+## Ce qui est établi, et ce qui ne l'est pas
+
+**Établi :** le proxy de l'esclave écrit vers le serveur des trames que son
+client n'a pas émises ; l'une des quatre est **strictement identique** à une
+trame émise par le client du maître — recopie brute, sans réécriture.
+
+**Non établi :** les trois autres n'ont pas d'équivalent exact chez le maître.
+Sur `jbn`, la queue varint diffère (`a6 82 a0 9e da 13` contre `a6 82 c4 aa b0 13`
+chez le maître) : même préfixe, milieu différent, ce qui a l'allure d'un
+horodatage régénéré. **Ce n'est pas décodé, seulement observé** — conclure à une
+réécriture systématique serait aller au-delà de la mesure. Il faut décoder ces
+messages avec le codec d'enveloppe avant d'affirmer quoi que ce soit.
+
 ## Prochaines étapes
 
 1. **Reproduire le préambule CONNECT** dans notre agent, et faire transiter un
