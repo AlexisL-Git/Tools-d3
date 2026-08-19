@@ -30,9 +30,15 @@ function parseConnectLine(buf) {
 }
 
 function createProxy({ port = 0, host = '127.0.0.1', onData = () => {} } = {}) {
+  let nextId = 1;
   const server = net.createServer((client) => {
     let upstream = null;
     let queue = [];
+    // Chaque connexion porte son identite et sa destination. Sans cela, un
+    // seul flux melangeait le protocole de jeu et le HTTPS vers les CDN dans
+    // le meme reassembleur, et les octets TLS y passaient pour des longueurs
+    // de trame — 110 erreurs de cadrage sur un premier essai reel.
+    const conn = { id: nextId++, host: null, port: null };
 
     client.on('data', (chunk) => {
       if (upstream === null) {
@@ -42,18 +48,20 @@ function createProxy({ port = 0, host = '127.0.0.1', onData = () => {} } = {}) {
           queue.push(chunk);
           return;
         }
+        conn.host = parsed.host;
+        conn.port = parsed.port;
         upstream = net.connect(parsed.port, parsed.host);
 
         upstream.on('connect', () => {
           for (const pending of queue) {
-            onData('out', pending);
+            onData('out', pending, conn);
             upstream.write(pending);
           }
           queue = [];
         });
 
         upstream.on('data', (data) => {
-          onData('in', data);
+          onData('in', data, conn);
           client.write(data);
         });
 
@@ -68,7 +76,7 @@ function createProxy({ port = 0, host = '127.0.0.1', onData = () => {} } = {}) {
         queue.push(chunk);
         return;
       }
-      onData('out', chunk);
+      onData('out', chunk, conn);
       upstream.write(chunk);
     });
 

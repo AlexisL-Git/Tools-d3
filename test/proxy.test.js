@@ -88,6 +88,36 @@ test('le proxy relaie dans les deux sens et observe les octets', async (t) => {
   assert.strictEqual(inn, 'R:ping', 'le sens serveur→client doit être observé');
 });
 
+// Sans identite de connexion, tous les flux tombent dans le meme
+// reassembleur: le HTTPS des CDN y passe pour du protocole de jeu et produit
+// des longueurs de trame absurdes. Constate sur un client reel.
+test('onData reçoit l identité et la destination de la connexion', async (t) => {
+  const { srv, port: upstreamPort } = await listenEcho(() => {});
+  const vues = [];
+  const proxy = await createProxy({ port: 0, onData: (dir, buf, conn) => vues.push({ dir, conn }) });
+
+  const clients = [];
+  t.after(async () => { for (const c of clients) c.destroy(); await proxy.close(); srv.close(); });
+
+  for (let i = 0; i < 2; i++) {
+    const c = net.connect(proxy.port, '127.0.0.1');
+    clients.push(c);
+    await new Promise((r) => c.once('connect', r));
+    c.write(Buffer.concat([
+      Buffer.from(`CONNECT 127.0.0.1:${upstreamPort} HTTP/1.0`),
+      Buffer.from(`m${i}`),
+    ]));
+    await new Promise((r) => c.once('data', r));
+  }
+
+  const ids = [...new Set(vues.map((v) => v.conn.id))];
+  assert.strictEqual(ids.length, 2, 'deux connexions doivent porter deux identités distinctes');
+  for (const v of vues) {
+    assert.strictEqual(v.conn.port, upstreamPort, 'la destination doit être connue');
+    assert.strictEqual(v.conn.host, '127.0.0.1');
+  }
+});
+
 test('les octets envoyés avant la connexion amont sont mis en file et non perdus', async (t) => {
   const seenByServer = [];
   const { srv, port: upstreamPort } = await listenEcho((d) => seenByServer.push(d));
