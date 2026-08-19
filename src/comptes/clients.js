@@ -11,6 +11,10 @@ const { execFile } = require('node:child_process');
 const ID_JOURNAL = /dofus\.(\d+)\.log/i;
 // Titre en jeu: "Personnage - Classe - 3.6.10.10 - Release". Avant l'entree en
 // partie, il n'y a que la version, et un launcher tiers peut le reecrire.
+// Hypothese: ni le nom du personnage ni celui de la classe ne contiennent de
+// tiret ([^-]+? les exclut). Si elle est fausse, le titre n'est simplement pas
+// reconnu: personnage/classe restent null, le compte apparait sans nom de
+// personnage, rien ne plante.
 const TITRE_EN_JEU = /^([^-]+?)\s+-\s+([^-]+?)\s+-\s+\d+\.\d+\.\d+\.\d+\s+-\s+/;
 
 function extraireIdCompte(ligne) {
@@ -49,9 +53,11 @@ const SCRIPT = [
   'ConvertTo-Json -Compress',
 ].join(' ');
 
-function listerClients() {
+// executer est injectable (par defaut le vrai execFile) pour tester le chemin
+// d'echec sans dependre d'un vrai PowerShell.
+function listerClients(executer = execFile) {
   return new Promise((resolve) => {
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', SCRIPT],
+    executer('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', SCRIPT],
       { timeout: 10000, windowsHide: true },
       (err, stdout) => resolve(err ? [] : analyserSortie(stdout)));
   });
