@@ -45,6 +45,10 @@ class EtatCompte {
     this.pid = pid;
     this.port = port;
     this.characterId = null;
+    // Un compte exclu reste observe — on continue d'apprendre son
+    // characterId et ses elements de carte — mais ne recoit plus les actions
+    // du maitre. Reactiver l'exclusion ne demande donc aucun rattrapage.
+    this.exclu = false;
     // elementId -> skillInstanceUid, propre a ce compte.
     this.skillParElement = new Map();
     this.trames = 0;
@@ -139,7 +143,7 @@ class Comptes {
   // Le maitre est le compte a l'origine de l'action; tous les autres la
   // rejouent.
   esclaves(pidMaitre) {
-    return this.tous.filter((e) => e.pid !== pidMaitre);
+    return this.tous.filter((e) => e.pid !== pidMaitre && !e.exclu);
   }
 }
 

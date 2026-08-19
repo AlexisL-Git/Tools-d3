@@ -142,6 +142,33 @@ test('huit comptes cohabitent et le maître est exclu des esclaves', () => {
   assert.ok(!esclaves.some((e) => e.pid === 1003));
 });
 
+// Un compte exclu reste en jeu et continue d'etre observe, mais ne recoit plus
+// les actions du maitre.
+test('un compte exclu ne figure plus parmi les esclaves', () => {
+  const c = new Comptes();
+  for (const pid of [1, 2, 3]) c.ajouter({ pid, port: 8300 + pid });
+
+  assert.strictEqual(c.esclaves(1).length, 2);
+
+  c.get(2).exclu = true;
+  const restants = c.esclaves(1);
+  assert.strictEqual(restants.length, 1);
+  assert.strictEqual(restants[0].pid, 3);
+});
+
+test('un compte n est pas exclu par défaut', () => {
+  const c = new Comptes();
+  assert.strictEqual(c.ajouter({ pid: 1, port: 1 }).exclu, false);
+});
+
+// Exclure le maitre n'a pas de sens: il n'est jamais dans sa propre liste.
+test('exclure le maître ne change rien', () => {
+  const c = new Comptes();
+  for (const pid of [1, 2]) c.ajouter({ pid, port: pid });
+  c.get(1).exclu = true;
+  assert.strictEqual(c.esclaves(1).length, 1);
+});
+
 test('chaque compte garde son propre identifiant', () => {
   const c = new Comptes();
   const a = c.ajouter({ pid: 1, port: 8301 });
