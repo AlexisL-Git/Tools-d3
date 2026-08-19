@@ -98,10 +98,13 @@ test('un fichier absent donne une erreur, pas une exception', () => {
   assert.match(erreur, /introuvable/);
 });
 
-test('un fichier corrompu donne une erreur, pas une exception', () => {
-  const { comptes, erreur } = lireComptes(path.join(__dirname, 'fixtures', 'zaap-settings.json') + '.absent');
+test('un fichier corrompu donne une erreur, pas une exception', (t) => {
+  const tmp = path.join(require('node:os').tmpdir(), `zaap-corrompu-${process.pid}.json`);
+  require('node:fs').writeFileSync(tmp, '{ceci n est pas du json');
+  t.after(() => require('node:fs').unlinkSync(tmp));
+  const { comptes, erreur } = lireComptes(tmp);
   assert.deepStrictEqual(comptes, []);
-  assert.notStrictEqual(erreur, null);
+  assert.match(erreur, /illisible/);
 });
 
 test('un Settings sans USER_ACCOUNTS donne une liste vide et une erreur', (t) => {
