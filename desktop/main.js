@@ -18,6 +18,8 @@ let favoris = null;
 let comptes = [];
 let erreurComptes = null;
 const prisEnCharge = new Set();
+let minuteurProcess = null;
+let minuteurVue = null;
 
 function journal(pid, texte) {
   console.log(`[${pid}] ${texte}`);
@@ -103,8 +105,8 @@ app.whenReady().then(async () => {
   superviseur = new Superviseur({ arme: false, onJournal: journal });
 
   creerFenetre();
-  setInterval(balayerProcess, PERIODE_PROCESS);
-  setInterval(envoyerEtat, PERIODE_VUE);
+  minuteurProcess = setInterval(balayerProcess, PERIODE_PROCESS);
+  minuteurVue = setInterval(envoyerEtat, PERIODE_VUE);
   await balayerProcess();
   await envoyerEtat();
 });
@@ -115,6 +117,10 @@ ipcMain.handle('basculerReplicate', async (_e, actif) => {
 });
 
 ipcMain.handle('exclureCompte', async (_e, idCompte, exclu) => {
+  // Frontiere de confiance: le renderer est sandboxe mais reste hors de
+  // notre controle. Un idCompte non entier ne doit ni chercher de pid ni
+  // atteindre l'etat du superviseur.
+  if (!Number.isInteger(idCompte)) return;
   const clients = await listerClients();
   const pid = compteVersPid(idCompte, clients);
   const etat = pid === null ? null : superviseur.comptes.get(pid);
@@ -123,11 +129,22 @@ ipcMain.handle('exclureCompte', async (_e, idCompte, exclu) => {
 });
 
 ipcMain.handle('marquerFavori', async (_e, idCompte, favori) => {
+  // Meme garde: favoris.json ne doit contenir que des identifiants
+  // numeriques, et Favoris.marquer() ne filtre qu'a la lecture, pas a
+  // l'ecriture. La validation doit donc se faire ici, cote appelant.
+  if (!Number.isInteger(idCompte)) return;
   favoris.marquer(idCompte, Boolean(favori));
   await envoyerEtat();
 });
 
 app.on('window-all-closed', async () => {
+  // On arrete d'abord de produire du travail (plus aucun tick ne peut
+  // rattacher un agent Frida ou renvoyer un etat), ensuite seulement on
+  // demonte le superviseur.
+  if (minuteurProcess !== null) clearInterval(minuteurProcess);
+  if (minuteurVue !== null) clearInterval(minuteurVue);
+  minuteurProcess = null;
+  minuteurVue = null;
   if (superviseur) await superviseur.arreter();
   app.quit();
 });
