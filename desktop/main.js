@@ -18,7 +18,13 @@ let superviseur = null;
 let favoris = null;
 let comptes = [];
 let erreurComptes = null;
+// Trois ensembles distincts, et les confondre coute cher: `vus` evite de
+// retenter sans fin une attache impossible, `prisEnCharge` ne contient que les
+// clients dont l'agent est en place — c'est lui que la vue lit — et `erreurs`
+// dit pourquoi les autres n'y sont pas.
+const vus = new Set();
 const prisEnCharge = new Set();
+const erreurs = new Map();      // pid -> message d'echec d'attache
 const messages = new Map();     // pid -> dernier refus de rejeu, pour l'affichage
 let minuteurProcess = null;
 let minuteurVue = null;
@@ -35,19 +41,27 @@ async function balayerProcess() {
   try { procs = await findDofusProcesses(); } catch (e) { return; }
 
   const vivants = new Set(procs.map((p) => p.pid));
-  for (const pid of [...prisEnCharge]) {
+  for (const pid of [...vus]) {
     if (vivants.has(pid)) continue;
+    vus.delete(pid);
     prisEnCharge.delete(pid);
+    erreurs.delete(pid);
     messages.delete(pid);
     await superviseur.retirer(pid);
   }
 
   for (const p of procs) {
-    if (prisEnCharge.has(p.pid) || prisEnCharge.size >= 8) continue;
-    prisEnCharge.add(p.pid);
+    if (vus.has(p.pid) || vus.size >= 8) continue;
+    // Vu, donc plus jamais retente: une attache qui echoue echouerait de meme
+    // a chaque tick. Ce n'est pas pour autant un client pris en charge.
+    vus.add(p.pid);
     try {
       await superviseur.ajouter({ pid: p.pid, nom: p.name });
+      prisEnCharge.add(p.pid);
     } catch (e) {
+      // Le pid reste hors de prisEnCharge: l'afficher « suit » ferait attendre
+      // un rejeu qui n'arrivera jamais. La vue le montrera en erreur.
+      erreurs.set(p.pid, `attache impossible : ${e.message}`);
       journal(p.pid, `attache impossible : ${e.message}`);
     }
   }
@@ -69,6 +83,7 @@ async function envoyerEtat() {
       maitre: superviseur.maitre,
       exclus,
       favoris: new Set(favoris.tous()),
+      erreurs,
       messages,
     }),
   });

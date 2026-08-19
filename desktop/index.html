@@ -38,6 +38,7 @@
     'hors-ligne': 'hors ligne',
     'intercepte': 'suit',
     'non-intercepte': 'non intercepté — relance ce client',
+    'erreur': 'erreur',
     'inconnu': 'compte inconnu',
   };
   let actif = false;
@@ -91,7 +92,7 @@
       const badge = document.createElement('span');
       badge.className = 'badge'
         + (l.estMaitre ? ' maitre' : '')
-        + (l.etat === 'non-intercepte' ? ' alerte' : '');
+        + (l.etat === 'non-intercepte' || l.etat === 'erreur' ? ' alerte' : '');
       badge.textContent = l.estMaitre ? 'maître' : LIBELLES[l.etat];
 
       li.append(etoile, suit, nom, perso, badge);

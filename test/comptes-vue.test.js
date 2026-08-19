@@ -21,6 +21,38 @@ function vue(extra = {}) {
   });
 }
 
+// --- etat « erreur » -------------------------------------------------------
+
+// Un client dont l'attache a echoue ne suivra rien. L'afficher comme
+// intercepte laisserait l'utilisateur attendre un rejeu qui n'arrivera pas.
+test('un client dont l attache a échoué est en erreur, pas intercepté', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set(),
+    erreurs: new Map([[100, 'attache impossible : process not found']]),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'erreur');
+  assert.strictEqual(l.message, 'attache impossible : process not found');
+});
+
+test('l erreur prime sur l interception', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set([100]),
+    erreurs: new Map([[100, 'agent en échec']]),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'erreur');
+});
+
+test('un client sans compte connu remonte aussi ses erreurs', () => {
+  const l = vue({
+    clients: [{ pid: 999, idCompte: null, personnage: null, classe: null }],
+    erreurs: new Map([[999, 'attache impossible : accès refusé']]),
+  }).pop();
+  assert.strictEqual(l.etat, 'erreur');
+  assert.strictEqual(l.message, 'attache impossible : accès refusé');
+});
+
 // --- message par ligne -----------------------------------------------------
 
 // La raison rendue par rejouer() doit pouvoir s'afficher: sinon un compte qui
@@ -37,7 +69,7 @@ test('le message de rejeu est reporté sur la ligne du compte', () => {
   assert.strictEqual(lignes.find((x) => x.id === 1).message, null);
 });
 
-test('sans message la ligne porte message null', () => {
+test('sans message ni erreur la ligne porte message null', () => {
   for (const l of vue()) assert.strictEqual(l.message, null);
 });
 
