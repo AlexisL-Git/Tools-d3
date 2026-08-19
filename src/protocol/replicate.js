@@ -71,6 +71,16 @@ const MESSAGES = {
     fields: {},
     verbatim: true,
   },
+  // Releve lors de la premiere capture courte, absent de la recolte de 20 min
+  // faute de donjon visite. Sans champ observe, donc rejouable tel quel.
+  // L'ENTREE en donjon n'a pas ete observee: selon les donjons elle passe par
+  // un PNJ (deja couvert) ou par un element interactif, auquel cas elle
+  // retomberait sur iwo et sa substitution de skillInstanceUid.
+  kjw: {
+    name: 'DungeonExitRequest',
+    fields: {},
+    verbatim: true,
+  },
   jbn: {
     name: 'HavenBagEnterRequest',
     fields: {

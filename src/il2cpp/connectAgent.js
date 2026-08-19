@@ -35,6 +35,7 @@ function connectAgentSource({
   // « The connection between DOFUS and the Ankama Launcher has been lost ».
   // On ne detourne donc que le port de jeu, annonce par --connectionPort.
   onlyPorts = [5555],
+  reportFocus = false,
 } = {}) {
   if (!Number.isInteger(proxyPort) || proxyPort <= 0 || proxyPort > 65535) {
     throw new Error('proxyPort invalide');
@@ -204,6 +205,31 @@ function connectAgentSource({
         }
       });
       report.push('cache neutralise');
+    }` : ''}
+
+    ${reportFocus ? `
+    {
+      // Le maitre est le client dont la fenetre a le focus. Plutot que de
+      // sonder le systeme depuis le superviseur, chaque agent dit lui-meme
+      // s'il est au premier plan: il est deja dans le process, il connait son
+      // pid, et le changement est signale au lieu d'etre interroge.
+      const u32 = Process.getModuleByName('user32.dll');
+      const ex = (n) => u32.findExportByName ? u32.findExportByName(n) : u32.getExportByName(n);
+      const getForeground = new NativeFunction(ex('GetForegroundWindow'), 'pointer', []);
+      const getThreadPid = new NativeFunction(ex('GetWindowThreadProcessId'), 'uint32', ['pointer', 'pointer']);
+      const slot = Memory.alloc(4);
+      let dernier = null;
+      setInterval(function () {
+        try {
+          const hwnd = getForeground();
+          if (hwnd.isNull()) return;
+          slot.writeU32(0);
+          getThreadPid(hwnd, slot);
+          const actif = slot.readU32() === Process.id;
+          if (actif !== dernier) { dernier = actif; send({ premierPlan: actif }); }
+        } catch (e) {}
+      }, 250);
+      report.push('premier plan surveille');
     }` : ''}
 
     send({ ready: report });

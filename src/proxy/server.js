@@ -47,7 +47,12 @@ function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbl
     // seul flux melangeait le protocole de jeu et le HTTPS vers les CDN dans
     // le meme reassembleur, et les octets TLS y passaient pour des longueurs
     // de trame — 110 erreurs de cadrage sur un premier essai reel.
-    const conn = { id: nextId++, host: null, port: null };
+    // `amont` est la socket vers le serveur. C'est par elle qu'une trame
+    // rejouee sera ecrite le jour venu: posseder le proxy rend l'emission
+    // triviale, la ou une injection depuis l'interieur du jeu exigeait
+    // d'appeler du code manage. Elle reste nulle tant que l'amont n'est pas
+    // etabli.
+    const conn = { id: nextId++, host: null, port: null, amont: null };
 
     client.on('data', (chunk) => {
       if (upstream === null) {
@@ -70,6 +75,7 @@ function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbl
         upstream = net.connect(parsed.port, parsed.host);
 
         upstream.on('connect', () => {
+          conn.amont = upstream;
           for (const pending of queue) {
             onData('out', pending, conn);
             upstream.write(pending);

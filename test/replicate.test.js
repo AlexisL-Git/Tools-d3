@@ -3,9 +3,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { MESSAGES, lookup, lookupByName, needsRewrite, accountFields } = require('../src/protocol/replicate');
 
-test('les huit types répliqués sont présents', () => {
-  assert.strictEqual(Object.keys(MESSAGES).length, 8);
-  for (const k of ['hjc', 'jqk', 'jrh', 'iov', 'ioy', 'kla', 'jbn', 'iwo']) {
+test('les neuf types répliqués sont présents', () => {
+  assert.strictEqual(Object.keys(MESSAGES).length, 9);
+  for (const k of ['hjc', 'jqk', 'jrh', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw']) {
     assert.notStrictEqual(lookup(k), null, `${k} manquant`);
   }
 });
