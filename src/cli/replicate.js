@@ -109,7 +109,8 @@ async function main() {
   script.message.connect((m) => {
     if (m.type === 'error') { console.error('AGENT:', m.description); return; }
     const p = m.payload || {};
-    if (p.ready) console.log(`agent en place — ${p.ready.join(' | ')}`);
+    if (p.connect) console.log(`  connect ${p.connect.padEnd(24)} ${p.detourne ? '-> DÉTOURNÉ' : '(laissé passer)'}`);
+    else if (p.ready) console.log(`agent en place — ${p.ready.join(' | ')}`);
     else if (p.hooked) console.log(`agent: ${p.hooked}`);
     else if (p.warn) console.log(`agent (avertissement): ${p.warn}`);
   });

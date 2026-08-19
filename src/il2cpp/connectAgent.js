@@ -50,6 +50,25 @@ function connectAgentSource({
     const AF_INET = 2, AF_INET6 = 23;
     const socket_send = new NativeFunction(ws2('send'), 'int', ['int', 'pointer', 'int', 'int']);
 
+    // Lecture seule, avant toute decision: sert au journal.
+    function peek(sockaddr) {
+      const family = sockaddr.readU16();
+      const port = (sockaddr.add(2).readU8() << 8) | sockaddr.add(3).readU8();
+      if (family === AF_INET) {
+        const o = [];
+        for (let i = 0; i < 4; i++) o.push(sockaddr.add(4 + i).readU8());
+        return { host: o.join('.'), port: port, family: family };
+      }
+      if (family === AF_INET6) {
+        const parts = [];
+        for (let i = 0; i < 16; i += 2) {
+          parts.push(((sockaddr.add(8 + i).readU8() << 8) | sockaddr.add(9 + i).readU8()).toString(16));
+        }
+        return { host: parts.join(':'), port: port, family: family };
+      }
+      return { host: '(famille ' + family + ')', port: port, family: family };
+    }
+
     // sockaddr_in  : famille(2) port(2, gros-boutiste) adresse(4)
     // sockaddr_in6 : famille(2) port(2) flowinfo(4) adresse(16)
     function redirect(sockaddr) {
@@ -82,10 +101,15 @@ function connectAgentSource({
       return { host: host, port: port };
     }
 
+    // Chaque connect est signale, detourne ou non. Sans cela, l'absence de
+    // trafic dans le proxy ne dit pas si le hook n'a pas vu la connexion ou
+    // si le filtre l'a laissee passer — deux causes opposees.
     Interceptor.attach(ws2('connect'), {
       onEnter: function (args) {
         this.sockfd = args[0];
+        try { this.vu = peek(args[1]); } catch (e) { this.vu = null; }
         try { this.target = redirect(args[1]); } catch (e) { this.target = null; }
+        if (this.vu) send({ connect: this.vu.host + ':' + this.vu.port, detourne: this.target !== null });
       },
       onLeave: function () {
         if (!this.target) return;
