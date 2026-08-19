@@ -85,8 +85,11 @@ async function main() {
   console.log('en attente des clients Dofus — lance-les maintenant.\n');
 
   await balayer();
-  const veille = setInterval(balayer, 500);
-  veille.unref();
+  // Surtout pas de unref() ici: une promesse jamais resolue ne retient pas la
+  // boucle d'evenements. Sans client encore attache, plus rien ne maintenait
+  // le process et il sortait aussitot. C'est ce minuteur qui le tient en vie
+  // pendant qu'on attend les clients.
+  setInterval(balayer, 500);
 
   console.log('Le client au premier plan est le maître. Ctrl+C pour arrêter.\n');
 
