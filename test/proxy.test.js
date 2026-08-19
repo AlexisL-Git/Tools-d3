@@ -18,7 +18,7 @@ function listenEcho(onReceive) {
 }
 
 test('parseConnectLine extrait hôte et port', () => {
-  const out = parseConnectLine(Buffer.from('CONNECT 10.0.0.1:5555 HTTP/1.0 '));
+  const out = parseConnectLine(Buffer.from('CONNECT 10.0.0.1:5555 HTTP/1.0'));
   assert.strictEqual(out.host, '10.0.0.1');
   assert.strictEqual(out.port, 5555);
 });
@@ -27,12 +27,43 @@ test('parseConnectLine rend null sur autre chose', () => {
   assert.strictEqual(parseConnectLine(Buffer.from([0x01, 0x02, 0x03])), null);
 });
 
+// L'agent réel écrit exactement `"CONNECT " + addr + ":" + port + " HTTP/1.0"` :
+// ni espace finale, ni CRLF. Les tests d'origine encodaient tous une espace
+// finale, ce qui rendait la suite verte alors que le proxy ne pouvait pas
+// reconnaître un seul client réel.
+test('parseConnectLine accepte la ligne sans espace ni CRLF final', () => {
+  const out = parseConnectLine(Buffer.from('CONNECT 10.0.0.1:5555 HTTP/1.0'));
+  assert.notStrictEqual(out, null, 'la ligne réellement émise doit être reconnue');
+  assert.strictEqual(out.host, '10.0.0.1');
+  assert.strictEqual(out.port, 5555);
+  assert.strictEqual(out.rest.length, 0);
+});
+
+test('parseConnectLine rend le reliquat collé à la ligne sans séparateur', () => {
+  const buf = Buffer.concat([Buffer.from('CONNECT 1.2.3.4:99 HTTP/1.0'), Buffer.from([0xaa, 0xbb])]);
+  const out = parseConnectLine(buf);
+  assert.deepStrictEqual([...out.rest], [0xaa, 0xbb]);
+});
+
+// Le jeu ouvre aussi des connexions IPv6 : l'adresse contient alors des
+// deux-points, et seul le dernier sépare l'hôte du port.
+test('parseConnectLine gère une adresse IPv6', () => {
+  const out = parseConnectLine(Buffer.from('CONNECT 2001:db8::1:5555 HTTP/1.0'));
+  assert.notStrictEqual(out, null);
+  assert.strictEqual(out.host, '2001:db8::1');
+  assert.strictEqual(out.port, 5555);
+});
+
 test('parseConnectLine rend le reliquat après la ligne CONNECT', () => {
-  const buf = Buffer.concat([Buffer.from('CONNECT 1.2.3.4:99 HTTP/1.0 '), Buffer.from([0xaa, 0xbb])]);
+  const buf = Buffer.concat([Buffer.from('CONNECT 1.2.3.4:99 HTTP/1.0'), Buffer.from([0xaa, 0xbb])]);
   assert.deepStrictEqual([...parseConnectLine(buf).rest], [0xaa, 0xbb]);
 });
 
-test('le proxy relaie dans les deux sens et observe les octets', async () => {
+// Le nettoyage passe par t.after : place apres l'assertion, il etait saute des
+// qu'une assertion echouait, laissant serveur et socket ouverts. Le runner
+// attendait alors la vidange de la boucle d'evenements — un echec se
+// manifestait par un blocage indefini au lieu d'un message.
+test('le proxy relaie dans les deux sens et observe les octets', async (t) => {
   const seenByServer = [];
   const { srv, port: upstreamPort } = await listenEcho((d) => seenByServer.push(d));
 
@@ -40,9 +71,10 @@ test('le proxy relaie dans les deux sens et observe les octets', async () => {
   const proxy = await createProxy({ port: 0, onData: (dir, buf) => observed.push([dir, buf]) });
 
   const client = net.connect(proxy.port, '127.0.0.1');
+  t.after(async () => { client.destroy(); await proxy.close(); srv.close(); });
   await new Promise((r) => client.once('connect', r));
 
-  client.write(`CONNECT 127.0.0.1:${upstreamPort} HTTP/1.0 `);
+  client.write(`CONNECT 127.0.0.1:${upstreamPort} HTTP/1.0`);
   await new Promise((r) => setTimeout(r, 50));
   client.write(Buffer.from('ping'));
 
@@ -54,30 +86,23 @@ test('le proxy relaie dans les deux sens et observe les octets', async () => {
   const inn = observed.filter(([d]) => d === 'in').map(([, b]) => b.toString()).join('');
   assert.strictEqual(out, 'ping', 'le sens client→serveur doit être observé');
   assert.strictEqual(inn, 'R:ping', 'le sens serveur→client doit être observé');
-
-  client.destroy();
-  await proxy.close();
-  srv.close();
 });
 
-test('les octets envoyés avant la connexion amont sont mis en file et non perdus', async () => {
+test('les octets envoyés avant la connexion amont sont mis en file et non perdus', async (t) => {
   const seenByServer = [];
   const { srv, port: upstreamPort } = await listenEcho((d) => seenByServer.push(d));
   const proxy = await createProxy({ port: 0, onData: () => {} });
 
   const client = net.connect(proxy.port, '127.0.0.1');
+  t.after(async () => { client.destroy(); await proxy.close(); srv.close(); });
   await new Promise((r) => client.once('connect', r));
 
   // CONNECT et charge utile dans le même write : la charge arrive avant que l'amont soit prêt
   client.write(Buffer.concat([
-    Buffer.from(`CONNECT 127.0.0.1:${upstreamPort} HTTP/1.0 `),
+    Buffer.from(`CONNECT 127.0.0.1:${upstreamPort} HTTP/1.0`),
     Buffer.from('early'),
   ]));
 
   const reply = await new Promise((r) => client.once('data', r));
   assert.strictEqual(reply.toString(), 'R:early');
-
-  client.destroy();
-  await proxy.close();
-  srv.close();
 });

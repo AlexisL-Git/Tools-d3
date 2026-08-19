@@ -1,16 +1,31 @@
 'use strict';
 const net = require('node:net');
 
-const CONNECT_RE = /^CONNECT ([0-9A-Za-z_.\-]+):(\d{1,5}) HTTP\/1\.0 /;
+// Le client injecté écrit exactement `"CONNECT " + adresse + ":" + port + " HTTP/1.0"`,
+// sans CRLF ni espace finale, et la charge utile suit immédiatement. La fin de
+// la ligne se reconnaît donc au suffixe, pas à un terminateur.
+const PREFIX = 'CONNECT ';
+const SUFFIX = ' HTTP/1.0';
 
 function parseConnectLine(buf) {
   const head = buf.subarray(0, Math.min(buf.length, 128)).toString('latin1');
-  const m = CONNECT_RE.exec(head);
-  if (m === null) return null;
+  if (!head.startsWith(PREFIX)) return null;
+  const end = head.indexOf(SUFFIX, PREFIX.length);
+  if (end < 0) return null;
+
+  const target = head.slice(PREFIX.length, end);
+  // Une adresse IPv6 contient elle-même des deux-points : seul le dernier
+  // sépare l'hôte du port.
+  const sep = target.lastIndexOf(':');
+  if (sep <= 0) return null;
+  const host = target.slice(0, sep);
+  const port = Number(target.slice(sep + 1));
+  if (!host || !Number.isInteger(port) || port <= 0 || port > 65535) return null;
+
   return {
-    host: m[1],
-    port: Number(m[2]),
-    rest: Buffer.from(buf.subarray(Buffer.byteLength(m[0], 'latin1'))),
+    host,
+    port,
+    rest: Buffer.from(buf.subarray(Buffer.byteLength(head.slice(0, end + SUFFIX.length), 'latin1'))),
   };
 }
 
