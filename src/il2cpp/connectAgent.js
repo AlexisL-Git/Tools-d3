@@ -19,8 +19,15 @@
 
 function connectAgentSource({
   proxyPort,
+  // Ces deux mecanismes viennent du produit de krm35 et n'ont qu'un objet:
+  // faire passer plusieurs clients d'un meme poste pour des machines
+  // distinctes, ce qui n'a de sens que face a un serveur monocompte. Sur un
+  // serveur multicompte, faire tourner plusieurs clients depuis une machine
+  // est le fonctionnement prevu — Zaap passe lui-meme --instanceId au jeu.
+  // Ils restent disponibles mais ne sont pas poses par defaut: on ne
+  // contourne pas une detection dont on n'a que faire.
   fakeDeviceId = null,
-  neutralizeCache = true,
+  neutralizeCache = false,
   excludePorts = [],
   // Le client ouvre bien plus que la partie: HTTPS vers les CDN, et surtout
   // 127.0.0.1:26116 vers le launcher Ankama, d'ou il tient sa session.

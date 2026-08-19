@@ -51,12 +51,20 @@ test("l'empreinte est résolue par nom, jamais par adresse en dur", () => {
   assert.doesNotMatch(src, /0x4D15DF0/i);
 });
 
-test('la neutralisation du cache est optionnelle', () => {
-  assert.match(connectAgentSource({ proxyPort: 8105 }), /CreateFileW/);
-  assert.doesNotMatch(
-    connectAgentSource({ proxyPort: 8105, neutralizeCache: false }),
-    /CreateFileW/,
-  );
+// Empreinte machine et neutralisation du cache servent a faire passer
+// plusieurs clients d'un meme poste pour des machines distinctes. Cela n'a de
+// sens que face a un serveur monocompte; sur un serveur multicompte, le
+// multi-instance est prevu par Ankama (Zaap passe --instanceId au jeu). Rien
+// de tout cela ne doit etre pose sans demande explicite.
+test('aucun contournement de détection n est posé par défaut', () => {
+  const src = connectAgentSource({ proxyPort: 8105 });
+  assert.doesNotMatch(src, /CreateFileW/, 'le cache ne doit pas être neutralisé par défaut');
+  assert.doesNotMatch(src, /get_deviceUniqueIdentifier/, "l'empreinte ne doit pas être falsifiée par défaut");
+});
+
+test('les deux mécanismes restent disponibles sur demande', () => {
+  assert.match(connectAgentSource({ proxyPort: 8105, neutralizeCache: true }), /CreateFileW/);
+  assert.match(connectAgentSource({ proxyPort: 8105, fakeDeviceId: 'x' }), /get_deviceUniqueIdentifier/);
 });
 
 test('les ports exclus sont transmis à l agent', () => {
