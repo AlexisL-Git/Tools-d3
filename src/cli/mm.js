@@ -18,8 +18,26 @@ function nomCourt(pid, clients) {
   return c ? `${c.nom || 'client'}/${pid}` : `pid ${pid}`;
 }
 
+// Les valeurs decodees sont des BigInt et des Buffer: JSON.stringify les
+// refuse ou les deforme. On les rend lisibles sans perdre l'exactitude.
+function aplatir(champs) {
+  if (!Array.isArray(champs)) return champs;
+  return champs.map((f) => ({
+    no: f.no,
+    v: typeof f.value === 'bigint' ? f.value.toString()
+      : Buffer.isBuffer(f.value) ? f.value.toString('hex')
+      : Array.isArray(f.value) ? aplatir(f.value)
+      : f.value,
+  }));
+}
+
 async function main() {
   const arme = process.argv.includes('--armer');
+  const iJournal = process.argv.indexOf('--journal');
+  // Journal de TOUTES les trames decodees, dans les deux sens et pour chaque
+  // client. Sert a retrouver par correlation le message entrant qui annonce a
+  // un client une valeur qu'il reutilise ensuite dans ses requetes.
+  const journal = iJournal >= 0 ? require('node:fs').createWriteStream(process.argv[iJournal + 1]) : null;
 
   // On n'attend pas que les clients soient la: on les attend. La connexion au
   // serveur de jeu s'ouvre des l'ecran de connexion, pas a l'entree en partie
@@ -59,6 +77,12 @@ async function main() {
     arme,
     onJournal: (pid, texte) => console.log(`[${pid}] ${texte}`),
     onTrame: ({ pid, dir, frame, brute, estMaitre }) => {
+      if (journal) {
+        journal.write(JSON.stringify({
+          t: Date.now(), pid, dir, kind: frame.kind, type: frame.type,
+          payload: aplatir(frame.payload),
+        }) + '\n');
+      }
       // Seules les requetes SORTANTES du maitre se rejouent: ce que le serveur
       // renvoie est propre a chaque client et n'a rien a faire ailleurs.
       if (dir !== 'out' || frame.kind !== 'request') return;
