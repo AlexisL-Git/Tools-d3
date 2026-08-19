@@ -255,6 +255,55 @@ rend `{1: 3, 2: 192937992, 3: -20000}` — soit exactement
 `npcActionId`, `npcMapId`, `npcId` tels que le launcher les annonce. Le test
 figure dans `test/rawProto.test.js`.
 
+## Notre chaîne fonctionne de bout en bout
+
+Le 19/08 en fin de journée, un client réel a joué à travers notre proxy :
+
+```
+=>   60 blocs /   3 627 o  ->   77 trames,  75 lues, 2 illisibles
+<=  125 blocs / 190 899 o  ->  274 trames, 272 lues, 2 illisibles
+```
+
+347 trames sur 351 décodées, sans launcher payant, sans `.proto`, sans
+Il2CppDumper. La séquence de connexion est lisible du premier message
+d'authentification jusqu'à l'entrée en jeu.
+
+**Confirmation croisée :** la requête sortante `kvw` porte `1 = 665809125670`,
+exactement la valeur de `fsor` relevée le matin même dans le canal de
+coordination de krm35, et inférée alors comme l'identifiant du personnage. Deux
+mesures indépendantes, par deux chemins différents, donnent la même valeur.
+
+### Quatre obstacles, tous de notre côté
+
+Il a fallu cinq essais. Aucun échec ne venait du jeu :
+
+1. **Binaire lancé nu** — le client exige la session que Zaap lui passe par
+   `--hash`. Résolu en abandonnant `spawn` : la connexion au serveur de jeu
+   n'est ouverte qu'à l'entrée en partie, donc s'attacher à l'écran de
+   connexion suffit.
+2. **Zaap détourné** — l'agent réécrivait aussi `127.0.0.1:26116`, coupant la
+   session. Le jeu affichait « The connection between DOFUS and the Ankama
+   Launcher has been lost ».
+3. **Proxy en IPv4 seul** — le jeu joint son serveur en AF_INET6, l'agent
+   réécrivait vers `::1`, et rien n'écoutait. Le produit de krm35 écoute sur
+   `::`, ce que le netstat montrait dès le premier relevé.
+4. **Adresse mappée mal rendue** — `::ffff:6c80:f748` transmis en groupes
+   hexadécimaux, valide mais inutilisable pour relayer.
+
+Trois de ces quatre pannes se manifestaient par un **silence**, indiscernable
+d'une absence de trafic. C'est le motif récurrent de tout le projet : la
+première correction utile a été de faire dire au proxy et à l'agent ce qu'ils
+voyaient — chaque `connect` journalisé, chaque connexion abandonnée signalée,
+des compteurs posés avant tout décodage.
+
+### Ce qui reste
+
+Un réassembleur par connexion était nécessaire : mêler le HTTPS des CDN au
+protocole de jeu produisait des longueurs de trame absurdes. Le tri se fait
+maintenant sur le port de destination.
+
+Reste à écrire : la moitié « émission ». Le socle de lecture, lui, est complet.
+
 ## Prochaines étapes
 
 1. **Reproduire le préambule CONNECT** dans notre agent, et faire transiter un
