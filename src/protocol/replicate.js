@@ -84,17 +84,18 @@ const MESSAGES = {
   jbn: {
     name: 'HavenBagEnterRequest',
     fields: {
-      // fsor vaut exactement le champ `id` que le launcher joint au message de
-      // coordination, c'est-a-dire l'identifiant du personnage emetteur.
-      fsor: { nature: 'compte', sur: 'infere', note: 'identifiant du personnage; egal au champ id du contexte' },
+      // Champ 2, mesure: la trame injectee chez l'esclave portait
+      // 677057659174 la ou le maitre valait 665809125670 — l'identifiant de
+      // personnage de chacun, celui que la requete kvw annonce a la connexion.
+      fsor: { no: 2, nature: 'compte', sur: 'mesure', note: 'identifiant du personnage; egal au champ id du contexte, et a kvw.1' },
     },
     verbatim: false,
   },
   iwo: {
     name: 'InteractiveUseRequest',
     fields: {
-      skillInstanceUid: { nature: 'compte', sur: 'mesure', note: 'differait entre maitre et esclave sur une meme action' },
-      elementId: { nature: 'monde', sur: 'mesure', note: 'identique entre maitre et esclave: le meme noeud sur la carte' },
+      skillInstanceUid: { no: 1, nature: 'compte', sur: 'mesure', note: 'differait entre maitre et esclave sur une meme action' },
+      elementId: { no: 2, nature: 'monde', sur: 'mesure', note: 'identique entre maitre et esclave: le meme noeud sur la carte' },
     },
     verbatim: false,
   },

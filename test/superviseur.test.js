@@ -70,6 +70,72 @@ test('chaque compte du périmètre est bien répertorié', () => {
   }
 });
 
+const hex = (s) => Buffer.from(s.replace(/\s+/g, ''), 'hex');
+const HJC = hex(
+  '12 2b 0a 1e 0a 13 74 79 70 65 2e 61 6e 6b 61 6d 61 2e 63 6f 6d 2f 68 6a 63' +
+  '12 07 08 03 18 82 90 90 5b 10 ff ff ff ff ff ff ff ff ff 01',
+);
+
+function fauxClient(s, pid) {
+  const ecrits = [];
+  s.clients.set(pid, { pid, amont: { write: (b) => ecrits.push(b) } });
+  return ecrits;
+}
+
+// Rien ne doit partir sur le reseau tant que le superviseur n'est pas arme.
+test('à vide, tout est calculé et rien n est envoyé', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  const ecrits = fauxClient(s, 2);
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  assert.strictEqual(rendu[0].fait, false);
+  assert.strictEqual(rendu[0].action, 'copier');
+  assert.strictEqual(ecrits.length, 0, 'aucun octet ne doit partir');
+});
+
+test('une fois armé, la trame part avec son préfixe de longueur', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  s.arme = true;
+  const ecrits = fauxClient(s, 2);
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+
+  assert.strictEqual(rendu[0].fait, true);
+  assert.strictEqual(ecrits.length, 1);
+  // Le reassembleur retire le prefixe: il doit etre remis a l'emission.
+  assert.strictEqual(ecrits[0][0], HJC.length);
+  assert.deepStrictEqual(ecrits[0].subarray(1), HJC);
+});
+
+test('la trame part vers les sept esclaves, jamais vers le maître', () => {
+  const s = superviseurAvecComptes([1, 2, 3, 4, 5, 6, 7, 8]);
+  s.arme = true;
+  const ecrits = new Map();
+  for (const pid of [1, 2, 3, 4, 5, 6, 7, 8]) ecrits.set(pid, fauxClient(s, pid));
+
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 3 });
+  assert.strictEqual(rendu.length, 7);
+  assert.strictEqual(ecrits.get(3).length, 0, 'le maître ne se rejoue pas lui-même');
+  for (const pid of [1, 2, 4, 5, 6, 7, 8]) assert.strictEqual(ecrits.get(pid).length, 1, `pid ${pid}`);
+});
+
+test('sans socket amont, rien n est émis et la raison est donnée', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  s.arme = true;
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  assert.deepStrictEqual(rendu, [{ pid: 2, fait: false, raison: 'pas de socket amont' }]);
+});
+
+// Emettre la trame du maitre telle quelle ferait agir l'esclave avec
+// l'identifiant d'un autre: mieux vaut ne rien envoyer.
+test('un message à substituer n est pas émis tant que la valeur manque', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  s.arme = true;
+  const ecrits = fauxClient(s, 2);
+  const rendu = s.rejouer({ type: 'jbn', brute: HJC, pidMaitre: 1 });
+  assert.strictEqual(rendu[0].fait, false);
+  assert.match(rendu[0].raison, /characterId/);
+  assert.strictEqual(ecrits.length, 0);
+});
+
 // La socket amont est le chemin d'emission: sans elle, rejouer est impossible.
 test('le proxy expose la socket amont une fois établie', async (t) => {
   const echo = net.createServer((sock) => sock.on('data', (d) => sock.write(d)));

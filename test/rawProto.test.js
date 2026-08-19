@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { decodeRaw, decodeFrameRaw, render } = require('../src/codec/rawProto');
+const { decodeRaw, decodeFrameRaw, encodeRaw, remplacerChamp, render } = require('../src/codec/rawProto');
 
 const hex = (s) => Buffer.from(s.replace(/\s+/g, ''), 'hex');
 
@@ -81,6 +81,56 @@ test('le décodeur retrouve les valeurs que le launcher publie', () => {
 
 test('rend null sur une trame sans enveloppe reconnaissable', () => {
   assert.strictEqual(decodeFrameRaw(hex('08 01')), null);
+});
+
+// Le rejeu reconstruit la trame au lieu de la retoucher: changer un entier
+// change sa longueur en varint, donc celle de tous les messages qui
+// l'englobent. L'aller-retour doit donc etre exact a l'octet pres.
+test('décoder puis réencoder rend les octets d origine', () => {
+  for (const [nom, trame] of [['hjc', HJC_INJECTE], ['iov', IOV]]) {
+    const refait = encodeRaw(decodeRaw(trame, 6));
+    assert.deepStrictEqual(refait, trame, `aller-retour ${nom}`);
+  }
+});
+
+test('l aller-retour préserve un varint négatif', () => {
+  const trame = hex('10 ff ff ff ff ff ff ff ff ff 01');
+  assert.deepStrictEqual(encodeRaw(decodeRaw(trame)), trame);
+});
+
+// Substitution reellement mesuree le 19/08: la trame jbn injectee chez
+// l'esclave portait 677057659174 la ou le maitre valait 665809125670 — soit
+// l'identifiant de personnage de chacun.
+test('remplacerChamp substitue l identifiant sans toucher au reste', () => {
+  const maitre = 665809125670n;
+  const esclave = 677057659174n;
+
+  const varint = (v) => {
+    const out = []; let x = v;
+    do { let b = Number(x & 0x7fn); x >>= 7n; if (x > 0n) b |= 0x80; out.push(b); } while (x > 0n);
+    return Buffer.from(out);
+  };
+  const construire = (id) => {
+    const champ = Buffer.concat([Buffer.from([0x10]), varint(id)]);     // champ 2
+    const url = Buffer.from('type.ankama.com/jbn');
+    const any = Buffer.concat([
+      Buffer.from([0x0a, url.length]), url,
+      Buffer.from([0x12, champ.length]), champ,
+    ]);
+    const boite = Buffer.concat([Buffer.from([0x0a, any.length]), any]);
+    return Buffer.concat([Buffer.from([0x12, boite.length]), boite]);
+  };
+
+  const refait = remplacerChamp(construire(maitre), 2, esclave);
+  assert.deepStrictEqual(refait, construire(esclave));
+
+  const relu = decodeFrameRaw(refait);
+  assert.strictEqual(relu.type, 'jbn');
+  assert.strictEqual(relu.payload.find((f) => f.no === 2).value, esclave);
+});
+
+test('remplacerChamp rend null si le champ visé est absent', () => {
+  assert.strictEqual(remplacerChamp(HJC_INJECTE, 9, 1n), null);
 });
 
 test('render produit un texte lisible', () => {

@@ -2,7 +2,8 @@
 const frida = require('frida');
 const { createProxy } = require('./proxy/server');
 const { FrameReassembler } = require('./codec/framing');
-const { decodeFrameRaw } = require('./codec/rawProto');
+const { decodeFrameRaw, remplacerChamp } = require('./codec/rawProto');
+const { writeVarint } = require('./codec/framing');
 const { connectAgentSource } = require('./il2cpp/connectAgent');
 const { Comptes } = require('./protocol/compte');
 const { lookup, needsRewrite } = require('./protocol/replicate');
@@ -35,10 +36,14 @@ class Client {
 }
 
 class Superviseur {
-  constructor({ onTrame = () => {}, onJournal = () => {} } = {}) {
+  // arme = false: tout est calcule et journalise, rien n'est envoye. C'est le
+  // defaut, et il doit le rester tant qu'on n'a pas decide d'ecrire pour de
+  // bon sur le reseau.
+  constructor({ onTrame = () => {}, onJournal = () => {}, arme = false } = {}) {
     this.comptes = new Comptes();
     this.clients = new Map();
     this.maitre = null;
+    this.arme = arme;
     this.onTrame = onTrame;
     this.onJournal = onJournal;
   }
@@ -122,6 +127,56 @@ class Superviseur {
       }
     }
     return plan;
+  }
+
+  // Construit, pour un esclave donne, les octets a lui envoyer — ou dit
+  // pourquoi c'est impossible. Ne touche pas au reseau.
+  preparer(typeMessage, brute, etatEsclave) {
+    const connu = lookup(typeMessage);
+    if (connu === null) return { ok: false, raison: 'type non répertorié' };
+
+    const verdict = etatEsclave.peutRejouer(typeMessage);
+    if (!verdict.possible) return { ok: false, raison: `manque ${verdict.manque.join(', ')}` };
+
+    if (!needsRewrite(typeMessage)) return { ok: true, octets: brute, action: 'copier' };
+
+    let sortie = brute;
+    for (const [nom, f] of Object.entries(connu.fields)) {
+      if (f.nature !== 'compte') continue;
+      if (f.no === undefined) return { ok: false, raison: `numéro de champ inconnu pour ${nom}` };
+      const valeur = nom === 'fsor' ? etatEsclave.characterId : null;
+      if (valeur === null) return { ok: false, raison: `valeur inconnue pour ${nom}` };
+      const refait = remplacerChamp(sortie, f.no, valeur);
+      // Une substitution qui echoue doit arreter le rejeu: emettre la trame
+      // du maitre telle quelle ferait agir l'esclave avec l'identifiant d'un
+      // autre.
+      if (refait === null) return { ok: false, raison: `substitution impossible sur ${nom}` };
+      sortie = refait;
+    }
+    return { ok: true, octets: sortie, action: 'réécrire' };
+  }
+
+  // Rejoue une action du maitre chez tous les esclaves. Rend le compte rendu
+  // de ce qui a ete fait, ou de ce qui aurait ete fait si arme vaut false.
+  rejouer({ type, brute, pidMaitre }) {
+    const rendu = [];
+    for (const etat of this.comptes.esclaves(pidMaitre)) {
+      const prep = this.preparer(type, brute, etat);
+      if (!prep.ok) {
+        rendu.push({ pid: etat.pid, fait: false, raison: prep.raison });
+        continue;
+      }
+      const client = this.clients.get(etat.pid);
+      if (!client || !client.amont) {
+        rendu.push({ pid: etat.pid, fait: false, raison: 'pas de socket amont' });
+        continue;
+      }
+      // Le reassembleur retire le prefixe de longueur: il faut le remettre.
+      const paquet = Buffer.concat([writeVarint(prep.octets.length), prep.octets]);
+      if (this.arme) client.amont.write(paquet);
+      rendu.push({ pid: etat.pid, fait: this.arme, action: prep.action, octets: paquet.length });
+    }
+    return rendu;
   }
 
   async arreter() {

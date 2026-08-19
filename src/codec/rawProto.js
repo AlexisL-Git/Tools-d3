@@ -126,4 +126,76 @@ function render(fields, indent = '') {
     .join('\n');
 }
 
-module.exports = { decodeRaw, decodeFrameRaw, render, asSigned, WIRE };
+// --- Encodage ---
+//
+// Rejouer une action sur un autre compte suppose parfois d'y remplacer un
+// champ. Une retouche octet par octet ne tient pas: changer un entier change
+// sa longueur en varint, donc celle de tous les messages qui l'englobent. Il
+// faut reconstruire la trame.
+
+function encodeVarint(v) {
+  let x = typeof v === 'bigint' ? v : BigInt(v);
+  // Un nombre negatif s'encode sur dix octets, en complement a deux sur 64
+  // bits: c'est ainsi que uid = -1 apparait dans le trafic reel.
+  if (x < 0n) x += 1n << 64n;
+  const out = [];
+  do {
+    let b = Number(x & 0x7fn);
+    x >>= 7n;
+    if (x > 0n) b |= 0x80;
+    out.push(b);
+  } while (x > 0n);
+  return Buffer.from(out);
+}
+
+function encodeRaw(fields) {
+  const morceaux = [];
+  for (const f of fields) {
+    const cle = encodeVarint((BigInt(f.no) << 3n) | BigInt(f.wire));
+    if (f.wire === WIRE.VARINT) {
+      morceaux.push(cle, encodeVarint(f.value));
+    } else if (f.wire === WIRE.LEN) {
+      let corps;
+      if (f.kind === 'message') corps = encodeRaw(f.value);
+      else if (f.kind === 'string') corps = Buffer.from(f.value, 'latin1');
+      else corps = Buffer.from(f.value);
+      morceaux.push(cle, encodeVarint(corps.length), corps);
+    } else if (f.wire === WIRE.I64) {
+      const b = Buffer.alloc(8);
+      b.writeBigUInt64LE(typeof f.value === 'bigint' ? f.value : BigInt(f.value));
+      morceaux.push(cle, b);
+    } else if (f.wire === WIRE.I32) {
+      const b = Buffer.alloc(4);
+      b.writeUInt32LE(Number(f.value));
+      morceaux.push(cle, b);
+    } else {
+      throw new Error(`type de fil ${f.wire} non encodable`);
+    }
+  }
+  return Buffer.concat(morceaux);
+}
+
+// Remplace la valeur d'un champ du contenu applicatif, en laissant intacts
+// l'enveloppe, l'URL de type et l'uid. Rend la trame reconstruite, sans
+// prefixe de longueur.
+function remplacerChamp(frameBrute, noChamp, valeur) {
+  const top = decodeRaw(frameBrute, 6);
+  if (top === null) return null;
+
+  for (const boite of top) {
+    if (boite.kind !== 'message') continue;
+    const contenu = boite.value.find((f) => f.no === 1 && f.kind === 'message');
+    if (!contenu) continue;
+    const valeurAny = contenu.value.find((f) => f.no === 2 && f.kind === 'message');
+    if (!valeurAny) return null;
+    const cible = valeurAny.value.find((f) => f.no === noChamp);
+    if (!cible) return null;
+    cible.value = typeof valeur === 'bigint' ? valeur : BigInt(valeur);
+    cible.wire = WIRE.VARINT;
+    delete cible.kind;
+    return encodeRaw(top);
+  }
+  return null;
+}
+
+module.exports = { decodeRaw, decodeFrameRaw, encodeRaw, encodeVarint, remplacerChamp, render, asSigned, WIRE };
