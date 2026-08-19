@@ -56,7 +56,9 @@
 
     document.getElementById('erreur').textContent = etat.erreurComptes || '';
 
-    const enJeu = etat.lignes.filter((l) => l.etat === 'intercepte').length;
+    // « en jeu » = derriere notre proxy, y compris un client dont le compte
+    // n'est pas dans la liste du launcher.
+    const enJeu = etat.lignes.filter((l) => l.suivi).length;
     document.getElementById('resume').textContent =
       `${enJeu} compte${enJeu > 1 ? 's' : ''} en jeu`;
 
@@ -78,7 +80,9 @@
       suit.type = 'checkbox';
       suit.checked = !l.exclu;
       suit.title = 'participe au Replicate';
-      suit.disabled = l.id === null || l.etat !== 'intercepte';
+      // C'est `suivi`, et non le libelle, qui dit si l'exclusion a un sens: un
+      // client au compte inconnu de la liste peut tres bien etre intercepte.
+      suit.disabled = l.id === null || !l.suivi;
       suit.addEventListener('change', () => window.app.exclureCompte(l.id, !suit.checked));
 
       const nom = document.createElement('span');

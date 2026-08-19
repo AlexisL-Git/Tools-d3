@@ -33,6 +33,7 @@ test('un client dont l attache a échoué est en erreur, pas intercepté', () =>
   }).find((x) => x.id === 2);
   assert.strictEqual(l.etat, 'erreur');
   assert.strictEqual(l.message, 'attache impossible : process not found');
+  assert.strictEqual(l.suivi, false);
 });
 
 test('l erreur prime sur l interception', () => {
@@ -42,15 +43,6 @@ test('l erreur prime sur l interception', () => {
     erreurs: new Map([[100, 'agent en échec']]),
   }).find((x) => x.id === 2);
   assert.strictEqual(l.etat, 'erreur');
-});
-
-test('un client sans compte connu remonte aussi ses erreurs', () => {
-  const l = vue({
-    clients: [{ pid: 999, idCompte: null, personnage: null, classe: null }],
-    erreurs: new Map([[999, 'attache impossible : accès refusé']]),
-  }).pop();
-  assert.strictEqual(l.etat, 'erreur');
-  assert.strictEqual(l.message, 'attache impossible : accès refusé');
 });
 
 // --- message par ligne -----------------------------------------------------
@@ -71,6 +63,59 @@ test('le message de rejeu est reporté sur la ligne du compte', () => {
 
 test('sans message ni erreur la ligne porte message null', () => {
   for (const l of vue()) assert.strictEqual(l.message, null);
+});
+
+// --- compte absent de la liste du launcher ---------------------------------
+
+// Cas reel: un compte ajoute dans Zaap apres le demarrage. La liste n'etant
+// lue qu'une fois, son client est attache et rejoue tout en n'ayant aucune
+// ligne — donc aucun moyen de l'exclure.
+test('un client dont le compte est absent de la liste apparaît quand même', () => {
+  const lignes = vue({
+    clients: [{ pid: 500, idCompte: 42, personnage: 'Tardif', classe: 'Eniripsa' }],
+    intercepte: new Set([500]),
+  });
+  assert.strictEqual(lignes.length, 4);
+  const l = lignes[lignes.length - 1];
+  assert.strictEqual(l.etat, 'inconnu');
+  assert.strictEqual(l.pid, 500);
+  assert.strictEqual(l.personnage, 'Tardif');
+  // L'identifiant de compte est connu: la ligne reste actionnable.
+  assert.strictEqual(l.id, 42);
+  assert.strictEqual(l.suivi, true);
+});
+
+test('un compte absent de la liste peut être exclu et mis en favori', () => {
+  const l = vue({
+    clients: [{ pid: 500, idCompte: 42, personnage: 'Tardif', classe: 'Eniripsa' }],
+    intercepte: new Set([500]),
+    exclus: new Set([42]),
+    favoris: new Set([42]),
+  }).pop();
+  assert.strictEqual(l.exclu, true);
+  assert.strictEqual(l.favori, true);
+});
+
+test('un client au compte absent de la liste remonte aussi ses erreurs', () => {
+  const l = vue({
+    clients: [{ pid: 500, idCompte: 42, personnage: null, classe: null }],
+    erreurs: new Map([[500, 'attache impossible : accès refusé']]),
+  }).pop();
+  assert.strictEqual(l.etat, 'erreur');
+  assert.strictEqual(l.message, 'attache impossible : accès refusé');
+});
+
+// Deux clients pour un meme compte: le second ne doit pas disparaitre non plus.
+test('un second client sur le même compte reste visible', () => {
+  const lignes = vue({
+    clients: [
+      { pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' },
+      { pid: 101, idCompte: 2, personnage: 'Doublon', classe: 'Cra' },
+    ],
+    intercepte: new Set([100, 101]),
+  });
+  assert.strictEqual(lignes.length, 4);
+  assert.strictEqual(lignes[lignes.length - 1].pid, 101);
 });
 
 test('un compte sans client est hors ligne', () => {
