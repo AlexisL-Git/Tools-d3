@@ -1,0 +1,164 @@
+'use strict';
+
+// Agent d'injection: amene le trafic du client jusqu'a notre proxy, et fait
+// passer plusieurs clients pour une seule machine.
+//
+// Reproduit les trois mecanismes releves sur le produit de krm35
+// (voir docs/superpowers/specs/2026-08-19-architecture-reelle-du-replicate.md),
+// avec une difference sur le troisieme.
+//
+//   1. connect() est detourne vers 127.0.0.1:<proxyPort>. Seul, cela ne peut
+//      pas fonctionner: on vient d'ecraser la destination, donc le proxy ne
+//      sait pas ou relayer. La ligne CONNECT ecrite juste apres la lui annonce.
+//   2. l'identifiant unique de machine est remplace.
+//   3. l'ouverture des fichiers de .cache est mise en echec.
+//
+// Sur le point 2, l'original code en dur GameAssembly.dll+0x4D15DF0, un RVA qui
+// se deplace a chaque patch du jeu. On resout ici la methode PAR SON NOM via
+// l'API IL2CPP, ce qui survit aux mises a jour.
+
+function connectAgentSource({
+  proxyPort,
+  fakeDeviceId = null,
+  neutralizeCache = true,
+  excludePorts = [],
+} = {}) {
+  if (!Number.isInteger(proxyPort) || proxyPort <= 0 || proxyPort > 65535) {
+    throw new Error('proxyPort invalide');
+  }
+  return `
+    const PROXY_PORT = ${proxyPort};
+    const FAKE_ID = ${JSON.stringify(fakeDeviceId)};
+    const EXCLUDE = ${JSON.stringify(excludePorts)};
+    const report = [];
+
+    let _ws2 = null;
+    function ws2(n) {
+      if (_ws2 === null) _ws2 = Process.getModuleByName('ws2_32.dll');
+      // Frida 17 a retire Module.findExportByName(module, nom) ET
+      // Module.getExportByName: tout passe par l'objet Module.
+      return _ws2.findExportByName ? _ws2.findExportByName(n) : _ws2.getExportByName(n);
+    }
+
+    const AF_INET = 2, AF_INET6 = 23;
+    const socket_send = new NativeFunction(ws2('send'), 'int', ['int', 'pointer', 'int', 'int']);
+
+    // sockaddr_in  : famille(2) port(2, gros-boutiste) adresse(4)
+    // sockaddr_in6 : famille(2) port(2) flowinfo(4) adresse(16)
+    function redirect(sockaddr) {
+      const family = sockaddr.readU16();
+      const port = (sockaddr.add(2).readU8() << 8) | sockaddr.add(3).readU8();
+      let host = null;
+
+      if (family === AF_INET) {
+        const o = [];
+        for (let i = 0; i < 4; i++) o.push(sockaddr.add(4 + i).readU8());
+        host = o.join('.');
+        sockaddr.add(4).writeByteArray([127, 0, 0, 1]);
+      } else if (family === AF_INET6) {
+        const parts = [];
+        for (let i = 0; i < 16; i += 2) {
+          parts.push(((sockaddr.add(8 + i).readU8() << 8) | sockaddr.add(9 + i).readU8()).toString(16));
+        }
+        host = parts.join(':');
+        sockaddr.add(8).writeByteArray([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]);
+      } else {
+        return null;
+      }
+
+      if (EXCLUDE.indexOf(port) >= 0) return null;
+      sockaddr.add(2).writeByteArray([(PROXY_PORT >> 8) & 0xff, PROXY_PORT & 0xff]);
+      return { host: host, port: port };
+    }
+
+    Interceptor.attach(ws2('connect'), {
+      onEnter: function (args) {
+        this.sockfd = args[0];
+        try { this.target = redirect(args[1]); } catch (e) { this.target = null; }
+      },
+      onLeave: function () {
+        if (!this.target) return;
+        // Le proxy ne recevrait qu'une connexion sans destination: on la lui
+        // annonce. Ni CRLF ni espace finale — la charge utile du jeu suit
+        // immediatement, et le proxy reconnait la fin de ligne au suffixe.
+        const line = 'CONNECT ' + this.target.host + ':' + this.target.port + ' HTTP/1.0';
+        const buf = Memory.allocUtf8String(line);
+        socket_send(this.sockfd.toInt32(), buf, line.length, 0);
+      }
+    });
+    report.push('connect -> 127.0.0.1:' + PROXY_PORT);
+
+    ${fakeDeviceId === null ? '' : `
+    {
+      // Resolution par nom plutot que par adresse: un RVA code en dur meurt au
+      // premier patch du jeu.
+      setTimeout(function () {
+        try {
+          const ga = Process.getModuleByName('GameAssembly.dll');
+          const ex = (n) => ga.findExportByName ? ga.findExportByName(n) : ga.getExportByName(n);
+          const F = (n, r, a) => new NativeFunction(ex(n), r, a);
+
+          const domain_get     = F('il2cpp_domain_get', 'pointer', []);
+          const thread_attach  = F('il2cpp_thread_attach', 'pointer', ['pointer']);
+          const domain_get_asm = F('il2cpp_domain_get_assemblies', 'pointer', ['pointer', 'pointer']);
+          const asm_get_image  = F('il2cpp_assembly_get_image', 'pointer', ['pointer']);
+          const image_get_name = F('il2cpp_image_get_name', 'pointer', ['pointer']);
+          const class_from_name= F('il2cpp_class_from_name', 'pointer', ['pointer', 'pointer', 'pointer']);
+          const class_get_mfn  = F('il2cpp_class_get_method_from_name', 'pointer', ['pointer', 'pointer', 'int']);
+          const string_new     = F('il2cpp_string_new', 'pointer', ['pointer']);
+          const S = (p) => (!p || p.isNull()) ? '' : p.readUtf8String();
+          const C = (s) => Memory.allocUtf8String(s);
+
+          const domain = domain_get();
+          thread_attach(domain);
+
+          const sz = Memory.alloc(8); sz.writeU64(0);
+          const asms = domain_get_asm(domain, sz);
+          const n = sz.readU64().toNumber();
+          let img = null;
+          for (let i = 0; i < n; i++) {
+            const im = asm_get_image(asms.add(i * Process.pointerSize).readPointer());
+            if (S(image_get_name(im)) === 'UnityEngine.CoreModule.dll') { img = im; break; }
+          }
+          if (img === null) { send({ warn: 'UnityEngine.CoreModule.dll introuvable' }); return; }
+
+          const k = class_from_name(img, C('UnityEngine'), C('SystemInfo'));
+          if (k.isNull()) { send({ warn: 'UnityEngine.SystemInfo introuvable' }); return; }
+          const mi = class_get_mfn(k, C('get_deviceUniqueIdentifier'), 0);
+          if (mi.isNull()) { send({ warn: 'get_deviceUniqueIdentifier introuvable' }); return; }
+
+          const target = mi.readPointer();   // 1er champ du MethodInfo = code natif
+          Interceptor.attach(target, {
+            onLeave: function (retval) {
+              const forged = string_new(Memory.allocAnsiString(FAKE_ID));
+              retval.replace(forged);
+            }
+          });
+          send({ hooked: 'SystemInfo.get_deviceUniqueIdentifier @ ' + target });
+        } catch (e) {
+          send({ warn: 'empreinte: ' + e.message });
+        }
+      }, 200);
+      report.push('empreinte machine remplacee');
+    }`}
+
+    ${neutralizeCache ? `
+    {
+      const k32 = Process.getModuleByName('kernel32.dll');
+      const cf = k32.findExportByName ? k32.findExportByName('CreateFileW') : k32.getExportByName('CreateFileW');
+      Interceptor.attach(cf, {
+        onEnter: function (args) {
+          try {
+            const name = args[0].readUtf16String();
+            if (name && name.indexOf('.cache') >= 0) args[0].writeUtf16String(name + 'nop');
+          } catch (e) {}
+        }
+      });
+      report.push('cache neutralise');
+    }` : ''}
+
+    send({ ready: report });
+  `;
+}
+
+module.exports = { connectAgentSource };
