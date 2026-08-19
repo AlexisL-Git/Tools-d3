@@ -81,6 +81,27 @@ des ports de complétion, donc les hooks `send`/`recv` sur `ws2_32.dll` sont
 aveugles. C'est sans effet ici — le détournement porte sur `connect`, qui est
 bien appelé, et la lecture des octets se fait dans le proxy, pas dans le jeu.
 
+## Winsock est aveugle, y compris en E/S recouvertes
+
+Les sessions précédentes avaient conclu à l'invisibilité du réseau depuis
+`ws2_32.dll` en hookant `send`/`recv`. Le soupçon restait qu'elles avaient testé
+les mauvaises fonctions : DotNetty passe par des ports de complétion, donc par
+`WSASend`/`WSARecv`, jamais essayées.
+
+Mesure faite (`src/cli/wsa-probe.js`, client vivant, cinq connexions établies,
+trafic toutes les 2 s) : **0 entrée brute** sur les deux fonctions en 20 s. Le
+compteur est posé avant tout traitement, donc il ne peut pas confondre « jamais
+appelé » avec « appelé mais mal lu » — c'est le piège qui avait fait conclure
+trop vite ailleurs.
+
+Les E/S de .NET descendent donc directement dans `ntdll`
+(`NtDeviceIoControlFile`, pilote AFD) sans passer par `ws2_32`. La conclusion
+antérieure était juste, et pour une raison plus profonde qu'annoncé.
+
+Conséquence pratique : **inutile de chercher les octets dans le jeu**. Notre
+propre proxy les recevra comme n'importe quel serveur TCP. La question du
+chiffrement du flux reste donc ouverte et se réglera là, pas ici.
+
 ## Ce que le socle existant devient
 
 `src/proxy/server.js`, `src/codec/framing.js` (réassemblage varint),
