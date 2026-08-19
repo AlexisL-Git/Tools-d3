@@ -19,12 +19,31 @@ const { shannonEntropy } = require('../analysis/entropy');
 //
 // usage: node src/cli/proxy-tap.js <pid> [secondes] [fichier.jsonl]
 
-function source() {
+function source(cap) {
   return `
+    const CAP = ${cap};
     const mod = Process.getModuleByName('ws2_32.dll');
     const get = (n) => mod.findExportByName ? mod.findExportByName(n) : mod.getExportByName(n);
 
-    // WSABUF x64: { ULONG len; <4 octets de bourrage>; CHAR* buf; }
+    // WSABUF x64: { ULONG len; <4 octets de bourrage>; CHAR* buf; }, soit 16
+    // octets par entree. WSASend en accepte un TABLEAU: la bibliotheque ws de
+    // Node met l'en-tete de trame dans le premier et la charge utile dans le
+    // second. Ne lire que le premier ne montrait que des en-tetes.
+    const WSABUF = 16;
+    function gather(bufs, count) {
+      if (!bufs || bufs.isNull() || count <= 0) return null;
+      const parts = [];
+      let total = 0;
+      for (let i = 0; i < Math.min(count, 8); i++) {
+        const e = bufs.add(i * WSABUF);
+        const len = e.readU32();
+        const p = e.add(8).readPointer();
+        if (p.isNull() || len === 0) continue;
+        parts.push({ len: len, p: p });
+        total += len;
+      }
+      return parts.length ? { parts: parts, len: total } : null;
+    }
     function firstBuf(bufs) {
       if (!bufs || bufs.isNull()) return null;
       const len = bufs.readU32();
@@ -32,7 +51,7 @@ function source() {
       return p.isNull() ? null : { len: len, p: p };
     }
     function head(p, n) {
-      try { return Array.from(new Uint8Array(p.readByteArray(Math.min(n, 96)))); }
+      try { return Array.from(new Uint8Array(p.readByteArray(Math.min(n, CAP)))); }
       catch (e) { return []; }
     }
 
@@ -41,9 +60,16 @@ function source() {
     if (sendp) {
       Interceptor.attach(sendp, {
         onEnter: function (args) {
-          const b = firstBuf(args[1]);
-          if (!b || b.len === 0) return;
-          send({ dir: 'out', sock: args[0].toString(), len: b.len, head: head(b.p, b.len) });
+          const g = gather(args[1], args[2].toInt32());
+          if (!g) return;
+          // Les tampons sont concatenes: c'est la trame telle qu'elle part sur
+          // le fil, en-tete et charge utile reunis.
+          let bytes = [];
+          for (const part of g.parts) {
+            if (bytes.length >= CAP) break;
+            bytes = bytes.concat(head(part.p, part.len));
+          }
+          send({ dir: 'out', sock: args[0].toString(), len: g.len, head: bytes.slice(0, CAP) });
         }
       });
       hooked.push('WSASend');
@@ -88,10 +114,11 @@ async function main() {
   const pid = Number(process.argv[2]);
   const seconds = Number(process.argv[3] || 30);
   const outFile = process.argv[4];
-  if (!pid) { console.error('usage: node src/cli/proxy-tap.js <pid> [secondes] [fichier.jsonl]'); process.exit(1); }
+  const cap = Number(process.argv[5] || 160);
+  if (!pid) { console.error('usage: node src/cli/proxy-tap.js <pid> [secondes] [fichier.jsonl] [octetsParTrame]'); process.exit(1); }
 
   const session = await frida.attach(pid);
-  const script = await session.createScript(source());
+  const script = await session.createScript(source(cap));
   const socks = new Map();
   const t0 = Date.now();
   const sink = outFile ? fs.createWriteStream(outFile) : null;

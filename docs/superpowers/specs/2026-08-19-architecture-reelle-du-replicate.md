@@ -188,6 +188,73 @@ premiers octets, et le décodage générique ne donne ni noms de champs ni types
 signés. La substitution est certaine ; *quels* champs sont concernés, et selon
 quelle règle, ne l'est pas.
 
+## Le canal de coordination : un WebSocket en clair
+
+Le troisième process du launcher écoute sur 8081 et diffuse vers un socket par
+client. Le contenu est du **JSON en clair**, dans des trames WebSocket
+(`81` = trame texte finale, `81 7e <16 bits>` au-delà de 125 octets).
+
+Piège rencontré : `WSASend` accepte un **tableau** de `WSABUF`, et la
+bibliothèque `ws` de Node met l'en-tête dans le premier tampon et la charge
+utile dans le second. Ne lire que le premier ne montrait que des en-têtes de
+2 à 4 octets, et donnait l'illusion d'un canal quasi muet.
+
+Trois sortes de messages :
+
+```json
+{"hb":1}                                                   // battement, toutes les 5 s
+{"type":"mouse","pid":32708,"pt":{"x":1751,"y":407},...}   // souris, avec le pid source
+{"payload":{...},"action":"replicate","type":"iov","realType":"NpcGenericActionRequest",
+ "hex":"3812360a29...","id":665809125670,"mapId":192937992,"cell":231,
+ "interactiveElements":[...]}
+```
+
+Le message de réplication porte **tout** : la trame brute (`hex`), sa version
+décodée et nommée (`payload`), le nom réel du message (`realType`), et le
+contexte de l'émetteur (`id` du personnage, `mapId`, `cell`,
+`interactiveElements`).
+
+## La table de noms existe, et elle se lit
+
+Sept correspondances relevées en une session de 45 s :
+
+| obfusqué | nom réel | champs du payload |
+|---|---|---|
+| `hjc` | `TeleportRequest` | `destinationType`, `destinationMapId` |
+| `iwo` | `InteractiveUseRequest` | `skillInstanceUid`, `elementId` |
+| `iov` | `NpcGenericActionRequest` | `npcActionId`, `npcMapId`, `npcId` |
+| `ioy` | `NpcDialogReplyRequest` | `fqmg` |
+| `jrh` | `MapInformationRequest` | `mapId` |
+| `jbn` | `HavenBagEnterRequest` | `fsor` |
+| `kjw` | `DungeonExitRequest` | — |
+
+Certains champs restent obfusqués (`fqmg`, `fsor`) : la table de krm35 est
+elle-même incomplète. Elle s'enrichit par observation, et la nôtre peut suivre
+le même chemin — écouter ce canal suffit à la recopier.
+
+## La règle de substitution, enfin lisible
+
+Les noms expliquent rétroactivement les écarts mesurés le matin même :
+
+- `hjc` (`TeleportRequest`) était **copié tel quel** — une destination de
+  téléportation est la même pour les deux comptes.
+- `iwo` (`InteractiveUseRequest`) avait son champ 1 modifié et son champ 2
+  identique : ce sont `skillInstanceUid`, propre à chaque client, et
+  `elementId`, le même nœud de ressource dans le monde.
+
+**Ce qui décrit le monde est recopié ; ce qui décrit le compte est reconstruit
+depuis l'état de l'esclave.** C'est pour cela que le message de coordination
+transporte à la fois `hex` et `payload` : le premier pour le cas trivial, le
+second pour rebâtir quand un identifiant local doit changer.
+
+## Validation de notre décodeur
+
+Le launcher publiant la trame brute **et** sa version décodée, on dispose pour
+la première fois d'échantillons étiquetés. Sur `iov`, notre `decodeFrameRaw`
+rend `{1: 3, 2: 192937992, 3: -20000}` — soit exactement
+`npcActionId`, `npcMapId`, `npcId` tels que le launcher les annonce. Le test
+figure dans `test/rawProto.test.js`.
+
 ## Prochaines étapes
 
 1. **Reproduire le préambule CONNECT** dans notre agent, et faire transiter un
