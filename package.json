@@ -8,7 +8,8 @@
     "test": "node --test",
     "sniff": "node src/cli/sniff.js",
     "dump": "node src/cli/dump.js",
-    "analyze": "node src/cli/analyze.js"
+    "analyze": "node src/cli/analyze.js",
+    "app": "electron desktop/main.js"
   },
   "engines": {
     "node": ">=18"
@@ -17,5 +18,8 @@
   "dependencies": {
     "frida": "^17.17.0",
     "protobufjs": "^8.7.2"
+  },
+  "devDependencies": {
+    "electron": "^43.4.1"
   }
 }
