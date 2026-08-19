@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Launcher multi-compte Dofus 3",
-  "main": "src/index.js",
+  "main": "desktop/main.js",
   "scripts": {
     "test": "node --test",
     "sniff": "node src/cli/sniff.js",
