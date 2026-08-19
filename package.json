@@ -9,7 +9,8 @@
     "sniff": "node src/cli/sniff.js",
     "dump": "node src/cli/dump.js",
     "analyze": "node src/cli/analyze.js",
-    "app": "electron desktop/main.js"
+    "app": "electron desktop/main.js",
+    "pack": "electron-packager . Replicate --platform=win32 --arch=x64 --out=desktop/dist --overwrite --ignore=\"^/(docs|test)\""
   },
   "engines": {
     "node": ">=18"
@@ -20,6 +21,7 @@
     "protobufjs": "^8.7.2"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "electron": "^43.4.1"
   }
 }
