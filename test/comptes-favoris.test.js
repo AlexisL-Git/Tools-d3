@@ -60,3 +60,19 @@ test('un fichier corrompu est ignoré sans exception', (t) => {
   f.charger();
   assert.deepStrictEqual(f.tous(), []);
 });
+
+test('un échec d écriture ne fait pas planter l appelant', (t) => {
+  // Le dossier parent visé est en fait un fichier: mkdirSync et
+  // writeFileSync échouent tous les deux, de façon fiable sur toutes les
+  // plateformes.
+  const fauxDossier = path.join(os.tmpdir(), `favoris-parent-${process.pid}-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(fauxDossier, 'je suis un fichier, pas un dossier');
+  t.after(() => { try { fs.unlinkSync(fauxDossier); } catch (e) {} });
+
+  const p = path.join(fauxDossier, 'favoris.json');
+  const f = new Favoris(p);
+  f.charger();
+  assert.doesNotThrow(() => f.marquer(10612457, true));
+  assert.strictEqual(f.estFavori(10612457), true);
+  assert.deepStrictEqual(f.tous(), [10612457]);
+});
