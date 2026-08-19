@@ -30,6 +30,14 @@ async function main() {
   async function balayer() {
     let procs = [];
     try { procs = await findDofusProcesses(); } catch (e) { return; }
+
+    const vivants = new Set(procs.map((p) => p.pid));
+    for (const pid of [...connus]) {
+      if (vivants.has(pid)) continue;
+      connus.delete(pid);
+      if (await superviseur.retirer(pid)) console.log(`[${pid}] client fermé, retiré`);
+    }
+
     for (const p of procs) {
       if (connus.has(p.pid)) continue;
       if (connus.size >= 8) {
@@ -59,11 +67,16 @@ async function main() {
       if (!estMaitre) return;
 
       const rendu = superviseur.rejouer({ type: frame.type, brute, pidMaitre: pid });
-      const faits = rendu.filter((r) => r.fait).length;
-      const refus = rendu.filter((r) => !r.fait);
+      if (rendu.length === 0) return;
+      const ok = rendu.filter((r) => r.ok);
+      const refus = rendu.filter((r) => !r.ok);
       console.log(
-        `${connu.name} (${frame.type}) — ${arme ? `${faits}/${rendu.length} rejoué(s)` : `${rendu.length} rejeu(x) simulé(s)`}`,
+        `${connu.name} (${frame.type}) — ${ok.length}/${rendu.length} ` +
+        (arme ? 'rejoué(s)' : 'rejouable(s), rien envoyé'),
       );
+      for (const r of ok) {
+        console.log(`    ${nomCourt(r.pid, superviseur.clients)} : ${r.action}, ${r.octets} o${r.emis ? ' — ENVOYÉ' : ''}`);
+      }
       for (const r of refus) console.log(`    ${nomCourt(r.pid, superviseur.clients)} : ${r.raison}`);
     },
   });

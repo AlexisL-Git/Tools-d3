@@ -163,20 +163,38 @@ class Superviseur {
     for (const etat of this.comptes.esclaves(pidMaitre)) {
       const prep = this.preparer(type, brute, etat);
       if (!prep.ok) {
-        rendu.push({ pid: etat.pid, fait: false, raison: prep.raison });
+        rendu.push({ pid: etat.pid, ok: false, emis: false, raison: prep.raison });
         continue;
       }
       const client = this.clients.get(etat.pid);
       if (!client || !client.amont) {
-        rendu.push({ pid: etat.pid, fait: false, raison: 'pas de socket amont' });
+        rendu.push({ pid: etat.pid, ok: false, emis: false, raison: 'pas de socket amont' });
         continue;
       }
       // Le reassembleur retire le prefixe de longueur: il faut le remettre.
       const paquet = Buffer.concat([writeVarint(prep.octets.length), prep.octets]);
       if (this.arme) client.amont.write(paquet);
-      rendu.push({ pid: etat.pid, fait: this.arme, action: prep.action, octets: paquet.length });
+      // `ok` dit que le rejeu est possible, `emis` qu'il a eu lieu. Les
+      // confondre faisait passer tout succes pour un refus en mode
+      // observation, ou rien n'est jamais emis.
+      rendu.push({ pid: etat.pid, ok: true, emis: this.arme, action: prep.action, octets: paquet.length });
     }
     return rendu;
+  }
+
+  // Un client ferme doit disparaitre de la liste: sinon il continue de figurer
+  // dans chaque plan de rejeu comme « pas de socket amont », et brouille le
+  // compte rendu avec des refus qui n'ont pas lieu d'etre.
+  async retirer(pid) {
+    const c = this.clients.get(pid);
+    if (!c) return false;
+    this.clients.delete(pid);
+    this.comptes.retirer(pid);
+    if (this.maitre === pid) this.maitre = null;
+    await (c.script ? c.script.unload().catch(() => {}) : Promise.resolve());
+    await (c.session ? c.session.detach().catch(() => {}) : Promise.resolve());
+    await (c.proxy ? c.proxy.close().catch(() => {}) : Promise.resolve());
+    return true;
   }
 
   async arreter() {

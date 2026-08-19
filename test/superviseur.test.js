@@ -87,9 +87,22 @@ test('à vide, tout est calculé et rien n est envoyé', () => {
   const s = superviseurAvecComptes([1, 2]);
   const ecrits = fauxClient(s, 2);
   const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
-  assert.strictEqual(rendu[0].fait, false);
+  // `ok` dit que le rejeu est possible, `emis` qu'il a eu lieu. Les confondre
+  // faisait passer tout succes pour un refus en mode observation.
+  assert.strictEqual(rendu[0].ok, true);
+  assert.strictEqual(rendu[0].emis, false);
   assert.strictEqual(rendu[0].action, 'copier');
   assert.strictEqual(ecrits.length, 0, 'aucun octet ne doit partir');
+});
+
+test('un client fermé disparaît des plans de rejeu', async () => {
+  const s = superviseurAvecComptes([1, 2]);
+  fauxClient(s, 2);
+  assert.strictEqual(s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 }).length, 1);
+
+  await s.retirer(2);
+  assert.strictEqual(s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 }).length, 0);
+  assert.strictEqual(s.comptes.get(2), null);
 });
 
 test('une fois armé, la trame part avec son préfixe de longueur', () => {
@@ -98,7 +111,8 @@ test('une fois armé, la trame part avec son préfixe de longueur', () => {
   const ecrits = fauxClient(s, 2);
   const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
 
-  assert.strictEqual(rendu[0].fait, true);
+  assert.strictEqual(rendu[0].ok, true);
+  assert.strictEqual(rendu[0].emis, true);
   assert.strictEqual(ecrits.length, 1);
   // Le reassembleur retire le prefixe: il doit etre remis a l'emission.
   assert.strictEqual(ecrits[0][0], HJC.length);
@@ -121,7 +135,7 @@ test('sans socket amont, rien n est émis et la raison est donnée', () => {
   const s = superviseurAvecComptes([1, 2]);
   s.arme = true;
   const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
-  assert.deepStrictEqual(rendu, [{ pid: 2, fait: false, raison: 'pas de socket amont' }]);
+  assert.deepStrictEqual(rendu, [{ pid: 2, ok: false, emis: false, raison: 'pas de socket amont' }]);
 });
 
 // Emettre la trame du maitre telle quelle ferait agir l'esclave avec
@@ -131,7 +145,8 @@ test('un message à substituer n est pas émis tant que la valeur manque', () =>
   s.arme = true;
   const ecrits = fauxClient(s, 2);
   const rendu = s.rejouer({ type: 'jbn', brute: HJC, pidMaitre: 1 });
-  assert.strictEqual(rendu[0].fait, false);
+  assert.strictEqual(rendu[0].ok, false);
+  assert.strictEqual(rendu[0].emis, false);
   assert.match(rendu[0].raison, /characterId/);
   assert.strictEqual(ecrits.length, 0);
 });

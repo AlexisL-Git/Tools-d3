@@ -85,6 +85,10 @@ class Comptes {
     return this._parPid.get(pid) || null;
   }
 
+  retirer(pid) {
+    return this._parPid.delete(pid);
+  }
+
   get tous() {
     return [...this._parPid.values()];
   }
