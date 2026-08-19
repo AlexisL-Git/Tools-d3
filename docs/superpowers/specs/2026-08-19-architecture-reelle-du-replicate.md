@@ -304,6 +304,59 @@ maintenant sur le port de destination.
 
 Reste à écrire : la moitié « émission ». Le socle de lecture, lui, est complet.
 
+## Le Replicate fonctionne — validé sur deux comptes réels
+
+Le 19/08 au soir, sur deux clients passant par notre chaîne, l'utilisateur a
+vérifié en jeu : zaap, havre-sac, PNJ, dialogue. Tout suit.
+
+```
+InteractiveUseRequest (iwo) — 1/1 rejoué(s)   réécrire, 46 o — ENVOYÉ
+HavenBagEnterRequest  (jbn) — 1/1 rejoué(s)   réécrire, 46 o — ENVOYÉ
+TeleportRequest       (hjc) — 1/1 rejoué(s)   copier,   46 o — ENVOYÉ
+MapInformationRequest (jrh) — 1/1 rejoué(s)   copier,   44 o — ENVOYÉ
+```
+
+### La correction qui a débloqué la fin
+
+Le périmètre semblait acquis sans `InteractiveUseRequest`, réputé propre à la
+récolte de métier et donc hors besoin. **C'était faux : cliquer sur un zaap est
+un `InteractiveUseRequest`** — le zaap est un élément interactif de la carte,
+comme un arbre. L'esclave n'ouvrait donc jamais l'interface, et le
+`TeleportRequest` qu'on lui envoyait arrivait sans contexte.
+
+Le premier essai armé l'a montré sans ambiguïté : la trame partait, le
+personnage ne bougeait pas.
+
+### Le numéro d'action, trouvé par corrélation
+
+La valeur émise dans un clic (`iwo.1 = 14948`) n'apparaissait, dans tout le flux
+entrant du même client, qu'à **un seul endroit** : `jss.11[].4.1`.
+
+```
+jss.11[] = { 1: actif, 4: { 1: skillInstanceUid, 2: skillId },
+             5: elementId, 6: elementTypeId }
+```
+
+C'est le tableau que le launcher de krm35 publie sous le nom
+`interactiveElements`, où `ganv` vaut `skillInstanceUid` et `ganw` `skillId` —
+même structure, retrouvée par nos propres mesures plutôt que copiée.
+
+Le serveur envoie cette table à chaque client **à son arrivée sur une carte**,
+avec des numéros différents pour un même élément. D'où une propriété
+opérationnelle à connaître : **un esclave doit être arrivé sur la carte en
+passant par le proxy pour en connaître les éléments.** Un personnage déjà
+présent avant l'interception ne sait rien ; il suffit de le faire sortir et
+revenir. En usage normal les comptes suivent le maître, donc la question ne se
+pose pas.
+
+### Ce qui a rendu l'émission facile
+
+Le document du 18/08 annonçait l'émission comme « le vrai mur » : appeler
+`WriteAndFlushAsync` depuis IL2CPP, allouer un objet protobuf, survivre au
+ramasse-miettes. Ce mur n'a jamais eu à être franchi. **En possédant le proxy,
+émettre revient à écrire des octets sur une socket.** La difficulté venait
+entièrement du choix d'attaquer par l'intérieur du jeu.
+
 ## Prochaines étapes
 
 1. **Reproduire le préambule CONNECT** dans notre agent, et faire transiter un
