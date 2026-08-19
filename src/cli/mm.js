@@ -1,7 +1,7 @@
 'use strict';
 const { Superviseur } = require('../superviseur');
 const { findDofusProcesses } = require('../injector');
-const { lookup } = require('../protocol/replicate');
+const { creerReplicateur } = require('../replicateur');
 
 // Le Replicate complet: 1 a 8 clients, le maitre est celui dont la fenetre a
 // le focus, ses actions sont rejouees chez les autres.
@@ -76,27 +76,20 @@ async function main() {
   const superviseur = new Superviseur({
     arme,
     onJournal: (pid, texte) => console.log(`[${pid}] ${texte}`),
-    onTrame: ({ pid, dir, frame, brute, estMaitre }) => {
-      if (journal) {
-        journal.write(JSON.stringify({
-          t: Date.now(), pid, dir, kind: frame.kind, type: frame.type,
-          payload: aplatir(frame.payload),
-        }) + '\n');
-      }
-      // Seules les requetes SORTANTES du maitre se rejouent: ce que le serveur
-      // renvoie est propre a chaque client et n'a rien a faire ailleurs.
-      if (dir !== 'out' || frame.kind !== 'request') return;
-      const connu = lookup(frame.type);
-      if (connu === null) return;
-      if (!estMaitre) return;
+  });
 
-      const rendu = superviseur.rejouer({ type: frame.type, brute, pidMaitre: pid });
-      if (rendu.length === 0) return;
+  // La decision de rejeu vit dans src/replicateur.js, partagee avec
+  // l'application: la recopier d'un cote a l'autre a deja produit une
+  // application qui decodait tout et ne rejouait rien. Ici, elle n'ecrit que
+  // le compte rendu console.
+  const rejouer = creerReplicateur({
+    superviseur,
+    onCompteRendu: ({ type, nom, arme: armeAlors, rendu }) => {
       const ok = rendu.filter((r) => r.ok);
       const refus = rendu.filter((r) => !r.ok);
       console.log(
-        `${connu.name} (${frame.type}) — ${ok.length}/${rendu.length} ` +
-        (arme ? 'rejoué(s)' : 'rejouable(s), rien envoyé'),
+        `${nom} (${type}) — ${ok.length}/${rendu.length} ` +
+        (armeAlors ? 'rejoué(s)' : 'rejouable(s), rien envoyé'),
       );
       for (const r of ok) {
         console.log(`    ${nomCourt(r.pid, superviseur.clients)} : ${r.action}, ${r.octets} o${r.emis ? ' — ENVOYÉ' : ''}`);
@@ -104,6 +97,19 @@ async function main() {
       for (const r of refus) console.log(`    ${nomCourt(r.pid, superviseur.clients)} : ${r.raison}`);
     },
   });
+
+  // Le journal brut est propre au CLI et precede toute decision: il doit
+  // porter TOUTES les trames, y compris celles qui ne se rejouent pas.
+  superviseur.onTrame = (trame) => {
+    if (journal) {
+      journal.write(JSON.stringify({
+        t: Date.now(), pid: trame.pid, dir: trame.dir,
+        kind: trame.frame.kind, type: trame.frame.type,
+        payload: aplatir(trame.frame.payload),
+      }) + '\n');
+    }
+    rejouer(trame);
+  };
 
   console.log(`mode ${arme ? 'ARMÉ : les actions seront dupliquées' : "observation : rien n'est envoyé"}`);
   console.log('en attente des clients Dofus — lance-les maintenant.\n');

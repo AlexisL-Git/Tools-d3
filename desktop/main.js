@@ -3,6 +3,7 @@ const path = require('node:path');
 const { app, BrowserWindow, ipcMain } = require('electron');
 
 const { Superviseur } = require('../src/superviseur');
+const { creerReplicateur } = require('../src/replicateur');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients } = require('../src/comptes/clients');
 const { construireVue } = require('../src/comptes/vue');
@@ -18,6 +19,7 @@ let favoris = null;
 let comptes = [];
 let erreurComptes = null;
 const prisEnCharge = new Set();
+const messages = new Map();     // pid -> dernier refus de rejeu, pour l'affichage
 let minuteurProcess = null;
 let minuteurVue = null;
 
@@ -36,6 +38,7 @@ async function balayerProcess() {
   for (const pid of [...prisEnCharge]) {
     if (vivants.has(pid)) continue;
     prisEnCharge.delete(pid);
+    messages.delete(pid);
     await superviseur.retirer(pid);
   }
 
@@ -66,6 +69,7 @@ async function envoyerEtat() {
       maitre: superviseur.maitre,
       exclus,
       favoris: new Set(favoris.tous()),
+      messages,
     }),
   });
 }
@@ -103,6 +107,22 @@ app.whenReady().then(async () => {
 
   favoris = new Favoris(path.join(app.getPath('userData'), 'favoris.json')).charger();
   superviseur = new Superviseur({ arme: false, onJournal: journal });
+
+  // Sans ce branchement, le superviseur decode tout et ne rejoue rien:
+  // l'interrupteur ne bascule qu'un drapeau que seul rejouer() consulte. La
+  // decision est celle du CLI, au mot pres, parce que c'est le meme module.
+  superviseur.onTrame = creerReplicateur({
+    superviseur,
+    onCompteRendu: ({ nom, rendu }) => {
+      // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
+      // compte qui ne rejoue pas ressemble a un compte inactif. On garde le
+      // dernier par client, efface des que le rejeu repasse.
+      for (const r of rendu) {
+        if (r.ok) messages.delete(r.pid);
+        else messages.set(r.pid, `${nom} : ${r.raison}`);
+      }
+    },
+  });
 
   creerFenetre();
   minuteurProcess = setInterval(balayerProcess, PERIODE_PROCESS);

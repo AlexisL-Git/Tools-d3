@@ -21,6 +21,26 @@ function vue(extra = {}) {
   });
 }
 
+// --- message par ligne -----------------------------------------------------
+
+// La raison rendue par rejouer() doit pouvoir s'afficher: sinon un compte qui
+// ne rejoue pas est indiscernable d'un compte inactif.
+test('le message de rejeu est reporté sur la ligne du compte', () => {
+  const lignes = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set([100]),
+    messages: new Map([[100, "InteractiveUseRequest : manque skillInstanceUid pour l'élément 4198401"]]),
+  });
+  const l = lignes.find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'intercepte');
+  assert.strictEqual(l.message, "InteractiveUseRequest : manque skillInstanceUid pour l'élément 4198401");
+  assert.strictEqual(lignes.find((x) => x.id === 1).message, null);
+});
+
+test('sans message la ligne porte message null', () => {
+  for (const l of vue()) assert.strictEqual(l.message, null);
+});
+
 test('un compte sans client est hors ligne', () => {
   const lignes = vue();
   assert.strictEqual(lignes.length, 3);

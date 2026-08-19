@@ -12,6 +12,11 @@
 // Un client lance avant l'application a etabli sa session hors du proxy et ne
 // peut pas etre rattrape. Le dire explicitement evite a l'utilisateur de
 // chercher pourquoi ce compte ne suit pas.
+//
+// Chaque ligne porte en plus un `message`: la derniere raison utile pour ce
+// client — typiquement le refus rendu par rejouer() (« manque
+// skillInstanceUid pour l'element N »). Sans lui, un compte qui ne rejoue pas
+// est indiscernable d'un compte inactif. null quand il n'y a rien a dire.
 
 function ligneBase(compte, favoris, exclus) {
   return {
@@ -24,14 +29,20 @@ function ligneBase(compte, favoris, exclus) {
     exclu: exclus.has(compte.id),
     etat: 'hors-ligne',
     estMaitre: false,
+    message: null,
   };
 }
 
-function construireVue({ comptes, clients, intercepte, maitre, exclus, favoris }) {
+function construireVue({
+  comptes, clients, intercepte, maitre, exclus, favoris,
+  messages = new Map(),
+}) {
   const parCompte = new Map();
   for (const c of clients) {
     if (c.idCompte !== null && !parCompte.has(c.idCompte)) parCompte.set(c.idCompte, c);
   }
+
+  const messageDe = (pid) => messages.get(pid) ?? null;
 
   const lignes = comptes.map((compte) => {
     const ligne = ligneBase(compte, favoris, exclus);
@@ -43,6 +54,7 @@ function construireVue({ comptes, clients, intercepte, maitre, exclus, favoris }
     ligne.classe = client.classe;
     ligne.etat = intercepte.has(client.pid) ? 'intercepte' : 'non-intercepte';
     ligne.estMaitre = client.pid === maitre;
+    ligne.message = messageDe(client.pid);
     return ligne;
   });
 
@@ -59,6 +71,7 @@ function construireVue({ comptes, clients, intercepte, maitre, exclus, favoris }
       exclu: false,
       etat: 'inconnu',
       estMaitre: c.pid === maitre,
+      message: messageDe(c.pid),
     });
   }
 
