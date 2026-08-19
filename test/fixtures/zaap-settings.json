@@ -1,0 +1,11 @@
+{
+  "LANGUAGE": "fr",
+  "USER_ACCOUNTS": [
+    { "id": 10612457, "login": "compte-un@example.test", "nickname": "BrokenLegs",
+      "tag": "#1234", "nicknameWithTag": "BrokenLegs#1234",
+      "avatar": "https://example.test/a.png", "isMain": true, "isGuest": false },
+    { "id": 83542107, "login": "compte-deux@example.test", "nickname": "squeezie",
+      "tag": "#5678", "nicknameWithTag": "squeezie#5678",
+      "avatar": "https://example.test/b.png", "isMain": false, "isGuest": false }
+  ]
+}
