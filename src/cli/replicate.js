@@ -82,6 +82,7 @@ async function main() {
 
   const proxy = await createProxy({
     port: a.port,
+    onProbleme: (p) => console.log(`  !! connexion ${p.id} abandonnée — ${p.raison}${p.cible ? ` (${p.cible})` : ''}`),
     onData: (dir, buf, conn) => {
       const jeu = a.only === null || a.only.length === 0
         ? conn.port === 5555

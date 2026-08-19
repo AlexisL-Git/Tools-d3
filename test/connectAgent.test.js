@@ -76,6 +76,24 @@ test('la liste des ports détournés est réglable', () => {
   assert.match(connectAgentSource({ proxyPort: 8105, onlyPorts: [] }), /const ONLY = \[\];/);
 });
 
+// Le jeu joint son serveur par une adresse IPv4 mappee en IPv6. Ecrite en
+// groupes hexadecimaux, elle parvenait au proxy sous la forme
+// "0:0:0:0:0:ffff:6c80:f748", inutilisable pour relayer.
+test('les adresses IPv4 mappées sont rendues en forme pointée', () => {
+  const src = connectAgentSource({ proxyPort: 8105 });
+  assert.match(src, /b\[10\] === 0xff && b\[11\] === 0xff/, 'le préfixe mappé doit être détecté');
+  assert.match(src, /b\[12\] \+ '\.' \+ b\[13\] \+ '\.' \+ b\[14\] \+ '\.' \+ b\[15\]/);
+
+  // On rejoue la conversion sur l'adresse réellement observée.
+  const b = [0,0,0,0,0,0,0,0,0,0,0xff,0xff,0x6c,0x80,0xf7,0x48];
+  const dotted = `${b[12]}.${b[13]}.${b[14]}.${b[15]}`;
+  assert.strictEqual(dotted, '108.128.247.72');
+  const { parseConnectLine } = require('../src/proxy/server');
+  const p = parseConnectLine(Buffer.from(`CONNECT ${dotted}:5555 HTTP/1.0`));
+  assert.strictEqual(p.host, '108.128.247.72');
+  assert.strictEqual(p.port, 5555);
+});
+
 // La reecriture de l'adresse doit se faire APRES le filtre, sinon une
 // connexion non retenue partirait quand meme vers 127.0.0.1.
 test("l'adresse n'est réécrite qu'après la décision de détourner", () => {

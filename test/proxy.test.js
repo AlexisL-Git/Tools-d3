@@ -91,6 +91,45 @@ test('le proxy relaie dans les deux sens et observe les octets', async (t) => {
 // Sans identite de connexion, tous les flux tombent dans le meme
 // reassembleur: le HTTPS des CDN y passe pour du protocole de jeu et produit
 // des longueurs de trame absurdes. Constate sur un client reel.
+// Le jeu joint son serveur en AF_INET6 et l'agent reecrit alors vers ::1. Un
+// proxy lie au seul 127.0.0.1 ne recevait jamais cette connexion-la, alors que
+// toutes les autres arrivaient — panne silencieuse constatee sur un client reel.
+test('le proxy accepte les connexions IPv6 comme IPv4', async (t) => {
+  const { srv, port: upstreamPort } = await listenEcho(() => {});
+  const proxy = await createProxy({ port: 0, onData: () => {} });
+  const clients = [];
+  t.after(async () => { for (const c of clients) c.destroy(); await proxy.close(); srv.close(); });
+
+  for (const host of ['127.0.0.1', '::1']) {
+    const c = net.connect(proxy.port, host);
+    clients.push(c);
+    await new Promise((r, rej) => { c.once('connect', r); c.once('error', rej); });
+    c.write(Buffer.concat([
+      Buffer.from(`CONNECT 127.0.0.1:${upstreamPort} HTTP/1.0`),
+      Buffer.from('salut'),
+    ]));
+    const rep = await new Promise((r) => c.once('data', r));
+    assert.strictEqual(rep.toString(), 'R:salut', `via ${host}`);
+  }
+});
+
+// Une connexion dont le preambule n'arrive jamais restait en file sans le
+// moindre message: on constatait une absence de trafic sans pouvoir la
+// distinguer d'une absence de connexion.
+test('une connexion sans ligne CONNECT est signalée, pas ignorée', async (t) => {
+  const soucis = [];
+  const proxy = await createProxy({ port: 0, onData: () => {}, onProbleme: (p) => soucis.push(p) });
+  const c = net.connect(proxy.port, '127.0.0.1');
+  t.after(async () => { c.destroy(); await proxy.close(); });
+
+  await new Promise((r) => c.once('connect', r));
+  c.write(Buffer.alloc(600, 0x41));
+  await new Promise((r) => c.once('close', r));
+
+  assert.strictEqual(soucis.length, 1);
+  assert.match(soucis[0].raison, /aucune ligne CONNECT/);
+});
+
 test('onData reçoit l identité et la destination de la connexion', async (t) => {
   const { srv, port: upstreamPort } = await listenEcho(() => {});
   const vues = [];

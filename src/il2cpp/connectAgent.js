@@ -50,6 +50,23 @@ function connectAgentSource({
     const AF_INET = 2, AF_INET6 = 23;
     const socket_send = new NativeFunction(ws2('send'), 'int', ['int', 'pointer', 'int', 'int']);
 
+    // Le jeu joint son serveur par une adresse IPv4 MAPPEE en IPv6
+    // (::ffff:a.b.c.d). Ecrite sous forme de groupes hexadecimaux, elle
+    // arrivait au proxy comme "0:0:0:0:0:ffff:6c80:f748" — techniquement
+    // valide, mais inutilisable pour relayer. On rend la forme pointee.
+    function readV6(sockaddr) {
+      const b = [];
+      for (let i = 0; i < 16; i++) b.push(sockaddr.add(8 + i).readU8());
+      let mapped = true;
+      for (let i = 0; i < 10; i++) if (b[i] !== 0) { mapped = false; break; }
+      if (mapped && b[10] === 0xff && b[11] === 0xff) {
+        return b[12] + '.' + b[13] + '.' + b[14] + '.' + b[15];
+      }
+      const parts = [];
+      for (let i = 0; i < 16; i += 2) parts.push(((b[i] << 8) | b[i + 1]).toString(16));
+      return parts.join(':');
+    }
+
     // Lecture seule, avant toute decision: sert au journal.
     function peek(sockaddr) {
       const family = sockaddr.readU16();
@@ -59,13 +76,7 @@ function connectAgentSource({
         for (let i = 0; i < 4; i++) o.push(sockaddr.add(4 + i).readU8());
         return { host: o.join('.'), port: port, family: family };
       }
-      if (family === AF_INET6) {
-        const parts = [];
-        for (let i = 0; i < 16; i += 2) {
-          parts.push(((sockaddr.add(8 + i).readU8() << 8) | sockaddr.add(9 + i).readU8()).toString(16));
-        }
-        return { host: parts.join(':'), port: port, family: family };
-      }
+      if (family === AF_INET6) return { host: readV6(sockaddr), port: port, family: family };
       return { host: '(famille ' + family + ')', port: port, family: family };
     }
 
@@ -81,11 +92,7 @@ function connectAgentSource({
         for (let i = 0; i < 4; i++) o.push(sockaddr.add(4 + i).readU8());
         host = o.join('.');
       } else if (family === AF_INET6) {
-        const parts = [];
-        for (let i = 0; i < 16; i += 2) {
-          parts.push(((sockaddr.add(8 + i).readU8() << 8) | sockaddr.add(9 + i).readU8()).toString(16));
-        }
-        host = parts.join(':');
+        host = readV6(sockaddr);
       } else {
         return null;
       }

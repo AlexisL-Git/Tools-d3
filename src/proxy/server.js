@@ -29,7 +29,16 @@ function parseConnectLine(buf) {
   };
 }
 
-function createProxy({ port = 0, host = '127.0.0.1', onData = () => {} } = {}) {
+// Le jeu joint son serveur en AF_INET6: l'agent reecrit alors la destination
+// en ::1, et un proxy lie au seul 127.0.0.1 ne recoit jamais rien. On ecoute
+// donc sur les deux piles. Le produit de krm35 fait de meme — ses ports
+// apparaissent en LocalAddress "::".
+const DEFAULT_HOST = '::';
+// Au-dela, on considere que le premier bloc ne contient pas de ligne CONNECT
+// et qu'il n'en contiendra pas: mieux vaut le signaler que d'attendre.
+const MAX_PREAMBULE = 512;
+
+function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbleme = () => {} } = {}) {
   let nextId = 1;
   const server = net.createServer((client) => {
     let upstream = null;
@@ -46,6 +55,14 @@ function createProxy({ port = 0, host = '127.0.0.1', onData = () => {} } = {}) {
         if (parsed === null) {
           // Pas encore de ligne CONNECT : on met en file jusqu'à en recevoir une.
           queue.push(chunk);
+          const enFile = queue.reduce((n, c) => n + c.length, 0);
+          if (enFile > MAX_PREAMBULE) {
+            // Sans ce signal, une connexion sans préambule reconnaissable
+            // restait en file indéfiniment, sans le moindre message : on
+            // constatait une absence de trafic sans pouvoir l'expliquer.
+            onProbleme({ id: conn.id, raison: 'aucune ligne CONNECT', octets: enFile });
+            client.destroy();
+          }
           return;
         }
         conn.host = parsed.host;
@@ -65,7 +82,10 @@ function createProxy({ port = 0, host = '127.0.0.1', onData = () => {} } = {}) {
           client.write(data);
         });
 
-        upstream.on('error', () => client.destroy());
+        upstream.on('error', (e) => {
+          onProbleme({ id: conn.id, raison: `amont injoignable: ${e.message}`, cible: `${conn.host}:${conn.port}` });
+          client.destroy();
+        });
         upstream.on('close', () => client.destroy());
 
         if (parsed.rest.length > 0) queue.push(parsed.rest);
