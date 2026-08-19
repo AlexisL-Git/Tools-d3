@@ -15,13 +15,16 @@ const { findDofusProcesses } = require('../injector');
 //   node src/cli/replicate.js attach [pid]            (trop tard pour les premiers connect)
 
 function parseArgs(argv) {
-  const out = { port: 8210, id: null, exclude: [], mode: argv[0], target: argv[1] };
+  const out = { port: 8210, id: null, exclude: [], only: null, mode: argv[0], target: argv[1] };
   for (let i = 1; i < argv.length; i++) {
     if (argv[i] === '--port') out.port = Number(argv[++i]);
     else if (argv[i] === '--id') out.id = argv[++i];
     // Le client dialogue aussi avec le launcher Ankama en local. Detourner ces
     // connexions-la coupe la session et le jeu affiche « connection lost ».
     else if (argv[i] === '--exclude') out.exclude = argv[++i].split(',').map(Number);
+    // --all detourne tout sauf les ports exclus, au lieu du seul port de jeu.
+    else if (argv[i] === '--all') out.only = [];
+    else if (argv[i] === '--only') out.only = argv[++i].split(',').map(Number);
     else if (argv[i] === '--arg') (out.extra = out.extra || []).push(argv[++i]);
   }
   if (out.target === '--port' || out.target === '--id') out.target = null;
@@ -84,6 +87,7 @@ async function main() {
     proxyPort: proxy.port,
     fakeDeviceId: a.id,
     excludePorts: a.exclude,
+    ...(a.only === null ? {} : { onlyPorts: a.only }),
   });
 
   let session;
