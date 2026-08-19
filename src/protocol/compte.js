@@ -26,6 +26,20 @@ const { needsRewrite, accountFields } = require('./replicate');
 
 const KVW_CHARACTER_ID = { type: 'kvw', champ: 1 };
 
+// Le serveur annonce a chaque client, a l'arrivee sur une carte, la liste des
+// elements interactifs AVEC le numero d'action propre a ce client. Mesure le
+// 19/08 par correlation: la valeur emise dans un clic (iwo.1) n'apparaissait
+// dans tout le flux entrant qu'a un seul endroit, jss.11[].4.1.
+//
+//   jss.11[] = { 1: actif, 4: { 1: skillInstanceUid, 2: skillId },
+//                5: elementId, 6: elementTypeId }
+//
+// C'est le tableau que le launcher de krm35 publie sous le nom
+// interactiveElements, ou `ganv` vaut skillInstanceUid et `ganw` skillId.
+const JSS_ELEMENTS = { type: 'jss', liste: 11, skills: 4, uid: 1, elementId: 5 };
+
+const champ = (champs, no) => (champs || []).find((f) => f.no === no) || null;
+
 class EtatCompte {
   constructor({ pid, port = null } = {}) {
     this.pid = pid;
@@ -44,24 +58,53 @@ class EtatCompte {
   observer(frame) {
     if (frame === null) return;
     this.trames++;
-    if (frame.kind !== 'request' || frame.type !== KVW_CHARACTER_ID.type) return;
-    const champ = (frame.payload || []).find((f) => f.no === KVW_CHARACTER_ID.champ);
-    if (champ && typeof champ.value === 'bigint') this.characterId = champ.value;
+
+    if (frame.type === KVW_CHARACTER_ID.type) {
+      const c = champ(frame.payload, KVW_CHARACTER_ID.champ);
+      if (c && typeof c.value === 'bigint') this.characterId = c.value;
+      return;
+    }
+
+    if (frame.type === JSS_ELEMENTS.type) this._apprendreElements(frame.payload);
+  }
+
+  _apprendreElements(payload) {
+    for (const entree of payload || []) {
+      if (entree.no !== JSS_ELEMENTS.liste || entree.kind !== 'message') continue;
+      const id = champ(entree.value, JSS_ELEMENTS.elementId);
+      const skills = champ(entree.value, JSS_ELEMENTS.skills);
+      if (!id || !skills || skills.kind !== 'message') continue;
+      const uid = champ(skills.value, JSS_ELEMENTS.uid);
+      if (uid && typeof uid.value === 'bigint') this.apprendreSkill(id.value, uid.value);
+    }
   }
 
   apprendreSkill(elementId, skillInstanceUid) {
     this.skillParElement.set(String(elementId), skillInstanceUid);
   }
 
+  skillPour(elementId) {
+    const v = this.skillParElement.get(String(elementId));
+    return v === undefined ? null : v;
+  }
+
   // Ce qu'il faudrait substituer pour rejouer ce message chez ce compte, et ce
   // qui manque encore pour le faire. Renvoyer explicitement les manques evite
   // d'emettre une trame a moitie traduite.
-  peutRejouer(typeMessage) {
+  // `contexte` porte ce que le message du maitre designe: pour un clic sur un
+  // element interactif, l'elementId — le meme pour tous les joueurs — a partir
+  // duquel chaque compte retrouve SON propre numero d'action.
+  peutRejouer(typeMessage, contexte = {}) {
     if (!needsRewrite(typeMessage)) return { possible: true, manque: [] };
     const manque = [];
-    for (const champ of accountFields(typeMessage)) {
-      if (champ === 'fsor' && this.characterId === null) manque.push('characterId');
-      if (champ === 'skillInstanceUid') manque.push('skillInstanceUid');
+    for (const nom of accountFields(typeMessage)) {
+      if (nom === 'fsor' && this.characterId === null) manque.push('characterId');
+      if (nom === 'skillInstanceUid') {
+        if (contexte.elementId === undefined) manque.push('elementId du maître');
+        else if (this.skillPour(contexte.elementId) === null) {
+          manque.push(`skillInstanceUid pour l'élément ${contexte.elementId}`);
+        }
+      }
     }
     return { possible: manque.length === 0, manque };
   }

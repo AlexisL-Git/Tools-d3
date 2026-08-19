@@ -60,9 +60,75 @@ test('le rejeu annonce ce qui lui manque', () => {
   e.observer(decodeFrameRaw(trameKvw(7n)));
   assert.deepStrictEqual(e.peutRejouer('jbn'), { possible: true, manque: [] });
 
-  // skillInstanceUid n'est pas encore apprenable: le message entrant qui le
-  // porte n'a pas ete identifie.
-  assert.deepStrictEqual(e.peutRejouer('iwo'), { possible: false, manque: ['skillInstanceUid'] });
+  // Sans savoir quel element le maitre a designe, on ne peut pas chercher le
+  // numero correspondant chez l'esclave.
+  assert.deepStrictEqual(e.peutRejouer('iwo'), { possible: false, manque: ['elementId du maître'] });
+});
+
+// Trame jss reelle, relevee le 19/08: le serveur annonce a l'arrivee sur une
+// carte la liste des elements interactifs avec, pour chacun, le numero
+// d'action PROPRE A CE CLIENT. Le zaap de la carte y figure en
+// { 4:{1:14948, 2:114}, 5:540322, 6:16 }.
+function trameJss(elements) {
+  const varint = (v) => {
+    const out = []; let x = BigInt(v);
+    do { let b = Number(x & 0x7fn); x >>= 7n; if (x > 0n) b |= 0x80; out.push(b); } while (x > 0n);
+    return Buffer.from(out);
+  };
+  const bloc = (no, corps) => Buffer.concat([Buffer.from([(no << 3) | 2, corps.length]), corps]);
+  const vchamp = (no, v) => Buffer.concat([Buffer.from([(no << 3) | 0]), varint(v)]);
+
+  const entrees = elements.map(({ uid, skillId, elementId }) => bloc(11, Buffer.concat([
+    vchamp(1, 1),
+    bloc(4, Buffer.concat([vchamp(1, uid), vchamp(2, skillId)])),
+    vchamp(5, elementId),
+    vchamp(6, 16),
+  ])));
+
+  const url = Buffer.from('type.ankama.com/jss');
+  const corps = Buffer.concat(entrees);
+  const any = Buffer.concat([Buffer.from([0x0a, url.length]), url, Buffer.from([0x12, corps.length]), corps]);
+  const boite = Buffer.concat([Buffer.from([0x0a, any.length]), any]);
+  return Buffer.concat([Buffer.from([0x0a, boite.length]), boite]);   // event = 1
+}
+
+test('le compte apprend son numéro d action pour chaque élément', () => {
+  const e = new EtatCompte({ pid: 1 });
+  assert.strictEqual(e.skillPour(540322n), null);
+
+  e.observer(decodeFrameRaw(trameJss([
+    { uid: 30734, skillId: 153, elementId: 523669 },
+    { uid: 14948, skillId: 114, elementId: 540322 },
+  ])));
+
+  assert.strictEqual(e.skillPour(540322n), 14948n, 'le zaap');
+  assert.strictEqual(e.skillPour(523669n), 30734n);
+  assert.strictEqual(e.skillPour(999999n), null);
+});
+
+// Deux comptes sur la meme carte recoivent des numeros differents pour le
+// meme element: c'est toute la raison d'etre de cette table.
+test('deux comptes ont des numéros différents pour le même élément', () => {
+  const a = new EtatCompte({ pid: 1 });
+  const b = new EtatCompte({ pid: 2 });
+  a.observer(decodeFrameRaw(trameJss([{ uid: 14948, skillId: 114, elementId: 540322 }])));
+  b.observer(decodeFrameRaw(trameJss([{ uid: 20777, skillId: 114, elementId: 540322 }])));
+  assert.strictEqual(a.skillPour(540322n), 14948n);
+  assert.strictEqual(b.skillPour(540322n), 20777n);
+});
+
+test('le clic est rejouable une fois l élément connu', () => {
+  const e = new EtatCompte({ pid: 1 });
+  assert.deepStrictEqual(
+    e.peutRejouer('iwo', { elementId: 540322n }),
+    { possible: false, manque: ["skillInstanceUid pour l'élément 540322"] },
+  );
+
+  e.observer(decodeFrameRaw(trameJss([{ uid: 14948, skillId: 114, elementId: 540322 }])));
+  assert.deepStrictEqual(e.peutRejouer('iwo', { elementId: 540322n }), { possible: true, manque: [] });
+
+  // Un element jamais annonce reste refuse: mieux vaut ne rien envoyer.
+  assert.strictEqual(e.peutRejouer('iwo', { elementId: 1n }).possible, false);
 });
 
 test('huit comptes cohabitent et le maître est exclu des esclaves', () => {

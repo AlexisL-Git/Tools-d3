@@ -54,11 +54,14 @@ test('un type non répertorié est ignoré, pas rejoué au hasard', () => {
   ]);
 });
 
-test('la récolte reste hors de portée tant que skillInstanceUid manque', () => {
+// Cliquer un zaap, un arbre ou une porte de donjon passe par le meme message.
+// Sans connaitre l'element designe par le maitre, on ne peut pas chercher le
+// numero correspondant chez l'esclave — et on s'abstient.
+test('un clic sans élément identifié n est pas rejoué', () => {
   const s = superviseurAvecComptes([1, 2]);
   s.comptes.get(2).characterId = 1n;
   assert.deepStrictEqual(s.planRejeu('iwo', 1), [
-    { pid: 2, action: 'ignorer', raison: 'manque skillInstanceUid' },
+    { pid: 2, action: 'ignorer', raison: 'manque elementId du maître' },
   ]);
 });
 
@@ -149,6 +152,58 @@ test('un message à substituer n est pas émis tant que la valeur manque', () =>
   assert.strictEqual(rendu[0].emis, false);
   assert.match(rendu[0].raison, /characterId/);
   assert.strictEqual(ecrits.length, 0);
+});
+
+// Le coeur du projet: le maitre clique sur un zaap avec SON numero d'action,
+// l'esclave doit envoyer le SIEN pour le meme element. Valeurs relevees le
+// 19/08 — element 540322, numero 14948 chez le client mesure.
+test('le clic du maître est rejoué avec le numéro propre à l esclave', () => {
+  const { decodeFrameRaw } = require('../src/codec/rawProto');
+  const { EtatCompte } = require('../src/protocol/compte');
+
+  const varint = (v) => {
+    const out = []; let x = BigInt(v);
+    do { let b = Number(x & 0x7fn); x >>= 7n; if (x > 0n) b |= 0x80; out.push(b); } while (x > 0n);
+    return Buffer.from(out);
+  };
+  const bloc = (no, corps) => Buffer.concat([Buffer.from([(no << 3) | 2, corps.length]), corps]);
+  const vchamp = (no, v) => Buffer.concat([Buffer.from([(no << 3) | 0]), varint(v)]);
+  const enveloppe = (no, type, corps) => {
+    const url = Buffer.from(`type.ankama.com/${type}`);
+    const any = Buffer.concat([Buffer.from([0x0a, url.length]), url, bloc(2, corps)]);
+    return Buffer.concat([Buffer.from([(no << 3) | 2, any.length + 2, 0x0a, any.length]), any]);
+  };
+
+  const clicMaitre = enveloppe(2, 'iwo', Buffer.concat([vchamp(1, 14948), vchamp(2, 540322)]));
+  const jssEsclave = enveloppe(1, 'jss', bloc(11, Buffer.concat([
+    vchamp(1, 1),
+    bloc(4, Buffer.concat([vchamp(1, 20777), vchamp(2, 114)])),
+    vchamp(5, 540322),
+    vchamp(6, 16),
+  ])));
+
+  const s = new Superviseur({ arme: true });
+  s.comptes.ajouter({ pid: 1, port: 1 });
+  const esclave = s.comptes.ajouter({ pid: 2, port: 2 });
+  const ecrits = fauxClient(s, 2);
+
+  // Avant d'avoir recu sa carte, l'esclave ne sait rien et s'abstient.
+  assert.strictEqual(s.rejouer({ type: 'iwo', brute: clicMaitre, pidMaitre: 1 })[0].ok, false);
+  assert.strictEqual(ecrits.length, 0);
+
+  esclave.observer(decodeFrameRaw(jssEsclave));
+  assert.strictEqual(esclave.skillPour(540322n), 20777n);
+
+  const rendu = s.rejouer({ type: 'iwo', brute: clicMaitre, pidMaitre: 1 });
+  assert.strictEqual(rendu[0].ok, true);
+  assert.strictEqual(rendu[0].action, 'réécrire');
+  assert.strictEqual(ecrits.length, 1);
+
+  const envoye = decodeFrameRaw(ecrits[0].subarray(1));   // sans le préfixe de longueur
+  assert.strictEqual(envoye.type, 'iwo');
+  const parNo = Object.fromEntries(envoye.payload.map((f) => [f.no, f.value]));
+  assert.strictEqual(parNo[1], 20777n, "le numéro doit être celui de l'esclave, pas du maître");
+  assert.strictEqual(parNo[2], 540322n, "l'élément du monde doit être inchangé");
 });
 
 // La socket amont est le chemin d'emission: sans elle, rejouer est impossible.

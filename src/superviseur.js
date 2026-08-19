@@ -135,7 +135,19 @@ class Superviseur {
     const connu = lookup(typeMessage);
     if (connu === null) return { ok: false, raison: 'type non répertorié' };
 
-    const verdict = etatEsclave.peutRejouer(typeMessage);
+    // Le contexte vient du message du maitre: l'element du monde qu'il
+    // designe, a partir duquel chaque esclave retrouve son propre numero.
+    const contexte = {};
+    if (needsRewrite(typeMessage)) {
+      const decodee = decodeFrameRaw(brute);
+      const elem = connu.fields.elementId;
+      if (elem && decodee) {
+        const c = (decodee.payload || []).find((f) => f.no === elem.no);
+        if (c) contexte.elementId = c.value;
+      }
+    }
+
+    const verdict = etatEsclave.peutRejouer(typeMessage, contexte);
     if (!verdict.possible) return { ok: false, raison: `manque ${verdict.manque.join(', ')}` };
 
     if (!needsRewrite(typeMessage)) return { ok: true, octets: brute, action: 'copier' };
@@ -144,7 +156,9 @@ class Superviseur {
     for (const [nom, f] of Object.entries(connu.fields)) {
       if (f.nature !== 'compte') continue;
       if (f.no === undefined) return { ok: false, raison: `numéro de champ inconnu pour ${nom}` };
-      const valeur = nom === 'fsor' ? etatEsclave.characterId : null;
+      const valeur = nom === 'fsor' ? etatEsclave.characterId
+        : nom === 'skillInstanceUid' ? etatEsclave.skillPour(contexte.elementId)
+        : null;
       if (valeur === null) return { ok: false, raison: `valeur inconnue pour ${nom}` };
       const refait = remplacerChamp(sortie, f.no, valeur);
       // Une substitution qui echoue doit arreter le rejeu: emettre la trame
