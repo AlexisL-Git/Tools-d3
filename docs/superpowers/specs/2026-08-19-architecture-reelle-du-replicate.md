@@ -150,18 +150,43 @@ Spoony  -> serveur       63 trames   tags[ 0x12:63 ]   queue -1: 61
 opposait venait du sens inverse : deux directions comparées par erreur. Les
 trames injectées sont donc **indiscernables des vraies** en structure.
 
-## Ce qui est établi, et ce qui ne l'est pas
+## L'enveloppe confirme le codec écrit en août
 
-**Établi :** le proxy de l'esclave écrit vers le serveur des trames que son
-client n'a pas émises ; l'une des quatre est **strictement identique** à une
-trame émise par le client du maître — recopie brute, sans réécriture.
+Décodées sans schéma — la structure protobuf est auto-descriptive — les trames
+donnent exactement le modèle de `src/codec/envelope.js` :
 
-**Non établi :** les trois autres n'ont pas d'équivalent exact chez le maître.
-Sur `jbn`, la queue varint diffère (`a6 82 a0 9e da 13` contre `a6 82 c4 aa b0 13`
-chez le maître) : même préfixe, milieu différent, ce qui a l'allure d'un
-horodatage régénéré. **Ce n'est pas décodé, seulement observé** — conclure à une
-réécriture systématique serait aller au-delà de la mesure. Il faut décoder ces
-messages avec le codec d'enveloppe avant d'affirmer quoi que ce soit.
+```
+Message { request = 2 { content = 1 : Any{type_url, value};  uid = 2 : int64 } }
+```
+
+`0x0a` = `event` (serveur→client), `0x12` = `request` (client→serveur), et la
+queue `10 ff…ff 01` est simplement `uid = -1`. Le travail d'août n'est pas à
+refaire.
+
+## Le proxy substitue des identifiants — ce n'est pas une recopie
+
+Comparaison des quatre trames injectées avec ce que le client du maître a émis
+dans la même fenêtre :
+
+| message | maître | esclave (injecté) | |
+|---|---|---|---|
+| `hjc` | `{1: 3, 3: 191105026}` | `{1: 3, 3: 191105026}` | recopié tel quel |
+| `iwo` | `{1: 1062492, 2: 537242}` | `{1: 1062509, 2: 537242}` | champ 1 modifié |
+| `jrw` | `{1: 191105026, …}` | `{1: 162791424, …}` | champ 1 substitué |
+
+L'indice le plus parlant : sur le maître, `jrw.1` vaut `191105026`, **la même
+valeur que `hjc.3`** — un identifiant partagé entre deux messages. Chez
+l'esclave, `jrw.1` devient `162791424` tandis que `hjc.3` reste inchangé.
+
+Le proxy tient donc une **correspondance d'identifiants entre comptes**, apprise
+du trafic propre de chaque client, et traduit certains champs au passage. C'est
+la partie du produit qui n'est pas dans l'agent, et c'est le vrai travail
+restant.
+
+**Limites de cette mesure :** les trames ne sont capturées que sur leurs 96
+premiers octets, et le décodage générique ne donne ni noms de champs ni types
+signés. La substitution est certaine ; *quels* champs sont concernés, et selon
+quelle règle, ne l'est pas.
 
 ## Prochaines étapes
 
