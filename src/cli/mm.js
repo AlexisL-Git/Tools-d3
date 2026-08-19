@@ -21,14 +21,30 @@ function nomCourt(pid, clients) {
 async function main() {
   const arme = process.argv.includes('--armer');
 
-  const procs = await findDofusProcesses();
-  if (procs.length === 0) {
-    console.error('Aucun client Dofus lancé.');
-    process.exit(1);
-  }
-  if (procs.length > 8) {
-    console.error(`${procs.length} clients trouvés — le maximum prévu est 8.`);
-    process.exit(1);
+  // On n'attend pas que les clients soient la: on les attend. La connexion au
+  // serveur de jeu s'ouvre des l'ecran de connexion, pas a l'entree en partie
+  // — attacher un client deja lance arrive donc systematiquement trop tard.
+  // C'est aussi ce qu'il faut pour huit comptes lances les uns apres les
+  // autres.
+  const connus = new Set();
+  async function balayer() {
+    let procs = [];
+    try { procs = await findDofusProcesses(); } catch (e) { return; }
+    for (const p of procs) {
+      if (connus.has(p.pid)) continue;
+      if (connus.size >= 8) {
+        console.log(`[${p.pid}] ignoré — maximum de 8 clients atteint`);
+        connus.add(p.pid);
+        continue;
+      }
+      connus.add(p.pid);
+      try {
+        await superviseur.ajouter({ pid: p.pid, nom: p.name });
+        console.log(`[${p.pid}] client ${connus.size} pris en charge`);
+      } catch (e) {
+        console.log(`[${p.pid}] attache impossible : ${e.message}`);
+      }
+    }
   }
 
   const superviseur = new Superviseur({
@@ -52,12 +68,14 @@ async function main() {
     },
   });
 
-  console.log(`${procs.length} client(s) — mode ${arme ? 'ARMÉ : les actions seront dupliquées' : "observation : rien n'est envoyé"}\n`);
-  for (const p of procs) {
-    await superviseur.ajouter({ pid: p.pid, nom: p.name });
-  }
+  console.log(`mode ${arme ? 'ARMÉ : les actions seront dupliquées' : "observation : rien n'est envoyé"}`);
+  console.log('en attente des clients Dofus — lance-les maintenant.\n');
 
-  console.log('\nLe client au premier plan est le maître. Ctrl+C pour arrêter.\n');
+  await balayer();
+  const veille = setInterval(balayer, 500);
+  veille.unref();
+
+  console.log('Le client au premier plan est le maître. Ctrl+C pour arrêter.\n');
 
   let arret = false;
   process.on('SIGINT', async () => {
