@@ -17,16 +17,23 @@ un client précis. Les appelants composent les deux fabriques.
 
 ## Contraintes globales
 
-- Les deux messages, mesurés le 20/08 sur 45 passes de tour :
-  - entrant `jxz { 2: N }` — début du tour N
-  - sortant `jti { 1: 1, 2: 31 }` — passer le tour
-- **Le serveur n'annonce que notre propre tour** : recevoir `jxz` suffit, il n'y
-  a aucun identifiant de personnage à vérifier.
-- **La requête est constante** : `{ 1: 1, 2: 31 }`, quel que soit le numéro de
-  tour.
+- Les deux messages, mesurés le 20/08 sur un combat à deux personnages :
+  - entrant `jxh { 2: characterId }` — début du tour de ce personnage
+  - sortant `jti { 1: 1, 2: 12 }` — passer le tour
+- **`jxh` est diffusé à tous les clients** mais porte l'identifiant du
+  personnage concerné. Chaque compte doit filtrer sur **son propre**
+  `characterId`, appris de `kvw`. Ne pas filtrer ferait passer le tour d'un
+  autre combattant.
+- **Ne pas se fier à `jxz`** : c'est le compteur de tours du combat, diffusé
+  identiquement à tout le monde. Une première version de ce plan s'appuyait
+  dessus — un combat à deux l'a démentie.
+- **La requête est constante** : `{ 1: 1, 2: 12 }`, sans identifiant ni numéro
+  de tour.
 - **Le passe-tour est indépendant du Replicate.** Il ne doit PAS être gouverné
   par `superviseur.arme`, qui appartient au Replicate. Il a son propre drapeau.
-- Toute nouvelle annonce `jxz` **annule** le minuteur en attente du même compte.
+- Toute nouvelle annonce `jxh` **annule** le minuteur en attente du même
+  compte, y compris celle qui concerne un autre personnage : elle signifie que
+  notre tour est terminé.
 - `src/passeur.js` ne dépend ni d'Electron, ni de Frida, ni du système.
 - Commentaires en français ; messages de commit en français **sans accents**.
 - Les 159 tests existants restent verts.
@@ -202,7 +209,8 @@ git commit -m "feat(comptes): interrupteur de passe-tour par compte"
 
 **Interfaces :**
 - Consomme : `superviseur.emettre(pid, octets)` (tâche 1),
-  `etat.passeTour` (tâche 2), `encodeRaw` et `WIRE` de `src/codec/rawProto`
+  `etat.passeTour` (tâche 2), `etat.characterId` (existant, appris de `kvw`),
+  `encodeRaw` et `WIRE` de `src/codec/rawProto`
 - Produit :
   `creerPasseur({ superviseur, reglages, onCompteRendu }) -> onTrame(evenement)`
   et la constante exportée `TRAME_PASSE` (Buffer).
@@ -210,6 +218,10 @@ git commit -m "feat(comptes): interrupteur de passe-tour par compte"
   `reglages` porte `{ actif: boolean, delaiMs: number }` et est **lu à chaque
   trame**, pour que l'interrupteur général et le délai prennent effet sans
   reconstruire le passeur.
+
+Rappel de la contrainte centrale : `jxh` est **diffusé à tous les clients** et
+porte l'identifiant du personnage dont le tour commence. Le filtre sur
+`characterId` est ce qui empêche de passer le tour d'un autre combattant.
 
 - [ ] **Étape 1 : écrire les tests qui échouent**
 
@@ -222,26 +234,31 @@ const assert = require('node:assert');
 const { creerPasseur, TRAME_PASSE } = require('../src/passeur');
 const { decodeFrameRaw } = require('../src/codec/rawProto');
 
+const MOI = 677057659174n;
+const AUTRE = 665809125670n;
+
 // Double du superviseur: on n'a besoin que d'emettre() et des etats de compte.
-function fauxSuperviseur(pids = [1]) {
+function fauxSuperviseur(comptes = [[1, MOI]]) {
   const emis = [];
-  const etats = new Map(pids.map((p) => [p, { pid: p, passeTour: true }]));
+  const etats = new Map(comptes.map(([pid, id]) => [pid, { pid, passeTour: true, characterId: id }]));
   return {
     emis,
+    etats,
     comptes: { get: (pid) => etats.get(pid) || null },
     emettre: (pid, octets) => { emis.push({ pid, octets }); return { ok: true, octets: octets.length + 1 }; },
   };
 }
 
-const trameJxz = () => ({ kind: 'event', type: 'jxz', payload: [{ no: 2, value: 3n }] });
+// jxh { 2: <characterId> } — debut du tour de ce personnage.
+const trameJxh = (id) => ({ kind: 'event', type: 'jxh', payload: [{ no: 2, value: id }] });
 const evenement = (frame, pid = 1) => ({ pid, dir: 'in', frame, brute: Buffer.alloc(0), estMaitre: false });
 
 function passeur(sup, reglages = { actif: true, delaiMs: 0 }, rendu = []) {
   return creerPasseur({ superviseur: sup, reglages, onCompteRendu: (r) => rendu.push(r) });
 }
 
-// La trame emise doit etre exactement celle mesuree le 20/08.
-test('la trame emise est jti { 1: 1, 2: 31 }', () => {
+// La trame emise doit etre exactement celle de l'autopasse mesuree le 20/08.
+test('la trame emise est jti { 1: 1, 2: 12 }', () => {
   const f = decodeFrameRaw(TRAME_PASSE);
   assert.notStrictEqual(f, null);
   assert.strictEqual(f.kind, 'request');
@@ -249,77 +266,113 @@ test('la trame emise est jti { 1: 1, 2: 31 }', () => {
   assert.strictEqual(f.uid, -1n);
   const parNo = Object.fromEntries(f.payload.map((x) => [x.no, x.value]));
   assert.strictEqual(parNo[1], 1n);
-  assert.strictEqual(parNo[2], 31n);
+  assert.strictEqual(parNo[2], 12n);
 });
 
 test('un delai de 0 emet immediatement', () => {
   const sup = fauxSuperviseur();
-  passeur(sup)(evenement(trameJxz()));
+  passeur(sup)(evenement(trameJxh(MOI)));
   assert.strictEqual(sup.emis.length, 1);
   assert.strictEqual(sup.emis[0].pid, 1);
   assert.deepStrictEqual(sup.emis[0].octets, TRAME_PASSE);
 });
 
-test('une trame d un autre type ne declenche rien', () => {
+// LE test qui compte: jxh est diffuse a tous, y compris pour les tours des
+// autres. Emettre sur celui d'un autre lui ferait perdre son tour.
+test('le tour d un AUTRE personnage ne declenche rien', () => {
+  const sup = fauxSuperviseur();
+  passeur(sup)(evenement(trameJxh(AUTRE)));
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+test('le tour d un monstre ne declenche rien', () => {
+  const sup = fauxSuperviseur();
+  passeur(sup)(evenement(trameJxh(-1n)));
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+// jxz est le compteur de tours du combat, diffuse identiquement a tous: s'en
+// servir ferait passer chaque compte des que n'importe qui commence son tour.
+test('jxz ne declenche jamais rien', () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup);
+  p(evenement({ kind: 'event', type: 'jxz', payload: [{ no: 2, value: 3n }] }));
   p(evenement({ kind: 'event', type: 'jyj', payload: null }));
-  p(evenement({ kind: 'request', type: 'jxz', payload: [] }));   // sortant, pas entrant
-  p({ pid: 1, dir: 'out', frame: trameJxz(), brute: Buffer.alloc(0), estMaitre: false });
+  p(evenement({ kind: 'request', type: 'jxh', payload: [{ no: 2, value: MOI }] }));   // sortant
+  p({ pid: 1, dir: 'out', frame: trameJxh(MOI), brute: Buffer.alloc(0), estMaitre: false });
   assert.strictEqual(sup.emis.length, 0);
+});
+
+test('un compte dont le characterId est inconnu ne declenche pas', () => {
+  const sup = fauxSuperviseur([[1, null]]);
+  const rendu = [];
+  passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(trameJxh(MOI)));
+  assert.strictEqual(sup.emis.length, 0);
+  assert.strictEqual(rendu.length, 1);
+  assert.match(rendu[0].raison, /characterId/);
 });
 
 test('un compte dont l interrupteur est eteint ne declenche pas', () => {
   const sup = fauxSuperviseur();
   sup.comptes.get(1).passeTour = false;
-  passeur(sup)(evenement(trameJxz()));
+  passeur(sup)(evenement(trameJxh(MOI)));
   assert.strictEqual(sup.emis.length, 0);
 });
 
 test('l interrupteur general eteint neutralise tous les comptes', () => {
   const sup = fauxSuperviseur();
-  passeur(sup, { actif: false, delaiMs: 0 })(evenement(trameJxz()));
+  passeur(sup, { actif: false, delaiMs: 0 })(evenement(trameJxh(MOI)));
   assert.strictEqual(sup.emis.length, 0);
 });
 
 test('un compte inconnu du superviseur ne declenche pas', () => {
   const sup = fauxSuperviseur();
-  passeur(sup)(evenement(trameJxz(), 99));
+  passeur(sup)(evenement(trameJxh(MOI), 99));
   assert.strictEqual(sup.emis.length, 0);
 });
 
 // Le garde-fou central: une trame en retard passerait le tour d'un AUTRE
-// personnage. Une nouvelle annonce doit donc annuler celle en attente.
-test('une seconde annonce annule le minuteur en attente', async () => {
+// personnage. Toute nouvelle annonce annule celle en attente, y compris celle
+// qui concerne quelqu'un d'autre — elle signifie que notre tour est fini.
+test('le tour d un autre annule le minuteur en attente', async () => {
   const sup = fauxSuperviseur();
-  const p = passeur(sup, { actif: true, delaiMs: 40 });
-  p(evenement(trameJxz()));
-  p(evenement(trameJxz()));
-  await new Promise((r) => setTimeout(r, 120));
-  assert.strictEqual(sup.emis.length, 1, 'une seule emission pour deux annonces rapprochees');
+  const p = passeur(sup, { actif: true, delaiMs: 60 });
+  p(evenement(trameJxh(MOI)));
+  p(evenement(trameJxh(AUTRE)));
+  await new Promise((r) => setTimeout(r, 160));
+  assert.strictEqual(sup.emis.length, 0, 'notre tour etait fini, rien ne doit partir');
 });
 
-test('le delai est respecte', async () => {
+test('deux annonces pour nous n arment qu un seul envoi', async () => {
   const sup = fauxSuperviseur();
-  passeur(sup, { actif: true, delaiMs: 60 })(evenement(trameJxz()));
-  assert.strictEqual(sup.emis.length, 0, 'rien avant l echeance');
+  const p = passeur(sup, { actif: true, delaiMs: 40 });
+  p(evenement(trameJxh(MOI)));
+  p(evenement(trameJxh(MOI)));
   await new Promise((r) => setTimeout(r, 140));
   assert.strictEqual(sup.emis.length, 1);
 });
 
+test('le delai est respecte', async () => {
+  const sup = fauxSuperviseur();
+  passeur(sup, { actif: true, delaiMs: 60 })(evenement(trameJxh(MOI)));
+  assert.strictEqual(sup.emis.length, 0, 'rien avant l echeance');
+  await new Promise((r) => setTimeout(r, 160));
+  assert.strictEqual(sup.emis.length, 1);
+});
+
 test('deux comptes arment deux minuteurs independants', async () => {
-  const sup = fauxSuperviseur([1, 2]);
+  const sup = fauxSuperviseur([[1, MOI], [2, AUTRE]]);
   const p = passeur(sup, { actif: true, delaiMs: 30 });
-  p(evenement(trameJxz(), 1));
-  p(evenement(trameJxz(), 2));
+  p(evenement(trameJxh(MOI), 1));
+  p(evenement(trameJxh(AUTRE), 2));
   await new Promise((r) => setTimeout(r, 120));
   assert.deepStrictEqual(sup.emis.map((e) => e.pid).sort(), [1, 2]);
 });
 
-test('le compte rendu dit ce qui a ete emis', async () => {
+test('le compte rendu dit ce qui a ete emis', () => {
   const sup = fauxSuperviseur();
   const rendu = [];
-  passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(trameJxz()));
+  passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(trameJxh(MOI)));
   assert.strictEqual(rendu.length, 1);
   assert.strictEqual(rendu[0].pid, 1);
   assert.strictEqual(rendu[0].ok, true);
@@ -330,7 +383,7 @@ test('un echec d emission est signale sans exception', () => {
   const sup = fauxSuperviseur();
   sup.emettre = () => ({ ok: false, raison: 'pas de socket amont' });
   const rendu = [];
-  assert.doesNotThrow(() => passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(trameJxz())));
+  assert.doesNotThrow(() => passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(trameJxh(MOI))));
   assert.strictEqual(rendu[0].ok, false);
   assert.match(rendu[0].raison, /socket amont/);
 });
@@ -351,25 +404,33 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 
 // Le passe-tour automatique, et lui seul.
 //
-// Deux messages, mesures le 20/08 sur 45 passes de tour reelles:
-//   entrant  jxz { 2: N }          debut du tour N
-//   sortant  jti { 1: 1, 2: 31 }   passer le tour
+// Deux messages, mesures le 20/08 sur un combat a deux personnages dont l'un
+// etait pilote par l'autopasse de krm35:
 //
-// Le serveur n'annonce que NOTRE tour: chaque jxz observe etait suivi d'une
-// passe, sans exception. Recevoir jxz suffit donc, il n'y a aucun identifiant
-// de personnage a verifier.
+//   entrant  jxh { 2: characterId }   debut du tour de CE personnage
+//   sortant  jti { 1: 1, 2: 12 }      passer le tour
+//
+// jxh est DIFFUSE a tous les clients du combat, et porte l'identifiant du
+// personnage concerne (-1 pour les monstres). Le filtre sur characterId est
+// donc obligatoire: sans lui, chaque compte passerait le tour d'un autre.
+//
+// Ne pas confondre avec jxz, le compteur de tours du combat, identique pour
+// tout le monde. Une premiere version de ce module s'appuyait dessus; un
+// combat a deux personnages l'a demontree fausse.
 //
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur.
 
-const TYPE_DEBUT_TOUR = 'jxz';
+const TYPE_DEBUT_TOUR = 'jxh';
+const CHAMP_PERSONNAGE = 2;
 const URL_PASSE = 'type.ankama.com/jti';
 
-// La requete est CONSTANTE: le numero de tour porte par jxz n'y est pas repris.
-// On la construit une fois pour toutes.
+// La requete est CONSTANTE: ni identifiant, ni numero de tour. On la construit
+// une fois pour toutes. Le code 12 est celui de l'autopasse mesuree; l'effet
+// est verifiable, le compteur de tours s'incremente 100 ms plus tard.
 const CHARGE_PASSE = encodeRaw([
   { no: 1, wire: WIRE.VARINT, value: 1n },
-  { no: 2, wire: WIRE.VARINT, value: 31n },
+  { no: 2, wire: WIRE.VARINT, value: 12n },
 ]);
 
 const TRAME_PASSE = encodeRaw([
@@ -383,15 +444,20 @@ const TRAME_PASSE = encodeRaw([
   ] },
 ]);
 
+function personnageAnnonce(frame) {
+  const f = (frame.payload || []).find((x) => x.no === CHAMP_PERSONNAGE);
+  return f === undefined ? null : f.value;
+}
+
 // superviseur   — porte emettre(pid, octets) et comptes.get(pid)
 // reglages      — { actif, delaiMs }, RELU a chaque trame pour que
 //                 l'interrupteur general et le delai prennent effet aussitot
 // onCompteRendu — recoit ce qui a ete emis, ou refuse et pourquoi
 function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
-  // Un minuteur en attente par compte. En armer un second annule le premier:
-  // c'est le garde-fou. Sans lui, une trame en retard passerait le tour d'un
-  // AUTRE personnage — la seule erreur de ce projet qui coute quelque chose
-  // en jeu.
+  // Un minuteur en attente par compte. Toute nouvelle annonce annule celle en
+  // cours: c'est le garde-fou. Sans lui, une trame en retard passerait le tour
+  // d'un AUTRE personnage — la seule erreur de ce projet qui coute quelque
+  // chose en jeu.
   const minuteurs = new Map();
 
   function annuler(pid) {
@@ -409,14 +475,20 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     if (dir !== 'in' || frame === null) return;
     if (frame.kind !== 'event' || frame.type !== TYPE_DEBUT_TOUR) return;
 
-    // Toute nouvelle annonce annule l'attente en cours, quelle que soit la
-    // suite: meme si le passe-tour vient d'etre eteint, le minuteur arme
-    // avant ne doit pas partir.
+    // Toute annonce de tour annule l'attente en cours, y compris celle qui
+    // concerne un autre personnage: elle signifie que notre tour est termine.
     annuler(pid);
 
     if (!reglages.actif) return;
     const etat = superviseur.comptes.get(pid);
     if (etat === null || !etat.passeTour) return;
+
+    if (etat.characterId === null || etat.characterId === undefined) {
+      onCompteRendu({ pid, ok: false, raison: 'characterId inconnu' });
+      return;
+    }
+    // Le filtre qui evite de passer le tour d'un autre combattant.
+    if (personnageAnnonce(frame) !== etat.characterId) return;
 
     const delai = Math.max(0, Number(reglages.delaiMs) || 0);
     if (delai === 0) { emettre(pid); return; }
@@ -430,18 +502,18 @@ module.exports = { creerPasseur, TRAME_PASSE, TYPE_DEBUT_TOUR };
 - [ ] **Étape 4 : lancer les tests pour vérifier qu'ils passent**
 
 Lancer : `node --test --test-timeout=15000 test/passeur.test.js`
-Attendu : 11 tests, 11 réussis.
+Attendu : 15 tests, 15 réussis.
 
 - [ ] **Étape 5 : lancer la suite complète**
 
 Lancer : `node --test --test-timeout=15000`
-Attendu : 174 tests, 0 échec.
+Attendu : 178 tests, 0 échec.
 
 - [ ] **Étape 6 : commiter**
 
 ```bash
 git add src/passeur.js test/passeur.test.js
-git commit -m "feat(passeur): passe-tour automatique, jxz declenche jti 31"
+git commit -m "feat(passeur): passe-tour automatique, jxh du bon personnage declenche jti 12"
 ```
 
 ---
@@ -1028,8 +1100,16 @@ git commit -m "feat(desktop): interrupteurs de passe-tour par compte, delai regl
 Les six autres icônes du launcher de krm35 ne sont pas reprises : elles ne
 correspondent à aucune fonction demandée.
 
-La réserve de la spécification reste ouverte : `jxz` n'a été observé qu'en
-combat solo. Si un combat de groupe l'émettait aussi pour les alliés, la
-condition « recevoir `jxz` suffit » tomberait et il faudrait un critère
-supplémentaire dans `src/passeur.js`. À vérifier au premier combat à plusieurs,
-avant de se fier au passe-tour en groupe.
+**La réserve d'origine a été levée**, et dans le mauvais sens : un combat à deux
+personnages a montré que `jxz` est bien diffusé pour tous les tours. Le plan
+s'appuyait dessus ; il a été corrigé pour utiliser `jxh` et son filtre sur le
+`characterId`.
+
+Deux points restent ouverts, à surveiller au premier essai réel :
+
+- **Deux codes semblent terminer un tour.** `12` est celui de l'autopasse de
+  krm35, mesuré et retenu ; `31` apparaissait en combat solo. Si `12` était
+  refusé dans un contexte particulier, `31` est la première chose à essayer.
+- **`jti` est un message générique** dont le champ 2 est un code d'action. Se
+  tromper de code ne rate pas silencieusement : cela déclenche une autre action
+  en combat.

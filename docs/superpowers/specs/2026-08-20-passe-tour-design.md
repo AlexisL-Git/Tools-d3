@@ -20,24 +20,12 @@ launcher de krm35 pendant que son autopasse tournait.
 
 | message | sens | rôle |
 |---|---|---|
-| `jxz { 2: N }` | entrant | début du tour **N**, compteur incrémenté de 1 en 1 |
-| `jti { 1: 1, 2: 31 }` | sortant | **passer le tour** |
-| `jyj` (vide) | entrant | acquittement du serveur, 8 ms après |
+| **`jxh { 2: characterId }`** | entrant | **début du tour de ce personnage** — le discriminant |
+| **`jti { 1: 1, 2: 12 }`** | sortant | **passer le tour** |
+| `jxz { 2: N }` | entrant | compteur de tours du combat, **diffusé à tous** |
 
-Corrélation du second combat, cinq tours :
-
-```
-64,9s  jxz {2: 2}   ->  65,0s  jti {1:1, 2:31}
-68,7s  jxz {2: 3}   ->  68,8s  jti {1:1, 2:31}
-72,4s  jxz {2: 4}   ->  72,4s  jti {1:1, 2:31}
-76,7s  jxz {2: 5}   ->  76,7s  jti {1:1, 2:31}
-```
-
-Le premier combat, quarante tours, donne exactement le même motif.
-
-**`jti` est un message générique dont le champ 2 est un code d'action** — on l'a
-vu porter 7, 13, 15 et 16 dans d'autres contextes. `31` est le code du passage
-de tour.
+Mesurés le 20/08 sur un combat à deux personnages, l'un piloté par l'autopasse
+de krm35, l'autre à la main. Le détail et les chiffres suivent.
 
 ### `jxz` est diffusé, pas personnel — hypothèse démentie
 
@@ -66,25 +54,54 @@ chaque compte dès que n'importe quel combattant commence le sien.
 La coïncidence en solo s'explique d'elle-même : avec un seul personnage
 contrôlé, tout tour annoncé était effectivement le sien.
 
-### Ce qui reste à trouver
+### Le vrai signal : `jxh { 2: characterId }`
 
-Le signal « c'est à TOI de jouer » n'est pas identifié. Les seuls messages
-personnels observés dans le combat à deux — `jss`, `jxb`, `jxo`, `iom`, `idu` —
-n'apparaissent pas une fois par tour.
+Trouvé sur le même combat à deux, en observant le compte dont l'autopasse de
+krm35 était actif. Seize millisecondes avant **chacune** de ses quatre passes :
 
-Deux pistes, à départager par une mesure :
+```
+-16 ms   event    jxh { 2: 677057659174 }
+  0 ms   request  jti { 1: 1, 2: 12 }
+```
 
-1. un message entrant personnel non encore repéré ;
-2. l'ordre de passage, envoyé une fois au début du combat, que le client
-   combine au compteur `jxz` pour savoir à qui est le tour.
+`677057659174` est exactement le `characterId` de ce compte — la valeur déjà
+identifiée le 19/08 dans `kvw` et dans le champ `fsor` de `HavenBagEnterRequest`.
 
-**La mesure qui tranchera** demande un combat à deux personnages où **les deux
-passent réellement leur tour**, à la main, dans un ordre connu. Le combat
-mesuré n'en contenait aucune passe — ni `jti { 2: 31 }` chez l'un, ni chez
-l'autre — ce qui a rendu toute corrélation impossible.
+**`jxh { 2: N }` annonce le début du tour du personnage N.** Il est diffusé aux
+deux clients, mais il porte l'identifiant concerné :
 
-**L'écart annonce → passe est de 0 à 100 ms** chez krm35, en solo. C'est un
-temps de machine, et c'est la signature de son automatisation.
+```
+Spoony reçoit :   12x 665809125670 (lui)   8x 677057659174   7x -1
+Michtou reçoit :  12x 665809125670          7x 677057659174   5x -1
+```
+
+`-1` correspond aux tours des monstres. Chaque client filtre donc sur **son
+propre** `characterId`, que `EtatCompte` apprend déjà de `kvw`.
+
+Le `characterId` que la première version de cette conception avait retiré des
+conditions est donc nécessaire. C'était la simplification qui était fausse, pas
+la conception d'origine.
+
+### La requête est `jti { 1: 1, 2: 12 }`
+
+C'est ce qu'émet l'autopasse de krm35, et l'effet est vérifiable : le compteur
+`jxz` s'incrémente 100 ms plus tard, quatre fois de suite.
+
+```
+29,0s  jxz 1
+33,8s  jti 12  ->  33,9s  jxz 2
+39,7s  jti 12  ->  39,7s  jxz 3
+44,1s  jti 12  ->  44,2s  jxz 4
+48,2s  jti 12  ->  48,2s  jxz 5
+```
+
+**Question laissée ouverte :** en combat solo, c'est `jti { 2: 31 }` qui suivait
+chaque tour, jamais `12`. Les deux codes semblent terminer un tour — sans doute
+deux chemins d'interface différents. On retient **12**, le seul dont on ait
+observé l'effet sur un automate qui fonctionne.
+
+`jti` est un message générique dont le champ 2 est un code d'action : on l'a vu
+porter 3, 4, 7, 8, 13 et 16 pour d'autres gestes en combat.
 
 ## La seule voie praticable
 
@@ -112,9 +129,10 @@ au superviseur. Le moteur reste inchangé.
 ### Règle de déclenchement
 
 ```
-trame ENTRANTE jxz, passe-tour actif pour ce compte ET en général
+trame ENTRANTE jxh dont le champ 2 vaut le characterId de CE compte,
+passe-tour actif pour ce compte ET en général
     -> armer un minuteur au délai réglé
-    -> à l'échéance : émettre jti { 1: 1, 2: 31 } sur CE client
+    -> à l'échéance : émettre jti { 1: 1, 2: 12 } sur CE client
 ```
 
 ### Le garde-fou
@@ -134,17 +152,19 @@ mauvais moment fait perdre un tour.
 
 Trois conditions, toutes vérifiées avant d'écrire quoi que ce soit :
 
-1. le combat est en cours ;
-2. **c'est le tour de ce personnage** — signal à identifier, voir plus haut ;
+1. la trame entrante est un `jxh` ;
+2. son champ 2 vaut le `characterId` de ce compte ;
 3. le passe-tour est actif pour ce compte et en général.
 
-La deuxième est bloquante et n'est pas encore satisfaite. Émettre sur le seul
-`jxz` ferait passer le tour d'un autre combattant, ce qui est précisément
-l'erreur que le garde-fou cherche à éviter.
+La deuxième est celle qui empêche de passer le tour d'un autre combattant. Sans
+elle — en se contentant de `jxz` — chaque compte passerait dès que n'importe
+qui commence son tour.
 
-Le numéro de tour porté par `jxz` n'est **pas** repris dans la requête : `jti`
-est constant, `{ 1: 1, 2: 31 }`, sur les quarante-cinq passes observées en
-solo. On émet donc une trame fixe.
+Le `characterId` est appris de `kvw` à la connexion. Tant qu'il est inconnu,
+rien n'est émis et la raison remonte à l'interface.
+
+La requête est **constante** : `jti { 1: 1, 2: 12 }`. Aucun numéro de tour ni
+identifiant n'y figure.
 
 ## Interface
 
@@ -221,10 +241,12 @@ Les 159 tests existants restent verts.
 - **Le délai augmente le risque.** Chaque dixième de seconde ajouté est un
   moment pendant lequel l'état du combat peut changer. Le garde-fou couvre le
   cas nominal ; un délai long reste déconseillé.
-- **`jxz` n'a été observé qu'en combat contre un poutch et un monstre isolé.**
-  Rien ne garantit encore qu'un combat à plusieurs joueurs, ou en arène, ne
-  l'émette pas aussi pour d'autres combattants. Si c'était le cas, la
-  condition « recevoir `jxz` suffit » tomberait et il faudrait un critère
-  supplémentaire. À vérifier lors du premier combat de groupe.
+- **Deux codes terminent apparemment un tour.** `12` est celui de l'autopasse
+  de krm35, mesuré et retenu ; `31` apparaissait en combat solo. La différence
+  n'est pas expliquée. Si `12` se révélait refusé dans un contexte particulier,
+  `31` est la première chose à essayer.
+- **`jti` est un message générique.** Se tromper de code n'échoue pas
+  silencieusement : cela déclenche une autre action en combat. C'est une raison
+  de plus de n'émettre que sur la condition vérifiée.
 - Le passe-tour agit sur un compte qui joue réellement : contrairement au
   Replicate, une erreur a une conséquence en jeu.
