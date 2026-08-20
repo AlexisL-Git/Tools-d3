@@ -223,6 +223,9 @@ app.whenReady().then(async () => {
     // n'arrive jamais jusqu'ici produisent le meme silence. Ce compteur les
     // separe: il compte AVANT toute decision.
     diagnostic(),
+    // Une politique qui leve doit se voir. C'est ce qui manquait: le passeur
+    // pouvait echouer sur une trame sans laisser la moindre trace.
+    { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
   );
 
   creerFenetre();

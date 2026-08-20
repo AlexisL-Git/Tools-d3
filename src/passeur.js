@@ -130,6 +130,9 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     // reste muet a cet instant, c'est l'une de ces gardes qui l'a arrete, et
     // rien dans le journal ne permettait de dire laquelle.
     const dire = (raison) => { if (compteur) onCompteRendu({ pid, ok: false, raison }); };
+    // Avant TOUTE garde: separe « le passeur n'est pas appele » de « une garde
+    // l'arrete ». Les deux produisent le meme journal vide.
+    dire('jxz vu, avant toute garde');
 
     if (!reglages.actif) { dire('jxz ignore : interrupteur general eteint'); return; }
     const etat = superviseur.comptes.get(pid);
