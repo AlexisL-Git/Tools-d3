@@ -2,6 +2,8 @@
 const { Superviseur } = require('../superviseur');
 const { findDofusProcesses } = require('../injector');
 const { creerReplicateur } = require('../replicateur');
+const { creerPasseur } = require('../passeur');
+const { composer } = require('../composer');
 
 // Le Replicate complet: 1 a 8 clients, le maitre est celui dont la fenetre a
 // le focus, ses actions sont rejouees chez les autres.
@@ -33,6 +35,12 @@ function aplatir(champs) {
 
 async function main() {
   const arme = process.argv.includes('--armer');
+  // Le passe-tour est independant du Replicate: son propre interrupteur, son
+  // propre delai. Le CLI n'ayant pas d'interface, il est actif pour TOUS les
+  // comptes pris en charge des qu'on le lance avec --passe-tour.
+  const passeTour = process.argv.includes('--passe-tour');
+  const iDelai = process.argv.indexOf('--delai');
+  const delaiMs = iDelai >= 0 ? Math.round(Number(process.argv[iDelai + 1]) * 1000) : 0;
   const iJournal = process.argv.indexOf('--journal');
   // Journal de TOUTES les trames decodees, dans les deux sens et pour chaque
   // client. Sert a retrouver par correlation le message entrant qui annonce a
@@ -67,6 +75,12 @@ async function main() {
       try {
         await superviseur.ajouter({ pid: p.pid, nom: p.name });
         console.log(`[${p.pid}] client ${connus.size} pris en charge`);
+        // Le CLI n'a pas d'interrupteur par compte: --passe-tour l'active pour
+        // tous, des la prise en charge.
+        if (passeTour) {
+          const etat = superviseur.comptes.get(p.pid);
+          if (etat) etat.passeTour = true;
+        }
       } catch (e) {
         console.log(`[${p.pid}] attache impossible : ${e.message}`);
       }
@@ -98,6 +112,20 @@ async function main() {
     },
   });
 
+  // Le passe-tour est une politique independante du Replicate: son propre
+  // reglage, relu a chaque trame et a chaque echeance de minuteur.
+  const passer = creerPasseur({
+    superviseur,
+    reglages: { actif: passeTour, delaiMs },
+    onCompteRendu: ({ pid, ok, raison }) => {
+      console.log(`  passe-tour ${pid} : ${ok ? 'ENVOYÉ' : raison}`);
+    },
+  });
+
+  // Le superviseur n'appelle qu'un seul onTrame: les deux politiques se
+  // composent ici, sans se gener l'une l'autre.
+  const traiter = composer(rejouer, passer);
+
   // Le journal brut est propre au CLI et precede toute decision: il doit
   // porter TOUTES les trames, y compris celles qui ne se rejouent pas.
   superviseur.onTrame = (trame) => {
@@ -108,7 +136,7 @@ async function main() {
         payload: aplatir(trame.frame.payload),
       }) + '\n');
     }
-    rejouer(trame);
+    traiter(trame);
   };
 
   console.log(`mode ${arme ? 'ARMÉ : les actions seront dupliquées' : "observation : rien n'est envoyé"}`);

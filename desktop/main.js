@@ -4,6 +4,8 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 
 const { Superviseur } = require('../src/superviseur');
 const { creerReplicateur } = require('../src/replicateur');
+const { creerPasseur } = require('../src/passeur');
+const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients } = require('../src/comptes/clients');
 const { construireVue } = require('../src/comptes/vue');
@@ -28,6 +30,9 @@ const erreurs = new Map();      // pid -> message d'echec d'attache
 const messages = new Map();     // pid -> dernier refus de rejeu, pour l'affichage
 let minuteurProcess = null;
 let minuteurVue = null;
+// Lus a chaque trame par le passeur: modifier ces champs suffit, sans
+// reconstruire quoi que ce soit.
+const reglagesPasseTour = { actif: false, delaiMs: 0 };
 
 function journal(pid, texte) {
   console.log(`[${pid}] ${texte}`);
@@ -126,18 +131,31 @@ app.whenReady().then(async () => {
   // Sans ce branchement, le superviseur decode tout et ne rejoue rien:
   // l'interrupteur ne bascule qu'un drapeau que seul rejouer() consulte. La
   // decision est celle du CLI, au mot pres, parce que c'est le meme module.
-  superviseur.onTrame = creerReplicateur({
-    superviseur,
-    onCompteRendu: ({ nom, rendu }) => {
-      // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
-      // compte qui ne rejoue pas ressemble a un compte inactif. On garde le
-      // dernier par client, efface des que le rejeu repasse.
-      for (const r of rendu) {
-        if (r.ok) messages.delete(r.pid);
-        else messages.set(r.pid, `${nom} : ${r.raison}`);
-      }
-    },
-  });
+  //
+  // Le superviseur n'accepte qu'un seul onTrame: le passe-tour, politique
+  // independante du Replicate, se compose ici plutot que d'ajouter un second
+  // point d'entree au superviseur.
+  superviseur.onTrame = composer(
+    creerReplicateur({
+      superviseur,
+      onCompteRendu: ({ nom, rendu }) => {
+        // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
+        // compte qui ne rejoue pas ressemble a un compte inactif. On garde le
+        // dernier par client, efface des que le rejeu repasse.
+        for (const r of rendu) {
+          if (r.ok) messages.delete(r.pid);
+          else messages.set(r.pid, `${nom} : ${r.raison}`);
+        }
+      },
+    }),
+    creerPasseur({
+      superviseur,
+      reglages: reglagesPasseTour,
+      onCompteRendu: ({ pid, ok, raison }) => {
+        if (!ok) journal(pid, `passe-tour : ${raison}`);
+      },
+    }),
+  );
 
   creerFenetre();
   minuteurProcess = setInterval(balayerProcess, PERIODE_PROCESS);
