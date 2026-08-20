@@ -34,8 +34,36 @@ let minuteurVue = null;
 // reconstruire quoi que ce soit.
 const reglagesPasseTour = { actif: false, delaiMs: 0 };
 
+const DEPART = Date.now();
 function journal(pid, texte) {
-  console.log(`[${pid}] ${texte}`);
+  const t = String(Date.now() - DEPART).padStart(7);
+  console.log(`${t}ms [${pid}] ${texte}`);
+}
+
+// DIAGNOSTIC TEMPORAIRE — a retirer une fois le passe-tour valide en combat.
+// Compte les trames AVANT toute politique, et signale les jalons de tour. Sans
+// lui, « le passe-tour ne marche pas » et « aucune trame n'arrive jusqu'a
+// l'application » se ressemblent trait pour trait.
+let instantEmission = 0;        // date du dernier jxy emis, pour la fenetre d'ecoute
+
+function diagnostic() {
+  const vues = new Map();   // pid -> nombre de trames entrantes
+  return function onTrame({ pid, dir, frame }) {
+    if (dir !== 'in' || frame === null) return;
+    const n = (vues.get(pid) || 0) + 1;
+    vues.set(pid, n);
+    if (n === 1) journal(pid, 'diag : premiere trame decodee — le trafic passe bien par le proxy');
+    if (frame.type === 'jxh' || frame.type === 'jxz') {
+      const champs = (frame.payload || []).map((f) => `${f.no}=${f.value}`).join(' ');
+      journal(pid, `diag : ${frame.type} { ${champs} }`);
+      return;
+    }
+    // Tout ce que le serveur repond dans la demi-seconde qui suit notre jxy.
+    // Un refus explicite serait la reponse la plus utile du projet; son
+    // absence est une information tout aussi nette.
+    const depuis = Date.now() - instantEmission;
+    if (depuis >= 0 && depuis < 500) journal(pid, `diag : +${depuis}ms apres jxy -> ${frame.kind} ${frame.type}`);
+  };
 }
 
 // Prend en charge tout nouveau client. La connexion au serveur de jeu s'ouvre
@@ -186,10 +214,15 @@ app.whenReady().then(async () => {
     creerPasseur({
       superviseur,
       reglages: reglagesPasseTour,
-      onCompteRendu: ({ pid, ok, raison }) => {
-        if (!ok) journal(pid, `passe-tour : ${raison}`);
+      onCompteRendu: ({ pid, ok, raison, declencheur }) => {
+        if (ok) { instantEmission = Date.now(); journal(pid, `passe-tour : jxy emis (sur ${declencheur})`); }
+        else journal(pid, `passe-tour : ${raison}`);
       },
     }),
+    // DIAGNOSTIC TEMPORAIRE. Un passe-tour qui ne part pas et un combat qui
+    // n'arrive jamais jusqu'ici produisent le meme silence. Ce compteur les
+    // separe: il compte AVANT toute decision.
+    diagnostic(),
   );
 
   creerFenetre();

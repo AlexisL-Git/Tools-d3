@@ -77,8 +77,11 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     if (t !== undefined) { clearTimeout(t); minuteurs.delete(pid); }
   }
 
-  // etatArme — l'objet d'etat tel qu'il etait au moment de l'armement.
-  function emettre(pid, etatArme) {
+  // etatArme    — l'objet d'etat tel qu'il etait au moment de l'armement.
+  // declencheur — le jalon qui a arme l'envoi, repris tel quel dans le compte
+  //               rendu: sans lui, l'ordre des lignes de journal est le seul
+  //               indice, et il ne suffit pas a savoir quel jalon a tire.
+  function emettre(pid, etatArme, declencheur) {
     minuteurs.delete(pid);
 
     // L'interrupteur general est un coupe-circuit immediat: s'il a ete
@@ -93,7 +96,7 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     if (etat === null || etat !== etatArme || !etat.passeTour) return;
 
     const res = superviseur.emettre(pid, TRAME_PASSE);
-    onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets });
+    onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets, declencheur });
   }
 
   return function onTrame({ pid, dir, frame }) {
@@ -125,9 +128,10 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     if (essaye.has(pid)) return;
     essaye.add(pid);
 
+    const jalon = finTour ? `jxh ${personnageAnnonce(frame)}` : TYPE_COMPTEUR;
     const delai = Math.max(0, Number(reglages.delaiMs) || 0);
-    if (delai === 0) { emettre(pid, etat); return; }
-    minuteurs.set(pid, setTimeout(() => emettre(pid, etat), delai));
+    if (delai === 0) { emettre(pid, etat, jalon); return; }
+    minuteurs.set(pid, setTimeout(() => emettre(pid, etat, jalon), delai));
   };
 }
 
