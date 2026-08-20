@@ -84,8 +84,28 @@ async function balayerProcess() {
 async function envoyerEtat() {
   if (fenetre === null || fenetre.isDestroyed()) return;
   const clients = await listerClients();
+
+  // Resynchronisation de l'etat vivant depuis le fichier de reglages. Basculer
+  // un interrupteur ecrit d'abord dans favoris, puis cherche le pid via
+  // listerClients() — module qui rend [] sur n'importe quelle erreur comme sur
+  // son delai d'attente: c'est un chemin de retour normal, pas une anomalie.
+  // Sans cette reprise, l'etat restait a vrai pendant que la case affichee
+  // passait a faux, et le passe-tour continuait d'emettre sans interrupteur
+  // pour l'arreter. Ce tick revient toutes les 2 s: l'echec se repare seul.
+  for (const etat of superviseur.comptes.tous) {
+    const idCompte = pidVersCompte(etat.pid, clients);
+    if (idCompte === null) continue;
+    etat.passeTour = favoris.passeTourActif(idCompte);
+  }
+
   const exclus = new Set(
     superviseur.comptes.tous.filter((e) => e.exclu).map((e) => pidVersCompte(e.pid, clients)),
+  );
+  // La case affichee vient de l'etat vivant, celui que le passeur consulte a
+  // chaque trame — par symetrie avec `exclus`. Une case rendue depuis le seul
+  // fichier pourrait montrer eteint ce qui emet encore.
+  const passeTour = new Set(
+    superviseur.comptes.tous.filter((e) => e.passeTour).map((e) => pidVersCompte(e.pid, clients)),
   );
   fenetre.webContents.send('etat', {
     replicate: superviseur.arme,
@@ -99,7 +119,7 @@ async function envoyerEtat() {
       maitre: superviseur.maitre,
       exclus,
       favoris: new Set(favoris.tous()),
-      passeTour: new Set(favoris.tousPasseTour()),
+      passeTour,
       erreurs,
       messages,
     }),
