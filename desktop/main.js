@@ -40,29 +40,15 @@ function journal(pid, texte) {
   console.log(`${t}ms [${pid}] ${texte}`);
 }
 
-// DIAGNOSTIC TEMPORAIRE — a retirer une fois le passe-tour valide en combat.
-// Compte les trames AVANT toute politique, et signale les jalons de tour. Sans
-// lui, « le passe-tour ne marche pas » et « aucune trame n'arrive jusqu'a
-// l'application » se ressemblent trait pour trait.
-let instantEmission = 0;        // date du dernier jxy emis, pour la fenetre d'ecoute
-
-function diagnostic() {
-  const vues = new Map();   // pid -> nombre de trames entrantes
+// Une trame decodee prouve que le trafic traverse le proxy. Un client attache
+// sans une seule trame et un client qui n'a rien a dire produisent le meme
+// silence, et ce silence a coute deux faux diagnostics.
+function premiereTrame() {
+  const vus = new Set();
   return function onTrame({ pid, dir, frame }) {
-    if (dir !== 'in' || frame === null) return;
-    const n = (vues.get(pid) || 0) + 1;
-    vues.set(pid, n);
-    if (n === 1) journal(pid, 'diag : premiere trame decodee — le trafic passe bien par le proxy');
-    if (frame.type === 'jxh' || frame.type === 'jxz') {
-      const champs = (frame.payload || []).map((f) => `${f.no}=${f.value}`).join(' ');
-      journal(pid, `diag : ${frame.kind} ${frame.type} { ${champs} }`);
-      return;
-    }
-    // Tout ce que le serveur repond dans la demi-seconde qui suit notre jxy.
-    // Un refus explicite serait la reponse la plus utile du projet; son
-    // absence est une information tout aussi nette.
-    const depuis = Date.now() - instantEmission;
-    if (depuis >= 0 && depuis < 500) journal(pid, `diag : +${depuis}ms apres jxy -> ${frame.kind} ${frame.type}`);
+    if (dir !== 'in' || frame === null || vus.has(pid)) return;
+    vus.add(pid);
+    journal(pid, 'premiere trame decodee — le trafic passe bien par le proxy');
   };
 }
 
@@ -215,14 +201,13 @@ app.whenReady().then(async () => {
       superviseur,
       reglages: reglagesPasseTour,
       onCompteRendu: ({ pid, ok, raison, declencheur }) => {
-        if (ok) { instantEmission = Date.now(); journal(pid, `passe-tour : jxy emis (sur ${declencheur})`); }
+        // Le jalon declencheur, et pas seulement le fait d'avoir emis: c'est
+        // lui qui a dit que la relance d'ouverture avait survecu.
+        if (ok) journal(pid, `passe-tour : jxy emis (sur ${declencheur})`);
         else journal(pid, `passe-tour : ${raison}`);
       },
     }),
-    // DIAGNOSTIC TEMPORAIRE. Un passe-tour qui ne part pas et un combat qui
-    // n'arrive jamais jusqu'ici produisent le meme silence. Ce compteur les
-    // separe: il compte AVANT toute decision.
-    diagnostic(),
+    premiereTrame(),
     // Une politique qui leve doit se voir. C'est ce qui manquait: le passeur
     // pouvait echouer sur une trame sans laisser la moindre trace.
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },

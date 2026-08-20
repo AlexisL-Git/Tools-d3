@@ -153,13 +153,10 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     const compteur = frame.type === TYPE_COMPTEUR;
     if (!finTour && !compteur) return;
 
-    // DIAGNOSTIC TEMPORAIRE. Le compteur ouvre la manche: si le passe-tour
-    // reste muet a cet instant, c'est l'une de ces gardes qui l'a arrete, et
-    // rien dans le journal ne permettait de dire laquelle.
+    // Un passe-tour muet ressemble trait pour trait a un combat qui n'arrive
+    // pas jusqu'ici. Sur le compteur — un message par manche, donc sans bruit —
+    // on dit laquelle des gardes a arrete l'envoi.
     const dire = (raison) => { if (compteur) onCompteRendu({ pid, ok: false, raison }); };
-    // Avant TOUTE garde: separe « le passeur n'est pas appele » de « une garde
-    // l'arrete ». Les deux produisent le meme journal vide.
-    dire('jxz vu, avant toute garde');
 
     if (!reglages.actif) { dire('jxz ignore : interrupteur general eteint'); return; }
     const etat = superviseur.comptes.get(pid);
