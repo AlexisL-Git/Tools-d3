@@ -199,6 +199,39 @@ test('la ligne porte l etat du passe-tour', () => {
   assert.strictEqual(lignes.find((l) => l.id === 2).passeTour, true);
 });
 
+// Un client dont le compte est inconnu de Zaap tombe dans les lignes de repli.
+// Un passeTour code en dur a faux y rendait la case eteinte alors que le
+// compte emettait: aucun interrupteur pour l'arreter. Cas declencheur banal —
+// si lireComptes() echoue, toutes les lignes passent par ce repli.
+test('un client au compte absent de la liste porte quand même son passe-tour', () => {
+  const l = construireVue({
+    comptes: COMPTES,
+    clients: [{ pid: 500, idCompte: 42, personnage: 'Tardif', classe: 'Eniripsa' }],
+    intercepte: new Set([500]),
+    maitre: null,
+    exclus: new Set(),
+    favoris: new Set(),
+    passeTour: new Set([42]),
+  }).pop();
+  assert.strictEqual(l.id, 42);
+  assert.strictEqual(l.etat, 'inconnu');
+  assert.strictEqual(l.passeTour, true);
+});
+
+// Sans idCompte, il n'y a rien a interroger: la ligne reste informative.
+test('un client sans idCompte ne porte pas de passe-tour', () => {
+  const l = construireVue({
+    comptes: COMPTES,
+    clients: [{ pid: 999, idCompte: null, personnage: 'Inconnu', classe: 'Iop' }],
+    intercepte: new Set([999]),
+    maitre: null,
+    exclus: new Set(),
+    favoris: new Set(),
+    passeTour: new Set([42]),
+  }).pop();
+  assert.strictEqual(l.passeTour, false);
+});
+
 test('l absence de passeTour ne casse pas la vue', () => {
   const lignes = construireVue({
     comptes: COMPTES, clients: [], intercepte: new Set(),

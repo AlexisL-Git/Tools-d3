@@ -95,7 +95,11 @@ function construireVue({
       pid: c.pid,
       favori: c.idCompte !== null && favoris.has(c.idCompte),
       exclu: c.idCompte !== null && exclus.has(c.idCompte),
-      passeTour: false,
+      // Comme favori et exclu: un passe-tour code en dur a faux rendait la
+      // case eteinte alors que le compte emettait, donc impossible a debrayer.
+      // Le cas n'a rien d'exotique — si lireComptes() echoue, TOUTES les
+      // lignes passent par ce repli.
+      passeTour: c.idCompte !== null && passeTour.has(c.idCompte),
       etat: etatDe(c.pid, 'inconnu'),
       estMaitre: c.pid === maitre,
       suivi,

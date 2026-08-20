@@ -129,7 +129,13 @@
       // Un interrupteur desactive quand le compte n'est pas intercepte serait
       // une promesse fausse: hors ligne, non intercepte ou en erreur, aucun
       // des deux ne peut agir sur ce client.
-      const utilisable = l.id !== null && l.etat === 'intercepte';
+      //
+      // C'est `suivi` qui en decide, PAS le libelle `etat`: un client passe par
+      // notre proxy mais dont le compte est absent de la liste Zaap s'affiche
+      // « compte inconnu » tout en etant parfaitement pilotable. Tester
+      // l'etat le rendait indebrayable — c'est precisement pour cela que
+      // `suivi` existe.
+      const utilisable = l.id !== null && l.suivi;
       const swRep = interrupteur(ICONE_REPLICATE, !l.exclu, !utilisable,
         (v) => window.app.exclureCompte(l.id, !v));
       const swPasse = interrupteur(ICONE_PASSE, l.passeTour, !utilisable,
