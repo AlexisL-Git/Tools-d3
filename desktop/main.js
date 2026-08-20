@@ -63,6 +63,15 @@ async function balayerProcess() {
     try {
       await superviseur.ajouter({ pid: p.pid, nom: p.name });
       prisEnCharge.add(p.pid);
+      // Un compte relance doit retrouver son interrupteur enregistre plutot
+      // que de repartir a faux a chaque redemarrage de client.
+      const clients = await listerClients();
+      const idCompte = pidVersCompte(p.pid, clients);
+      const etat = superviseur.comptes.get(p.pid);
+      if (etat && idCompte !== null) {
+        etat.passeTour = favoris.passeTourActif(idCompte);
+        etat.exclu = false;
+      }
     } catch (e) {
       // Le pid reste hors de prisEnCharge: l'afficher « suit » ferait attendre
       // un rejeu qui n'arrivera jamais. La vue le montrera en erreur.
@@ -81,6 +90,8 @@ async function envoyerEtat() {
   fenetre.webContents.send('etat', {
     replicate: superviseur.arme,
     erreurComptes,
+    passeTourActif: reglagesPasseTour.actif,
+    delai: favoris.delai(),
     lignes: construireVue({
       comptes,
       clients,
@@ -88,6 +99,7 @@ async function envoyerEtat() {
       maitre: superviseur.maitre,
       exclus,
       favoris: new Set(favoris.tous()),
+      passeTour: new Set(favoris.tousPasseTour()),
       erreurs,
       messages,
     }),
@@ -126,6 +138,9 @@ app.whenReady().then(async () => {
   erreurComptes = lecture.erreur;
 
   favoris = new Favoris(path.join(app.getPath('userData'), 'favoris.json')).charger();
+  // Le delai enregistre doit survivre au redemarrage de l'application, pas
+  // seulement a celui d'un client.
+  reglagesPasseTour.delaiMs = Math.round(favoris.delai() * 1000);
   superviseur = new Superviseur({ arme: false, onJournal: journal });
 
   // Sans ce branchement, le superviseur decode tout et ne rejoue rien:
@@ -187,6 +202,31 @@ ipcMain.handle('marquerFavori', async (_e, idCompte, favori) => {
   // l'ecriture. La validation doit donc se faire ici, cote appelant.
   if (!Number.isInteger(idCompte)) return;
   favoris.marquer(idCompte, Boolean(favori));
+  await envoyerEtat();
+});
+
+ipcMain.handle('basculerPasseTour', async (_e, actif) => {
+  reglagesPasseTour.actif = Boolean(actif);
+  await envoyerEtat();
+});
+
+ipcMain.handle('basculerPasseTourCompte', async (_e, idCompte, actif) => {
+  // La frontiere IPC est la frontiere de confiance: on ne laisse pas une
+  // valeur non numerique atteindre le fichier de reglages.
+  if (!Number.isInteger(idCompte)) return;
+  favoris.marquerPasseTour(idCompte, Boolean(actif));
+  const clients = await listerClients();
+  const pid = compteVersPid(idCompte, clients);
+  const etat = pid === null ? null : superviseur.comptes.get(pid);
+  if (etat) etat.passeTour = Boolean(actif);
+  await envoyerEtat();
+});
+
+ipcMain.handle('reglerDelai', async (_e, secondes) => {
+  const v = Number(secondes);
+  if (!Number.isFinite(v) || v < 0) return;
+  favoris.reglerDelai(v);
+  reglagesPasseTour.delaiMs = Math.round(v * 1000);
   await envoyerEtat();
 });
 

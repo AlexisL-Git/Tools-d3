@@ -13,6 +13,10 @@ class Favoris {
   constructor(chemin) {
     this.chemin = chemin;
     this._ids = new Set();
+    // Comptes dont le passe-tour est actif, et delai global en secondes.
+    // Comme les favoris: que des identifiants numeriques et un nombre.
+    this._passeTour = new Set();
+    this._delai = 0;
   }
 
   charger() {
@@ -21,10 +25,16 @@ class Favoris {
       if (Array.isArray(json.favoris)) {
         this._ids = new Set(json.favoris.filter((n) => Number.isInteger(n)));
       }
+      if (Array.isArray(json.passeTour)) {
+        this._passeTour = new Set(json.passeTour.filter((n) => Number.isInteger(n)));
+      }
+      if (typeof json.delai === 'number' && json.delai >= 0) this._delai = json.delai;
     } catch (e) {
       // Fichier absent ou corrompu: on repart d'une liste vide plutot que de
       // faire echouer le demarrage de l'application.
       this._ids = new Set();
+      this._passeTour = new Set();
+      this._delai = 0;
     }
     return this;
   }
@@ -43,12 +53,37 @@ class Favoris {
     return [...this._ids];
   }
 
+  passeTourActif(id) {
+    return this._passeTour.has(id);
+  }
+
+  marquerPasseTour(id, actif) {
+    if (actif) this._passeTour.add(id);
+    else this._passeTour.delete(id);
+    this._ecrire();
+  }
+
+  delai() {
+    return this._delai;
+  }
+
+  reglerDelai(secondes) {
+    const v = Number(secondes);
+    this._delai = Number.isFinite(v) && v >= 0 ? v : 0;
+    this._ecrire();
+  }
+
+  tousPasseTour() {
+    return [...this._passeTour];
+  }
+
   _ecrire() {
     try {
       fs.mkdirSync(path.dirname(this.chemin), { recursive: true });
-      fs.writeFileSync(this.chemin, JSON.stringify({ favoris: this.tous() }), 'utf8');
+      const contenu = { delai: this._delai, favoris: this.tous(), passeTour: this.tousPasseTour() };
+      fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
     } catch (e) {
-      // Perdre les favoris est benin; empecher l'application de fonctionner
+      // Perdre les reglages est benin; empecher l'application de fonctionner
       // ne l'est pas.
     }
   }

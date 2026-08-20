@@ -49,7 +49,10 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   f.charger();
   f.marquer(10612457, true);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu), ['favoris']);
+  // Depuis l'extension au passe-tour, le fichier porte aussi passeTour et
+  // delai (vides/nuls ici): voir le test dedie plus bas pour le contenu
+  // complet.
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'passeTour']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -59,6 +62,51 @@ test('un fichier corrompu est ignoré sans exception', (t) => {
   const f = new Favoris(p);
   f.charger();
   assert.deepStrictEqual(f.tous(), []);
+});
+
+// Les interrupteurs par compte suivent le sort des favoris: enregistres, et
+// ne contenant QUE des identifiants numeriques et des booleens.
+test('le passe-tour par compte est enregistre et relu', (t) => {
+  const p = fichierTemporaire(t);
+  const a = new Favoris(p);
+  a.charger();
+  a.marquerPasseTour(10612457, true);
+
+  const b = new Favoris(p);
+  b.charger();
+  assert.strictEqual(b.passeTourActif(10612457), true);
+  assert.strictEqual(b.passeTourActif(999), false);
+});
+
+test('le delai global est enregistre et relu', (t) => {
+  const p = fichierTemporaire(t);
+  const a = new Favoris(p);
+  a.charger();
+  a.reglerDelai(1.5);
+
+  const b = new Favoris(p);
+  b.charger();
+  assert.strictEqual(b.delai(), 1.5);
+});
+
+test('le delai par defaut est 0', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  assert.strictEqual(f.delai(), 0);
+});
+
+test('le fichier ne contient que des identifiants, booleens et le delai', (t) => {
+  const p = fichierTemporaire(t);
+  const f = new Favoris(p);
+  f.charger();
+  f.marquer(10612457, true);
+  f.marquerPasseTour(10612457, true);
+  f.reglerDelai(0.5);
+  const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'passeTour']);
+  assert.deepStrictEqual(contenu.favoris, [10612457]);
+  assert.deepStrictEqual(contenu.passeTour, [10612457]);
+  assert.strictEqual(contenu.delai, 0.5);
 });
 
 test('un échec d écriture ne fait pas planter l appelant', (t) => {

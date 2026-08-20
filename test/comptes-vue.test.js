@@ -185,6 +185,28 @@ test('un client sans compte connu apparaît quand même', () => {
   assert.strictEqual(l.personnage, 'Inconnu');
 });
 
+test('la ligne porte l etat du passe-tour', () => {
+  const lignes = construireVue({
+    comptes: COMPTES,
+    clients: [],
+    intercepte: new Set(),
+    maitre: null,
+    exclus: new Set(),
+    favoris: new Set(),
+    passeTour: new Set([2]),
+  });
+  assert.strictEqual(lignes.find((l) => l.id === 1).passeTour, false);
+  assert.strictEqual(lignes.find((l) => l.id === 2).passeTour, true);
+});
+
+test('l absence de passeTour ne casse pas la vue', () => {
+  const lignes = construireVue({
+    comptes: COMPTES, clients: [], intercepte: new Set(),
+    maitre: null, exclus: new Set(), favoris: new Set(),
+  });
+  assert.strictEqual(lignes[0].passeTour, false);
+});
+
 test('huit comptes en jeu sont tous rendus', () => {
   const comptes = [];
   const clients = [];

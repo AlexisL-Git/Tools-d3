@@ -24,7 +24,7 @@
 //            refus rendu par rejouer() (« manque skillInstanceUid pour
 //            l'element N »). null quand il n'y a rien a dire.
 
-function ligneBase(compte, favoris, exclus) {
+function ligneBase(compte, favoris, exclus, passeTour) {
   return {
     id: compte.id,
     nickname: compte.nickname,
@@ -33,6 +33,7 @@ function ligneBase(compte, favoris, exclus) {
     pid: null,
     favori: favoris.has(compte.id),
     exclu: exclus.has(compte.id),
+    passeTour: passeTour.has(compte.id),
     etat: 'hors-ligne',
     estMaitre: false,
     suivi: false,
@@ -41,7 +42,7 @@ function ligneBase(compte, favoris, exclus) {
 }
 
 function construireVue({
-  comptes, clients, intercepte, maitre, exclus, favoris,
+  comptes, clients, intercepte, maitre, exclus, favoris, passeTour = new Set(),
   erreurs = new Map(), messages = new Map(),
 }) {
   const parCompte = new Map();
@@ -59,7 +60,7 @@ function construireVue({
   const absorbes = new Set();
 
   const lignes = comptes.map((compte) => {
-    const ligne = ligneBase(compte, favoris, exclus);
+    const ligne = ligneBase(compte, favoris, exclus, passeTour);
     const client = parCompte.get(compte.id);
     if (!client) return ligne;
     absorbes.add(client.pid);
@@ -94,6 +95,7 @@ function construireVue({
       pid: c.pid,
       favori: c.idCompte !== null && favoris.has(c.idCompte),
       exclu: c.idCompte !== null && exclus.has(c.idCompte),
+      passeTour: false,
       etat: etatDe(c.pid, 'inconnu'),
       estMaitre: c.pid === maitre,
       suivi,

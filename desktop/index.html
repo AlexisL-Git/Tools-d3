@@ -6,7 +6,7 @@
   body { margin: 0; font: 14px system-ui, sans-serif; background: #16181d; color: #e6e8ec; }
   header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #2a2e37; }
   h1 { font-size: 15px; margin: 0; font-weight: 600; }
-  #bascule { margin-left: auto; padding: 7px 16px; border: 0; border-radius: 6px;
+  #bascule { padding: 7px 16px; border: 0; border-radius: 6px;
              background: #3a3f4b; color: #e6e8ec; cursor: pointer; font: inherit; }
   #bascule.actif { background: #2e7d4f; }
   #resume { color: #8b93a3; font-size: 13px; }
@@ -25,11 +25,21 @@
   .badge.alerte { background: #7a3b2e; color: #ffdcd2; }
   #erreur { padding: 10px 18px; background: #7a3b2e; color: #ffdcd2; }
   #erreur:empty { display: none; }
+  .icone { width: 15px; height: 15px; flex: none; color: #8b93a3; }
+  .sw { display: inline-flex; align-items: center; gap: 5px; }
+  .sw input { accent-color: #2e7d4f; }
+  #delai { width: 58px; background: #22252c; color: #e6e8ec; border: 1px solid #3a3f4b;
+           border-radius: 5px; padding: 4px 6px; font: inherit; }
+  #bpt { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
+         color: #e6e8ec; cursor: pointer; font: inherit; }
+  #bpt.actif { background: #2e7d4f; }
 </style>
 <header>
   <h1>Replicate</h1>
-  <span id="resume"></span>
   <button id="bascule">INACTIF</button>
+  <button id="bpt">PASSE-TOUR</button>
+  <label style="color:#8b93a3">délai <input id="delai" type="number" min="0" step="0.1" value="0"></label>
+  <span id="resume" style="margin-left:auto"></span>
 </header>
 <div id="erreur"></div>
 <ul id="liste"></ul>
@@ -41,11 +51,45 @@
     'erreur': 'erreur',
     'inconnu': 'compte inconnu',
   };
+  // Icones redessinees d'apres le launcher de krm35: elles suivent la couleur
+  // du texte, donc le theme, et n'ajoutent aucun fichier ni dependance.
+  const ICONE_REPLICATE =
+    '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<line x1="12" y1="3" x2="12" y2="21"/><line x1="4.2" y1="7.5" x2="19.8" y2="16.5"/>' +
+    '<line x1="4.2" y1="16.5" x2="19.8" y2="7.5"/></svg>';
+  const ICONE_PASSE =
+    '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+    '<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="18.4" x2="18.4" y2="5.6"/></svg>';
+
+  function interrupteur(icone, coche, desactive, surChangement) {
+    const l = document.createElement('label');
+    l.className = 'sw';
+    const c = document.createElement('input');
+    c.type = 'checkbox';
+    c.checked = coche;
+    c.disabled = desactive;
+    c.addEventListener('change', () => surChangement(c.checked));
+    const i = document.createElement('span');
+    i.innerHTML = icone;
+    l.append(c, i);
+    return l;
+  }
+
   let actif = false;
+  let passeTourActif = false;
 
   document.getElementById('bascule').addEventListener('click', () => {
     actif = !actif;
     window.app.basculerReplicate(actif);
+  });
+
+  document.getElementById('bpt').addEventListener('click', () => {
+    passeTourActif = !passeTourActif;
+    window.app.basculerPasseTour(passeTourActif);
+  });
+
+  document.getElementById('delai').addEventListener('change', (e) => {
+    window.app.reglerDelai(e.target.value);
   });
 
   window.app.surEtat((etat) => {
@@ -53,6 +97,12 @@
     const b = document.getElementById('bascule');
     b.textContent = actif ? 'ACTIF' : 'INACTIF';
     b.classList.toggle('actif', actif);
+
+    passeTourActif = etat.passeTourActif;
+    const bpt = document.getElementById('bpt');
+    bpt.classList.toggle('actif', passeTourActif);
+    const champDelai = document.getElementById('delai');
+    if (document.activeElement !== champDelai) champDelai.value = etat.delai;
 
     document.getElementById('erreur').textContent = etat.erreurComptes || '';
 
@@ -76,14 +126,14 @@
         etoile.addEventListener('click', () => window.app.marquerFavori(l.id, !l.favori));
       }
 
-      const suit = document.createElement('input');
-      suit.type = 'checkbox';
-      suit.checked = !l.exclu;
-      suit.title = 'participe au Replicate';
-      // C'est `suivi`, et non le libelle, qui dit si l'exclusion a un sens: un
-      // client au compte inconnu de la liste peut tres bien etre intercepte.
-      suit.disabled = l.id === null || !l.suivi;
-      suit.addEventListener('change', () => window.app.exclureCompte(l.id, !suit.checked));
+      // Un interrupteur desactive quand le compte n'est pas intercepte serait
+      // une promesse fausse: hors ligne, non intercepte ou en erreur, aucun
+      // des deux ne peut agir sur ce client.
+      const utilisable = l.id !== null && l.etat === 'intercepte';
+      const swRep = interrupteur(ICONE_REPLICATE, !l.exclu, !utilisable,
+        (v) => window.app.exclureCompte(l.id, !v));
+      const swPasse = interrupteur(ICONE_PASSE, l.passeTour, !utilisable,
+        (v) => window.app.basculerPasseTourCompte(l.id, v));
 
       const nom = document.createElement('span');
       nom.className = 'nom';
@@ -99,7 +149,7 @@
         + (l.etat === 'non-intercepte' || l.etat === 'erreur' ? ' alerte' : '');
       badge.textContent = l.estMaitre ? 'maître' : LIBELLES[l.etat];
 
-      li.append(etoile, suit, nom, perso, badge);
+      li.append(etoile, swRep, swPasse, nom, perso, badge);
 
       // Echec d'attache, ou raison pour laquelle la derniere action n'a pas pu
       // etre rejouee chez ce compte.
