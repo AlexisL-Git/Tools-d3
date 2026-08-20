@@ -49,6 +49,9 @@ class EtatCompte {
     // characterId et ses elements de carte — mais ne recoit plus les actions
     // du maitre. Reactiver l'exclusion ne demande donc aucun rattrapage.
     this.exclu = false;
+    // Passe-tour automatique en combat. Independant de `exclu`: un compte peut
+    // suivre le maitre sans passer ses tours, ou l'inverse.
+    this.passeTour = false;
     // elementId -> skillInstanceUid, propre a ce compte.
     this.skillParElement = new Map();
     this.trames = 0;

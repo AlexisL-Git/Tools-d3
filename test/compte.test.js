@@ -169,6 +169,21 @@ test('exclure le maître ne change rien', () => {
   assert.strictEqual(c.esclaves(1).length, 1);
 });
 
+// Le passe-tour et le Replicate sont deux fonctions independantes: eteindre
+// l'une ne doit rien faire a l'autre.
+test('le passe-tour est eteint par defaut et independant de l exclusion', () => {
+  const c = new Comptes();
+  const e = c.ajouter({ pid: 1, port: 1 });
+
+  assert.strictEqual(e.passeTour, false);
+
+  e.passeTour = true;
+  assert.strictEqual(e.exclu, false, 'activer le passe-tour ne touche pas au Replicate');
+
+  e.exclu = true;
+  assert.strictEqual(e.passeTour, true, 'exclure du Replicate ne coupe pas le passe-tour');
+});
+
 test('chaque compte garde son propre identifiant', () => {
   const c = new Comptes();
   const a = c.ajouter({ pid: 1, port: 8301 });
