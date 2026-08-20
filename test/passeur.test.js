@@ -78,6 +78,16 @@ test('le compteur de tours declenche une tentative', () => {
   assert.strictEqual(sup.emis.length, 1);
 });
 
+// Le passeur exigeait frame.kind === 'event'. jxz n'a jamais declenche la
+// moindre emission en jeu, jxh en declenchait a chaque tour. Le type du jalon
+// suffit: c'est `dir` qui dit d'ou vient la trame.
+test('un jalon declenche quel que soit son kind', () => {
+  const sup = fauxSuperviseur();
+  const p = passeur(sup, { actif: true, delaiMs: 0 });
+  p(evenement({ kind: 'response', type: 'jxz', payload: [{ no: 2, value: 1n }] }));
+  assert.strictEqual(sup.emis.length, 1);
+});
+
 test('un autre type entrant ne declenche rien', () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup);

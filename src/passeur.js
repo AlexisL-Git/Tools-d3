@@ -117,13 +117,24 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
   return function onTrame({ pid, dir, frame }) {
     if (dir !== 'in' || frame === null) return;
 
-    const finTour = frame.kind === 'event' && frame.type === TYPE_FIN_TOUR;
-    const compteur = frame.kind === 'event' && frame.type === TYPE_COMPTEUR;
+    // On ne filtre PAS sur frame.kind. Le passeur exigeait « event », et jxz
+    // n'a jamais declenche la moindre emission dans aucun journal, alors que
+    // jxh en declenchait a chaque tour: les deux passent pourtant par le meme
+    // diagnostic, qui lui ne regarde que le type. `dir === 'in'` suffit a
+    // ecarter ce que le client emet lui-meme.
+    const finTour = frame.type === TYPE_FIN_TOUR;
+    const compteur = frame.type === TYPE_COMPTEUR;
     if (!finTour && !compteur) return;
 
-    if (!reglages.actif) return;
+    // DIAGNOSTIC TEMPORAIRE. Le compteur ouvre la manche: si le passe-tour
+    // reste muet a cet instant, c'est l'une de ces gardes qui l'a arrete, et
+    // rien dans le journal ne permettait de dire laquelle.
+    const dire = (raison) => { if (compteur) onCompteRendu({ pid, ok: false, raison }); };
+
+    if (!reglages.actif) { dire('jxz ignore : interrupteur general eteint'); return; }
     const etat = superviseur.comptes.get(pid);
-    if (etat === null || !etat.passeTour) return;
+    if (etat === null) { dire('jxz ignore : compte inconnu du superviseur'); return; }
+    if (!etat.passeTour) { dire('jxz ignore : passe-tour eteint pour ce compte'); return; }
 
     if (etat.characterId === null || etat.characterId === undefined) {
       // Sans characterId, impossible de distinguer la fin de notre tour de

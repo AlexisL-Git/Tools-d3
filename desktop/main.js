@@ -55,7 +55,7 @@ function diagnostic() {
     if (n === 1) journal(pid, 'diag : premiere trame decodee — le trafic passe bien par le proxy');
     if (frame.type === 'jxh' || frame.type === 'jxz') {
       const champs = (frame.payload || []).map((f) => `${f.no}=${f.value}`).join(' ');
-      journal(pid, `diag : ${frame.type} { ${champs} }`);
+      journal(pid, `diag : ${frame.kind} ${frame.type} { ${champs} }`);
       return;
     }
     // Tout ce que le serveur repond dans la demi-seconde qui suit notre jxy.
