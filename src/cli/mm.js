@@ -17,7 +17,7 @@ const { composer } = require('../composer');
 //
 // Le passe-tour, lui, ne depend pas de --armer: c'est une politique
 // independante, avec son propre interrupteur. --passe-tour emet donc de
-// vraies trames jti, arme ou non. C'est voulu.
+// vraies trames jxy, arme ou non. C'est voulu.
 
 function nomCourt(pid, clients) {
   const c = clients.get(pid);

@@ -3,40 +3,51 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 
 // Le passe-tour automatique, et lui seul.
 //
-// Deux messages, mesures le 20/08 sur un combat a deux personnages dont l'un
-// etait pilote par l'autopasse de krm35:
+// LA TRAME. Mesuree le 20/08 sur les octets bruts, en cliquant deux fois sur
+// le bouton « Passer » du jeu:
 //
-//   entrant  jxh { 2: characterId }   debut du tour de CE personnage
-//   sortant  jti { 1: 1, 2: 12 }      passer le tour
+//   request { content: Any{ type_url: "type.ankama.com/jxy" }, uid: -1 }
 //
-// jxh est DIFFUSE a tous les clients du combat, et porte l'identifiant du
-// personnage concerne (-1 pour les monstres). Le filtre sur characterId est
-// donc obligatoire: sans lui, chaque compte passerait le tour d'un autre.
+// Les deux fois, le tour s'est termine 30 ms plus tard, a 1,5 s puis a 21,7 s
+// du debut du tour. Aucun autre tour de la capture ne portait de jxy: tous ont
+// dure les 36,0 s du chronometre complet. jxy ne porte AUCUN champ.
 //
-// Ne pas confondre avec jxz, le compteur de tours du combat, identique pour
-// tout le monde. Une premiere version de ce module s'appuyait dessus; un
-// combat a deux personnages l'a demontree fausse.
+// Consequence importante: la trame ne designe personne. Le serveur ne peut
+// l'appliquer qu'a l'emetteur. Passer le tour d'un autre combattant est donc
+// impossible par construction — c'est ce qui autorise le declencheur large
+// ci-dessous.
+//
+// LE DECLENCHEUR. Le message qui annonce « ton tour commence » n'est pas
+// identifie. Deux jalons encadrent le debut d'un tour:
+//
+//   jxh { 2: characterId }   FIN du tour de ce personnage (-1 pour un monstre)
+//   jxz { 2: numero }        compteur de tours, dernier message avant le notre
+//                            dans les combats mesures
+//
+// jxh a longtemps ete lu comme un DEBUT de tour. Les durees mesurees l'ont
+// dementi: les tours du joueur duraient 36 s et se terminaient sur ce message.
+// S'en servir comme declencheur revenait a passer un tour deja fini.
+//
+// On emet donc sur les deux jalons qui PRECEDENT un debut de tour possible:
+// la fin du tour d'un autre, et le compteur. Un jxy hors tour etant ignore,
+// un declencheur imprecis coute des trames inutiles, pas une erreur de jeu.
+// Le seul cas ecarte est la fin de NOTRE tour: la, notre tour vient de finir,
+// il n'y a rien a passer.
 //
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur.
 
-const TYPE_DEBUT_TOUR = 'jxh';
+const TYPE_FIN_TOUR = 'jxh';
+const TYPE_COMPTEUR = 'jxz';
 const CHAMP_PERSONNAGE = 2;
-const URL_PASSE = 'type.ankama.com/jti';
+const URL_PASSE = 'type.ankama.com/jxy';
 
-// La requete est CONSTANTE: ni identifiant, ni numero de tour. On la construit
-// une fois pour toutes. Le code 12 est celui de l'autopasse mesuree; l'effet
-// est verifiable, le compteur de tours s'incremente 100 ms plus tard.
-const CHARGE_PASSE = encodeRaw([
-  { no: 1, wire: WIRE.VARINT, value: 1n },
-  { no: 2, wire: WIRE.VARINT, value: 12n },
-]);
-
+// La requete est CONSTANTE et vide. On la construit une fois pour toutes.
 const TRAME_PASSE = encodeRaw([
   { no: 2, wire: WIRE.LEN, kind: 'message', value: [
     { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'string', value: URL_PASSE },
-      { no: 2, wire: WIRE.LEN, kind: 'bytes', value: CHARGE_PASSE },
+      // Pas de champ 2: Any.value est vide, et un champ vide ne s'ecrit pas.
     ] },
     // uid = -1, comme toutes les requetes observees.
     { no: 2, wire: WIRE.VARINT, value: -1n },
@@ -53,10 +64,12 @@ function personnageAnnonce(frame) {
 //                 l'interrupteur general et le delai prennent effet aussitot
 // onCompteRendu — recoit ce qui a ete emis, ou refuse et pourquoi
 function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
-  // Un minuteur en attente par compte. Toute nouvelle annonce annule celle en
-  // cours: c'est le garde-fou. Sans lui, une trame en retard passerait le tour
-  // d'un AUTRE personnage — la seule erreur de ce projet qui coute quelque
-  // chose en jeu.
+  // Plusieurs jalons se succedent avant un meme tour — la fin du tour de
+  // chaque adversaire, puis le compteur. Sans memoire, chacun produirait sa
+  // trame et un combat a huit inonderait le serveur. On n'essaie donc qu'une
+  // fois par tour, et la fin de NOTRE tour rouvre le droit d'essayer.
+  const essaye = new Set();
+  // Un minuteur en attente par compte, quand un delai est configure.
   const minuteurs = new Map();
 
   function annuler(pid) {
@@ -71,16 +84,12 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     // L'interrupteur general est un coupe-circuit immediat: s'il a ete
     // eteint pendant le delai, ou que le compte a ete desactive entre-temps,
     // l'envoi programme doit s'annuler silencieusement. Ce n'est pas un refus
-    // a signaler, c'est une annulation demandee par l'utilisateur. Le
-    // characterId et le personnage annonce ne sont PAS revalides ici: ils ont
-    // ete verifies a l'armement et ne peuvent pas changer entre-temps.
+    // a signaler, c'est une annulation demandee par l'utilisateur.
     if (!reglages.actif) return;
     const etat = superviseur.comptes.get(pid);
     // On compare l'IDENTITE de l'objet, pas seulement le pid: si le compte a
     // ete retire pendant le delai et que Windows a reattribue le meme pid a un
-    // nouveau client Dofus, comptes.get(pid) rend un AUTRE etat. Un minuteur
-    // perime emettrait alors sur ce client a un instant arbitraire, hors de
-    // tout combat annonce.
+    // nouveau client Dofus, comptes.get(pid) rend un AUTRE etat.
     if (etat === null || etat !== etatArme || !etat.passeTour) return;
 
     const res = superviseur.emettre(pid, TRAME_PASSE);
@@ -89,22 +98,32 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
 
   return function onTrame({ pid, dir, frame }) {
     if (dir !== 'in' || frame === null) return;
-    if (frame.kind !== 'event' || frame.type !== TYPE_DEBUT_TOUR) return;
 
-    // Toute annonce de tour annule l'attente en cours, y compris celle qui
-    // concerne un autre personnage: elle signifie que notre tour est termine.
-    annuler(pid);
+    const finTour = frame.kind === 'event' && frame.type === TYPE_FIN_TOUR;
+    const compteur = frame.kind === 'event' && frame.type === TYPE_COMPTEUR;
+    if (!finTour && !compteur) return;
 
     if (!reglages.actif) return;
     const etat = superviseur.comptes.get(pid);
     if (etat === null || !etat.passeTour) return;
 
     if (etat.characterId === null || etat.characterId === undefined) {
+      // Sans characterId, impossible de distinguer la fin de notre tour de
+      // celle d'un autre. On s'abstient plutot que d'emettre a l'aveugle.
       onCompteRendu({ pid, ok: false, raison: 'characterId inconnu' });
       return;
     }
-    // Le filtre qui evite de passer le tour d'un autre combattant.
-    if (personnageAnnonce(frame) !== etat.characterId) return;
+
+    // Notre propre tour vient de finir: rien a passer, et le tour suivant
+    // redevient candidat.
+    if (finTour && personnageAnnonce(frame) === etat.characterId) {
+      annuler(pid);
+      essaye.delete(pid);
+      return;
+    }
+
+    if (essaye.has(pid)) return;
+    essaye.add(pid);
 
     const delai = Math.max(0, Number(reglages.delaiMs) || 0);
     if (delai === 0) { emettre(pid, etat); return; }
@@ -112,4 +131,4 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
   };
 }
 
-module.exports = { creerPasseur, TRAME_PASSE, TYPE_DEBUT_TOUR };
+module.exports = { creerPasseur, TRAME_PASSE, TYPE_FIN_TOUR, TYPE_COMPTEUR };
