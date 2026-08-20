@@ -142,21 +142,27 @@ test('aucune trame ne part sans jalon', async () => {
 
 // Le premier tour d'un combat n'est precede d'aucune fin de tour: le compteur
 // est le seul jalon, et il peut arriver avant que le serveur ouvre le tour.
-test('le compteur emet une fois puis relance', async () => {
+test('le compteur emet une fois puis relance plusieurs fois', async () => {
   const sup = fauxSuperviseur();
   passeur(sup, { actif: true, delaiMs: 0 })(evenement(compteurTour(1)));
   assert.strictEqual(sup.emis.length, 1, 'la premiere tentative est immediate');
   await new Promise((r) => setTimeout(r, 900));
-  assert.strictEqual(sup.emis.length, 2, 'une relance rattrape le premier tour');
+  assert.strictEqual(sup.emis.length, 2, 'la premiere relance a 700 ms');
+  // L'ouverture d'un combat met ~2,1 s a accepter le passe-tour: une seule
+  // relance ne suffisait pas.
+  await new Promise((r) => setTimeout(r, 1600));
+  assert.strictEqual(sup.emis.length, 4, 'les relances couvrent les 2 premieres secondes');
 });
 
-// La relance devient sans objet des que notre tour se termine.
-test('la fin de notre tour annule la relance du compteur', async () => {
+// Les relances deviennent sans objet des que notre tour se termine. C'est ce
+// qui les rend gratuites en regime etabli, ou le tour dure ~380 ms: aucune
+// n'atteint son echeance.
+test('la fin de notre tour annule toutes les relances du compteur', async () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup, { actif: true, delaiMs: 0 });
   p(evenement(compteurTour(1)));
   p(evenement(finDeTour(MOI)));
-  await new Promise((r) => setTimeout(r, 900));
+  await new Promise((r) => setTimeout(r, 2500));
   assert.strictEqual(sup.emis.length, 1, 'seule la tentative immediate a eu lieu');
 });
 

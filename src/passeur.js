@@ -49,10 +49,19 @@ const TYPE_FIN_TOUR = 'jxh';
 const TYPE_COMPTEUR = 'jxz';
 const CHAMP_PERSONNAGE = 2;
 const URL_PASSE = 'type.ankama.com/jxy';
-// Delai de la relance qui suit le compteur de manche. Assez long pour que le
-// serveur ait ouvert le premier tour, assez court pour ne pas laisser
-// l'utilisateur attendre.
-const RELANCE_MS = 700;
+// Relances echelonnees apres le compteur de manche.
+//
+// L'ouverture d'un combat n'accepte pas tout de suite le passe-tour: les
+// durees mesurees donnent 383 ms par manche en regime etabli, mais 2754 ms
+// pour la premiere — et les trois jxy emis dans la premiere seconde y sont
+// tous restes sans effet, alors que la meme trame passe le tour des que le
+// combat tourne. Une relance unique a 700 ms ne couvrait donc pas la fenetre.
+//
+// Ces relances ne coutent rien en regime etabli: la fin de notre tour les
+// annule toutes, et elle arrive en ~380 ms. Sur un journal de 26 emissions
+// declenchees par le compteur, une seule relance a survecu jusqu'a son
+// echeance. Le cout est paye a l'ouverture d'un combat, et la seulement.
+const RELANCES_MS = [700, 1400, 2100, 2800, 3500];
 
 // La requete est CONSTANTE et vide. On la construit une fois pour toutes.
 const TRAME_PASSE = encodeRaw([
@@ -160,8 +169,10 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
 
     // Le compteur ouvre la manche, et rien ne garantit que notre tour soit
     // deja actif quand il arrive — c'est le cas du PREMIER tour d'un combat,
-    // le seul que rien d'autre ne precede. Une relance unique le rattrape.
-    if (compteur) programmer(pid, () => emettre(pid, etat, 'jxz relance'), delai + RELANCE_MS);
+    // le seul que rien d'autre ne precede. Les relances le rattrapent.
+    if (compteur) {
+      for (const t of RELANCES_MS) programmer(pid, () => emettre(pid, etat, `jxz relance ${t}`), delai + t);
+    }
   };
 }
 
