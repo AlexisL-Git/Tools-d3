@@ -19,9 +19,10 @@ const { shannonEntropy } = require('../analysis/entropy');
 //
 // usage: node src/cli/proxy-tap.js <pid> [secondes] [fichier.jsonl]
 
-function source(cap) {
+function source(cap, integral) {
   return `
     const CAP = ${cap};
+    const INTEGRAL = ${integral ? 'true' : 'false'};
     const mod = Process.getModuleByName('ws2_32.dll');
     const get = (n) => mod.findExportByName ? mod.findExportByName(n) : mod.getExportByName(n);
 
@@ -55,6 +56,26 @@ function source(cap) {
       catch (e) { return []; }
     }
 
+    // Lecture INTEGRALE d'un envoi, sans plafond.
+    //
+    // Le plafond convient a une inspection a l'oeil, mais il est destructeur
+    // des qu'on veut reassembler le flux: un seul envoi tronque desynchronise
+    // le decoupage varint, et TOUT ce qui suit sur cette socket devient
+    // illisible. Mesure du 20/08: 15% des blocs tronques, 11,4 Mo perdus,
+    // 37 sockets touchees — et une conclusion entierement fausse tiree dessus.
+    function entier(parts) {
+      const morceaux = [];
+      for (const part of parts) {
+        try { morceaux.push(part.p.readByteArray(part.len)); } catch (e) { return null; }
+      }
+      if (morceaux.length === 1) return morceaux[0];
+      const total = morceaux.reduce((n, m) => n + m.byteLength, 0);
+      const sortie = new Uint8Array(total);
+      let o = 0;
+      for (const m of morceaux) { sortie.set(new Uint8Array(m), o); o += m.byteLength; }
+      return sortie.buffer;
+    }
+
     const hooked = [];
     const sendp = get('WSASend');
     if (sendp) {
@@ -64,6 +85,14 @@ function source(cap) {
           if (!g) return;
           // Les tampons sont concatenes: c'est la trame telle qu'elle part sur
           // le fil, en-tete et charge utile reunis.
+          if (INTEGRAL) {
+            const tout = entier(g.parts);
+            if (tout === null) return;
+            // Canal binaire de Frida: aucun plafond, et pas de cout de
+            // serialisation JSON sur des megaoctets.
+            send({ dir: 'out', sock: args[0].toString(), len: g.len, bin: true }, tout);
+            return;
+          }
           let bytes = [];
           for (const part of g.parts) {
             if (bytes.length >= CAP) break;
@@ -92,6 +121,12 @@ function source(cap) {
           // superieur au tampon annonce la trahit — sans ce garde-fou on
           // additionnait des gigaoctets imaginaires.
           if (n === 0 || n > this.b.len) return;
+          if (INTEGRAL) {
+            const tout = entier([{ p: this.b.p, len: n }]);
+            if (tout === null) return;
+            send({ dir: 'in', sock: this.sock, len: n, bin: true }, tout);
+            return;
+          }
           send({ dir: 'in', sock: this.sock, len: n, head: head(this.b.p, n) });
         }
       });
@@ -114,26 +149,41 @@ async function main() {
   const pid = Number(process.argv[2]);
   const seconds = Number(process.argv[3] || 30);
   const outFile = process.argv[4];
-  const cap = Number(process.argv[5] || 160);
-  if (!pid) { console.error('usage: node src/cli/proxy-tap.js <pid> [secondes] [fichier.jsonl] [octetsParTrame]'); process.exit(1); }
+  // 'tout' capture l'INTEGRALITE des octets, indispensable des qu'on veut
+  // reassembler le flux: un seul envoi tronque desynchronise le decoupage
+  // varint et rend illisible tout ce qui suit sur la socket.
+  const integral = process.argv[5] === 'tout';
+  const cap = integral ? 0 : Number(process.argv[5] || 160);
+  if (!pid) { console.error('usage: node src/cli/proxy-tap.js <pid> [secondes] [fichier.jsonl] [octetsParTrame|tout]'); process.exit(1); }
 
   const session = await frida.attach(pid);
-  const script = await session.createScript(source(cap));
+  const script = await session.createScript(source(cap, integral));
   const socks = new Map();
   const t0 = Date.now();
   const sink = outFile ? fs.createWriteStream(outFile) : null;
 
-  script.message.connect((m) => {
+  let tronques = 0;
+  script.message.connect((m, data) => {
     if (m.type === 'error') { console.error('AGENT:', m.description); return; }
     const p = m.payload || {};
-    if (p.ready) { console.log(`accroche: ${p.ready.join(', ')}\nenregistrement ${seconds}s\n`); return; }
+    if (p.ready) {
+      console.log(`accroche: ${p.ready.join(', ')}\nenregistrement ${seconds}s${integral ? ' (capture integrale)' : ''}\n`);
+      return;
+    }
     if (!p.dir) return;
-    if (sink) sink.write(JSON.stringify({ t: Date.now() - t0, ...p }) + '\n');
+
+    // En mode integral les octets arrivent par le canal binaire; on les
+    // enregistre en hexadecimal, sous la meme cle que le mode tronque pour ne
+    // pas casser les outils d'analyse existants.
+    const octets = p.bin && data ? Array.from(new Uint8Array(data)) : (p.head || []);
+    if (!p.bin && p.len > octets.length) tronques++;
+    if (sink) sink.write(JSON.stringify({ t: Date.now() - t0, dir: p.dir, sock: p.sock, len: p.len, head: octets }) + '\n');
+
     let s = socks.get(p.sock);
     if (!s) { s = { in: 0, out: 0, bin: 0, bout: 0, tls: 0, n: 0, bytes: [] }; socks.set(p.sock, s); }
     s[p.dir]++; s['b' + p.dir] += p.len; s.n++;
-    if (looksTls(p.head)) s.tls++;
-    if (s.bytes.length < 2048) s.bytes.push(...p.head);
+    if (looksTls(octets)) s.tls++;
+    if (s.bytes.length < 2048) s.bytes.push(...octets.slice(0, 512));
   });
 
   await script.load();
@@ -157,6 +207,11 @@ async function main() {
     );
   }
   if (outFile) console.log(`\ntrames ecrites dans ${outFile}`);
+  // Une capture tronquee ne permet PAS de reassembler le flux. Le dire, plutot
+  // que de laisser croire que les donnees sont exploitables.
+  if (tronques > 0) {
+    console.log(`ATTENTION: ${tronques} bloc(s) tronque(s) — le reassemblage sera faux. Relancer avec l'option "tout".`);
+  }
 }
 
 main().catch((e) => { console.error(e.message); process.exit(1); });
