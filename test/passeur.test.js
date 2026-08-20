@@ -171,6 +171,30 @@ test('eteindre l interrupteur general pendant le delai empeche l emission', asyn
   assert.strictEqual(sup.emis.length, 0);
 });
 
+// Windows reattribue les pid. Si le compte arme est retire pendant le delai et
+// que le meme pid revient a un nouveau client Dofus, le minuteur perime
+// emettrait sur CE client, a un instant arbitraire et hors de tout combat
+// annonce. Le pid ne suffit donc pas: c'est l'identite de l'objet qui compte.
+test('un pid reattribue a un autre client n herite pas du minuteur en attente', async () => {
+  const sup = fauxSuperviseur();
+  const p = passeur(sup, { actif: true, delaiMs: 40 });
+  p(evenement(trameJxh(MOI)));
+  // Meme pid, meme characterId, meme interrupteur: seul l'objet differe.
+  sup.etats.set(1, { pid: 1, passeTour: true, characterId: MOI });
+  await new Promise((r) => setTimeout(r, 120));
+  assert.strictEqual(sup.emis.length, 0, "ce client n'a jamais annonce de tour");
+});
+
+// Le compte simplement retire ne doit rien recevoir non plus.
+test('un compte retire pendant le delai n emet pas', async () => {
+  const sup = fauxSuperviseur();
+  const p = passeur(sup, { actif: true, delaiMs: 40 });
+  p(evenement(trameJxh(MOI)));
+  sup.etats.delete(1);
+  await new Promise((r) => setTimeout(r, 120));
+  assert.strictEqual(sup.emis.length, 0);
+});
+
 // Meme logique pour l'interrupteur par compte: l'eteindre pendant le delai
 // doit annuler l'envoi deja programme.
 test('eteindre le passeTour du compte pendant le delai empeche l emission', async () => {

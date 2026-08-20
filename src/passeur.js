@@ -64,7 +64,8 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     if (t !== undefined) { clearTimeout(t); minuteurs.delete(pid); }
   }
 
-  function emettre(pid) {
+  // etatArme — l'objet d'etat tel qu'il etait au moment de l'armement.
+  function emettre(pid, etatArme) {
     minuteurs.delete(pid);
 
     // L'interrupteur general est un coupe-circuit immediat: s'il a ete
@@ -75,7 +76,12 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     // ete verifies a l'armement et ne peuvent pas changer entre-temps.
     if (!reglages.actif) return;
     const etat = superviseur.comptes.get(pid);
-    if (etat === null || !etat.passeTour) return;
+    // On compare l'IDENTITE de l'objet, pas seulement le pid: si le compte a
+    // ete retire pendant le delai et que Windows a reattribue le meme pid a un
+    // nouveau client Dofus, comptes.get(pid) rend un AUTRE etat. Un minuteur
+    // perime emettrait alors sur ce client a un instant arbitraire, hors de
+    // tout combat annonce.
+    if (etat === null || etat !== etatArme || !etat.passeTour) return;
 
     const res = superviseur.emettre(pid, TRAME_PASSE);
     onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets });
@@ -101,8 +107,8 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     if (personnageAnnonce(frame) !== etat.characterId) return;
 
     const delai = Math.max(0, Number(reglages.delaiMs) || 0);
-    if (delai === 0) { emettre(pid); return; }
-    minuteurs.set(pid, setTimeout(() => emettre(pid), delai));
+    if (delai === 0) { emettre(pid, etat); return; }
+    minuteurs.set(pid, setTimeout(() => emettre(pid, etat), delai));
   };
 }
 
