@@ -39,18 +39,52 @@ Le premier combat, quarante tours, donne exactement le même motif.
 vu porter 7, 13, 15 et 16 dans d'autres contextes. `31` est le code du passage
 de tour.
 
-### Deux conséquences pour la conception
+### `jxz` est diffusé, pas personnel — hypothèse démentie
 
-**Le serveur n'annonce que NOTRE tour.** Chaque `jxz` est suivi d'une passe,
-sans exception, sur les deux combats. Les tours des autres combattants ne sont
-pas annoncés par ce message. Il n'y a donc **aucun identifiant de personnage à
-vérifier** : recevoir `jxz` suffit à savoir que c'est à nous.
+En combat solo, chaque `jxz` était suivi d'une passe : j'en avais conclu que le
+serveur n'annonçait que notre propre tour, et que recevoir `jxz` suffisait.
 
-C'est plus simple que ce que la conception initiale supposait, et cela retire
-une condition d'émission.
+**Un combat à deux personnages a démenti cette conclusion.** Les deux clients
+ont reçu `jxz` pour les tours 1 à 5 **aux mêmes instants** :
 
-**L'écart annonce → passe est de 0 à 100 ms** chez krm35. C'est un temps de
-machine, et c'est la signature de son automatisation.
+```
+             Spoony      Michtou
+jxz {2: 1}   29,0 s      29,0 s
+jxz {2: 2}   33,9 s      33,9 s
+jxz {2: 3}   39,8 s      39,7 s
+jxz {2: 4}   44,3 s      44,2 s
+jxz {2: 5}   48,3 s      48,2 s
+```
+
+Un dénombrement par charge utile le confirme : sur cette fenêtre, `jxz` a cinq
+charges **toutes communes** aux deux comptes, aucune propre à l'un d'eux.
+
+`jxz { 2: N }` est donc le **compteur de tours du combat**, diffusé à tous les
+participants. Implémenter « recevoir `jxz` suffit » ferait passer son tour à
+chaque compte dès que n'importe quel combattant commence le sien.
+
+La coïncidence en solo s'explique d'elle-même : avec un seul personnage
+contrôlé, tout tour annoncé était effectivement le sien.
+
+### Ce qui reste à trouver
+
+Le signal « c'est à TOI de jouer » n'est pas identifié. Les seuls messages
+personnels observés dans le combat à deux — `jss`, `jxb`, `jxo`, `iom`, `idu` —
+n'apparaissent pas une fois par tour.
+
+Deux pistes, à départager par une mesure :
+
+1. un message entrant personnel non encore repéré ;
+2. l'ordre de passage, envoyé une fois au début du combat, que le client
+   combine au compteur `jxz` pour savoir à qui est le tour.
+
+**La mesure qui tranchera** demande un combat à deux personnages où **les deux
+passent réellement leur tour**, à la main, dans un ordre connu. Le combat
+mesuré n'en contenait aucune passe — ni `jti { 2: 31 }` chez l'un, ni chez
+l'autre — ce qui a rendu toute corrélation impossible.
+
+**L'écart annonce → passe est de 0 à 100 ms** chez krm35, en solo. C'est un
+temps de machine, et c'est la signature de son automatisation.
 
 ## La seule voie praticable
 
@@ -98,18 +132,19 @@ mauvais moment fait perdre un tour.
 
 ### Conditions d'émission
 
-Deux conditions, et non trois : la vérification du personnage tombe, puisque le
-serveur n'annonce que notre propre tour.
+Trois conditions, toutes vérifiées avant d'écrire quoi que ce soit :
 
-1. la trame entrante est un `jxz` ;
-2. le passe-tour est actif pour ce compte et en général.
+1. le combat est en cours ;
+2. **c'est le tour de ce personnage** — signal à identifier, voir plus haut ;
+3. le passe-tour est actif pour ce compte et en général.
 
-Le `characterId` n'est pas nécessaire — c'est une simplification acquise par la
-mesure, pas une négligence.
+La deuxième est bloquante et n'est pas encore satisfaite. Émettre sur le seul
+`jxz` ferait passer le tour d'un autre combattant, ce qui est précisément
+l'erreur que le garde-fou cherche à éviter.
 
 Le numéro de tour porté par `jxz` n'est **pas** repris dans la requête : `jti`
-est constant, `{ 1: 1, 2: 31 }`, sur les quarante-cinq passes observées. On
-émet donc une trame fixe.
+est constant, `{ 1: 1, 2: 31 }`, sur les quarante-cinq passes observées en
+solo. On émet donc une trame fixe.
 
 ## Interface
 
