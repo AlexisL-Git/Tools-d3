@@ -28,11 +28,19 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // dementi: les tours du joueur duraient 36 s et se terminaient sur ce message.
 // S'en servir comme declencheur revenait a passer un tour deja fini.
 //
-// On emet donc sur les deux jalons qui PRECEDENT un debut de tour possible:
-// la fin du tour d'un autre, et le compteur. Un jxy hors tour etant ignore,
-// un declencheur imprecis coute des trames inutiles, pas une erreur de jeu.
-// Le seul cas ecarte est la fin de NOTRE tour: la, notre tour vient de finir,
-// il n'y a rien a passer.
+// On emet donc sur TOUS les jalons qui precedent un debut de tour possible:
+// chaque fin de tour d'un autre combattant, et le compteur. Un jxy hors tour
+// etant ignore, un declencheur imprecis coute des trames inutiles, pas une
+// erreur de jeu. Le seul cas ecarte est la fin de NOTRE tour: la, notre tour
+// vient de finir, il n'y a rien a passer.
+//
+// N'essayer QU'UNE FOIS par manche serait tentant pour economiser des trames.
+// C'est ce que faisait une version precedente, et elle echouait en
+// multicompte: la tentative unique partait des la fin du premier tour de la
+// manche, donc bien avant le notre si le personnage jouait en cinquieme
+// position, et la manche se terminait sans autre essai. Le nombre de jalons
+// est borne par le nombre de combattants, pas par le temps: huit comptes
+// coutent huit trames par manche. La borne est acceptable, le limiteur non.
 //
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur.
@@ -41,6 +49,10 @@ const TYPE_FIN_TOUR = 'jxh';
 const TYPE_COMPTEUR = 'jxz';
 const CHAMP_PERSONNAGE = 2;
 const URL_PASSE = 'type.ankama.com/jxy';
+// Delai de la relance qui suit le compteur de manche. Assez long pour que le
+// serveur ait ouvert le premier tour, assez court pour ne pas laisser
+// l'utilisateur attendre.
+const RELANCE_MS = 700;
 
 // La requete est CONSTANTE et vide. On la construit une fois pour toutes.
 const TRAME_PASSE = encodeRaw([
@@ -64,17 +76,22 @@ function personnageAnnonce(frame) {
 //                 l'interrupteur general et le delai prennent effet aussitot
 // onCompteRendu — recoit ce qui a ete emis, ou refuse et pourquoi
 function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
-  // Plusieurs jalons se succedent avant un meme tour — la fin du tour de
-  // chaque adversaire, puis le compteur. Sans memoire, chacun produirait sa
-  // trame et un combat a huit inonderait le serveur. On n'essaie donc qu'une
-  // fois par tour, et la fin de NOTRE tour rouvre le droit d'essayer.
-  const essaye = new Set();
-  // Un minuteur en attente par compte, quand un delai est configure.
-  const minuteurs = new Map();
+  // Les minuteurs en attente par compte. Il peut y en avoir plusieurs: le
+  // delai configure par l'utilisateur, et la relance du compteur ci-dessous.
+  const minuteurs = new Map();   // pid -> Set de timeouts
+
+  function programmer(pid, fn, delai) {
+    let lot = minuteurs.get(pid);
+    if (lot === undefined) { lot = new Set(); minuteurs.set(pid, lot); }
+    const t = setTimeout(() => { lot.delete(t); fn(); }, delai);
+    lot.add(t);
+  }
 
   function annuler(pid) {
-    const t = minuteurs.get(pid);
-    if (t !== undefined) { clearTimeout(t); minuteurs.delete(pid); }
+    const lot = minuteurs.get(pid);
+    if (lot === undefined) return;
+    for (const t of lot) clearTimeout(t);
+    minuteurs.delete(pid);
   }
 
   // etatArme    — l'objet d'etat tel qu'il etait au moment de l'armement.
@@ -82,8 +99,6 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
   //               rendu: sans lui, l'ordre des lignes de journal est le seul
   //               indice, et il ne suffit pas a savoir quel jalon a tire.
   function emettre(pid, etatArme, declencheur) {
-    minuteurs.delete(pid);
-
     // L'interrupteur general est un coupe-circuit immediat: s'il a ete
     // eteint pendant le delai, ou que le compte a ete desactive entre-temps,
     // l'envoi programme doit s'annuler silencieusement. Ce n'est pas un refus
@@ -117,21 +132,22 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
       return;
     }
 
-    // Notre propre tour vient de finir: rien a passer, et le tour suivant
-    // redevient candidat.
+    // Notre propre tour vient de finir: rien a passer, et tout envoi encore
+    // en attente est desormais sans objet.
     if (finTour && personnageAnnonce(frame) === etat.characterId) {
       annuler(pid);
-      essaye.delete(pid);
       return;
     }
 
-    if (essaye.has(pid)) return;
-    essaye.add(pid);
-
     const jalon = finTour ? `jxh ${personnageAnnonce(frame)}` : TYPE_COMPTEUR;
     const delai = Math.max(0, Number(reglages.delaiMs) || 0);
-    if (delai === 0) { emettre(pid, etat, jalon); return; }
-    minuteurs.set(pid, setTimeout(() => emettre(pid, etat, jalon), delai));
+    if (delai === 0) emettre(pid, etat, jalon);
+    else programmer(pid, () => emettre(pid, etat, jalon), delai);
+
+    // Le compteur ouvre la manche, et rien ne garantit que notre tour soit
+    // deja actif quand il arrive — c'est le cas du PREMIER tour d'un combat,
+    // le seul que rien d'autre ne precede. Une relance unique le rattrape.
+    if (compteur) programmer(pid, () => emettre(pid, etat, 'jxz relance'), delai + RELANCE_MS);
   };
 }
 

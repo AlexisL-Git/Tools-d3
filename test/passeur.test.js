@@ -110,28 +110,44 @@ test('l interrupteur general eteint neutralise tout', () => {
   assert.strictEqual(sup.emis.length, 0);
 });
 
-// Plusieurs declencheurs se succedent avant un meme tour: il ne faut pas
-// inonder le serveur d'une trame par message recu.
-test('deux declencheurs rapproches n emettent qu une fois', async () => {
+// Le combat multicompte est le cas qui a condamne le limiteur « une tentative
+// par manche »: notre personnage joue en cinquieme position, la tentative
+// unique partait apres la premiere fin de tour et n'atteignait jamais la
+// notre. Chaque fin de tour adverse doit donner sa chance.
+test('chaque fin de tour adverse donne lieu a une tentative', () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup, { actif: true, delaiMs: 0 });
-  p(evenement(finDeTour(MONSTRE)));
-  p(evenement(compteurTour(37)));
-  await new Promise((r) => setTimeout(r, 50));
-  assert.strictEqual(sup.emis.length, 1, 'une seule tentative par tour');
+  for (const id of [111n, 222n, 333n, 444n]) p(evenement(finDeTour(id)));
+  assert.strictEqual(sup.emis.length, 4);
 });
 
-// Apres la fin de notre propre tour, le compteur repart: une nouvelle
-// tentative doit redevenir possible.
-test('la fin de notre tour rearme le droit d essayer', async () => {
+// Le cout reste borne par le nombre de combattants, pas par le temps: rien
+// n'emet tant qu'aucun jalon n'arrive.
+test('aucune trame ne part sans jalon', async () => {
+  const sup = fauxSuperviseur();
+  passeur(sup, { actif: true, delaiMs: 0 });
+  await new Promise((r) => setTimeout(r, 120));
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+// Le premier tour d'un combat n'est precede d'aucune fin de tour: le compteur
+// est le seul jalon, et il peut arriver avant que le serveur ouvre le tour.
+test('le compteur emet une fois puis relance', async () => {
+  const sup = fauxSuperviseur();
+  passeur(sup, { actif: true, delaiMs: 0 })(evenement(compteurTour(1)));
+  assert.strictEqual(sup.emis.length, 1, 'la premiere tentative est immediate');
+  await new Promise((r) => setTimeout(r, 900));
+  assert.strictEqual(sup.emis.length, 2, 'une relance rattrape le premier tour');
+});
+
+// La relance devient sans objet des que notre tour se termine.
+test('la fin de notre tour annule la relance du compteur', async () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup, { actif: true, delaiMs: 0 });
-  p(evenement(finDeTour(MONSTRE)));
-  assert.strictEqual(sup.emis.length, 1);
-
-  p(evenement(finDeTour(MOI)));          // notre tour se termine
-  p(evenement(finDeTour(MONSTRE)));      // le tour suivant s'annonce
-  assert.strictEqual(sup.emis.length, 2);
+  p(evenement(compteurTour(1)));
+  p(evenement(finDeTour(MOI)));
+  await new Promise((r) => setTimeout(r, 900));
+  assert.strictEqual(sup.emis.length, 1, 'seule la tentative immediate a eu lieu');
 });
 
 test('le delai differe l emission', async () => {
