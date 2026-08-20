@@ -57,11 +57,13 @@ const URL_PASSE = 'type.ankama.com/jxy';
 // tous restes sans effet, alors que la meme trame passe le tour des que le
 // combat tourne. Une relance unique a 700 ms ne couvrait donc pas la fenetre.
 //
-// Ces relances ne coutent rien en regime etabli: la fin de notre tour les
-// annule toutes, et elle arrive en ~380 ms. Sur un journal de 26 emissions
-// declenchees par le compteur, une seule relance a survecu jusqu'a son
-// echeance. Le cout est paye a l'ouverture d'un combat, et la seulement.
+// Elles ne sont armees qu'a l'OUVERTURE, c'est-a-dire sur le compteur a 1: le
+// champ 2 de jxz est le numero de manche, deux combats mesures le montrent
+// (1..12 pour le premier, puis retour a 1 pour le second). Les armer a chaque
+// manche coutait cinq trames pour rien — c'est ce cout qui avait fait ajouter
+// une annulation, et l'annulation tuait la seule chose qui servait.
 const RELANCES_MS = [700, 1400, 2100, 2800, 3500];
+const PREMIERE_MANCHE = 1n;
 
 // La requete est CONSTANTE et vide. On la construit une fois pour toutes.
 const TRAME_PASSE = encodeRaw([
@@ -80,6 +82,13 @@ function personnageAnnonce(frame) {
   return f === undefined ? null : f.value;
 }
 
+// Le meme champ 2, sur jxz, porte le numero de manche.
+function estPremiereManche(frame) {
+  const n = personnageAnnonce(frame);
+  if (n === null) return false;
+  try { return BigInt(n) === PREMIERE_MANCHE; } catch { return false; }
+}
+
 // superviseur   — porte emettre(pid, octets) et comptes.get(pid)
 // reglages      — { actif, delaiMs }, RELU a chaque trame pour que
 //                 l'interrupteur general et le delai prennent effet aussitot
@@ -87,9 +96,18 @@ function personnageAnnonce(frame) {
 function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
   // Les minuteurs en attente par compte. Il peut y en avoir plusieurs: le
   // delai configure par l'utilisateur, et la relance du compteur ci-dessous.
-  const minuteurs = new Map();   // pid -> Set de timeouts
+  const minuteurs = new Map();   // pid -> Set de timeouts annulables
 
-  function programmer(pid, fn, delai) {
+  // Les relances d'ouverture ne sont PAS enregistrees ici, donc pas annulables.
+  // Le journal du 20/08 dit pourquoi: a l'ouverture, un jxh portant notre
+  // propre characterId arrive 29 ms apres le compteur, avant que le moindre
+  // tour ait pu avoir lieu. Lu comme « notre tour vient de finir », il annulait
+  // les cinq relances, et le premier tour partait au chronometre complet
+  // (36,0 s mesurees). On ne sait pas ce qu'annonce ce jxh; on sait qu'il ne
+  // doit rien annuler. Une relance qui survit a notre vrai tour ne coute qu'une
+  // trame ignoree — le passeur en emet deja une par combattant et par manche.
+  function programmer(pid, fn, delai, annulable = true) {
+    if (!annulable) { setTimeout(fn, delai); return; }
     let lot = minuteurs.get(pid);
     if (lot === undefined) { lot = new Set(); minuteurs.set(pid, lot); }
     const t = setTimeout(() => { lot.delete(t); fn(); }, delai);
@@ -170,8 +188,8 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     // Le compteur ouvre la manche, et rien ne garantit que notre tour soit
     // deja actif quand il arrive — c'est le cas du PREMIER tour d'un combat,
     // le seul que rien d'autre ne precede. Les relances le rattrapent.
-    if (compteur) {
-      for (const t of RELANCES_MS) programmer(pid, () => emettre(pid, etat, `jxz relance ${t}`), delai + t);
+    if (compteur && estPremiereManche(frame)) {
+      for (const t of RELANCES_MS) programmer(pid, () => emettre(pid, etat, `jxz relance ${t}`), delai + t, false);
     }
   };
 }

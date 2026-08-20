@@ -154,16 +154,36 @@ test('le compteur emet une fois puis relance plusieurs fois', async () => {
   assert.strictEqual(sup.emis.length, 4, 'les relances couvrent les 2 premieres secondes');
 });
 
-// Les relances deviennent sans objet des que notre tour se termine. C'est ce
-// qui les rend gratuites en regime etabli, ou le tour dure ~380 ms: aucune
-// n'atteint son echeance.
-test('la fin de notre tour annule toutes les relances du compteur', async () => {
+// LE JOURNAL DU 20/08, combat reel. A l'ouverture:
+//
+//   280192  jxz { 2: 1 }        la manche 1 commence
+//   280221  jxh { 2: MOI }      29 ms plus tard, avant tout tour
+//   316240  jxh { 2: MOI }      36,0 s: le chronometre complet
+//
+// Ce jxh a 29 ms n'est pas la fin d'un tour — aucun tour n'avait eu lieu. Il
+// annulait pourtant les cinq relances armees juste avant, et le premier tour
+// partait au chronometre. C'etait la seule cause du « premier tour a passer a
+// la main »: les relances de l'ouverture n'ont jamais atteint leur echeance.
+test('la fin de notre tour n annule pas les relances d ouverture', async () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup, { actif: true, delaiMs: 0 });
   p(evenement(compteurTour(1)));
   p(evenement(finDeTour(MOI)));
-  await new Promise((r) => setTimeout(r, 2500));
-  assert.strictEqual(sup.emis.length, 1, 'seule la tentative immediate a eu lieu');
+  await new Promise((r) => setTimeout(r, 900));
+  assert.strictEqual(sup.emis.length, 2, 'la relance a 700 ms survit');
+});
+
+// Les relances ne repondent qu'a l'ouverture d'un combat. Les armer a chaque
+// manche etait ce qui rendait leur annulation necessaire; le compteur dit la
+// manche, donc la question ne se pose plus. En regime etabli les jalons de fin
+// de tour suffisent, et le tour dure ~380 ms.
+test('en regime etabli le compteur n arme aucune relance', async () => {
+  const sup = fauxSuperviseur();
+  const p = passeur(sup, { actif: true, delaiMs: 0 });
+  p(evenement(compteurTour(4)));
+  assert.strictEqual(sup.emis.length, 1, 'la tentative immediate a lieu');
+  await new Promise((r) => setTimeout(r, 900));
+  assert.strictEqual(sup.emis.length, 1, 'aucune relance hors ouverture');
 });
 
 test('le delai differe l emission', async () => {
