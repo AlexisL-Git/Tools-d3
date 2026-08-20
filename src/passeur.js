@@ -66,6 +66,17 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
 
   function emettre(pid) {
     minuteurs.delete(pid);
+
+    // L'interrupteur general est un coupe-circuit immediat: s'il a ete
+    // eteint pendant le delai, ou que le compte a ete desactive entre-temps,
+    // l'envoi programme doit s'annuler silencieusement. Ce n'est pas un refus
+    // a signaler, c'est une annulation demandee par l'utilisateur. Le
+    // characterId et le personnage annonce ne sont PAS revalides ici: ils ont
+    // ete verifies a l'armement et ne peuvent pas changer entre-temps.
+    if (!reglages.actif) return;
+    const etat = superviseur.comptes.get(pid);
+    if (etat === null || !etat.passeTour) return;
+
     const res = superviseur.emettre(pid, TRAME_PASSE);
     onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets });
   }

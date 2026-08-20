@@ -157,3 +157,27 @@ test('un echec d emission est signale sans exception', () => {
   assert.strictEqual(rendu[0].ok, false);
   assert.match(rendu[0].raison, /socket amont/);
 });
+
+// L'interrupteur general est un coupe-circuit immediat: l'eteindre PENDANT le
+// delai doit annuler l'envoi deja programme, pas seulement empecher d'en
+// programmer un nouveau.
+test('eteindre l interrupteur general pendant le delai empeche l emission', async () => {
+  const sup = fauxSuperviseur();
+  const reglages = { actif: true, delaiMs: 40 };
+  const p = passeur(sup, reglages);
+  p(evenement(trameJxh(MOI)));
+  reglages.actif = false;
+  await new Promise((r) => setTimeout(r, 100));
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+// Meme logique pour l'interrupteur par compte: l'eteindre pendant le delai
+// doit annuler l'envoi deja programme.
+test('eteindre le passeTour du compte pendant le delai empeche l emission', async () => {
+  const sup = fauxSuperviseur();
+  const p = passeur(sup, { actif: true, delaiMs: 40 });
+  p(evenement(trameJxh(MOI)));
+  sup.comptes.get(1).passeTour = false;
+  await new Promise((r) => setTimeout(r, 100));
+  assert.strictEqual(sup.emis.length, 0);
+});
