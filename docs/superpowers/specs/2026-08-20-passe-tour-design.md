@@ -20,12 +20,64 @@ launcher de krm35 pendant que son autopasse tournait.
 
 | message | sens | rôle |
 |---|---|---|
-| **`jxh { 2: characterId }`** | entrant | **début du tour de ce personnage** — le discriminant |
-| **`jti { 1: 1, 2: 12 }`** | sortant | **passer le tour** |
-| `jxz { 2: N }` | entrant | compteur de tours du combat, **diffusé à tous** |
+| **`jxy`** (vide) | sortant | **passer le tour** |
+| `jxh { 2: characterId }` | entrant | **fin** du tour de ce personnage |
+| `jxz { 2: N }` | entrant | compteur de tours, diffusé à tous |
 
-Mesurés le 20/08 sur un combat à deux personnages, l'un piloté par l'autopasse
-de krm35, l'autre à la main. Le détail et les chiffres suivent.
+Établis le 20/08 sur les **octets bruts** d'un combat réel, après trois
+conclusions fausses tirées de trames décodées. Le détail suit.
+
+## Trois erreurs, et ce qui les a produites
+
+| affirmé | réalité | cause |
+|---|---|---|
+| `jti { 2: 12 }` passe le tour | le client l'émet à **chaque** fin de tour, sans effet | corrélation prise pour causalité chez krm35 |
+| `jxh` annonce le **début** du tour | il annonce sa **fin** | jamais confronté à la durée réelle des tours |
+| un passe-tour mal placé fait perdre son tour à un allié | `jxy` n'a **pas de cible** | risque supposé, jamais vérifié |
+
+La cause commune : toutes ces analyses portaient sur des trames **décodées**,
+et le décodeur écarte en silence ce qu'il ne comprend pas. `jxy` n'apparaissait
+dans aucun de mes relevés. Il a fallu repartir des octets pour le voir.
+
+## La preuve
+
+Capture intégrale d'un combat, l'utilisateur cliquant « Passer » deux fois :
+
+```
+jxy dans toute la capture : 2 occurrences, deux requetes du client
+
+  t+ 73750ms  ->  tour termine 30 ms plus tard, apres 1,5 s
+  t+329696ms  ->  tour termine 29 ms plus tard, apres 21,7 s
+
+tous les autres tours : 36,0 s — le chronometre complet, aucun jxy
+```
+
+La trame, en entier :
+
+```
+12 22  0a 15  0a 13 "type.ankama.com/jxy"  10 ff ff ff ff ff ff ff ff ff 01
+= request { content: Any{ type_url: "jxy" }, uid: -1 }
+```
+
+**Aucune charge utile.** Rien à préciser pour passer son tour.
+
+## Ce que cela change dans la conception
+
+**Le garde-fou central n'a plus d'objet.** `jxy` ne désigne aucune cible : le
+serveur ne peut l'appliquer qu'au tour de l'expéditeur. Il est donc impossible
+de faire perdre son tour à un allié. Toute la mécanique d'annulation de
+minuteur protégeait contre un risque inexistant.
+
+**Le déclencheur reste à établir.** `jxh { characterId }` marque la **fin** du
+tour, donc s'en servir émet toujours trop tard — c'est exactement pourquoi
+l'implémentation actuelle n'a aucun effet. Dans les combats mesurés, le tour du
+joueur commence juste après `jxz`, mais `jxz` est diffusé une fois par tour de
+combat et non par joueur : à valider sur un combat de groupe avant de s'en
+servir.
+
+En attendant, une propriété rend l'affaire tolérante : un `jxy` émis hors tour
+étant simplement ignoré, un déclencheur imprécis coûte des trames inutiles,
+pas une erreur de jeu.
 
 ### `jxz` est diffusé, pas personnel — hypothèse démentie
 
