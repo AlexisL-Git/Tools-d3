@@ -11,9 +11,13 @@ const { composer } = require('../composer');
 //   node src/cli/mm.js               observe et affiche ce qui SERAIT rejoue
 //   node src/cli/mm.js --armer       rejoue pour de bon
 //
-// Sans --armer, rien ne part sur le reseau. C'est le defaut, et c'est
+// Sans --armer, aucun REJEU ne part sur le reseau. C'est le defaut, et c'est
 // volontaire: le compte rendu permet de verifier chaque decision avant que la
 // premiere action ne soit reellement dupliquee.
+//
+// Le passe-tour, lui, ne depend pas de --armer: c'est une politique
+// independante, avec son propre interrupteur. --passe-tour emet donc de
+// vraies trames jti, arme ou non. C'est voulu.
 
 function nomCourt(pid, clients) {
   const c = clients.get(pid);
@@ -139,7 +143,12 @@ async function main() {
     traiter(trame);
   };
 
-  console.log(`mode ${arme ? 'ARMÉ : les actions seront dupliquées' : "observation : rien n'est envoyé"}`);
+  // Le message ne parle que du Replicate: annoncer « rien n'est envoyé » alors
+  // que --passe-tour emet de vraies trames serait le contraire de la verite.
+  console.log(`mode ${arme ? 'ARMÉ : les actions seront dupliquées' : "observation : aucun rejeu n'est envoyé"}`);
+  if (passeTour) {
+    console.log(`passe-tour ACTIF pour tous les comptes — il ÉMET pour de bon, indépendamment de --armer (délai ${delaiMs} ms)`);
+  }
   console.log('en attente des clients Dofus — lance-les maintenant.\n');
 
   await balayer();
