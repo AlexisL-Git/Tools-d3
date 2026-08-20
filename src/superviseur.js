@@ -196,6 +196,20 @@ class Superviseur {
     return rendu;
   }
 
+  // Ecrit une trame sur UN client. Contrairement a rejouer(), qui vise tous
+  // les esclaves et obeit au drapeau `arme` du Replicate, emettre ne juge
+  // rien: l'appelant a deja decide. C'est ce qui permet au passe-tour d'avoir
+  // son propre interrupteur sans dependre de celui du Replicate.
+  emettre(pid, octets) {
+    const client = this.clients.get(pid);
+    if (!client) return { ok: false, raison: 'client inconnu' };
+    if (!client.amont) return { ok: false, raison: 'pas de socket amont' };
+    // Le reassembleur retire le prefixe de longueur: il faut le remettre.
+    const paquet = Buffer.concat([writeVarint(octets.length), octets]);
+    client.amont.write(paquet);
+    return { ok: true, octets: paquet.length };
+  }
+
   // Un client ferme doit disparaitre de la liste: sinon il continue de figurer
   // dans chaque plan de rejeu comme « pas de socket amont », et brouille le
   // compte rendu avec des refus qui n'ont pas lieu d'etre.

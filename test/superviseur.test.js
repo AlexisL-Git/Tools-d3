@@ -206,6 +206,40 @@ test('le clic du maître est rejoué avec le numéro propre à l esclave', () =>
   assert.strictEqual(parNo[2], 540322n, "l'élément du monde doit être inchangé");
 });
 
+// Le passe-tour vise UN client, pas tous les esclaves, et n'obeit pas au
+// drapeau `arme` qui appartient au Replicate: il lui faut son propre chemin.
+test('emettre ecrit la trame sur le client vise', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  const ecritsUn = fauxClient(s, 1);
+  const ecritsDeux = fauxClient(s, 2);
+
+  const res = s.emettre(2, Buffer.from([0xaa, 0xbb, 0xcc]));
+
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(ecritsUn.length, 0, 'le client non vise ne recoit rien');
+  assert.strictEqual(ecritsDeux.length, 1);
+  // Le reassembleur retire le prefixe de longueur: emettre doit le remettre.
+  assert.deepStrictEqual([...ecritsDeux[0]], [3, 0xaa, 0xbb, 0xcc]);
+  assert.strictEqual(res.octets, 4);
+});
+
+// `arme` gouverne le Replicate. Si emettre s'y soumettait, eteindre le
+// Replicate eteindrait le passe-tour avec lui.
+test('emettre ne depend pas du drapeau arme du Replicate', () => {
+  const s = superviseurAvecComptes([1]);
+  s.arme = false;
+  const ecrits = fauxClient(s, 1);
+  s.emettre(1, Buffer.from([0x01]));
+  assert.strictEqual(ecrits.length, 1);
+});
+
+test('emettre refuse proprement un client inconnu ou sans socket', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  s.clients.set(1, { pid: 1, amont: null });
+  assert.deepStrictEqual(s.emettre(99, Buffer.from([1])), { ok: false, raison: 'client inconnu' });
+  assert.deepStrictEqual(s.emettre(1, Buffer.from([1])), { ok: false, raison: 'pas de socket amont' });
+});
+
 // La socket amont est le chemin d'emission: sans elle, rejouer est impossible.
 test('le proxy expose la socket amont une fois établie', async (t) => {
   const echo = net.createServer((sock) => sock.on('data', (d) => sock.write(d)));
