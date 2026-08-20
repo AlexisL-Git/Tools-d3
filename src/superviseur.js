@@ -206,7 +206,12 @@ class Superviseur {
     if (!client.amont) return { ok: false, raison: 'pas de socket amont' };
     // Le reassembleur retire le prefixe de longueur: il faut le remettre.
     const paquet = Buffer.concat([writeVarint(octets.length), octets]);
-    client.amont.write(paquet);
+    // Le passe-tour a delai non nul appelle emettre depuis un setTimeout, donc
+    // hors de toute garde: une socket fermee entre l'armement et l'echeance y
+    // ferait remonter une exception non capturee dans le process principal.
+    // L'echec doit se rendre comme un refus ordinaire.
+    try { client.amont.write(paquet); }
+    catch (e) { return { ok: false, raison: e.message }; }
     return { ok: true, octets: paquet.length };
   }
 

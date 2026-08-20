@@ -233,6 +233,18 @@ test('emettre ne depend pas du drapeau arme du Replicate', () => {
   assert.strictEqual(ecrits.length, 1);
 });
 
+// Le passe-tour a delai non nul appelle emettre depuis un setTimeout, hors de
+// toute garde: une socket fermee entre-temps y ferait remonter une exception
+// non capturee dans le process principal d'Electron.
+test('une socket qui refuse l ecriture rend un refus, pas une exception', () => {
+  const s = superviseurAvecComptes([1]);
+  s.clients.set(1, { pid: 1, amont: { write: () => { throw new Error('socket fermée'); } } });
+  let res;
+  assert.doesNotThrow(() => { res = s.emettre(1, Buffer.from([0x01])); });
+  assert.strictEqual(res.ok, false);
+  assert.match(res.raison, /socket fermée/);
+});
+
 test('emettre refuse proprement un client inconnu ou sans socket', () => {
   const s = superviseurAvecComptes([1, 2]);
   s.clients.set(1, { pid: 1, amont: null });
