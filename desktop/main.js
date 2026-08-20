@@ -34,8 +34,22 @@ let minuteurVue = null;
 // reconstruire quoi que ce soit.
 const reglagesPasseTour = { actif: false, delaiMs: 0 };
 
+const DEPART = Date.now();
 function journal(pid, texte) {
-  console.log(`[${pid}] ${texte}`);
+  const t = String(Date.now() - DEPART).padStart(7);
+  console.log(`${t}ms [${pid}] ${texte}`);
+}
+
+// Une trame decodee prouve que le trafic traverse le proxy. Un client attache
+// sans une seule trame et un client qui n'a rien a dire produisent le meme
+// silence, et ce silence a coute deux faux diagnostics.
+function premiereTrame() {
+  const vus = new Set();
+  return function onTrame({ pid, dir, frame }) {
+    if (dir !== 'in' || frame === null || vus.has(pid)) return;
+    vus.add(pid);
+    journal(pid, 'premiere trame decodee — le trafic passe bien par le proxy');
+  };
 }
 
 // Prend en charge tout nouveau client. La connexion au serveur de jeu s'ouvre
@@ -186,10 +200,17 @@ app.whenReady().then(async () => {
     creerPasseur({
       superviseur,
       reglages: reglagesPasseTour,
-      onCompteRendu: ({ pid, ok, raison }) => {
-        if (!ok) journal(pid, `passe-tour : ${raison}`);
+      onCompteRendu: ({ pid, ok, raison, declencheur }) => {
+        // Le jalon declencheur, et pas seulement le fait d'avoir emis: c'est
+        // lui qui a dit que la relance d'ouverture avait survecu.
+        if (ok) journal(pid, `passe-tour : jxy emis (sur ${declencheur})`);
+        else journal(pid, `passe-tour : ${raison}`);
       },
     }),
+    premiereTrame(),
+    // Une politique qui leve doit se voir. C'est ce qui manquait: le passeur
+    // pouvait echouer sur une trame sans laisser la moindre trace.
+    { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
   );
 
   creerFenetre();
