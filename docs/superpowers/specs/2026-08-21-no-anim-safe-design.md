@@ -1,7 +1,26 @@
 # No-anim « Safe » — suppression des animations de déplacement en combat
 
 **Date :** 2026-08-21
-**Statut :** conçu et validé, non implémenté.
+**Statut :** implémenté et **validé en jeu le 2026-08-22**. Les combattants
+apparaissent à leur case d'arrivée sans marcher, le combat reste jouable de bout
+en bout, et le compte laissé décoché garde ses animations normales.
+
+Vérifié dans le même essai, avant d'allumer quoi que ce soit : le Replicate
+duplique toujours, et le passe-tour a émis 38 fois. La garantie « inerte par
+défaut » tient donc en conditions réelles, pas seulement en test.
+
+**Une limitation assumée, née d'un défaut trouvé en revue finale.** Le no-anim
+ne prend effet que sur les connexions **ouvertes après son activation**. Armer
+une connexion déjà en cours faisait reprendre la lecture du flux à un décalage
+arbitraire : la connexion gelait **sans un mot**. Elle est désormais refusée
+définitivement, et le journal le dit :
+
+```
+no-anim (connexion 3392/34) : connexion deja en cours au moment de
+l'armement, relayee telle quelle definitivement
+```
+
+En pratique : cocher la case, puis lancer le client.
 
 ## Le besoin
 
