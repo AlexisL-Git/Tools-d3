@@ -29,7 +29,20 @@ function creerTransformateurFlux({ reglages, onCompteRendu = () => {} }) {
   const etats = new Map();
 
   return function transformer(buf, conn) {
-    if (!reglages.actif) return null;
+    // IMPORTANT: refuse de transformer si conn est absent ou son id n'est pas defini.
+    if (!conn || conn.id === undefined) return buf;
+
+    // Gestion de l'extinction en cours de flux (CRITICAL 2).
+    if (!reglages.actif) {
+      let etat = etats.get(conn.id);
+      if (etat !== undefined && etat.reassembleur.pending > 0) {
+        // Des octets sont bufferises: les rendre avec le chunk courant, puis oublier l'etat.
+        const octetsEnAttente = etat.reassembleur.flush();
+        etats.delete(conn.id);
+        return Buffer.concat([octetsEnAttente, buf]);
+      }
+      return null;
+    }
 
     let etat = etats.get(conn.id);
     if (etat === undefined) {
@@ -39,14 +52,16 @@ function creerTransformateurFlux({ reglages, onCompteRendu = () => {} }) {
     if (etat.inerte) return null;
 
     let trames = [];
+    const octetsAvantPush = etat.reassembleur.getBuffer();
     try {
       trames = etat.reassembleur.push(buf);
     } catch (e) {
-      // Desynchronise: on ne sait plus ou commencent les trames. On rend le
-      // chunk tel quel et on ne touche plus a cette connexion.
+      // Desynchronise: on ne sait plus ou commencent les trames. On rend les octets
+      // en attente suivis du chunk courant, on passe inerte, et on ne touche plus
+      // a cette connexion (CRITICAL 1).
       etat.inerte = true;
       onCompteRendu({ conn: conn.id, raison: `cadrage perdu, connexion relayee telle quelle : ${e.message}` });
-      return buf;
+      return Buffer.concat([octetsAvantPush, buf]);
     }
 
     if (trames.length === 0) return Buffer.alloc(0);

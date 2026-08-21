@@ -119,3 +119,57 @@ test('un chunk sans trame complete ne rend aucun octet, sans rien perdre', () =>
   const b = f(fil.subarray(3), conn);
   assert.strictEqual(Buffer.concat([a, b]).toString('hex'), fil.toString('hex'));
 });
+
+// Corrections apportees: les deux critical de perte de donnees, et l important de securite.
+test('octets bufferises puis cadrage impossible: rien n est perdu (CRITICAL 1)', () => {
+  const { f, conn } = flux();
+  const fil = surLeFil(AUTRE);
+  // Envoyer la trame complete.
+  const sortie1 = f(fil, conn);
+  assert.ok(sortie1.length > 0);
+  // Poison: une longueur gigantesque, sendee en deux chunks pour que le varint
+  // poison soit incomplet au premier chunk et lance une exception au second.
+  const poison = Buffer.concat([writeVarint(9 * 1024 * 1024), Buffer.alloc(8)]);
+  const poisonPart1 = poison.subarray(0, 1);
+  const poisonPart2 = poison.subarray(1);
+  const sortie2_a = f(poisonPart1, conn);
+  const sortie2_b = f(poisonPart2, conn);
+  // Concatener tout ce qui est sorti.
+  const sortieTotal = Buffer.concat([sortie1, sortie2_a === null ? Buffer.alloc(0) : sortie2_a, sortie2_b === null ? Buffer.alloc(0) : sortie2_b]);
+  // Doit etre EXACTEMENT l entree: trame + poison.
+  const entreeTotal = Buffer.concat([fil, poison]);
+  assert.strictEqual(sortieTotal.toString('hex'), entreeTotal.toString('hex'));
+});
+
+test('octets bufferises puis extinction: rien n est perdu (CRITICAL 2)', () => {
+  const { f, reglages, conn } = flux();
+  const fil = surLeFil(AUTRE);
+  // Bufferiser une partie.
+  const entree1 = fil.subarray(0, 3);
+  const sortie1 = f(entree1, conn);
+  assert.strictEqual(sortie1.length, 0);
+  // Eteindre le transformateur.
+  reglages.actif = false;
+  const entree2 = fil.subarray(3);
+  const sortie2 = f(entree2, conn);
+  // Concatener tout ce qui est sorti.
+  const sortieTotal = Buffer.concat([sortie1, sortie2]);
+  // Doit etre EXACTEMENT l entree complète.
+  assert.strictEqual(sortieTotal.toString('hex'), fil.toString('hex'));
+});
+
+test('eteint depuis le debut, rien en attente: rend null (GARANTIE 1)', () => {
+  const { f, conn } = flux(false);
+  const fil = surLeFil(AUTRE);
+  assert.strictEqual(f(fil, conn), null);
+  // Et un second appel aussi.
+  assert.strictEqual(f(fil, conn), null);
+});
+
+test('conn sans id: octets d origine inchanges (IMPORTANT)', () => {
+  const { f } = flux();
+  const fil = surLeFil(AUTRE);
+  const connSansId = { id: undefined, port: 5555 };
+  const sortie = f(fil, connSansId);
+  assert.strictEqual(sortie.toString('hex'), fil.toString('hex'));
+});
