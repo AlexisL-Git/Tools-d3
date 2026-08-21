@@ -24,16 +24,31 @@ const { traduire } = require('./noanim');
 // chemin de relais est exactement celui d'avant cette fonction. C'est la
 // condition posee avant d'accepter que le proxy touche au chemin critique.
 
-function creerTransformateurFlux({ reglages, onCompteRendu = () => {} }) {
+function creerTransformateurFlux({ reglages, estArmePourCompte = null, onCompteRendu = () => {} }) {
   // conn.id -> { reassembleur, inerte }
   const etats = new Map();
+
+  // Armee pour CETTE connexion precise: le drapeau general ET, si un
+  // predicat par compte est fourni, l'etat de ce compte precis (CRITICAL de
+  // revue finale -- sans le predicat, activer le no-anim sur un compte
+  // l'armait sur tous, car reglages.actif etait la SEULE porte). Sans
+  // predicat, seul le drapeau general compte, pour ne rien changer aux
+  // appelants qui n'en fournissent pas.
+  function armeePour(conn) {
+    if (!reglages.actif) return false;
+    if (typeof estArmePourCompte !== 'function') return true;
+    return estArmePourCompte(conn.pid);
+  }
 
   return function transformer(buf, conn) {
     // IMPORTANT: refuse de transformer si conn est absent ou son id n'est pas defini.
     if (!conn || conn.id === undefined) return buf;
 
-    // Gestion de l'extinction en cours de flux (CRITICAL 2).
-    if (!reglages.actif) {
+    const armee = armeePour(conn);
+
+    // Gestion de l'extinction en cours de flux (CRITICAL 2), qu'elle soit
+    // generale ou propre a ce compte.
+    if (!armee) {
       let etat = etats.get(conn.id);
       if (etat !== undefined) {
         if (etat.inerte) {

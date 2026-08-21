@@ -209,6 +209,16 @@ app.whenReady().then(async () => {
     onJournal: journal,
     transformerEntrant: creerTransformateurFlux({
       reglages: reglagesNoAnim,
+      // CRITICAL de revue finale: sans ce predicat, le transformateur ne
+      // consultait que le drapeau general (noAnim.size > 0) et armait DONC
+      // TOUS les comptes des qu'un seul avait sa case cochee. Comme ses
+      // trois jumeaux (passeur, accepteur), la decision doit se prendre par
+      // compte, sur l'etat vivant que balayerProcess()/envoyerEtat()
+      // synchronisent depuis favoris.json.
+      estArmePourCompte: (pid) => {
+        const etat = superviseur.comptes.get(pid);
+        return etat !== null && Boolean(etat.noAnim);
+      },
       onCompteRendu: ({ conn, pid, raison }) => journal(pid, `no-anim (connexion ${conn}) : ${raison}`),
     }),
   });

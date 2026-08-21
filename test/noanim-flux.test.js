@@ -120,6 +120,24 @@ test('un chunk sans trame complete ne rend aucun octet, sans rien perdre', () =>
   assert.strictEqual(Buffer.concat([a, b]).toString('hex'), fil.toString('hex'));
 });
 
+// Test manquant #3 de la revue finale: deux comptes dont un seul est arme --
+// celui qui ne l est pas voit son flux inchange. estArmePourCompte est le
+// predicat que desktop/main.js branche sur l etat.noAnim de chaque compte.
+test('deux comptes, un seul arme via estArmePourCompte: l autre est inchange (test manquant #3)', () => {
+  const reglages = { actif: true };
+  const estArmePourCompte = (pid) => pid === 2;
+  const f = creerTransformateurFlux({ reglages, estArmePourCompte, onCompteRendu: () => {} });
+  // Cle composee comme le fait superviseur._transformateurPour.
+  const connEteint = { id: '1/1', port: 5555, pid: 1 };
+  const connArme = { id: '2/1', port: 5555, pid: 2 };
+
+  const sortieEteint = f(surLeFil(JSJ), connEteint);
+  assert.strictEqual(sortieEteint, null, 'le compte non arme ne doit rien voir transforme');
+
+  const sortieArme = f(surLeFil(JSJ), connArme);
+  assert.ok(sortieArme.length > surLeFil(JSJ).length, 'le compte arme doit voir la pose ajoutee');
+});
+
 // Corrections apportees: les deux critical de perte de donnees, et l important de securite.
 test('octets bufferises puis cadrage impossible: rien n est perdu (CRITICAL 1)', () => {
   const { f, conn } = flux();
