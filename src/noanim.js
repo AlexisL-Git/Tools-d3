@@ -42,6 +42,14 @@ const champ = (fields, no) => (fields || []).find((f) => f.no === no) || null;
 
 // Les varints empaquetes d'un champ `bytes`. Un varint tronque en fin de
 // tampon est ignore plutot que de rendre une case fausse.
+//
+// Un varint pathologique (plus de 10 octets de continuation: aucun varint
+// protobuf legitime n'en a besoin, meme sur 64 bits) rend null plutot que
+// les cases deja lues (minor differe de la tache 3, corrige avec IMPORTANT
+// 4 puisque l'extraction du chemin est reprise dans le meme geste). Rendre
+// les cases deja lues aurait pose l'acteur sur une case intermediaire du
+// chemin au lieu de refuser franchement -- une pose fausse plutot qu'une
+// absence de pose.
 function casesDuChemin(buf) {
   const out = [];
   let i = 0;
@@ -54,7 +62,7 @@ function casesDuChemin(buf) {
       v |= BigInt(octet & 0x7f) << decalage;
       if ((octet & 0x80) === 0) { complet = true; break; }
       decalage += 7n;
-      if (decalage > 63n) return out;
+      if (decalage > 63n) return null;
     }
     if (!complet) break;
     out.push(v);
@@ -91,10 +99,17 @@ function traduire(brute) {
   if (decodee.type !== TYPE_DEPLACEMENT) return { octets: [], raison: null };
 
   const chemin = champ(decodee.payload, CHAMP_CHEMIN);
-  if (chemin === null || !Buffer.isBuffer(chemin.value)) {
+  // Lire les octets bruts (`raw`), pas `value`: decodeRaw devine le kind d'un
+  // champ LEN ('string', 'message' ou 'bytes') sans schema, et un chemin en
+  // varints empaquetes tombe regulierement dans l'un ou l'autre -- mesure a
+  // 3 jsj reels sur 40 dans la capture du projet, 11% sur des chemins
+  // simules. `raw` porte les octets exacts quel que soit le kind devine
+  // (IMPORTANT de revue finale).
+  if (chemin === null || !Buffer.isBuffer(chemin.raw)) {
     return { octets: [], raison: 'deplacement sans chemin, relaye tel quel' };
   }
-  const cases = casesDuChemin(chemin.value);
+  const cases = casesDuChemin(chemin.raw);
+  if (cases === null) return { octets: [], raison: 'chemin illisible (varint pathologique), relaye tel quel' };
   if (cases.length === 0) return { octets: [], raison: 'chemin vide, relaye tel quel' };
 
   const acteur = champ(decodee.payload, CHAMP_ACTEUR_JSJ);

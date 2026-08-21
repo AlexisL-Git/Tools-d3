@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const {
   traduire, construirePose, casesDuChemin, ACTION_POSE,
 } = require('../src/noanim');
-const { decodeFrameRaw } = require('../src/codec/rawProto');
+const { decodeFrameRaw, encodeRaw, WIRE } = require('../src/codec/rawProto');
 
 // Mesures du 2026-08-21. Chaque jsj porte un chemin, chaque pose est celle que
 // le proxy de krm35 fabrique juste avant lui.
@@ -96,4 +96,79 @@ test('traduire ne leve jamais, quoi qu on lui donne', () => {
   for (const mauvais of [Buffer.alloc(0), Buffer.from('ff', 'hex'), Buffer.alloc(64, 0xff)]) {
     assert.doesNotThrow(() => traduire(mauvais));
   }
+});
+
+// IMPORTANT 4 de revue finale. decodeRaw devine le kind d'un champ LEN sans
+// schema: 'string' si plus de 3 octets imprimables, 'message' si les octets
+// se relisent comme un sous-message plausible, 'bytes' sinon. Un chemin en
+// varints empaquetes tombe regulierement dans les trois: mesure a 3 jsj reels
+// sur 40 dans la capture du projet, 11% sur des chemins simules. traduire()
+// doit accepter les trois formes en lisant `raw`, pas `value`.
+function packVarint(v) {
+  let x = typeof v === 'bigint' ? v : BigInt(v);
+  const out = [];
+  do { let b = Number(x & 0x7fn); x >>= 7n; if (x > 0n) b |= 0x80; out.push(b); } while (x > 0n);
+  return out;
+}
+function packChemin(cases) {
+  return Buffer.from(cases.flatMap(packVarint));
+}
+function faireJsj(cheminBuf, acteur) {
+  return encodeRaw([
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+        { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/jsj' },
+        { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+          { no: 1, wire: WIRE.LEN, kind: 'bytes', value: cheminBuf },
+          { no: 2, wire: WIRE.VARINT, value: 5n },
+          { no: 5, wire: WIRE.VARINT, value: acteur },
+        ] },
+      ] },
+    ] },
+  ]);
+}
+
+// Verite terrain: les mesures de decodeRaw pour ces trois jeux de cases,
+// prises telles quelles avant d ecrire le test (pas ajustees pour coller a
+// une attente).
+const FORMES = [
+  { nom: 'string', cases: [100n, 87n, 74n, 61n] },   // l exemple des findings: "dWJ="
+  { nom: 'message', cases: [1000n, 999n] },
+  { nom: 'bytes', cases: [300n, 300n] },
+];
+
+for (const { nom, cases } of FORMES) {
+  test(`un chemin dont decodeRaw devine le kind '${nom}' est quand meme traduit`, () => {
+    const cheminBuf = packChemin(cases);
+    // Verifie que le montage du test correspond bien a la forme visee, sinon
+    // le test ne prouverait rien.
+    const { decodeRaw } = require('../src/codec/rawProto');
+    const enveloppe = decodeRaw(Buffer.concat([Buffer.from([0x0a, cheminBuf.length]), cheminBuf]));
+    assert.strictEqual(enveloppe[0].kind, nom, `precondition: ce chemin doit deviner '${nom}'`);
+
+    const jsj = faireJsj(cheminBuf, -4n);
+    const r = traduire(jsj);
+    assert.strictEqual(r.raison, null);
+    assert.strictEqual(r.octets.length, 2);
+    const pose = decodeFrameRaw(r.octets[0]);
+    const oneof = pose.payload.find((f) => f.no === 35);
+    assert.strictEqual(oneof.value.find((f) => f.no === 1).value, cases[cases.length - 1], 'la pose doit porter la derniere case');
+  });
+}
+
+// Cousin direct, corrige dans le meme geste puisque l extraction du chemin
+// est reprise: un varint pathologique (plus de 10 octets de continuation)
+// doit faire refuser le chemin entier, pas rendre les cases deja lues --
+// sinon la pose se retrouve sur une case intermediaire du chemin.
+test('un varint pathologique dans le chemin refuse franchement (cousin de IMPORTANT 4)', () => {
+  const pathologique = Buffer.concat([
+    Buffer.from([0x9d, 0x02]),                        // une case normale, lue avec succes
+    Buffer.alloc(11, 0x80),                            // 11 octets de continuation: jamais termine
+  ]);
+  assert.strictEqual(casesDuChemin(pathologique), null);
+
+  const jsj = faireJsj(pathologique, -1n);
+  const r = traduire(jsj);
+  assert.deepStrictEqual(r.octets, []);
+  assert.match(r.raison, /illisible/);
 });
