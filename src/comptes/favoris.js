@@ -17,6 +17,9 @@ class Favoris {
     // Comme les favoris: que des identifiants numeriques et un nombre.
     this._passeTour = new Set();
     this._delai = 0;
+    // Comptes qui acceptent seuls les invitations de groupe. Meme nature que
+    // les deux listes precedentes: que des identifiants numeriques.
+    this._invitation = new Set();
   }
 
   charger() {
@@ -28,12 +31,16 @@ class Favoris {
       if (Array.isArray(json.passeTour)) {
         this._passeTour = new Set(json.passeTour.filter((n) => Number.isInteger(n)));
       }
+      if (Array.isArray(json.invitation)) {
+        this._invitation = new Set(json.invitation.filter((n) => Number.isInteger(n)));
+      }
       if (typeof json.delai === 'number' && json.delai >= 0) this._delai = json.delai;
     } catch (e) {
       // Fichier absent ou corrompu: on repart d'une liste vide plutot que de
       // faire echouer le demarrage de l'application.
       this._ids = new Set();
       this._passeTour = new Set();
+      this._invitation = new Set();
       this._delai = 0;
     }
     return this;
@@ -77,10 +84,29 @@ class Favoris {
     return [...this._passeTour];
   }
 
+  invitationActive(id) {
+    return this._invitation.has(id);
+  }
+
+  marquerInvitation(id, actif) {
+    if (actif) this._invitation.add(id);
+    else this._invitation.delete(id);
+    this._ecrire();
+  }
+
+  tousInvitation() {
+    return [...this._invitation];
+  }
+
   _ecrire() {
     try {
       fs.mkdirSync(path.dirname(this.chemin), { recursive: true });
-      const contenu = { delai: this._delai, favoris: this.tous(), passeTour: this.tousPasseTour() };
+      const contenu = {
+        delai: this._delai,
+        favoris: this.tous(),
+        passeTour: this.tousPasseTour(),
+        invitation: this.tousInvitation(),
+      };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
     } catch (e) {
       // Perdre les reglages est benin; empecher l'application de fonctionner

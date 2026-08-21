@@ -1,7 +1,23 @@
 # Acceptation automatique des invitations de groupe
 
 **Date :** 2026-08-20
-**Statut :** conçu et validé, non implémenté.
+**Statut :** implémenté et validé en jeu le 2026-08-21. B accepte seul
+l'invitation de A quand son interrupteur est coché, et l'ignore quand il ne
+l'est pas — vérifié dans le jeu, pas seulement au journal.
+
+**Les deux trames, mesurées** (détail et octets bruts dans
+`2026-08-20-trames-invitation-groupe.md`) :
+
+```
+in  event   ijz { 1: nous, 2: invitant, 3: 8, 5: idGroupe, 6: 1, 7: nom }
+out request ijx { 1: idGroupe }
+```
+
+L'acceptation **n'est pas constante** : elle recopie l'identifiant de groupe du
+champ 5 de l'invitation. `src/invitation.js` la construit trame par trame.
+L'invitant est au **champ 2** ; le champ 1 porte le destinataire, c'est-à-dire
+nous — un filtre bâti dessus aurait accepté toutes les invitations, inconnus
+compris, en passant l'essai en jeu sans broncher.
 
 ## Le besoin
 

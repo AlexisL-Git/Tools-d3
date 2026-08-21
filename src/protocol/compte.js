@@ -52,6 +52,9 @@ class EtatCompte {
     // Passe-tour automatique en combat. Independant de `exclu`: un compte peut
     // suivre le maitre sans passer ses tours, ou l'inverse.
     this.passeTour = false;
+    // Acceptation automatique des invitations de groupe. Independant de
+    // `exclu` et de `passeTour`.
+    this.accepteInvitation = false;
     // elementId -> skillInstanceUid, propre a ce compte.
     this.skillParElement = new Map();
     this.trames = 0;

@@ -240,6 +240,48 @@ test('l absence de passeTour ne casse pas la vue', () => {
   assert.strictEqual(lignes[0].passeTour, false);
 });
 
+test('l invitation remonte sur la ligne du compte', () => {
+  const lignes = vue({ invitation: new Set([2]) });
+  assert.strictEqual(lignes.find((l) => l.id === 1).invitation, false);
+  assert.strictEqual(lignes.find((l) => l.id === 2).invitation, true);
+});
+
+// Meme piege que pour passeTour: code en dur a faux, la case s'affichait
+// eteinte alors que le compte acceptait, donc impossible a debrayer. Toutes
+// les lignes passent par ce repli si lireComptes() echoue.
+test('l invitation remonte aussi sur un client sans ligne de compte', () => {
+  const l = construireVue({
+    comptes: COMPTES,
+    clients: [{ pid: 500, idCompte: 42, personnage: 'Tardif', classe: 'Eniripsa' }],
+    intercepte: new Set([500]),
+    maitre: null,
+    exclus: new Set(),
+    favoris: new Set(),
+    invitation: new Set([42]),
+  }).pop();
+  assert.strictEqual(l.id, 42);
+  assert.strictEqual(l.invitation, true);
+});
+
+// Sans idCompte, il n'y a rien a interroger: la ligne reste informative.
+test('un client sans idCompte ne porte pas d invitation', () => {
+  const l = construireVue({
+    comptes: COMPTES,
+    clients: [{ pid: 999, idCompte: null, personnage: 'Inconnu', classe: 'Iop' }],
+    intercepte: new Set([999]),
+    maitre: null,
+    exclus: new Set(),
+    favoris: new Set(),
+    invitation: new Set([42]),
+  }).pop();
+  assert.strictEqual(l.invitation, false);
+});
+
+test('l absence d invitation ne casse pas la vue', () => {
+  const lignes = vue();
+  assert.strictEqual(lignes[0].invitation, false);
+});
+
 test('huit comptes en jeu sont tous rendus', () => {
   const comptes = [];
   const clients = [];

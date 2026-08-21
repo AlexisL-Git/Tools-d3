@@ -49,10 +49,10 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   f.charger();
   f.marquer(10612457, true);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  // Depuis l'extension au passe-tour, le fichier porte aussi passeTour et
-  // delai (vides/nuls ici): voir le test dedie plus bas pour le contenu
-  // complet.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'passeTour']);
+  // Depuis les extensions au passe-tour et a l'invitation, le fichier porte
+  // aussi passeTour, invitation et delai (vides/nuls ici): voir le test
+  // dedie plus bas pour le contenu complet.
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'invitation', 'passeTour']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -103,10 +103,49 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'passeTour']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'invitation', 'passeTour']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
+  assert.deepStrictEqual(contenu.invitation, []);
   assert.strictEqual(contenu.delai, 0.5);
+});
+
+test('l invitation se marque, se lit et se relit du fichier', (t) => {
+  const p = fichierTemporaire(t);
+  const f = new Favoris(p).charger();
+  assert.strictEqual(f.invitationActive(12), false);
+  f.marquerInvitation(12, true);
+  assert.strictEqual(f.invitationActive(12), true);
+  assert.deepStrictEqual(new Favoris(p).charger().tousInvitation(), [12]);
+});
+
+test('l invitation se demarque', (t) => {
+  const p = fichierTemporaire(t);
+  const f = new Favoris(p).charger();
+  f.marquerInvitation(12, true);
+  f.marquerInvitation(12, false);
+  assert.deepStrictEqual(new Favoris(p).charger().tousInvitation(), []);
+});
+
+// Les trois listes sont independantes: un compte peut accepter les invitations
+// sans passer ses tours, et l'inverse.
+test('invitation, passe-tour et favoris ne se melangent pas', (t) => {
+  const p = fichierTemporaire(t);
+  const f = new Favoris(p).charger();
+  f.marquerInvitation(12, true);
+  const relu = new Favoris(p).charger();
+  assert.strictEqual(relu.passeTourActif(12), false);
+  assert.strictEqual(relu.estFavori(12), false);
+});
+
+// Un fichier ecrit par une version anterieure n'a pas la cle: la lecture doit
+// rendre une liste vide, pas faire echouer le demarrage.
+test('un fichier sans cle invitation se lit sans erreur', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({ delai: 0, favoris: [3], passeTour: [] }), 'utf8');
+  const f = new Favoris(p).charger();
+  assert.deepStrictEqual(f.tousInvitation(), []);
+  assert.strictEqual(f.estFavori(3), true);
 });
 
 test('un échec d écriture ne fait pas planter l appelant', (t) => {
