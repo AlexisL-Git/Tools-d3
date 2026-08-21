@@ -2,10 +2,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Le renderer n'a acces ni au reseau, ni aux process, ni au disque. Il recoit
-// un etat et emet six ordres, rien d'autre: armer le Replicate, exclure un
+// un etat et emet huit ordres, rien d'autre: armer le Replicate, exclure un
 // compte, le mettre en favori, l'interrupteur general du passe-tour, celui
-// d'un compte, et le delai. Chacun est valide cote main.js — c'est ici que
-// passe la frontiere de confiance, et elle ne s'elargit pas sans raison.
+// d'un compte, le delai, l'interrupteur general de l'acceptation des
+// invitations de groupe et celui d'un compte. Chacun est valide cote main.js —
+// c'est ici que passe la frontiere de confiance, et elle ne s'elargit pas sans
+// raison.
 contextBridge.exposeInMainWorld('app', {
   surEtat: (rappel) => ipcRenderer.on('etat', (_e, etat) => rappel(etat)),
   basculerReplicate: (actif) => ipcRenderer.invoke('basculerReplicate', actif),
@@ -14,4 +16,6 @@ contextBridge.exposeInMainWorld('app', {
   basculerPasseTour: (actif) => ipcRenderer.invoke('basculerPasseTour', actif),
   basculerPasseTourCompte: (idCompte, actif) => ipcRenderer.invoke('basculerPasseTourCompte', idCompte, actif),
   reglerDelai: (secondes) => ipcRenderer.invoke('reglerDelai', secondes),
+  basculerInvitation: (actif) => ipcRenderer.invoke('basculerInvitation', actif),
+  basculerInvitationCompte: (idCompte, actif) => ipcRenderer.invoke('basculerInvitationCompte', idCompte, actif),
 });

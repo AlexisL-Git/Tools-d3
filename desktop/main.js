@@ -5,6 +5,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const { Superviseur } = require('../src/superviseur');
 const { creerReplicateur } = require('../src/replicateur');
 const { creerPasseur } = require('../src/passeur');
+const { creerAccepteur } = require('../src/invitation');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients } = require('../src/comptes/clients');
@@ -33,6 +34,8 @@ let minuteurVue = null;
 // Lus a chaque trame par le passeur: modifier ces champs suffit, sans
 // reconstruire quoi que ce soit.
 const reglagesPasseTour = { actif: false, delaiMs: 0 };
+// Lu a chaque trame par l'accepteur: modifier ce champ suffit.
+const reglagesInvitation = { actif: false };
 
 const DEPART = Date.now();
 function journal(pid, texte) {
@@ -117,6 +120,7 @@ async function balayerProcess() {
       const etat = superviseur.comptes.get(p.pid);
       if (etat && idCompte !== null) {
         etat.passeTour = favoris.passeTourActif(idCompte);
+        etat.accepteInvitation = favoris.invitationActive(idCompte);
         etat.exclu = false;
       }
     } catch (e) {
@@ -143,6 +147,7 @@ async function envoyerEtat() {
     const idCompte = pidVersCompte(etat.pid, clients);
     if (idCompte === null) continue;
     etat.passeTour = favoris.passeTourActif(idCompte);
+    etat.accepteInvitation = favoris.invitationActive(idCompte);
   }
 
   const exclus = new Set(
@@ -154,10 +159,16 @@ async function envoyerEtat() {
   const passeTour = new Set(
     superviseur.comptes.tous.filter((e) => e.passeTour).map((e) => pidVersCompte(e.pid, clients)),
   );
+  // Comme `passeTour`: la case affichee vient de l'etat vivant, celui que
+  // l'accepteur consulte a chaque trame, pas du seul fichier.
+  const invitation = new Set(
+    superviseur.comptes.tous.filter((e) => e.accepteInvitation).map((e) => pidVersCompte(e.pid, clients)),
+  );
   fenetre.webContents.send('etat', {
     replicate: superviseur.arme,
     erreurComptes,
     passeTourActif: reglagesPasseTour.actif,
+    invitationActive: reglagesInvitation.actif,
     delai: favoris.delai(),
     lignes: construireVue({
       comptes,
@@ -167,6 +178,7 @@ async function envoyerEtat() {
       exclus,
       favoris: new Set(favoris.tous()),
       passeTour,
+      invitation,
       erreurs,
       messages,
     }),
@@ -240,6 +252,14 @@ app.whenReady().then(async () => {
         else journal(pid, `passe-tour : ${raison}`);
       },
     }),
+    creerAccepteur({
+      superviseur,
+      reglages: reglagesInvitation,
+      onCompteRendu: ({ pid, ok, raison, groupe }) => {
+        if (ok) journal(pid, `invitation : acceptee (groupe ${groupe})`);
+        else journal(pid, `invitation : ${raison}`);
+      },
+    }),
     premiereTrame(),
     typesInedits(),
     octetsDesTrames(),
@@ -295,6 +315,23 @@ ipcMain.handle('basculerPasseTourCompte', async (_e, idCompte, actif) => {
   const pid = compteVersPid(idCompte, clients);
   const etat = pid === null ? null : superviseur.comptes.get(pid);
   if (etat) etat.passeTour = Boolean(actif);
+  await envoyerEtat();
+});
+
+ipcMain.handle('basculerInvitation', async (_e, actif) => {
+  reglagesInvitation.actif = Boolean(actif);
+  await envoyerEtat();
+});
+
+ipcMain.handle('basculerInvitationCompte', async (_e, idCompte, actif) => {
+  // La frontiere IPC est la frontiere de confiance: on ne laisse pas une
+  // valeur non numerique atteindre le fichier de reglages.
+  if (!Number.isInteger(idCompte)) return;
+  favoris.marquerInvitation(idCompte, Boolean(actif));
+  const clients = await listerClients();
+  const pid = compteVersPid(idCompte, clients);
+  const etat = pid === null ? null : superviseur.comptes.get(pid);
+  if (etat) etat.accepteInvitation = Boolean(actif);
   await envoyerEtat();
 });
 
