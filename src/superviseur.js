@@ -39,17 +39,60 @@ class Superviseur {
   // arme = false: tout est calcule et journalise, rien n'est envoye. C'est le
   // defaut, et il doit le rester tant qu'on n'a pas decide d'ecrire pour de
   // bon sur le reseau.
-  constructor({ onTrame = () => {}, onJournal = () => {}, arme = false } = {}) {
+  constructor({ onTrame = () => {}, onJournal = () => {}, arme = false, transformerEntrant = null } = {}) {
     this.comptes = new Comptes();
     this.clients = new Map();
     this.maitre = null;
     this.arme = arme;
     this.onTrame = onTrame;
     this.onJournal = onJournal;
+    // Transforme le flux descendant avant qu'il n'atteigne le client. Nul par
+    // defaut: le proxy relaie alors octet pour octet, comme avant l'ajout du
+    // no-anim.
+    this.transformerEntrant = transformerEntrant;
   }
 
   journal(pid, texte) {
     this.onJournal(pid, texte);
+  }
+
+  // Un seul transformerEntrant sert tous les comptes: createProxy attribue
+  // ses conn.id localement a chaque appel, donc deux comptes ont chacun une
+  // connexion n°1, n°2, etc. Sans cette enveloppe, src/noanim-flux.js — qui
+  // indexe son etat (reassembleur, drapeau inerte) par conn.id — ferait
+  // partager le meme reassembleur a deux comptes differents: un cadrage
+  // perdu chez l'un recracherait ses octets bufferises dans la socket de
+  // l'autre. Le pid rend la cle unique par compte.
+  //
+  // FILTRE DE PORT (CRITICAL de revue finale). _recevoir filtre deja
+  // conn.port !== PORT_JEU (voir plus bas): sans le meme filtre ici, le
+  // transformateur s'appliquait a TOUTE connexion que l'agent redirige, y
+  // compris le HTTPS et les CDN du client. Rejeu d'une capture reelle:
+  // 124 Ko avales sur une seule socket CDN, pour une ligne de journal. Toute
+  // connexion hors du port du jeu doit rester intouchee, exactement comme
+  // pour l'observation.
+  //
+  // null reste null: si aucun transformateur n'est configure, createProxy
+  // doit recevoir null tel quel, pas une fonction qui rend toujours null —
+  // la garantie « inerte par defaut » du proxy repose sur l'absence de
+  // fonction, pas sur son resultat.
+  _transformateurPour(pid) {
+    if (this.transformerEntrant === null) return null;
+    const transformateur = (buf, conn) => {
+      if (conn.port !== PORT_JEU) return null;
+      return this.transformerEntrant(buf, { id: `${pid}/${conn.id}`, port: conn.port, pid });
+    };
+    // Purge de l'etat par connexion a la fermeture (IMPORTANT de revue
+    // finale): sans crochet de fermeture, chaque connexion laisse une
+    // entree permanente dans la Map de src/noanim-flux.js. N'existe que si
+    // le transformateur expose fermer() -- les autres appelants de tests ne
+    // le fournissent pas forcement.
+    transformateur.fermer = (conn) => {
+      if (typeof this.transformerEntrant.fermer === 'function') {
+        this.transformerEntrant.fermer(`${pid}/${conn.id}`);
+      }
+    };
+    return transformateur;
   }
 
   async ajouter({ pid, nom }) {
@@ -58,10 +101,13 @@ class Superviseur {
 
     // Port 0: le systeme en attribue un libre. Rien a coordonner entre huit
     // clients, et aucun conflit avec un run precedent reste ouvert.
+    const transformateur = this._transformateurPour(pid);
     client.proxy = await createProxy({
       port: 0,
       onProbleme: (p) => this.journal(pid, `connexion ${p.id} abandonnée — ${p.raison}`),
       onData: (dir, buf, conn) => this._recevoir(client, dir, buf, conn),
+      transformerEntrant: transformateur,
+      onClose: (conn) => { if (transformateur) transformateur.fermer(conn); },
     });
     client.port = client.proxy.port;
 

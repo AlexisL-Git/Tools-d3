@@ -175,3 +175,114 @@ test('les octets envoyés avant la connexion amont sont mis en file et non perdu
   const reply = await new Promise((r) => client.once('data', r));
   assert.strictEqual(reply.toString(), 'R:early');
 });
+
+// GARANTIE 1: sans transformateur, le proxy relaie le flux descendant octet
+// pour octet. C'est la condition posee par l'utilisateur avant d'accepter que
+// le proxy touche au chemin critique du jeu.
+test('sans transformateur, le flux descendant est relaye tel quel', async (t) => {
+  const { srv, port } = await listenEcho(() => {});
+  const proxy = await createProxy({ port: 0 });
+  const recu = [];
+  const c = net.connect(proxy.port, '127.0.0.1', () => {
+    c.write(Buffer.concat([Buffer.from(`CONNECT 127.0.0.1:${port} HTTP/1.0`), Buffer.from('bonjour')]));
+  });
+  t.after(async () => { c.destroy(); await proxy.close(); srv.close(); });
+  await new Promise((resolve, reject) => {
+    c.on('data', (d) => { recu.push(d); resolve(); });
+    c.on('error', reject);
+  });
+  assert.strictEqual(Buffer.concat(recu).toString(), 'R:bonjour');
+});
+
+test('un transformateur qui rend null laisse passer les octets d origine', async (t) => {
+  const { srv, port } = await listenEcho(() => {});
+  const vus = [];
+  const proxy = await createProxy({
+    port: 0,
+    transformerEntrant: (buf) => { vus.push(buf.toString()); return null; },
+  });
+  const recu = [];
+  const c = net.connect(proxy.port, '127.0.0.1', () => {
+    c.write(Buffer.concat([Buffer.from(`CONNECT 127.0.0.1:${port} HTTP/1.0`), Buffer.from('bonjour')]));
+  });
+  t.after(async () => { c.destroy(); await proxy.close(); srv.close(); });
+  await new Promise((resolve, reject) => {
+    c.on('data', (d) => { recu.push(d); resolve(); });
+    c.on('error', reject);
+  });
+  assert.strictEqual(Buffer.concat(recu).toString(), 'R:bonjour');
+  assert.deepStrictEqual(vus, ['R:bonjour']);
+});
+
+test('un transformateur qui rend un buffer le substitue', async (t) => {
+  const { srv, port } = await listenEcho(() => {});
+  const proxy = await createProxy({
+    port: 0,
+    transformerEntrant: () => Buffer.from('AUTRE'),
+  });
+  const recu = [];
+  const c = net.connect(proxy.port, '127.0.0.1', () => {
+    c.write(Buffer.concat([Buffer.from(`CONNECT 127.0.0.1:${port} HTTP/1.0`), Buffer.from('bonjour')]));
+  });
+  t.after(async () => { c.destroy(); await proxy.close(); srv.close(); });
+  await new Promise((resolve, reject) => {
+    c.on('data', (d) => { recu.push(d); resolve(); });
+    c.on('error', reject);
+  });
+  assert.strictEqual(Buffer.concat(recu).toString(), 'AUTRE');
+});
+
+// GARANTIE 2: une politique qui leve ne doit pas couper la connexion de jeu.
+test('un transformateur qui leve laisse passer les octets d origine', async (t) => {
+  const { srv, port } = await listenEcho(() => {});
+  const proxy = await createProxy({
+    port: 0,
+    transformerEntrant: () => { throw new Error('casse'); },
+  });
+  const recu = [];
+  const c = net.connect(proxy.port, '127.0.0.1', () => {
+    c.write(Buffer.concat([Buffer.from(`CONNECT 127.0.0.1:${port} HTTP/1.0`), Buffer.from('bonjour')]));
+  });
+  t.after(async () => { c.destroy(); await proxy.close(); srv.close(); });
+  await new Promise((resolve, reject) => {
+    c.on('data', (d) => { recu.push(d); resolve(); });
+    c.on('error', reject);
+  });
+  assert.strictEqual(Buffer.concat(recu).toString(), 'R:bonjour');
+});
+
+// IMPORTANT de revue finale: sans crochet de fermeture, l'etat par connexion
+// d'un transformateur (src/noanim-flux.js) ne se purge jamais.
+test('onClose est appele avec la connexion a la fermeture du socket client', async (t) => {
+  const { srv, port } = await listenEcho(() => {});
+  const fermees = [];
+  const proxy = await createProxy({ port: 0, onClose: (conn) => fermees.push(conn) });
+  const c = net.connect(proxy.port, '127.0.0.1', () => {
+    c.write(Buffer.concat([Buffer.from(`CONNECT 127.0.0.1:${port} HTTP/1.0`), Buffer.from('x')]));
+  });
+  t.after(async () => { c.destroy(); await proxy.close(); srv.close(); });
+  await new Promise((r) => c.once('data', r));
+  c.end();
+  await new Promise((r) => c.once('close', r));
+  await new Promise((r) => setTimeout(r, 20));
+  assert.strictEqual(fermees.length, 1);
+  assert.strictEqual(fermees[0].port, port);
+});
+
+test('un transformateur qui rend undefined laisse passer les octets d origine', async (t) => {
+  const { srv, port } = await listenEcho(() => {});
+  const proxy = await createProxy({
+    port: 0,
+    transformerEntrant: () => { },
+  });
+  const recu = [];
+  const c = net.connect(proxy.port, '127.0.0.1', () => {
+    c.write(Buffer.concat([Buffer.from(`CONNECT 127.0.0.1:${port} HTTP/1.0`), Buffer.from('bonjour')]));
+  });
+  t.after(async () => { c.destroy(); await proxy.close(); srv.close(); });
+  await new Promise((resolve, reject) => {
+    c.on('data', (d) => { recu.push(d); resolve(); });
+    c.on('error', reject);
+  });
+  assert.strictEqual(Buffer.concat(recu).toString(), 'R:bonjour');
+});

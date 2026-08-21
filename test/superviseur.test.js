@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const net = require('node:net');
-const { Superviseur } = require('../src/superviseur');
+const { Superviseur, PORT_JEU } = require('../src/superviseur');
 const { createProxy } = require('../src/proxy/server');
 
 // Les sept types dont l'utilisateur a besoin — zaap, havre-sac, PNJ, quetes,
@@ -250,6 +250,66 @@ test('emettre refuse proprement un client inconnu ou sans socket', () => {
   s.clients.set(1, { pid: 1, amont: null });
   assert.deepStrictEqual(s.emettre(99, Buffer.from([1])), { ok: false, raison: 'client inconnu' });
   assert.deepStrictEqual(s.emettre(1, Buffer.from([1])), { ok: false, raison: 'pas de socket amont' });
+});
+
+// Le transformateur doit arriver jusqu'au proxy: sans ce fil, tout le reste
+// est ecrit pour rien. C'est exactement l'erreur trouvee en revue finale sur
+// le Replicate, ou onTrame n'etait pas branche et l'application ne dupliquait
+// rien tout en ayant l'air de marcher.
+test('le superviseur transmet son transformateur au proxy', () => {
+  const t = () => null;
+  const s = new Superviseur({ transformerEntrant: t });
+  assert.strictEqual(s.transformerEntrant, t);
+});
+
+test('sans transformateur, le superviseur n en invente pas', () => {
+  const s = new Superviseur({});
+  assert.strictEqual(s.transformerEntrant, null);
+});
+
+// CRITICAL trouve en revue: createProxy attribue ses conn.id localement a
+// chaque appel, donc deux comptes ont chacun une connexion n°1. Sans cle
+// composee par pid, src/noanim-flux.js ferait partager le meme reassembleur
+// a deux comptes differents.
+test('deux comptes avec le meme conn.id recoivent des cles differentes', () => {
+  const vus = [];
+  const s = new Superviseur({ transformerEntrant: (buf, conn) => { vus.push(conn.id); return null; } });
+
+  const t1 = s._transformateurPour(1);
+  const t2 = s._transformateurPour(2);
+  t1(Buffer.alloc(0), { id: 1, port: 5555 });
+  t2(Buffer.alloc(0), { id: 1, port: 5555 });
+
+  assert.strictEqual(vus.length, 2);
+  assert.notStrictEqual(vus[0], vus[1]);
+});
+
+// La garantie « inerte par defaut » du proxy repose sur l'absence de
+// fonction transformerEntrant, pas sur le resultat d'une fonction qui rend
+// toujours null: l'enveloppe ne doit donc pas exister quand il n'y a rien a
+// envelopper.
+test('sans transformateur, createProxy recoit null et non une fonction enveloppee', () => {
+  const s = new Superviseur({});
+  assert.strictEqual(s._transformateurPour(1), null);
+});
+
+// Test manquant #2 de la revue finale: une connexion sur un port autre que
+// celui du jeu n'est pas touchee. CRITICAL trouve en revue: _transformateurPour
+// ne filtrait pas conn.port, contrairement a _recevoir -- le transformateur
+// s'appliquait au HTTPS et aux CDN du client.
+test('une connexion hors du port du jeu n est jamais transmise au transformateur', () => {
+  const vus = [];
+  const s = new Superviseur({ transformerEntrant: (buf, conn) => { vus.push(conn); return Buffer.from('MODIFIE'); } });
+  const t = s._transformateurPour(1);
+
+  const surLeJeu = t(Buffer.from('a'), { id: 1, port: PORT_JEU });
+  assert.strictEqual(vus.length, 1);
+  assert.deepStrictEqual(surLeJeu, Buffer.from('MODIFIE'));
+
+  // Un port different (HTTPS, CDN...): ne doit jamais atteindre transformerEntrant.
+  const horsJeu = t(Buffer.from('b'), { id: 2, port: 443 });
+  assert.strictEqual(vus.length, 1, 'le transformateur ne doit pas etre appele hors du port du jeu');
+  assert.strictEqual(horsJeu, null, 'null relaie les octets d origine, sans y toucher');
 });
 
 // La socket amont est le chemin d'emission: sans elle, rejouer est impossible.

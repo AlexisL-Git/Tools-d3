@@ -57,14 +57,25 @@ function decodeRaw(buf, depth = 4) {
       if (end > buf.length) return null;
       const sub = buf.subarray(len.next, end);
       pos = end;
+      // `raw` porte toujours les octets exacts du champ, quel que soit le
+      // kind devine ci-dessous. Un champ LEN est ambigu par construction:
+      // une chaine, un sous-message et une suite d'octets quelconque
+      // (comme des varints empaquetes) sont indiscernables sans schema.
+      // Devriner un `string` ou un `message` a tort n'est pas grave pour la
+      // lecture, mais l'etait pour un appelant qui exigeait `Buffer.isBuffer
+      // (value)`: un chemin de deplacement, une fois sur dix, tombe en
+      // 'string' ou 'message' et se faisait refuser a tort (IMPORTANT de
+      // revue finale). Lire `raw` au lieu de `value` evite de dependre du
+      // kind devine.
+      const raw = Buffer.from(sub);
       const text = sub.toString('latin1');
-      if (n > 3 && PRINTABLE.test(text)) out.push({ no, wire, value: text, kind: 'string' });
+      if (n > 3 && PRINTABLE.test(text)) out.push({ no, wire, value: text, kind: 'string', raw });
       else {
         // Un sous-message et une suite d'octets quelconque sont indiscernables
         // a priori: on tente le decodage et on retombe sur les octets bruts.
         const inner = depth > 0 && n > 0 ? decodeRaw(sub, depth - 1) : null;
-        if (inner !== null) out.push({ no, wire, value: inner, kind: 'message' });
-        else out.push({ no, wire, value: Buffer.from(sub), kind: 'bytes' });
+        if (inner !== null) out.push({ no, wire, value: inner, kind: 'message', raw });
+        else out.push({ no, wire, value: raw, kind: 'bytes', raw });
       }
     } else if (wire === WIRE.I64) {
       if (pos + 8 > buf.length) return null;

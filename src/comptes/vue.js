@@ -24,7 +24,7 @@
 //            refus rendu par rejouer() (« manque skillInstanceUid pour
 //            l'element N »). null quand il n'y a rien a dire.
 
-function ligneBase(compte, favoris, exclus, passeTour, invitation) {
+function ligneBase(compte, favoris, exclus, passeTour, invitation, noAnim) {
   return {
     id: compte.id,
     nickname: compte.nickname,
@@ -35,6 +35,7 @@ function ligneBase(compte, favoris, exclus, passeTour, invitation) {
     exclu: exclus.has(compte.id),
     passeTour: passeTour.has(compte.id),
     invitation: invitation.has(compte.id),
+    noAnim: noAnim.has(compte.id),
     etat: 'hors-ligne',
     estMaitre: false,
     suivi: false,
@@ -44,7 +45,7 @@ function ligneBase(compte, favoris, exclus, passeTour, invitation) {
 
 function construireVue({
   comptes, clients, intercepte, maitre, exclus, favoris, passeTour = new Set(),
-  invitation = new Set(),
+  invitation = new Set(), noAnim = new Set(),
   erreurs = new Map(), messages = new Map(),
 }) {
   const parCompte = new Map();
@@ -62,7 +63,7 @@ function construireVue({
   const absorbes = new Set();
 
   const lignes = comptes.map((compte) => {
-    const ligne = ligneBase(compte, favoris, exclus, passeTour, invitation);
+    const ligne = ligneBase(compte, favoris, exclus, passeTour, invitation, noAnim);
     const client = parCompte.get(compte.id);
     if (!client) return ligne;
     absorbes.add(client.pid);
@@ -103,6 +104,7 @@ function construireVue({
       // lignes passent par ce repli.
       passeTour: c.idCompte !== null && passeTour.has(c.idCompte),
       invitation: c.idCompte !== null && invitation.has(c.idCompte),
+      noAnim: c.idCompte !== null && noAnim.has(c.idCompte),
       etat: etatDe(c.pid, 'inconnu'),
       estMaitre: c.pid === maitre,
       suivi,

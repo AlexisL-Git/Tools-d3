@@ -20,6 +20,9 @@ class Favoris {
     // Comptes qui acceptent seuls les invitations de groupe. Meme nature que
     // les deux listes precedentes: que des identifiants numeriques.
     this._invitation = new Set();
+    // Comptes dont les animations de deplacement sont supprimees. Meme nature
+    // que les trois listes precedentes: que des identifiants numeriques.
+    this._noAnim = new Set();
   }
 
   charger() {
@@ -34,6 +37,9 @@ class Favoris {
       if (Array.isArray(json.invitation)) {
         this._invitation = new Set(json.invitation.filter((n) => Number.isInteger(n)));
       }
+      if (Array.isArray(json.noAnim)) {
+        this._noAnim = new Set(json.noAnim.filter((n) => Number.isInteger(n)));
+      }
       if (typeof json.delai === 'number' && json.delai >= 0) this._delai = json.delai;
     } catch (e) {
       // Fichier absent ou corrompu: on repart d'une liste vide plutot que de
@@ -41,6 +47,7 @@ class Favoris {
       this._ids = new Set();
       this._passeTour = new Set();
       this._invitation = new Set();
+      this._noAnim = new Set();
       this._delai = 0;
     }
     return this;
@@ -98,6 +105,20 @@ class Favoris {
     return [...this._invitation];
   }
 
+  noAnimActif(id) {
+    return this._noAnim.has(id);
+  }
+
+  marquerNoAnim(id, actif) {
+    if (actif) this._noAnim.add(id);
+    else this._noAnim.delete(id);
+    this._ecrire();
+  }
+
+  tousNoAnim() {
+    return [...this._noAnim];
+  }
+
   _ecrire() {
     try {
       fs.mkdirSync(path.dirname(this.chemin), { recursive: true });
@@ -106,6 +127,7 @@ class Favoris {
         favoris: this.tous(),
         passeTour: this.tousPasseTour(),
         invitation: this.tousInvitation(),
+        noAnim: this.tousNoAnim(),
       };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
     } catch (e) {

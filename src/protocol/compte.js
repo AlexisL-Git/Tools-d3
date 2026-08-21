@@ -55,6 +55,9 @@ class EtatCompte {
     // Acceptation automatique des invitations de groupe. Independant de
     // `exclu` et de `passeTour`.
     this.accepteInvitation = false;
+    // Suppression des animations de deplacement en combat. Independant des
+    // trois autres interrupteurs.
+    this.noAnim = false;
     // elementId -> skillInstanceUid, propre a ce compte.
     this.skillParElement = new Map();
     this.trames = 0;

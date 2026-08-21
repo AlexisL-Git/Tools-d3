@@ -38,6 +38,16 @@ class FrameReassembler {
     return this._buf.length;
   }
 
+  getBuffer() {
+    return Buffer.from(this._buf);
+  }
+
+  flush() {
+    const octets = Buffer.from(this._buf);
+    this._buf = Buffer.alloc(0);
+    return octets;
+  }
+
   push(chunk) {
     this._buf = this._buf.length === 0 ? chunk : Buffer.concat([this._buf, chunk]);
     const frames = [];

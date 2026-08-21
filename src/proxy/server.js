@@ -38,7 +38,7 @@ const DEFAULT_HOST = '::';
 // et qu'il n'en contiendra pas: mieux vaut le signaler que d'attendre.
 const MAX_PREAMBULE = 512;
 
-function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbleme = () => {} } = {}) {
+function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbleme = () => {}, transformerEntrant = null, onClose = () => {} } = {}) {
   let nextId = 1;
   const server = net.createServer((client) => {
     let upstream = null;
@@ -85,7 +85,25 @@ function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbl
 
         upstream.on('data', (data) => {
           onData('in', data, conn);
-          client.write(data);
+          // Le proxy n'observe le flux descendant que par defaut. Il ne le
+          // transforme QUE si on lui a donne de quoi le faire, et il retombe
+          // sur les octets d'origine au moindre incident: une erreur de
+          // cadrage ici tue la connexion de jeu, la ou une politique qui
+          // n'emet rien ne coute qu'une animation.
+          let sortie = null;
+          if (transformerEntrant !== null) {
+            try {
+              sortie = transformerEntrant(data, conn);
+            } catch (e) {
+              onProbleme({ id: conn.id, raison: `transformation en echec: ${e.message}` });
+              sortie = null;
+            }
+          }
+          // Valider que sortie est un Buffer ou null. Si le transformateur
+          // rend autre chose (undefined, string, etc), retomber sur les octets
+          // d'origine evite une exception dans client.write() qui tuerait la
+          // connexion de jeu — un cout bien plus grave qu'une animation manquee.
+          client.write(Buffer.isBuffer(sortie) ? sortie : data);
         });
 
         upstream.on('error', (e) => {
@@ -109,6 +127,11 @@ function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbl
     client.on('error', () => {});
     client.on('close', () => {
       if (upstream !== null) upstream.destroy();
+      // Sans ce signal, l'etat par connexion d'un transformateur (comme
+      // src/noanim-flux.js) ne se libere jamais: chaque connexion fermee
+      // laisse une entree permanente, jusqu'a 8 Mo pour une connexion
+      // desynchronisee.
+      onClose(conn);
     });
   });
 
