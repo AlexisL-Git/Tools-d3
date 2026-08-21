@@ -63,7 +63,7 @@ function creerTransformateurFlux({ reglages, estArmePourCompte = null, onCompteR
     return estArmePourCompte(conn.pid);
   }
 
-  return function transformer(buf, conn) {
+  function transformer(buf, conn) {
     // IMPORTANT: refuse de transformer si conn est absent ou son id n'est pas defini.
     if (!conn || conn.id === undefined) return buf;
 
@@ -149,7 +149,16 @@ function creerTransformateurFlux({ reglages, estArmePourCompte = null, onCompteR
       for (const t of sortantes) morceaux.push(writeVarint(t.length), t);
     }
     return Buffer.concat(morceaux);
-  };
+  }
+
+  // Purge l'etat d'une connexion fermee (IMPORTANT de revue finale): sans
+  // cela, chaque connexion laisse une entree permanente dans `etats`,
+  // jusqu'a 8 Mo pour une connexion desynchronisee. Propriete ajoutee sur la
+  // fonction plutot que changement de signature: les appelants qui ignorent
+  // fermer() continuent d'appeler transformer(buf, conn) sans rien changer.
+  transformer.fermer = (connId) => { etats.delete(connId); };
+
+  return transformer;
 }
 
 module.exports = { creerTransformateurFlux };

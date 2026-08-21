@@ -251,6 +251,24 @@ test('un transformateur qui leve laisse passer les octets d origine', async (t) 
   assert.strictEqual(Buffer.concat(recu).toString(), 'R:bonjour');
 });
 
+// IMPORTANT de revue finale: sans crochet de fermeture, l'etat par connexion
+// d'un transformateur (src/noanim-flux.js) ne se purge jamais.
+test('onClose est appele avec la connexion a la fermeture du socket client', async (t) => {
+  const { srv, port } = await listenEcho(() => {});
+  const fermees = [];
+  const proxy = await createProxy({ port: 0, onClose: (conn) => fermees.push(conn) });
+  const c = net.connect(proxy.port, '127.0.0.1', () => {
+    c.write(Buffer.concat([Buffer.from(`CONNECT 127.0.0.1:${port} HTTP/1.0`), Buffer.from('x')]));
+  });
+  t.after(async () => { c.destroy(); await proxy.close(); srv.close(); });
+  await new Promise((r) => c.once('data', r));
+  c.end();
+  await new Promise((r) => c.once('close', r));
+  await new Promise((r) => setTimeout(r, 20));
+  assert.strictEqual(fermees.length, 1);
+  assert.strictEqual(fermees[0].port, port);
+});
+
 test('un transformateur qui rend undefined laisse passer les octets d origine', async (t) => {
   const { srv, port } = await listenEcho(() => {});
   const proxy = await createProxy({

@@ -38,7 +38,7 @@ const DEFAULT_HOST = '::';
 // et qu'il n'en contiendra pas: mieux vaut le signaler que d'attendre.
 const MAX_PREAMBULE = 512;
 
-function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbleme = () => {}, transformerEntrant = null } = {}) {
+function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbleme = () => {}, transformerEntrant = null, onClose = () => {} } = {}) {
   let nextId = 1;
   const server = net.createServer((client) => {
     let upstream = null;
@@ -127,6 +127,11 @@ function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbl
     client.on('error', () => {});
     client.on('close', () => {
       if (upstream !== null) upstream.destroy();
+      // Sans ce signal, l'etat par connexion d'un transformateur (comme
+      // src/noanim-flux.js) ne se libere jamais: chaque connexion fermee
+      // laisse une entree permanente, jusqu'a 8 Mo pour une connexion
+      // desynchronisee.
+      onClose(conn);
     });
   });
 

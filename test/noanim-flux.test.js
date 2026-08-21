@@ -174,6 +174,21 @@ test('deux comptes, un seul arme via estArmePourCompte: l autre est inchange (te
   assert.ok(sortieArme.length > surLeFil(JSJ).length, 'le compte arme doit voir la pose ajoutee');
 });
 
+// IMPORTANT de revue finale: la Map des etats ne se purgeait jamais. fermer()
+// est le crochet que superviseur.js appelle sur la fermeture de la socket.
+test('fermer() purge l etat: une connexion au meme id redemarre a neuf, sans residu ni duplication (IMPORTANT)', () => {
+  const { f, conn } = flux();
+  const fil = surLeFil(AUTRE);
+  // Bufferise une trame incomplete: retenue en interne, rien rendu.
+  const a = f(fil.subarray(0, 3), conn);
+  assert.strictEqual(a.length, 0);
+  f.fermer(conn.id);
+  // Meme id de connexion reutilise (ex: reconnexion) apres la purge: doit se
+  // comporter comme une connexion neuve, sans les 3 octets laisses en plan.
+  const sortie = f(fil, conn);
+  assert.strictEqual(sortie.toString('hex'), fil.toString('hex'));
+});
+
 // Corrections apportees: les deux critical de perte de donnees, et l important de securite.
 test('octets bufferises puis cadrage impossible: rien n est perdu (CRITICAL 1)', () => {
   const { f, conn } = flux();
