@@ -250,3 +250,21 @@ test('un transformateur qui leve laisse passer les octets d origine', async (t) 
   });
   assert.strictEqual(Buffer.concat(recu).toString(), 'R:bonjour');
 });
+
+test('un transformateur qui rend undefined laisse passer les octets d origine', async (t) => {
+  const { srv, port } = await listenEcho(() => {});
+  const proxy = await createProxy({
+    port: 0,
+    transformerEntrant: () => { },
+  });
+  const recu = [];
+  const c = net.connect(proxy.port, '127.0.0.1', () => {
+    c.write(Buffer.concat([Buffer.from(`CONNECT 127.0.0.1:${port} HTTP/1.0`), Buffer.from('bonjour')]));
+  });
+  t.after(async () => { c.destroy(); await proxy.close(); srv.close(); });
+  await new Promise((resolve, reject) => {
+    c.on('data', (d) => { recu.push(d); resolve(); });
+    c.on('error', reject);
+  });
+  assert.strictEqual(Buffer.concat(recu).toString(), 'R:bonjour');
+});

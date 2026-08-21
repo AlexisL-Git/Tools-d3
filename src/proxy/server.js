@@ -99,7 +99,11 @@ function createProxy({ port = 0, host = DEFAULT_HOST, onData = () => {}, onProbl
               sortie = null;
             }
           }
-          client.write(sortie === null ? data : sortie);
+          // Valider que sortie est un Buffer ou null. Si le transformateur
+          // rend autre chose (undefined, string, etc), retomber sur les octets
+          // d'origine evite une exception dans client.write() qui tuerait la
+          // connexion de jeu — un cout bien plus grave qu'une animation manquee.
+          client.write(Buffer.isBuffer(sortie) ? sortie : data);
         });
 
         upstream.on('error', (e) => {
