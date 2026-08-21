@@ -33,11 +33,15 @@
   #bpt { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
          color: #e6e8ec; cursor: pointer; font: inherit; }
   #bpt.actif { background: #2e7d4f; }
+  #binv { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
+          color: #e6e8ec; cursor: pointer; font: inherit; }
+  #binv.actif { background: #2e7d4f; }
 </style>
 <header>
   <h1>Replicate</h1>
   <button id="bascule">INACTIF</button>
   <button id="bpt">PASSE-TOUR</button>
+  <button id="binv">GROUPE</button>
   <label style="color:#8b93a3">délai <input id="delai" type="number" min="0" step="0.1" value="0"></label>
   <span id="resume" style="margin-left:auto"></span>
 </header>
@@ -60,6 +64,11 @@
   const ICONE_PASSE =
     '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
     '<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="18.4" x2="18.4" y2="5.6"/></svg>';
+  const ICONE_GROUPE =
+    '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round">' +
+    '<circle cx="9" cy="8" r="3.2"/><path d="M3.2 19.5c0-3.2 2.6-5.2 5.8-5.2s5.8 2 5.8 5.2"/>' +
+    '<path d="M16.4 5.2a3.2 3.2 0 0 1 0 5.9"/><path d="M17.6 14.6c2.1.5 3.6 2.3 3.6 4.9"/></svg>';
 
   function interrupteur(icone, coche, desactive, surChangement) {
     const l = document.createElement('label');
@@ -77,6 +86,7 @@
 
   let actif = false;
   let passeTourActif = false;
+  let invitationActive = false;
 
   document.getElementById('bascule').addEventListener('click', () => {
     actif = !actif;
@@ -86,6 +96,11 @@
   document.getElementById('bpt').addEventListener('click', () => {
     passeTourActif = !passeTourActif;
     window.app.basculerPasseTour(passeTourActif);
+  });
+
+  document.getElementById('binv').addEventListener('click', () => {
+    invitationActive = !invitationActive;
+    window.app.basculerInvitation(invitationActive);
   });
 
   document.getElementById('delai').addEventListener('change', (e) => {
@@ -101,6 +116,10 @@
     passeTourActif = etat.passeTourActif;
     const bpt = document.getElementById('bpt');
     bpt.classList.toggle('actif', passeTourActif);
+
+    invitationActive = etat.invitationActive;
+    document.getElementById('binv').classList.toggle('actif', invitationActive);
+
     const champDelai = document.getElementById('delai');
     if (document.activeElement !== champDelai) champDelai.value = etat.delai;
 
@@ -128,7 +147,7 @@
 
       // Un interrupteur desactive quand le compte n'est pas intercepte serait
       // une promesse fausse: hors ligne, non intercepte ou en erreur, aucun
-      // des deux ne peut agir sur ce client.
+      // des trois ne peut agir sur ce client.
       //
       // C'est `suivi` qui en decide, PAS le libelle `etat`: un client passe par
       // notre proxy mais dont le compte est absent de la liste Zaap s'affiche
@@ -140,6 +159,8 @@
         (v) => window.app.exclureCompte(l.id, !v));
       const swPasse = interrupteur(ICONE_PASSE, l.passeTour, !utilisable,
         (v) => window.app.basculerPasseTourCompte(l.id, v));
+      const swInv = interrupteur(ICONE_GROUPE, l.invitation, !utilisable,
+        (v) => window.app.basculerInvitationCompte(l.id, v));
 
       const nom = document.createElement('span');
       nom.className = 'nom';
@@ -155,7 +176,7 @@
         + (l.etat === 'non-intercepte' || l.etat === 'erreur' ? ' alerte' : '');
       badge.textContent = l.estMaitre ? 'maître' : LIBELLES[l.etat];
 
-      li.append(etoile, swRep, swPasse, nom, perso, badge);
+      li.append(etoile, swRep, swPasse, swInv, nom, perso, badge);
 
       // Echec d'attache, ou raison pour laquelle la derniere action n'a pas pu
       // etre rejouee chez ce compte.
