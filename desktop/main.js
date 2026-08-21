@@ -209,7 +209,7 @@ app.whenReady().then(async () => {
     onJournal: journal,
     transformerEntrant: creerTransformateurFlux({
       reglages: reglagesNoAnim,
-      onCompteRendu: ({ conn, raison }) => journal(null, `no-anim (connexion ${conn}) : ${raison}`),
+      onCompteRendu: ({ conn, pid, raison }) => journal(pid, `no-anim (connexion ${conn}) : ${raison}`),
     }),
   });
 

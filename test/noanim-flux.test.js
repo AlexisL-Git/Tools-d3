@@ -174,6 +174,17 @@ test('conn sans id: octets d origine inchanges (IMPORTANT)', () => {
   assert.strictEqual(sortie.toString('hex'), fil.toString('hex'));
 });
 
+// Sans le pid, un compte rendu ne dit que le numero de connexion — et ce
+// numero se repete d'un compte a l'autre (createProxy repart a 1 a chaque
+// appel), rendant le journal inexploitable en multicompte.
+test('le pid de la connexion remonte dans le compte rendu', () => {
+  const { f, rendu } = flux();
+  const conn = { id: 1, port: 5555, pid: 4242 };
+  const poison = Buffer.concat([writeVarint(9 * 1024 * 1024), Buffer.alloc(8)]);
+  f(poison, conn);
+  assert.strictEqual(rendu[0].pid, 4242);
+});
+
 test('duplication apres cadrage perdu puis extinction: buffer vide (CRITICAL nouveau)', () => {
   const { f, reglages, conn } = flux();
   // Provoquer un cadrage perdu: une longueur gigantesque lance une exception.

@@ -267,6 +267,32 @@ test('sans transformateur, le superviseur n en invente pas', () => {
   assert.strictEqual(s.transformerEntrant, null);
 });
 
+// CRITICAL trouve en revue: createProxy attribue ses conn.id localement a
+// chaque appel, donc deux comptes ont chacun une connexion n°1. Sans cle
+// composee par pid, src/noanim-flux.js ferait partager le meme reassembleur
+// a deux comptes differents.
+test('deux comptes avec le meme conn.id recoivent des cles differentes', () => {
+  const vus = [];
+  const s = new Superviseur({ transformerEntrant: (buf, conn) => { vus.push(conn.id); return null; } });
+
+  const t1 = s._transformateurPour(1);
+  const t2 = s._transformateurPour(2);
+  t1(Buffer.alloc(0), { id: 1, port: 5555 });
+  t2(Buffer.alloc(0), { id: 1, port: 5555 });
+
+  assert.strictEqual(vus.length, 2);
+  assert.notStrictEqual(vus[0], vus[1]);
+});
+
+// La garantie « inerte par defaut » du proxy repose sur l'absence de
+// fonction transformerEntrant, pas sur le resultat d'une fonction qui rend
+// toujours null: l'enveloppe ne doit donc pas exister quand il n'y a rien a
+// envelopper.
+test('sans transformateur, createProxy recoit null et non une fonction enveloppee', () => {
+  const s = new Superviseur({});
+  assert.strictEqual(s._transformateurPour(1), null);
+});
+
 // La socket amont est le chemin d'emission: sans elle, rejouer est impossible.
 test('le proxy expose la socket amont une fois établie', async (t) => {
   const echo = net.createServer((sock) => sock.on('data', (d) => sock.write(d)));

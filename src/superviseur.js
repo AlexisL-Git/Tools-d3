@@ -56,6 +56,23 @@ class Superviseur {
     this.onJournal(pid, texte);
   }
 
+  // Un seul transformerEntrant sert tous les comptes: createProxy attribue
+  // ses conn.id localement a chaque appel, donc deux comptes ont chacun une
+  // connexion n°1, n°2, etc. Sans cette enveloppe, src/noanim-flux.js — qui
+  // indexe son etat (reassembleur, drapeau inerte) par conn.id — ferait
+  // partager le meme reassembleur a deux comptes differents: un cadrage
+  // perdu chez l'un recracherait ses octets bufferises dans la socket de
+  // l'autre. Le pid rend la cle unique par compte.
+  //
+  // null reste null: si aucun transformateur n'est configure, createProxy
+  // doit recevoir null tel quel, pas une fonction qui rend toujours null —
+  // la garantie « inerte par defaut » du proxy repose sur l'absence de
+  // fonction, pas sur son resultat.
+  _transformateurPour(pid) {
+    if (this.transformerEntrant === null) return null;
+    return (buf, conn) => this.transformerEntrant(buf, { id: `${pid}/${conn.id}`, port: conn.port, pid });
+  }
+
   async ajouter({ pid, nom }) {
     const client = new Client({ pid, nom });
     this.clients.set(pid, client);
@@ -66,7 +83,7 @@ class Superviseur {
       port: 0,
       onProbleme: (p) => this.journal(pid, `connexion ${p.id} abandonnée — ${p.raison}`),
       onData: (dir, buf, conn) => this._recevoir(client, dir, buf, conn),
-      transformerEntrant: this.transformerEntrant,
+      transformerEntrant: this._transformateurPour(pid),
     });
     client.port = client.proxy.port;
 

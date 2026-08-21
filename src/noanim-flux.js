@@ -70,7 +70,7 @@ function creerTransformateurFlux({ reglages, onCompteRendu = () => {} }) {
       const sortie = Buffer.concat([octetsAvantPush, buf]);
       etat.reassembleur.flush();
       etat.inerte = true;
-      onCompteRendu({ conn: conn.id, raison: `cadrage perdu, connexion relayee telle quelle : ${e.message}` });
+      onCompteRendu({ conn: conn.id, pid: conn.pid, raison: `cadrage perdu, connexion relayee telle quelle : ${e.message}` });
       return sortie;
     }
 
@@ -81,7 +81,7 @@ function creerTransformateurFlux({ reglages, onCompteRendu = () => {} }) {
       let r = { octets: [], raison: null };
       try { r = traduire(brute); }
       catch (e) { r = { octets: [], raison: `traduction en echec, trame relayee telle quelle : ${e.message}` }; }
-      if (r.raison !== null) onCompteRendu({ conn: conn.id, raison: r.raison });
+      if (r.raison !== null) onCompteRendu({ conn: conn.id, pid: conn.pid, raison: r.raison });
       const sortantes = r.octets.length === 0 ? [brute] : r.octets;
       for (const t of sortantes) morceaux.push(writeVarint(t.length), t);
     }
