@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const net = require('node:net');
-const { Superviseur } = require('../src/superviseur');
+const { Superviseur, PORT_JEU } = require('../src/superviseur');
 const { createProxy } = require('../src/proxy/server');
 
 // Les sept types dont l'utilisateur a besoin — zaap, havre-sac, PNJ, quetes,
@@ -291,6 +291,25 @@ test('deux comptes avec le meme conn.id recoivent des cles differentes', () => {
 test('sans transformateur, createProxy recoit null et non une fonction enveloppee', () => {
   const s = new Superviseur({});
   assert.strictEqual(s._transformateurPour(1), null);
+});
+
+// Test manquant #2 de la revue finale: une connexion sur un port autre que
+// celui du jeu n'est pas touchee. CRITICAL trouve en revue: _transformateurPour
+// ne filtrait pas conn.port, contrairement a _recevoir -- le transformateur
+// s'appliquait au HTTPS et aux CDN du client.
+test('une connexion hors du port du jeu n est jamais transmise au transformateur', () => {
+  const vus = [];
+  const s = new Superviseur({ transformerEntrant: (buf, conn) => { vus.push(conn); return Buffer.from('MODIFIE'); } });
+  const t = s._transformateurPour(1);
+
+  const surLeJeu = t(Buffer.from('a'), { id: 1, port: PORT_JEU });
+  assert.strictEqual(vus.length, 1);
+  assert.deepStrictEqual(surLeJeu, Buffer.from('MODIFIE'));
+
+  // Un port different (HTTPS, CDN...): ne doit jamais atteindre transformerEntrant.
+  const horsJeu = t(Buffer.from('b'), { id: 2, port: 443 });
+  assert.strictEqual(vus.length, 1, 'le transformateur ne doit pas etre appele hors du port du jeu');
+  assert.strictEqual(horsJeu, null, 'null relaie les octets d origine, sans y toucher');
 });
 
 // La socket amont est le chemin d'emission: sans elle, rejouer est impossible.

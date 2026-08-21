@@ -64,13 +64,24 @@ class Superviseur {
   // perdu chez l'un recracherait ses octets bufferises dans la socket de
   // l'autre. Le pid rend la cle unique par compte.
   //
+  // FILTRE DE PORT (CRITICAL de revue finale). _recevoir filtre deja
+  // conn.port !== PORT_JEU (voir plus bas): sans le meme filtre ici, le
+  // transformateur s'appliquait a TOUTE connexion que l'agent redirige, y
+  // compris le HTTPS et les CDN du client. Rejeu d'une capture reelle:
+  // 124 Ko avales sur une seule socket CDN, pour une ligne de journal. Toute
+  // connexion hors du port du jeu doit rester intouchee, exactement comme
+  // pour l'observation.
+  //
   // null reste null: si aucun transformateur n'est configure, createProxy
   // doit recevoir null tel quel, pas une fonction qui rend toujours null —
   // la garantie « inerte par defaut » du proxy repose sur l'absence de
   // fonction, pas sur son resultat.
   _transformateurPour(pid) {
     if (this.transformerEntrant === null) return null;
-    return (buf, conn) => this.transformerEntrant(buf, { id: `${pid}/${conn.id}`, port: conn.port, pid });
+    return (buf, conn) => {
+      if (conn.port !== PORT_JEU) return null;
+      return this.transformerEntrant(buf, { id: `${pid}/${conn.id}`, port: conn.port, pid });
+    };
   }
 
   async ajouter({ pid, nom }) {
