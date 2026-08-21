@@ -173,3 +173,20 @@ test('conn sans id: octets d origine inchanges (IMPORTANT)', () => {
   const sortie = f(fil, connSansId);
   assert.strictEqual(sortie.toString('hex'), fil.toString('hex'));
 });
+
+test('duplication apres cadrage perdu puis extinction: buffer vide (CRITICAL nouveau)', () => {
+  const { f, reglages, conn } = flux();
+  // Provoquer un cadrage perdu: une longueur gigantesque lance une exception.
+  const poison = Buffer.concat([writeVarint(9 * 1024 * 1024), Buffer.alloc(8)]);
+  const out1 = f(poison, conn);
+  // Le poison est emis (octets en attente + poison).
+  assert.ok(out1.length > 0);
+  // Eteindre le transformateur pendant que la connexion est inerte.
+  reglages.actif = false;
+  // Envoyer un nouveau chunk.
+  const nouveau = Buffer.from([0xde, 0xad, 0xbe, 0xef]);
+  const out2 = f(nouveau, conn);
+  // L extinction doit emettre le nouveau chunk tel quel, pas d octets residuels
+  // du cadrage perdu (sinon duplication).
+  assert.strictEqual(out2.toString('hex'), nouveau.toString('hex'));
+});

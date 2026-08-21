@@ -35,12 +35,19 @@ function creerTransformateurFlux({ reglages, onCompteRendu = () => {} }) {
     // Gestion de l'extinction en cours de flux (CRITICAL 2).
     if (!reglages.actif) {
       let etat = etats.get(conn.id);
-      if (etat !== undefined && etat.reassembleur.pending > 0) {
-        // Des octets sont bufferises: les rendre avec le chunk courant, puis oublier l'etat.
-        const octetsEnAttente = etat.reassembleur.flush();
-        etats.delete(conn.id);
-        return Buffer.concat([octetsEnAttente, buf]);
+      if (etat !== undefined) {
+        if (etat.inerte) {
+          // Connexion desynchronisee: relayer l'original, pas de traitement.
+          return buf;
+        }
+        if (etat.reassembleur.pending > 0) {
+          // Des octets sont bufferises: les rendre avec le chunk courant, puis oublier l'etat.
+          const octetsEnAttente = etat.reassembleur.flush();
+          etats.delete(conn.id);
+          return Buffer.concat([octetsEnAttente, buf]);
+        }
       }
+      // Aucun etat, ou etat sans donnees bufferisees: Garantie 1.
       return null;
     }
 
@@ -57,11 +64,14 @@ function creerTransformateurFlux({ reglages, onCompteRendu = () => {} }) {
       trames = etat.reassembleur.push(buf);
     } catch (e) {
       // Desynchronise: on ne sait plus ou commencent les trames. On rend les octets
-      // en attente suivis du chunk courant, on passe inerte, et on ne touche plus
-      // a cette connexion (CRITICAL 1).
+      // en attente suivis du chunk courant, on vide le tampon interne pour eviter
+      // une duplication si la connexion passe en extinction, puis on passe inerte
+      // (CRITICAL 1 + correction de la duplication).
+      const sortie = Buffer.concat([octetsAvantPush, buf]);
+      etat.reassembleur.flush();
       etat.inerte = true;
       onCompteRendu({ conn: conn.id, raison: `cadrage perdu, connexion relayee telle quelle : ${e.message}` });
-      return Buffer.concat([octetsAvantPush, buf]);
+      return sortie;
     }
 
     if (trames.length === 0) return Buffer.alloc(0);
