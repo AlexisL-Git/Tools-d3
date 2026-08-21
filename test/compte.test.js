@@ -193,3 +193,13 @@ test('chaque compte garde son propre identifiant', () => {
   assert.strictEqual(c.get(1).characterId, 111n);
   assert.strictEqual(c.get(2).characterId, 222n);
 });
+
+// Jumeau de passeTour, et independant de lui: un compte peut accepter les
+// invitations sans passer ses tours.
+test('accepteInvitation est faux par defaut et independant de passeTour', () => {
+  const e = new EtatCompte({ pid: 1 });
+  assert.strictEqual(e.accepteInvitation, false);
+  e.accepteInvitation = true;
+  assert.strictEqual(e.passeTour, false);
+  assert.strictEqual(e.exclu, false);
+});
