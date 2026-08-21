@@ -282,6 +282,33 @@ test('l absence d invitation ne casse pas la vue', () => {
   assert.strictEqual(lignes[0].invitation, false);
 });
 
+test('le no-anim remonte sur la ligne du compte', () => {
+  const lignes = vue({ noAnim: new Set([2]) });
+  assert.strictEqual(lignes.find((l) => l.id === 1).noAnim, false);
+  assert.strictEqual(lignes.find((l) => l.id === 2).noAnim, true);
+});
+
+// Meme piege que pour passeTour et invitation, rencontre deux fois: code en
+// dur a faux, la case s'affichait eteinte alors que la fonction agissait.
+test('le no-anim remonte aussi sur un client sans ligne de compte', () => {
+  const l = construireVue({
+    comptes: COMPTES,
+    clients: [{ pid: 500, idCompte: 42, personnage: 'Tardif', classe: 'Eniripsa' }],
+    intercepte: new Set([500]),
+    maitre: null,
+    exclus: new Set(),
+    favoris: new Set(),
+    noAnim: new Set([42]),
+  }).pop();
+  assert.strictEqual(l.id, 42);
+  assert.strictEqual(l.noAnim, true);
+});
+
+test('l absence de noAnim ne casse pas la vue', () => {
+  const lignes = vue();
+  assert.strictEqual(lignes[0].noAnim, false);
+});
+
 test('huit comptes en jeu sont tous rendus', () => {
   const comptes = [];
   const clients = [];

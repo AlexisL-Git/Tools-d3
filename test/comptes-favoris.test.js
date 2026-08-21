@@ -52,7 +52,7 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   // Depuis les extensions au passe-tour et a l'invitation, le fichier porte
   // aussi passeTour, invitation et delai (vides/nuls ici): voir le test
   // dedie plus bas pour le contenu complet.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'invitation', 'passeTour']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'invitation', 'noAnim', 'passeTour']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -103,10 +103,11 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'invitation', 'passeTour']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'invitation', 'noAnim', 'passeTour']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
+  assert.deepStrictEqual(contenu.noAnim, []);
   assert.strictEqual(contenu.delai, 0.5);
 });
 
@@ -162,4 +163,42 @@ test('un échec d écriture ne fait pas planter l appelant', (t) => {
   assert.doesNotThrow(() => f.marquer(10612457, true));
   assert.strictEqual(f.estFavori(10612457), true);
   assert.deepStrictEqual(f.tous(), [10612457]);
+});
+
+test('le no-anim se marque, se lit et se relit du fichier', (t) => {
+  const chemin = fichierTemporaire(t);
+  const f = new Favoris(chemin).charger();
+  assert.strictEqual(f.noAnimActif(12), false);
+  f.marquerNoAnim(12, true);
+  assert.strictEqual(f.noAnimActif(12), true);
+  assert.deepStrictEqual(new Favoris(chemin).charger().tousNoAnim(), [12]);
+});
+
+test('le no-anim se demarque', (t) => {
+  const chemin = fichierTemporaire(t);
+  const f = new Favoris(chemin).charger();
+  f.marquerNoAnim(12, true);
+  f.marquerNoAnim(12, false);
+  assert.deepStrictEqual(new Favoris(chemin).charger().tousNoAnim(), []);
+});
+
+// Les quatre listes sont independantes.
+test('no-anim, invitation, passe-tour et favoris ne se melangent pas', (t) => {
+  const chemin = fichierTemporaire(t);
+  const f = new Favoris(chemin).charger();
+  f.marquerNoAnim(12, true);
+  const relu = new Favoris(chemin).charger();
+  assert.strictEqual(relu.passeTourActif(12), false);
+  assert.strictEqual(relu.invitationActive(12), false);
+  assert.strictEqual(relu.estFavori(12), false);
+});
+
+// Un fichier ecrit par une version anterieure n'a pas la cle: la lecture doit
+// rendre une liste vide, pas faire echouer le demarrage.
+test('un fichier sans cle noAnim se lit sans erreur', (t) => {
+  const chemin = fichierTemporaire(t);
+  fs.writeFileSync(chemin, JSON.stringify({ delai: 0, favoris: [3], passeTour: [], invitation: [] }), 'utf8');
+  const f = new Favoris(chemin).charger();
+  assert.deepStrictEqual(f.tousNoAnim(), []);
+  assert.strictEqual(f.estFavori(3), true);
 });

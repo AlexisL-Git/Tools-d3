@@ -203,3 +203,13 @@ test('accepteInvitation est faux par defaut et independant de passeTour', () => 
   assert.strictEqual(e.passeTour, false);
   assert.strictEqual(e.exclu, false);
 });
+
+// Quatrieme interrupteur, independant des trois autres.
+test('noAnim est faux par defaut et independant des autres interrupteurs', () => {
+  const e = new EtatCompte({ pid: 1 });
+  assert.strictEqual(e.noAnim, false);
+  e.noAnim = true;
+  assert.strictEqual(e.passeTour, false);
+  assert.strictEqual(e.accepteInvitation, false);
+  assert.strictEqual(e.exclu, false);
+});
