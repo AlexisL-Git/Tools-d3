@@ -141,11 +141,12 @@ async function envoyerEtat() {
   const noAnim = new Set(
     superviseur.comptes.tous.filter((e) => e.noAnim).map((e) => pidVersCompte(e.pid, clients)),
   );
-  // L'interrupteur general du no-anim suit les comptes: le transformateur est
-  // pose sur le proxy, qui ne connait pas les comptes. Des qu'au moins un
-  // compte l'active, il s'arme; quand le dernier l'eteint, il se desarme et le
-  // relais redevient octet pour octet.
-  reglagesNoAnim.actif = noAnim.size > 0;
+  // IMPORTANT de revue finale: reglagesNoAnim.actif etait recalcule ICI a
+  // chaque tick (noAnim.size > 0), donc basculerNoAnim() n'avait aucun effet
+  // propre -- le bouton ANIM se rallumait ou se rallumait jamais selon les
+  // cases par compte, pas selon le clic. Comme reglagesPasseTour.actif et
+  // reglagesInvitation.actif, c'est desormais un interrupteur general
+  // independant, mis a jour uniquement par l'IPC basculerNoAnim.
   fenetre.webContents.send('etat', {
     replicate: superviseur.arme,
     erreurComptes,
@@ -335,10 +336,13 @@ ipcMain.handle('basculerInvitationCompte', async (_e, idCompte, actif) => {
 });
 
 ipcMain.handle('basculerNoAnim', async (_e, actif) => {
-  // L'interrupteur general n'a pas d'etat propre: il eteint tous les comptes
-  // d'un coup. Sans cela, le bouton et les cases pourraient se contredire.
-  if (!actif) for (const id of favoris.tousNoAnim()) favoris.marquerNoAnim(id, false);
-  for (const etat of superviseur.comptes.tous) if (!actif) etat.noAnim = false;
+  // IMPORTANT de revue finale: aligne sur ses jumeaux basculerPasseTour et
+  // basculerInvitation (lignes 293 et 310). L'ancien code n'ecrivait jamais
+  // reglagesNoAnim.actif (envoyerEtat() l'ecrasait a chaque tick), et
+  // effacait en plus les cases par compte de favoris.json a l'extinction --
+  // un interrupteur general ne doit couper que la fonction, pas la memoire
+  // des comptes que l'utilisateur a cochee.
+  reglagesNoAnim.actif = Boolean(actif);
   await envoyerEtat();
 });
 
