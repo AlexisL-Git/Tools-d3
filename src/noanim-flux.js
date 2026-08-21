@@ -23,9 +23,32 @@ const { traduire } = require('./noanim');
 // module rend null sans rien lire: le proxy ecrit les octets d'origine, et le
 // chemin de relais est exactement celui d'avant cette fonction. C'est la
 // condition posee avant d'accepter que le proxy touche au chemin critique.
+//
+// POURQUOI UNE CONNEXION DEJA EN COURS EST REFUSEE DEFINITIVEMENT (CRITICAL
+// de revue finale). Armer une connexion deja ouverte fait lire un
+// FrameReassembler neuf a partir d'un decalage arbitraire du flux: il n'y a
+// aucun moyen de savoir si l'octet suivant commence une trame ou en coupe
+// une en deux. Continuer produirait un cadrage au hasard, et donc le meme
+// gel silencieux qu'un cadrage perdu, mais sans le compte rendu qui
+// accompagne d'ordinaire ce cas-la. La seule connexion transformable est
+// celle suivie depuis son PREMIER octet: toute connexion vue pour la
+// premiere fois pendant que le no-anim (general ou pour ce compte) est
+// eteint est marquee refusee pour de bon, meme si elle est rallumee plus
+// tard. Meme sort pour une connexion suivie depuis le debut mais eteinte EN
+// PLEIN MILIEU d'une trame: les octets bufferises sont rendus tels quels
+// (rien n'est perdu), mais la frontiere de trame suivante est desormais
+// inconnue, donc plus jamais transformable non plus. C'est une limitation
+// acceptable et honnete: le no-anim ne prend effet que sur les connexions
+// ouvertes apres son activation.
 
 function creerTransformateurFlux({ reglages, estArmePourCompte = null, onCompteRendu = () => {} }) {
-  // conn.id -> { reassembleur, inerte }
+  // conn.id -> etat. Deux statuts possibles:
+  //   'suivie'  -- reassembleur suivi depuis un octet initial connu, donc
+  //                transformable tant qu'il n'est pas devenu inerte.
+  //   'refusee' -- vue pour la premiere fois hors armement, ou desynchronisee
+  //                par une extinction en plein milieu d'une trame: jamais
+  //                transformee, relais brut definitif. `avertie` evite de
+  //                remplir le journal a chaque chunk d'une connexion refusee.
   const etats = new Map();
 
   // Armee pour CETTE connexion precise: le drapeau general ET, si un
@@ -45,32 +68,57 @@ function creerTransformateurFlux({ reglages, estArmePourCompte = null, onCompteR
     if (!conn || conn.id === undefined) return buf;
 
     const armee = armeePour(conn);
+    let etat = etats.get(conn.id);
 
-    // Gestion de l'extinction en cours de flux (CRITICAL 2), qu'elle soit
-    // generale ou propre a ce compte.
-    if (!armee) {
-      let etat = etats.get(conn.id);
-      if (etat !== undefined) {
-        if (etat.inerte) {
-          // Connexion desynchronisee: relayer l'original, pas de traitement.
-          return buf;
-        }
-        if (etat.reassembleur.pending > 0) {
-          // Des octets sont bufferises: les rendre avec le chunk courant, puis oublier l'etat.
-          const octetsEnAttente = etat.reassembleur.flush();
-          etats.delete(conn.id);
-          return Buffer.concat([octetsEnAttente, buf]);
-        }
+    // Premiere apparition de cette connexion pour ce transformateur.
+    if (etat === undefined) {
+      if (!armee) {
+        // Rien a perdre ici: le proxy relaie deja l'original (Garantie 1).
+        // On se souvient seulement que cette connexion n'a pas ete suivie
+        // depuis son premier octet, pour la refuser si elle est armee plus
+        // tard.
+        etats.set(conn.id, { statut: 'refusee', avertie: false });
+        return null;
       }
-      // Aucun etat, ou etat sans donnees bufferisees: Garantie 1.
+      etat = { statut: 'suivie', reassembleur: new FrameReassembler(), inerte: false };
+      etats.set(conn.id, etat);
+    }
+
+    if (etat.statut === 'refusee') {
+      // Un seul compte rendu par connexion refusee, seulement si on a
+      // vraiment essaye de la transformer: le trafic ordinaire (no-anim
+      // jamais active) ne doit pas remplir le journal.
+      if (armee && !etat.avertie) {
+        etat.avertie = true;
+        onCompteRendu({
+          conn: conn.id, pid: conn.pid,
+          raison: 'connexion deja en cours au moment de l\'armement, relayee telle quelle definitivement',
+        });
+      }
+      // null, pas buf: par symetrie avec le reste de ce module, "refusee"
+      // ne calcule jamais rien, elle laisse le proxy relayer l'original.
       return null;
     }
 
-    let etat = etats.get(conn.id);
-    if (etat === undefined) {
-      etat = { reassembleur: new FrameReassembler(), inerte: false };
-      etats.set(conn.id, etat);
+    // A partir d'ici, etat.statut === 'suivie'.
+    if (!armee) {
+      if (etat.inerte) return buf;
+      if (etat.reassembleur.pending > 0) {
+        // Extinction en plein milieu d'une trame: on rend les octets en
+        // attente suivis du chunk courant (rien n'est perdu), puis on
+        // marque la connexion refusee pour de bon -- la frontiere de trame
+        // suivante n'est plus connue, la reprendre plus tard serait le
+        // meme risque qu'une connexion jamais suivie.
+        const octetsEnAttente = etat.reassembleur.flush();
+        etats.set(conn.id, { statut: 'refusee', avertie: false });
+        return Buffer.concat([octetsEnAttente, buf]);
+      }
+      // Extinction pile sur une frontiere de trame: rien en attente, rien a
+      // perdre, et la connexion reste 'suivie' pour un rallumage sans
+      // risque -- le reassembleur est vide, donc a jour.
+      return null;
     }
+
     if (etat.inerte) return null;
 
     let trames = [];

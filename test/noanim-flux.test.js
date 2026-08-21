@@ -40,12 +40,48 @@ test('eteint, il rend null sans meme regarder les octets', () => {
   assert.strictEqual(f(surLeFil(JSJ), conn), null);
 });
 
-test('rallume en cours de route, il repart d un flux propre', () => {
-  const { f, reglages, conn } = flux(false);
+// CRITICAL 1 (revue finale): une connexion vue pour la premiere fois alors
+// que le no-anim etait eteint peut deja etre en cours depuis un decalage
+// arbitraire du flux. Elle est donc refusee DEFINITIVEMENT au rallumage, pas
+// reprise sur un flux suppose propre -- ce que faisait l ancien code, a tort.
+test('rallume une connexion deja vue hors armement: refusee pour de bon, un seul compte rendu', () => {
+  const { f, reglages, rendu, conn } = flux(false);
   assert.strictEqual(f(surLeFil(AUTRE), conn), null);
   reglages.actif = true;
-  const sortie = f(surLeFil(AUTRE), conn);
-  assert.strictEqual(sortie.toString('hex'), surLeFil(AUTRE).toString('hex'));
+  // Relaye tel quel: aucune transformation, meme si le contenu se trouve
+  // aligne sur une frontiere de trame par coincidence.
+  assert.strictEqual(f(surLeFil(AUTRE), conn), null);
+  assert.strictEqual(f(surLeFil(JSJ), conn), null);
+  // Un seul compte rendu, pas un par chunk: le trafic ordinaire ne doit pas
+  // remplir le journal.
+  assert.strictEqual(rendu.length, 1);
+  assert.match(rendu[0].raison, /deja en cours/);
+});
+
+// Test manquant #1 de la revue finale: rallumage HORS FRONTIERE de trame. La
+// sortie totale doit rester egale a l entree totale, ou la connexion doit
+// etre refusee avec un compte rendu -- jamais un gel silencieux.
+test('rallumage hors frontiere de trame: total sortant == total entrant, refus journalise (test manquant #1)', () => {
+  const { f, reglages, rendu, conn } = flux();
+  const entree = [];
+  const sortie = [];
+  const noter = (chunk) => { const s = f(chunk, conn); entree.push(chunk); sortie.push(Buffer.isBuffer(s) ? s : chunk); };
+
+  noter(surLeFil(AUTRE));   // arme depuis le debut, trame complete: pending == 0
+
+  // Toujours arme: on coupe une trame en deux pour laisser des octets en
+  // attente dans le reassembleur (pending > 0), PUIS on eteint pendant que
+  // ces octets sont encore bufferises -- c est le cas qui desynchronise.
+  const fil2 = surLeFil(AUTRE, JSJ);
+  noter(fil2.subarray(0, 5));
+  reglages.actif = false;
+  noter(fil2.subarray(5));
+
+  reglages.actif = true;
+  noter(surLeFil(AUTRE));
+
+  assert.strictEqual(Buffer.concat(sortie).toString('hex'), Buffer.concat(entree).toString('hex'));
+  assert.ok(rendu.some((r) => /deja en cours/.test(r.raison)), 'le refus doit etre journalise');
 });
 
 test('une trame sans rapport ressort identique', () => {
