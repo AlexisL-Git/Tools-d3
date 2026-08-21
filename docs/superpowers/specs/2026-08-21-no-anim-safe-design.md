@@ -41,7 +41,25 @@ proxy.
 La transformation a lieu **dans leur proxy**, sur le flux descendant. Le sens
 client → serveur est relayé à l'octet près : 0 différence sur 30 trames.
 
-### La transformation
+### La transformation — version corrigée le 2026-08-21 après mesure
+
+> **Ce qui suit dans cette section a été mesuré une seconde fois et RÉFUTÉ.**
+> La règle réelle est établie dans
+> `2026-08-21-trames-deplacement-combat.md` et se résume ainsi :
+>
+> **`jsj` porte le chemin d'un déplacement dans son champ 1, sous forme de
+> varints empaquetés (une case chacun). Le no-anim insère, juste avant ce
+> `jsj`, une trame `jwe` d'action 4 posant l'acteur sur la dernière case du
+> chemin, puis relaie le `jsj` sans le modifier.** Vérifié sur 48 poses sur 51.
+>
+> Aucune trame n'est retirée. Il n'y a **aucun état à maintenir** : tout ce
+> qu'il faut est dans la trame qui déclenche la transformation. Le trou
+> « multi-acteurs » décrit plus bas est donc sans objet — il n'a jamais existé,
+> il venait de la règle fausse.
+>
+> La section ci-dessous est conservée telle qu'elle a été écrite, parce qu'elle
+> documente comment une règle plausible peut tenir sur un échantillon et tomber
+> sur quinze.
 
 Sur le flux serveur → client, et lui seul :
 
