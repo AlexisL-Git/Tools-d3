@@ -55,39 +55,6 @@ function premiereTrame() {
   };
 }
 
-// MESURE TEMPORAIRE — tache 1 du plan invitation, a retirer en tache 6.
-// Journalise le PREMIER exemplaire de chaque type de trame, par client et par
-// sens. Une invitation est un evenement rare: elle ressort du bruit sans qu'il
-// faille tout journaliser. L'instrumentation precedente journalisait chaque
-// jalon de tour et noyait le signal sous trente lignes par manche.
-function typesInedits() {
-  const vus = new Map();   // pid -> Set de "sens type"
-  return function onTrame({ pid, dir, frame }) {
-    if (frame === null) return;
-    let lot = vus.get(pid);
-    if (lot === undefined) { lot = new Set(); vus.set(pid, lot); }
-    const cle = `${dir} ${frame.type}`;
-    if (lot.has(cle)) return;
-    lot.add(cle);
-    const champs = (frame.payload || []).map((f) => `${f.no}=${f.value}`).join(' ');
-    journal(pid, `inedit : ${dir} ${frame.kind} ${frame.type} { ${champs} }`);
-  };
-}
-
-// MESURE TEMPORAIRE — tache 1 du plan invitation, a retirer avec typesInedits.
-// Les octets bruts des deux trames de groupe, a chaque passage: `ijz` porte
-// l'invitation recue, `ijx` l'acceptation envoyee. Les champs decodes ne
-// suffisent pas a construire une trame, il faut l'hexadecimal.
-const TYPES_MESURES = new Set(['ijz', 'ijx']);
-
-function octetsDesTrames() {
-  return function onTrame({ pid, dir, frame, brute }) {
-    if (frame === null || !TYPES_MESURES.has(frame.type)) return;
-    const champs = (frame.payload || []).map((f) => `${f.no}=${f.value}`).join(' ');
-    journal(pid, `octets : ${dir} ${frame.kind} ${frame.type} { ${champs} } = ${brute.toString('hex')}`);
-  };
-}
-
 // Prend en charge tout nouveau client. La connexion au serveur de jeu s'ouvre
 // des l'ecran de connexion: un client deja lance ne peut plus etre rattrape,
 // d'ou l'etat « non intercepte » plutot qu'une tentative vouee a l'echec.
@@ -261,8 +228,6 @@ app.whenReady().then(async () => {
       },
     }),
     premiereTrame(),
-    typesInedits(),
-    octetsDesTrames(),
     // Une politique qui leve doit se voir. C'est ce qui manquait: le passeur
     // pouvait echouer sur une trame sans laisser la moindre trace.
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
