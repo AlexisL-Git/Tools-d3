@@ -252,6 +252,21 @@ test('emettre refuse proprement un client inconnu ou sans socket', () => {
   assert.deepStrictEqual(s.emettre(1, Buffer.from([1])), { ok: false, raison: 'pas de socket amont' });
 });
 
+// Le transformateur doit arriver jusqu'au proxy: sans ce fil, tout le reste
+// est ecrit pour rien. C'est exactement l'erreur trouvee en revue finale sur
+// le Replicate, ou onTrame n'etait pas branche et l'application ne dupliquait
+// rien tout en ayant l'air de marcher.
+test('le superviseur transmet son transformateur au proxy', () => {
+  const t = () => null;
+  const s = new Superviseur({ transformerEntrant: t });
+  assert.strictEqual(s.transformerEntrant, t);
+});
+
+test('sans transformateur, le superviseur n en invente pas', () => {
+  const s = new Superviseur({});
+  assert.strictEqual(s.transformerEntrant, null);
+});
+
 // La socket amont est le chemin d'emission: sans elle, rejouer est impossible.
 test('le proxy expose la socket amont une fois établie', async (t) => {
   const echo = net.createServer((sock) => sock.on('data', (d) => sock.write(d)));

@@ -6,6 +6,7 @@ const { Superviseur } = require('../src/superviseur');
 const { creerReplicateur } = require('../src/replicateur');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
+const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients } = require('../src/comptes/clients');
@@ -36,6 +37,9 @@ let minuteurVue = null;
 const reglagesPasseTour = { actif: false, delaiMs: 0 };
 // Lu a chaque trame par l'accepteur: modifier ce champ suffit.
 const reglagesInvitation = { actif: false };
+// Lu a chaque chunk par le transformateur: modifier ce champ suffit. Faux =
+// le proxy relaie le flux descendant octet pour octet, comme avant.
+const reglagesNoAnim = { actif: false };
 
 const DEPART = Date.now();
 function journal(pid, texte) {
@@ -88,6 +92,7 @@ async function balayerProcess() {
       if (etat && idCompte !== null) {
         etat.passeTour = favoris.passeTourActif(idCompte);
         etat.accepteInvitation = favoris.invitationActive(idCompte);
+        etat.noAnim = favoris.noAnimActif(idCompte);
         etat.exclu = false;
       }
     } catch (e) {
@@ -115,6 +120,7 @@ async function envoyerEtat() {
     if (idCompte === null) continue;
     etat.passeTour = favoris.passeTourActif(idCompte);
     etat.accepteInvitation = favoris.invitationActive(idCompte);
+    etat.noAnim = favoris.noAnimActif(idCompte);
   }
 
   const exclus = new Set(
@@ -131,11 +137,21 @@ async function envoyerEtat() {
   const invitation = new Set(
     superviseur.comptes.tous.filter((e) => e.accepteInvitation).map((e) => pidVersCompte(e.pid, clients)),
   );
+  // Comme les trois autres: la case affichee vient de l'etat vivant.
+  const noAnim = new Set(
+    superviseur.comptes.tous.filter((e) => e.noAnim).map((e) => pidVersCompte(e.pid, clients)),
+  );
+  // L'interrupteur general du no-anim suit les comptes: le transformateur est
+  // pose sur le proxy, qui ne connait pas les comptes. Des qu'au moins un
+  // compte l'active, il s'arme; quand le dernier l'eteint, il se desarme et le
+  // relais redevient octet pour octet.
+  reglagesNoAnim.actif = noAnim.size > 0;
   fenetre.webContents.send('etat', {
     replicate: superviseur.arme,
     erreurComptes,
     passeTourActif: reglagesPasseTour.actif,
     invitationActive: reglagesInvitation.actif,
+    noAnimActif: reglagesNoAnim.actif,
     delai: favoris.delai(),
     lignes: construireVue({
       comptes,
@@ -146,6 +162,7 @@ async function envoyerEtat() {
       favoris: new Set(favoris.tous()),
       passeTour,
       invitation,
+      noAnim,
       erreurs,
       messages,
     }),
@@ -187,7 +204,14 @@ app.whenReady().then(async () => {
   // Le delai enregistre doit survivre au redemarrage de l'application, pas
   // seulement a celui d'un client.
   reglagesPasseTour.delaiMs = Math.round(favoris.delai() * 1000);
-  superviseur = new Superviseur({ arme: false, onJournal: journal });
+  superviseur = new Superviseur({
+    arme: false,
+    onJournal: journal,
+    transformerEntrant: creerTransformateurFlux({
+      reglages: reglagesNoAnim,
+      onCompteRendu: ({ conn, raison }) => journal(null, `no-anim (connexion ${conn}) : ${raison}`),
+    }),
+  });
 
   // Sans ce branchement, le superviseur decode tout et ne rejoue rien:
   // l'interrupteur ne bascule qu'un drapeau que seul rejouer() consulte. La
@@ -297,6 +321,26 @@ ipcMain.handle('basculerInvitationCompte', async (_e, idCompte, actif) => {
   const pid = compteVersPid(idCompte, clients);
   const etat = pid === null ? null : superviseur.comptes.get(pid);
   if (etat) etat.accepteInvitation = Boolean(actif);
+  await envoyerEtat();
+});
+
+ipcMain.handle('basculerNoAnim', async (_e, actif) => {
+  // L'interrupteur general n'a pas d'etat propre: il eteint tous les comptes
+  // d'un coup. Sans cela, le bouton et les cases pourraient se contredire.
+  if (!actif) for (const id of favoris.tousNoAnim()) favoris.marquerNoAnim(id, false);
+  for (const etat of superviseur.comptes.tous) if (!actif) etat.noAnim = false;
+  await envoyerEtat();
+});
+
+ipcMain.handle('basculerNoAnimCompte', async (_e, idCompte, actif) => {
+  // La frontiere IPC est la frontiere de confiance: on ne laisse pas une
+  // valeur non numerique atteindre le fichier de reglages.
+  if (!Number.isInteger(idCompte)) return;
+  favoris.marquerNoAnim(idCompte, Boolean(actif));
+  const clients = await listerClients();
+  const pid = compteVersPid(idCompte, clients);
+  const etat = pid === null ? null : superviseur.comptes.get(pid);
+  if (etat) etat.noAnim = Boolean(actif);
   await envoyerEtat();
 });
 

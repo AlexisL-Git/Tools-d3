@@ -39,13 +39,17 @@ class Superviseur {
   // arme = false: tout est calcule et journalise, rien n'est envoye. C'est le
   // defaut, et il doit le rester tant qu'on n'a pas decide d'ecrire pour de
   // bon sur le reseau.
-  constructor({ onTrame = () => {}, onJournal = () => {}, arme = false } = {}) {
+  constructor({ onTrame = () => {}, onJournal = () => {}, arme = false, transformerEntrant = null } = {}) {
     this.comptes = new Comptes();
     this.clients = new Map();
     this.maitre = null;
     this.arme = arme;
     this.onTrame = onTrame;
     this.onJournal = onJournal;
+    // Transforme le flux descendant avant qu'il n'atteigne le client. Nul par
+    // defaut: le proxy relaie alors octet pour octet, comme avant l'ajout du
+    // no-anim.
+    this.transformerEntrant = transformerEntrant;
   }
 
   journal(pid, texte) {
@@ -62,6 +66,7 @@ class Superviseur {
       port: 0,
       onProbleme: (p) => this.journal(pid, `connexion ${p.id} abandonnée — ${p.raison}`),
       onData: (dir, buf, conn) => this._recevoir(client, dir, buf, conn),
+      transformerEntrant: this.transformerEntrant,
     });
     client.port = client.proxy.port;
 
