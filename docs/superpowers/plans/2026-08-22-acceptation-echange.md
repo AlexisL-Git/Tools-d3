@@ -1460,6 +1460,149 @@ s'ouvre-t-elle chez l'esclave ?**
 
 ---
 
+### Tâche 12 : sonde n°2 — mettre à zéro le champ 4 de `kfz`
+
+**SONDE, pas une livraison.** La sonde n°1 a prouvé que supprimer `kfz` retire
+la boîte « Demande d'échange » MAIS empêche aussi la fenêtre d'échange de
+s'ouvrir : les deux sont dessinées à partir de cette trame. Celle-ci teste une
+hypothèse plus fine.
+
+**L'hypothèse :** `kfz { 1: proposant, 2: cible, 4: 1 }` — le champ 4 vaut 1 sur
+les quatre échanges mesurés, et le champ 3 est absent (donc à zéro). Un champ
+constant à 1 dans une trame qui déclenche une demande de confirmation ressemble
+à un drapeau « demander confirmation ». À zéro, le client préparerait peut-être
+l'échange sans poser la question.
+
+**C'est du 50/50 et rien de plus.** Le champ 4 peut être un type d'échange, et
+le mettre à zéro cassera alors autre chose. Aucune preuve, une constante
+suspecte.
+
+**Réécrire, pas supprimer.** C'est l'opération native du module : `traduire`
+rend déjà des octets de remplacement pour le no-anim. La sonde n°1 avait dû
+ajouter la suppression, opération étrangère.
+
+**Fichiers :** `src/noanim-flux.js`, `src/echange.js`, `desktop/main.js`, les tests des deux modules.
+
+- [ ] **Étape 1 : restaurer la machinerie de la sonde n°1**
+
+```bash
+git revert --no-edit c05abd7
+```
+
+Cela remet en place l'armement croisé (`armeePour` = disjonction des deux
+fonctions) et son plomberie, que la revue précédente a validés par 5 000
+itérations de fuzz différentiel. **Ne refais pas ce travail.**
+
+- [ ] **Étape 2 : transformer « supprimer » en « réécrire »**
+
+Dans `src/noanim-flux.js`, l'option `suppression` devient `reecriture` :
+`{ reglages, estArmePourCompte, reecrire }`. `reecrire(brute)` rend un `Buffer`
+de remplacement, ou `null` pour laisser la trame intacte.
+
+Dans la boucle, à la place du `continue` de la suppression :
+
+```js
+      if (reecrit) {
+        let remplacement = null;
+        try { remplacement = reecriture.reecrire(brute); }
+        catch (e) {
+          remplacement = null;
+          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: `reecriture en echec, trame relayee : ${e.message}` });
+        }
+        if (remplacement !== null) {
+          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: 'proposition d'echange reecrite (champ 4 a zero)' });
+          morceaux.push(writeVarint(remplacement.length), remplacement);
+          continue;
+        }
+      }
+```
+
+**Le remplacement porte son propre préfixe de longueur, recalculé sur SA
+longueur** — pas celle de l'original. Une trame réécrite n'a aucune raison de
+faire la même taille.
+
+- [ ] **Étape 3 : le réécriveur, dans `src/echange.js`**
+
+```js
+const { remplacerChamp } = require('./codec/rawProto');
+
+// Champ 4 de kfz: constant a 1 sur les quatre echanges mesures, dans une trame
+// qui declenche une demande de confirmation. Hypothese: c'est le drapeau
+// « demander confirmation ». A zero, le client preparerait l'echange sans
+// poser la question -- et sans afficher la boite qui reste sinon a l'ecran.
+const CHAMP_CONFIRMATION = 4;
+
+// Rend les octets de remplacement, ou null pour laisser la trame intacte.
+// Dans le doute on relaie: une trame qu'on n'a pas su lire n'est jamais
+// reecrite.
+function reecrireProposition(brute) {
+  let frame = null;
+  try { frame = decodeFrameRaw(brute); } catch (e) { return null; }
+  if (frame === null || frame.type !== TYPE_PROPOSITION) return null;
+  try { return remplacerChamp(brute, CHAMP_CONFIRMATION, 0n); }
+  catch (e) { return null; }
+}
+```
+
+`remplacerChamp` rend `null` si le champ est absent — ce `null` doit remonter
+tel quel, il veut dire « laisser intacte ».
+
+Tests, dans `test/echange.test.js` :
+
+```js
+test('la proposition est reecrite avec le champ 4 a zero', () => {
+  const kfz = Buffer.from(
+    '0a290a270a13747970652e616e6b616d612e636f6d2f6b667a121008a682c4aab01310a68284cbb4132001', 'hex');
+  const sortie = reecrireProposition(kfz);
+  assert.notStrictEqual(sortie, null);
+  const frame = decodeFrameRaw(sortie);
+  assert.strictEqual(frame.type, TYPE_PROPOSITION);
+  const champ4 = frame.payload.find((f) => f.no === 4);
+  assert.strictEqual(champ4.value, 0n);
+  // Les deux identifiants doivent survivre intacts: c'est eux que le client
+  // utilise pour savoir avec qui il echange.
+  assert.strictEqual(frame.payload.find((f) => f.no === 1).value, 665809125670n);
+  assert.strictEqual(frame.payload.find((f) => f.no === 2).value, 666951024934n);
+});
+
+test('toute autre trame est laissee intacte', () => {
+  assert.strictEqual(reecrireProposition(TRAME_ACCEPTATION), null);
+});
+
+test('une trame indecodable est laissee intacte', () => {
+  assert.strictEqual(reecrireProposition(Buffer.from([0xff, 0xff, 0xff])), null);
+});
+```
+
+- [ ] **Étape 4 : adapter les tests de `test/noanim-flux.test.js`**
+
+Les tests de suppression écrits pour la sonde n°1 deviennent des tests de
+réécriture. **Un test doit vérifier que le préfixe de longueur du remplacement
+correspond à la longueur du remplacement, pas à celle de l'original** — passe un
+`reecrire` qui rend un buffer d'une autre taille et compare la sortie octet pour
+octet.
+
+- [ ] **Étape 5 : brancher, vérifier, commiter**
+
+Dans `desktop/main.js`, `suppression:` devient `reecriture:` avec
+`reecrire: reecrireProposition`.
+
+```bash
+npm test
+git add -A src/ test/ desktop/
+git commit -m "sonde 2: mettre a zero le champ 4 de la proposition d'echange"
+```
+
+- [ ] **Étape 6 : l'essai, par l'utilisateur**
+
+Cocher `ÉCHANGE` et les cases des deux comptes **avant** de lancer les clients.
+
+- Boîte absente et fenêtre d'échange ouverte → gagné.
+- Boîte toujours là → le champ 4 n'est pas ce drapeau, on révoque.
+- Plus de fenêtre du tout → le champ 4 sert à autre chose, on révoque.
+
+---
+
 ## Revue du plan
 
 **Couverture du spec.** Les six critères de réussite sont l'étape 1 de la
