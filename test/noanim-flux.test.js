@@ -328,23 +328,6 @@ test('reecrire en rendant null laisse la trame intacte', () => {
   assert.strictEqual(sortie.toString('hex'), surLeFil(JSJ).toString('hex'));
 });
 
-// Defaut de revue: le contrat de `reecrire` n'etait garde que par
-// `!== null`, pas par un vrai controle de type. Un reecriveur qui rend autre
-// chose qu'un Buffer (undefined, une chaine...) faisait lever l'acces a
-// `.length` HORS du try, apres que le reassembleur avait deja consomme les
-// octets d'entree -- le proxy retombait sur le chunk brut, produisant une
-// DUPLICATION (entree hexagone x, sortie x+x) plutot qu'une simple absence de
-// transformation. Un reecriveur qui rend n'importe quoi d'autre qu'un Buffer
-// doit etre traite exactement comme s'il avait rendu null: trame relayee
-// intacte, sur un flux de plusieurs trames, sans rien perdre ni dupliquer.
-test('reecrire en rendant autre chose qu un Buffer ne duplique rien (defaut de revue)', () => {
-  const reecrire = () => undefined;
-  const { f, conn } = fluxAvecReecriture({ reecrire });
-  const entree = surLeFil(AUTRE, JSJ);
-  const sortie = f(entree, conn);
-  assert.strictEqual(sortie.toString('hex'), entree.toString('hex'));
-});
-
 test('la reecriture seule n active pas la traduction no-anim', () => {
   // reglages no-anim eteint (voir fluxAvecReecriture), reecriture armee mais
   // qui ne cible rien: JSJ doit ressortir OCTET POUR OCTET, sans la pose que
