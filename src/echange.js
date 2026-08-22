@@ -84,7 +84,7 @@ function autresNotres(superviseur, pid) {
 function creerAccepteurEchange({ superviseur, reglages, onCompteRendu = () => {} }) {
   return function onTrame({ pid, dir, frame }) {
     if (dir !== 'in' || frame === null || frame === undefined) return;
-    if (frame.type !== TYPE_PROPOSITION) return;
+    if (frame.type !== TYPE_PROPOSITION && frame.type !== TYPE_PARTENAIRE_PRET) return;
 
     // Un echange est un evenement rare: dire pourquoi on ne l'accepte pas ne
     // coute rien et repond a la seule question que l'utilisateur se pose.
@@ -95,14 +95,23 @@ function creerAccepteurEchange({ superviseur, reglages, onCompteRendu = () => {}
     if (etat === null || etat === undefined) return refus('echange ignore : compte inconnu du superviseur');
     if (!etat.accepteEchange) return refus('echange ignore : acceptation eteinte pour ce compte');
 
-    const proposant = champ(frame, CHAMP_PROPOSANT);
-    if (proposant === null) return refus('echange refuse : aucun proposant dans la trame');
-    if (!autresNotres(superviseur, pid).some((id) => id === proposant.value)) {
-      return refus(`echange refuse : proposant ${proposant.value} inconnu de l'application`);
+    const pret = frame.type === TYPE_PARTENAIRE_PRET;
+    // kgt ne vaut validation QUE si le champ 3 est present et vaut 1. Absent,
+    // il annonce une coche qui retombe -- ce que le serveur envoie deux fois,
+    // une par partie, a la conclusion de chaque echange.
+    if (pret) {
+      const coche = champ(frame, CHAMP_PRET);
+      if (coche === null || coche.value !== 1n) return;
     }
 
-    const res = superviseur.emettre(pid, TRAME_ACCEPTATION);
-    onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets });
+    const qui = champ(frame, pret ? CHAMP_VALIDANT : CHAMP_PROPOSANT);
+    if (qui === null) return refus(`echange refuse : aucun ${pret ? 'validant' : 'proposant'} dans la trame`);
+    if (!autresNotres(superviseur, pid).some((id) => id === qui.value)) {
+      return refus(`echange refuse : ${pret ? 'validant' : 'proposant'} ${qui.value} inconnu de l'application`);
+    }
+
+    const res = superviseur.emettre(pid, pret ? TRAME_VALIDATION : TRAME_ACCEPTATION);
+    onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets, validation: pret });
   };
 }
 

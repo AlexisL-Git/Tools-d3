@@ -122,3 +122,65 @@ test('un autre type de trame est ignore sans compte rendu', () => {
   assert.strictEqual(sup.emis.length, 0);
   assert.strictEqual(rendu.length, 0);
 });
+
+const { TYPE_PARTENAIRE_PRET, CHAMP_PRET, CHAMP_VALIDANT } = require('../src/echange');
+
+// kgt { 3: 1, 4: qui } = X a coche. Sans le champ 3 = X a DEcoche.
+const partenairePret = (partenaire) => ({
+  kind: 'event', type: TYPE_PARTENAIRE_PRET,
+  payload: [{ no: CHAMP_PRET, value: 1n }, { no: CHAMP_VALIDANT, value: partenaire }],
+});
+const partenaireDecoche = (partenaire) => ({
+  kind: 'event', type: TYPE_PARTENAIRE_PRET,
+  payload: [{ no: CHAMP_VALIDANT, value: partenaire }],
+});
+
+test('la validation du partenaire declenche la notre', () => {
+  const sup = fauxSuperviseur();
+  accepteur(sup)(evenement(partenairePret(AMI)));
+  assert.strictEqual(sup.emis.length, 1);
+  assert.strictEqual(sup.emis[0].pid, 1);
+});
+
+// Un tiers qui coche ne doit pas nous faire cocher: c'est le vol en un clic
+// que le filtre existe pour empecher.
+test('la validation d un tiers ne declenche rien', () => {
+  const sup = fauxSuperviseur();
+  const rendu = [];
+  accepteur(sup, { actif: true }, rendu)(evenement(partenairePret(ETRANGER)));
+  assert.strictEqual(sup.emis.length, 0);
+  assert.strictEqual(rendu[0].ok, false);
+});
+
+// La proposition ouvre la fenetre, elle ne valide pas. Confondre les deux
+// ferait valider un echange vide avant que l'utilisateur ait pose quoi que
+// ce soit.
+test('l acceptation seule n emet pas de validation', () => {
+  const sup = fauxSuperviseur();
+  accepteur(sup)(evenement(proposition(AMI)));
+  assert.strictEqual(sup.emis.length, 1, 'une seule trame: l acceptation');
+});
+
+test('interrupteur general eteint : la validation ne part pas non plus', () => {
+  const sup = fauxSuperviseur();
+  accepteur(sup, { actif: false })(evenement(partenairePret(AMI)));
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+// LE test de cette tache. A la fin de chaque echange le serveur remet les deux
+// coches a zero avec des kgt SANS champ 3. Les prendre pour des validations
+// ferait emettre un kep sur un echange deja ferme.
+test('une coche qui retombe ne declenche aucune validation', () => {
+  const sup = fauxSuperviseur();
+  const rendu = [];
+  accepteur(sup, { actif: true }, rendu)(evenement(partenaireDecoche(AMI)));
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+// Notre propre validation nous revient en kgt avec NOTRE identifiant. Sans le
+// filtre, le client se repondrait a lui-meme.
+test('notre propre validation ne se redeclenche pas', () => {
+  const sup = fauxSuperviseur();
+  accepteur(sup)(evenement(partenairePret(MOI)));
+  assert.strictEqual(sup.emis.length, 0);
+});
