@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { TRAME_ACCEPTATION, TRAME_VALIDATION } = require('../src/echange');
+const { TRAME_ACCEPTATION, TRAME_VALIDATION, DELAI_REACTION } = require('../src/echange');
 const { decodeFrameRaw } = require('../src/codec/rawProto');
 
 // Octets releves le 22/08, identiques a chaque occurrence et dans les deux
@@ -183,4 +183,81 @@ test('notre propre validation ne se redeclenche pas', () => {
   const sup = fauxSuperviseur();
   accepteur(sup)(evenement(partenairePret(MOI)));
   assert.strictEqual(sup.emis.length, 0);
+});
+
+// Comme superviseurEtale du passe-tour: `alea` rend une suite fixee et
+// `planifier` capture au lieu d'attendre. Le test reste instantane.
+function accepteurRetarde(sup, tirages, reglages = { actif: true }) {
+  let i = 0;
+  const planifies = [];
+  const rendu = [];
+  const a = creerAccepteurEchange({
+    superviseur: sup,
+    reglages,
+    delai: { minMs: 150, maxMs: 600 },
+    alea: () => tirages[i++ % tirages.length],
+    planifier: (fn, ms) => { planifies.push({ fn, ms }); return null; },
+    onCompteRendu: (r) => rendu.push(r),
+  });
+  return { a, planifies, rendu };
+}
+
+test('avec delai, rien ne part pendant l appel', () => {
+  const sup = fauxSuperviseur();
+  const { a, planifies } = accepteurRetarde(sup, [0]);
+  a(evenement(proposition(AMI)));
+  assert.strictEqual(sup.emis.length, 0);
+  assert.strictEqual(planifies.length, 1);
+  planifies[0].fn();
+  assert.strictEqual(sup.emis.length, 1);
+});
+
+test('le retard reste dans les bornes', () => {
+  const sup = fauxSuperviseur();
+  const { a, planifies } = accepteurRetarde(sup, [0, 0.999999]);
+  a(evenement(proposition(AMI)));
+  a(evenement(partenairePret(AMI)));
+  assert.deepStrictEqual(planifies.map((p) => p.ms), [150, 600]);
+});
+
+// LE test de cette tache. Sans la garde d'identite, une acceptation armee
+// pour un client ferme partirait chez le client qui a herite de son pid.
+test('un compte decoche pendant le delai n emet rien', () => {
+  const sup = fauxSuperviseur();
+  const { a, planifies } = accepteurRetarde(sup, [0]);
+  a(evenement(proposition(AMI)));
+  sup.etats.get(1).accepteEchange = false;
+  planifies[0].fn();
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+test('un interrupteur general eteint pendant le delai n emet rien', () => {
+  const sup = fauxSuperviseur();
+  const reglages = { actif: true };
+  const { a, planifies } = accepteurRetarde(sup, [0], reglages);
+  a(evenement(proposition(AMI)));
+  reglages.actif = false;
+  planifies[0].fn();
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+// Windows reattribue les pid. Le meme pid peut designer un AUTRE client a
+// l'echeance: comparer l'identite de l'objet d'etat, pas le pid.
+test('un etat remplace pendant le delai n emet rien', () => {
+  const sup = fauxSuperviseur();
+  const { a, planifies } = accepteurRetarde(sup, [0]);
+  a(evenement(proposition(AMI)));
+  sup.etats.set(1, { pid: 1, accepteEchange: true, characterId: MOI });
+  planifies[0].fn();
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+test('sans delai configure, l emission reste dans l appel', () => {
+  const sup = fauxSuperviseur();
+  accepteur(sup)(evenement(proposition(AMI)));
+  assert.strictEqual(sup.emis.length, 1);
+});
+
+test('la constante vaut 150 a 600 ms', () => {
+  assert.deepStrictEqual(DELAI_REACTION, { minMs: 150, maxMs: 600 });
 });

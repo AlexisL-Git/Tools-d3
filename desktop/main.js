@@ -6,7 +6,7 @@ const { Superviseur } = require('../src/superviseur');
 const { creerReplicateur, ETALEMENT_REJEU } = require('../src/replicateur');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
-const { creerAccepteurEchange } = require('../src/echange');
+const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
@@ -366,8 +366,9 @@ app.whenReady().then(async () => {
     creerAccepteurEchange({
       superviseur,
       reglages: reglagesEchange,
-      onCompteRendu: ({ pid, ok, raison, validation }) => {
-        if (ok) journal(pid, `echange : ${validation ? 'valide' : 'accepte'}`);
+      delai: DELAI_REACTION,
+      onCompteRendu: ({ pid, ok, raison, validation, retardMs }) => {
+        if (ok) journal(pid, `echange : ${validation ? 'valide' : 'accepte'} apres ${retardMs} ms`);
         else journal(pid, `echange : ${raison}`);
       },
     }),

@@ -67,6 +67,12 @@ const TRAME_VALIDATION = encodeRaw([
   ] },
 ]);
 
+// Delai de reaction avant d'emettre. Une acceptation partie a la milliseconde
+// ou la proposition arrive n'est pas un comportement qu'un joueur produit --
+// meme raisonnement que l'etalement du rejeu. 150 a 600 ms est le temps qu'il
+// faut a quelqu'un pour voir une fenetre, viser et cliquer.
+const DELAI_REACTION = { minMs: 150, maxMs: 600 };
+
 const champ = (frame, no) => (frame.payload || []).find((f) => f.no === no) || null;
 
 // Les characterId de nos AUTRES clients. Notre propre identifiant n'en fait
@@ -81,7 +87,28 @@ function autresNotres(superviseur, pid) {
 // reglages      — { actif }, RELU a chaque trame pour que l'interrupteur
 //                 general prenne effet aussitot
 // onCompteRendu — recoit ce qui a ete emis, ou refuse et pourquoi
-function creerAccepteurEchange({ superviseur, reglages, onCompteRendu = () => {} }) {
+// delai         — { minMs, maxMs } pour differer l'emission, ou null pour
+//                 emettre pendant l'appel. Null par defaut, comme
+//                 etalementRejeu du superviseur: le comportement inerte est
+//                 celui qu'on obtient sans rien demander. Seul desktop/main.js
+//                 demande le delai.
+// alea, planifier — injectes pour que le delai se teste sans dormir.
+function creerAccepteurEchange({
+  superviseur, reglages, onCompteRendu = () => {},
+  delai = null, alea = Math.random, planifier = setTimeout,
+}) {
+  // Relu A L'ECHEANCE, pas a l'armement: entre les deux, l'utilisateur a pu
+  // decocher, le client se fermer, et Windows reattribuer le pid a un AUTRE
+  // client Dofus. On compare donc l'IDENTITE de l'objet d'etat, pas seulement
+  // le pid -- meme garde que src/passeur.js, pour la meme raison.
+  const emettre = (pid, etatArme, trame, validation, retardMs) => {
+    const etat = superviseur.comptes.get(pid);
+    if (!reglages.actif || etat === null || etat === undefined
+        || etat !== etatArme || !etat.accepteEchange) return;
+    const res = superviseur.emettre(pid, trame);
+    onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets, validation, retardMs });
+  };
+
   return function onTrame({ pid, dir, frame }) {
     if (dir !== 'in' || frame === null || frame === undefined) return;
     if (frame.type !== TYPE_PROPOSITION && frame.type !== TYPE_PARTENAIRE_PRET) return;
@@ -110,13 +137,15 @@ function creerAccepteurEchange({ superviseur, reglages, onCompteRendu = () => {}
       return refus(`echange refuse : ${pret ? 'validant' : 'proposant'} ${qui.value} inconnu de l'application`);
     }
 
-    const res = superviseur.emettre(pid, pret ? TRAME_VALIDATION : TRAME_ACCEPTATION);
-    onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets, validation: pret });
+    const trame = pret ? TRAME_VALIDATION : TRAME_ACCEPTATION;
+    if (delai === null) return emettre(pid, etat, trame, pret, 0);
+    const retardMs = delai.minMs + Math.floor(alea() * (delai.maxMs - delai.minMs + 1));
+    planifier(() => emettre(pid, etat, trame, pret, retardMs), retardMs);
   };
 }
 
 module.exports = {
-  TRAME_ACCEPTATION, TRAME_VALIDATION,
+  TRAME_ACCEPTATION, TRAME_VALIDATION, DELAI_REACTION,
   TYPE_PROPOSITION, TYPE_PARTENAIRE_PRET,
   CHAMP_PROPOSANT, CHAMP_PRET, CHAMP_VALIDANT,
   creerAccepteurEchange,
