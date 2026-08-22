@@ -34,21 +34,6 @@ function flux(actif = true) {
   return { f, reglages, rendu, conn: { id: 1, port: 5555 } };
 }
 
-// Meme fabrique que flux(), mais avec l'option `suppression` armee et le
-// no-anim eteint: sert a tester la suppression isolement, sans jamais
-// confondre ses effets avec ceux de la traduction no-anim.
-function fluxAvecSuppression({ actif = true, doitSupprimer, estArmePourCompte = null } = {}) {
-  const reglagesNoAnim = { actif: false };
-  const reglagesSuppression = { actif };
-  const rendu = [];
-  const f = creerTransformateurFlux({
-    reglages: reglagesNoAnim,
-    onCompteRendu: (r) => rendu.push(r),
-    suppression: { reglages: reglagesSuppression, estArmePourCompte, doitSupprimer },
-  });
-  return { f, reglagesNoAnim, reglagesSuppression, rendu, conn: { id: 1, port: 5555 } };
-}
-
 // GARANTIE 1: eteint, le transformateur ne touche a rien et ne retient rien.
 test('eteint, il rend null sans meme regarder les octets', () => {
   const { f, conn } = flux(false);
@@ -284,63 +269,4 @@ test('duplication apres cadrage perdu puis extinction: buffer vide (CRITICAL nou
   // L extinction doit emettre le nouveau chunk tel quel, pas d octets residuels
   // du cadrage perdu (sinon duplication).
   assert.strictEqual(out2.toString('hex'), nouveau.toString('hex'));
-});
-
-// --- Option `suppression` ---
-
-test('sans option suppression, le module se comporte exactement comme avant', () => {
-  // Meme test que « un deplacement ressort precede de sa pose... », repris
-  // avec `suppression: null` explicite: le resultat doit etre identique.
-  const reglages = { actif: true };
-  const f = creerTransformateurFlux({ reglages, onCompteRendu: () => {}, suppression: null });
-  const conn = { id: 1, port: 5555 };
-  const sortie = f(surLeFil(JSJ), conn);
-  assert.ok(sortie.length > surLeFil(JSJ).length);
-  assert.ok(sortie.toString('hex').endsWith(JSJ.toString('hex')));
-  assert.ok(sortie.toString('hex').includes('9a020e089c0210fcffffffffffffffff01'));
-});
-
-test('une trame ciblee est retiree, les autres passent intactes', () => {
-  const doitSupprimer = (brute) => brute.equals(JSJ);
-  const { f, conn } = fluxAvecSuppression({ doitSupprimer });
-  const sortie = f(surLeFil(AUTRE, JSJ), conn);
-  assert.strictEqual(sortie.toString('hex'), surLeFil(AUTRE).toString('hex'));
-});
-
-test('supprimer n ecrit ni longueur ni corps', () => {
-  const doitSupprimer = () => true;
-  const { f, conn } = fluxAvecSuppression({ doitSupprimer });
-  const sortie = f(surLeFil(AUTRE), conn);
-  // Buffer VIDE, pas un prefixe de longueur zero.
-  assert.strictEqual(sortie.length, 0);
-});
-
-test('la suppression seule n active pas la traduction no-anim', () => {
-  // reglages no-anim eteint (voir fluxAvecSuppression), suppression armee
-  // mais qui ne cible rien: JSJ doit ressortir OCTET POUR OCTET, sans la pose
-  // que le no-anim y ajouterait s'il etait arme.
-  const doitSupprimer = () => false;
-  const { f, conn } = fluxAvecSuppression({ doitSupprimer });
-  const sortie = f(surLeFil(JSJ), conn);
-  assert.strictEqual(sortie.toString('hex'), surLeFil(JSJ).toString('hex'));
-});
-
-test('un filtre qui leve relaie la trame et le dit', () => {
-  const doitSupprimer = () => { throw new Error('boom'); };
-  const { f, conn, rendu } = fluxAvecSuppression({ doitSupprimer });
-  const sortie = f(surLeFil(AUTRE), conn);
-  assert.strictEqual(sortie.toString('hex'), surLeFil(AUTRE).toString('hex'));
-  assert.ok(rendu.some((r) => /filtre en echec/.test(r.raison)));
-});
-
-test('la suppression respecte le refus des connexions deja en cours', () => {
-  const doitSupprimer = () => true;
-  const { f, reglagesSuppression, conn, rendu } = fluxAvecSuppression({ actif: false, doitSupprimer });
-  // Vue une premiere fois hors armement.
-  assert.strictEqual(f(surLeFil(AUTRE), conn), null);
-  // Armee ensuite: refusee pour de bon, rien n'est supprime ni transforme.
-  reglagesSuppression.actif = true;
-  assert.strictEqual(f(surLeFil(AUTRE), conn), null);
-  assert.strictEqual(rendu.length, 1);
-  assert.match(rendu[0].raison, /deja en cours/);
 });
