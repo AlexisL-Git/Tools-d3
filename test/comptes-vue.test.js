@@ -396,6 +396,28 @@ test('l absence de noAnim ne casse pas la vue', () => {
   assert.strictEqual(lignes[0].noAnim, false);
 });
 
+test('l echange remonte sur la ligne du compte', () => {
+  const lignes = vue({ echange: new Set([2]) });
+  assert.strictEqual(lignes.find((l) => l.id === 1).echange, false);
+  assert.strictEqual(lignes.find((l) => l.id === 2).echange, true);
+});
+
+// Meme piege que passeTour, invitation et noAnim, rencontre trois fois: code
+// en dur a faux, la case s'affiche eteinte alors que la fonction agit.
+test('l echange remonte aussi sur un client sans ligne de compte', () => {
+  const l = vue({
+    clients: [{ pid: 500, idCompte: 42, personnage: 'Tardif', classe: 'Eniripsa' }],
+    intercepte: new Set([500]),
+    echange: new Set([42]),
+  }).pop();
+  assert.strictEqual(l.id, 42);
+  assert.strictEqual(l.echange, true);
+});
+
+test('l absence d echange ne casse pas la vue', () => {
+  assert.strictEqual(vue()[0].echange, false);
+});
+
 test('huit comptes en jeu sont tous rendus', () => {
   const comptes = [];
   const clients = [];
