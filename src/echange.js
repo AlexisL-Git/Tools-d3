@@ -67,8 +67,48 @@ const TRAME_VALIDATION = encodeRaw([
   ] },
 ]);
 
+const champ = (frame, no) => (frame.payload || []).find((f) => f.no === no) || null;
+
+// Les characterId de nos AUTRES clients. Notre propre identifiant n'en fait
+// jamais partie: il designe le destinataire, pas un proposant.
+function autresNotres(superviseur, pid) {
+  return superviseur.comptes.tous
+    .filter((e) => e.pid !== pid && e.characterId !== null && e.characterId !== undefined)
+    .map((e) => e.characterId);
+}
+
+// superviseur   — porte emettre(pid, octets), comptes.get(pid) et comptes.tous
+// reglages      — { actif }, RELU a chaque trame pour que l'interrupteur
+//                 general prenne effet aussitot
+// onCompteRendu — recoit ce qui a ete emis, ou refuse et pourquoi
+function creerAccepteurEchange({ superviseur, reglages, onCompteRendu = () => {} }) {
+  return function onTrame({ pid, dir, frame }) {
+    if (dir !== 'in' || frame === null || frame === undefined) return;
+    if (frame.type !== TYPE_PROPOSITION) return;
+
+    // Un echange est un evenement rare: dire pourquoi on ne l'accepte pas ne
+    // coute rien et repond a la seule question que l'utilisateur se pose.
+    const refus = (raison) => onCompteRendu({ pid, ok: false, raison });
+
+    if (!reglages.actif) return refus('echange ignore : interrupteur general eteint');
+    const etat = superviseur.comptes.get(pid);
+    if (etat === null || etat === undefined) return refus('echange ignore : compte inconnu du superviseur');
+    if (!etat.accepteEchange) return refus('echange ignore : acceptation eteinte pour ce compte');
+
+    const proposant = champ(frame, CHAMP_PROPOSANT);
+    if (proposant === null) return refus('echange refuse : aucun proposant dans la trame');
+    if (!autresNotres(superviseur, pid).some((id) => id === proposant.value)) {
+      return refus(`echange refuse : proposant ${proposant.value} inconnu de l'application`);
+    }
+
+    const res = superviseur.emettre(pid, TRAME_ACCEPTATION);
+    onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets });
+  };
+}
+
 module.exports = {
   TRAME_ACCEPTATION, TRAME_VALIDATION,
   TYPE_PROPOSITION, TYPE_PARTENAIRE_PRET,
   CHAMP_PROPOSANT, CHAMP_PRET, CHAMP_VALIDANT,
+  creerAccepteurEchange,
 };
