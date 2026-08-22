@@ -1,5 +1,5 @@
 'use strict';
-const { encodeRaw, decodeFrameRaw, WIRE } = require('./codec/rawProto');
+const { encodeRaw, decodeFrameRaw, remplacerChamp, WIRE } = require('./codec/rawProto');
 
 // L'acceptation automatique de l'echange entre joueurs, et elle seule.
 //
@@ -83,14 +83,23 @@ function autresNotres(superviseur, pid) {
     .map((e) => e.characterId);
 }
 
-// Vrai si cette trame est la proposition d'echange. Sert a la retirer du flux
-// descendant: le client cree sa popup en la decodant, et ne la retire qu'au
-// clic sur son propre bouton -- que nous ne cliquons jamais.
-function doitSupprimerProposition(brute) {
+// Champ 4 de kfz: constant a 1 sur les quatre echanges mesures, dans une trame
+// qui declenche une demande de confirmation. Hypothese: c'est le drapeau
+// « demander confirmation ». A zero, le client preparerait l'echange sans
+// poser la question -- et sans afficher la boite qui reste sinon a l'ecran.
+// SONDE, pas une certitude: le champ 4 peut aussi bien etre un type
+// d'echange, auquel cas le mettre a zero casse autre chose.
+const CHAMP_CONFIRMATION = 4;
+
+// Rend les octets de remplacement de la proposition d'echange, ou null pour
+// laisser la trame intacte. Dans le doute on relaie: une trame qu'on n'a pas
+// su lire, ou qui n'est pas la proposition, n'est jamais reecrite.
+function reecrireProposition(brute) {
   let frame = null;
-  // Une trame indecodable n'est jamais supprimee: dans le doute, on relaie.
-  try { frame = decodeFrameRaw(brute); } catch (e) { return false; }
-  return frame !== null && frame.type === TYPE_PROPOSITION;
+  try { frame = decodeFrameRaw(brute); } catch (e) { return null; }
+  if (frame === null || frame.type !== TYPE_PROPOSITION) return null;
+  try { return remplacerChamp(brute, CHAMP_CONFIRMATION, 0n); }
+  catch (e) { return null; }
 }
 
 // superviseur   — porte emettre(pid, octets), comptes.get(pid) et comptes.tous
@@ -158,5 +167,5 @@ module.exports = {
   TRAME_ACCEPTATION, TRAME_VALIDATION, DELAI_REACTION,
   TYPE_PROPOSITION, TYPE_PARTENAIRE_PRET,
   CHAMP_PROPOSANT, CHAMP_PRET, CHAMP_VALIDANT,
-  creerAccepteurEchange, doitSupprimerProposition,
+  creerAccepteurEchange, reecrireProposition, CHAMP_CONFIRMATION,
 };

@@ -262,21 +262,30 @@ test('la constante vaut 150 a 600 ms', () => {
   assert.deepStrictEqual(DELAI_REACTION, { minMs: 150, maxMs: 600 });
 });
 
-const { doitSupprimerProposition } = require('../src/echange');
+const { reecrireProposition } = require('../src/echange');
 
-test('la proposition est reconnue pour suppression', () => {
+test('la proposition est reecrite avec le champ 4 a zero', () => {
   // kfz mesuree le 22/08, octets bruts du document de mesure.
   const kfz = Buffer.from(
     '0a290a270a13747970652e616e6b616d612e636f6d2f6b667a121008a682c4aab01310a68284cbb4132001', 'hex');
-  assert.strictEqual(doitSupprimerProposition(kfz), true);
+  const sortie = reecrireProposition(kfz);
+  assert.notStrictEqual(sortie, null);
+  const frame = decodeFrameRaw(sortie);
+  assert.strictEqual(frame.type, TYPE_PROPOSITION);
+  const champ4 = frame.payload.find((f) => f.no === 4);
+  assert.strictEqual(champ4.value, 0n);
+  // Les deux identifiants doivent survivre intacts: c'est eux que le client
+  // utilise pour savoir avec qui il echange.
+  assert.strictEqual(frame.payload.find((f) => f.no === 1).value, 665809125670n);
+  assert.strictEqual(frame.payload.find((f) => f.no === 2).value, 666951024934n);
 });
 
-test('toute autre trame est relayee', () => {
-  assert.strictEqual(doitSupprimerProposition(TRAME_ACCEPTATION), false);
+test('toute autre trame est laissee intacte', () => {
+  assert.strictEqual(reecrireProposition(TRAME_ACCEPTATION), null);
 });
 
-// Dans le doute on relaie: supprimer une trame qu'on n'a pas su lire serait
+// Dans le doute on relaie: reecrire une trame qu'on n'a pas su lire serait
 // pire que la popup.
-test('une trame indecodable est relayee', () => {
-  assert.strictEqual(doitSupprimerProposition(Buffer.from([0xff, 0xff, 0xff])), false);
+test('une trame indecodable est laissee intacte', () => {
+  assert.strictEqual(reecrireProposition(Buffer.from([0xff, 0xff, 0xff])), null);
 });
