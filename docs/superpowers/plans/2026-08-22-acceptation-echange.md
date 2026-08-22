@@ -213,117 +213,134 @@ Message : `mesure: les trames de l'echange, relevees sur trois passages`.
 - Créer : `test/echange.test.js`
 
 **Interfaces :**
-- Consomme : les valeurs mesurées en tâche 1.
-- Produit : `construireAcceptation(valeur)` et `construireValidation(valeur)`, rendant chacune un `Buffer` ; les constantes `TYPE_PROPOSITION`, `TYPE_PARTENAIRE_PRET`, `CHAMP_PROPOSANT`.
+- Consomme : les valeurs mesurées en tâche 1, toutes connues et reportées ci-dessous.
+- Produit : les constantes `TRAME_ACCEPTATION` et `TRAME_VALIDATION` (`Buffer`), `TYPE_PROPOSITION`, `TYPE_PARTENAIRE_PRET`, `CHAMP_PROPOSANT`, `CHAMP_PRET`, `CHAMP_VALIDANT`.
 
-- [ ] **Étape 1 : reporter les valeurs mesurées**
+**La mesure a simplifié cette tâche :** les deux trames sortantes ne recopient
+rien de l'échange en cours. Ce sont des **constantes**, comme `TRAME_PASSE` du
+passe-tour, et non des constructions comme l'acceptation d'invitation.
 
-Créer `src/echange.js` avec l'en-tête et les constantes. **Les cinq valeurs
-marquées se lisent dans `docs/superpowers/specs/2026-08-22-trames-echange.md`,
-sections 3 et 4** — ne rien inventer, ne rien deviner :
+- [ ] **Étape 1 : écrire les tests d'octets, qui échouent**
 
-```js
-'use strict';
-const { encodeRaw, WIRE } = require('./codec/rawProto');
-
-// L'acceptation automatique de l'echange, et elle seule.
-//
-// LES TRAMES. Mesurees le 22/08 sur deux clients attaches, trois passages dans
-// les deux sens. Le detail et les octets bruts sont dans
-// docs/superpowers/specs/2026-08-22-trames-echange.md.
-//
-// LE FILTRE. Un echange n'est accepte que si le proposant est un AUTRE client
-// pilote par l'application. Les characterId sont appris du trafic de chaque
-// client, donc connus sans configuration. Sans ce filtre, n'importe quel
-// joueur ouvrant un echange avec un esclave le verrait valider des qu'il coche.
-//
-// Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
-// avec un double du superviseur, comme l'accepteur d'invitation.
-
-const TYPE_PROPOSITION = '';        // section 3 du doc de mesure
-const TYPE_PARTENAIRE_PRET = '';    // section 3 du doc de mesure
-const URL_ACCEPTATION = 'type.ankama.com/';   // section 4
-const URL_VALIDATION = 'type.ankama.com/';    // section 4
-const CHAMP_PROPOSANT = 0;          // section 7 — le champ PROUVE par croisement
-```
-
-- [ ] **Étape 2 : écrire les tests d'octets, qui échouent**
-
-Dans `test/echange.test.js` :
+Créer `test/echange.test.js`. Les deux hexadécimaux viennent du document de
+mesure, sections « `kgi` » et « `kep` » — identiques sur 4 et 6 occurrences
+respectivement :
 
 ```js
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { construireAcceptation, construireValidation } = require('../src/echange');
+const { TRAME_ACCEPTATION, TRAME_VALIDATION } = require('../src/echange');
 const { decodeFrameRaw } = require('../src/codec/rawProto');
 
-// Les octets exacts releves le 22/08. Recopier ici l'hexadecimal de la
-// section 5 du document de mesure, et la valeur qui va avec.
-const VALEUR_MESUREE = 0n;
-const HEX_ACCEPTATION = '';
-const HEX_VALIDATION = '';
+// Octets releves le 22/08, identiques a chaque occurrence et dans les deux
+// sens. Voir docs/superpowers/specs/2026-08-22-trames-echange.md.
+const HEX_ACCEPTATION =
+  '12220a150a13747970652e616e6b616d612e636f6d2f6b676910ffffffffffffffffff01';
+const HEX_VALIDATION =
+  '12280a1b0a13747970652e616e6b616d612e636f6d2f6b657012040801100110ffffffffffffffffff01';
 
-test('la trame d acceptation construite est celle mesuree', () => {
-  assert.strictEqual(construireAcceptation(VALEUR_MESUREE).toString('hex'), HEX_ACCEPTATION);
-  assert.notStrictEqual(decodeFrameRaw(construireAcceptation(VALEUR_MESUREE)), null);
+test('la trame d acceptation est celle mesuree', () => {
+  assert.strictEqual(TRAME_ACCEPTATION.toString('hex'), HEX_ACCEPTATION);
+  assert.notStrictEqual(decodeFrameRaw(TRAME_ACCEPTATION), null);
 });
 
-test('la trame de validation construite est celle mesuree', () => {
-  assert.strictEqual(construireValidation(VALEUR_MESUREE).toString('hex'), HEX_VALIDATION);
-  assert.notStrictEqual(decodeFrameRaw(construireValidation(VALEUR_MESUREE)), null);
+test('la trame de validation est celle mesuree', () => {
+  assert.strictEqual(TRAME_VALIDATION.toString('hex'), HEX_VALIDATION);
+  assert.notStrictEqual(decodeFrameRaw(TRAME_VALIDATION), null);
 });
 ```
 
-- [ ] **Étape 3 : lancer, vérifier l'échec**
+- [ ] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
 npm test
 ```
 
-Attendu : les deux tests en `✖`, `construireAcceptation is not a function`.
+Attendu : les deux tests en `✖`, `Cannot find module '../src/echange'`.
 
-- [ ] **Étape 4 : implémenter les deux constructeurs**
+- [ ] **Étape 3 : écrire le module et ses deux constantes**
 
-Même enveloppe que `construireAcceptation` de `src/invitation.js` — c'est la
-forme commune à toutes les requêtes observées. Ajouter dans `src/echange.js` :
+Créer `src/echange.js` :
 
 ```js
-// Enveloppe commune a toutes les requetes observees:
-// request { content: Any{ type_url, value }, uid: -1 }.
-function requete(url, champs) {
-  return encodeRaw([
-    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
-      { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-        { no: 1, wire: WIRE.LEN, kind: 'string', value: url },
-        { no: 2, wire: WIRE.LEN, kind: 'message', value: champs },
-      ] },
-      // uid = -1, comme toutes les requetes observees.
-      { no: 2, wire: WIRE.VARINT, value: -1n },
+'use strict';
+const { encodeRaw, WIRE } = require('./codec/rawProto');
+
+// L'acceptation automatique de l'echange entre joueurs, et elle seule.
+//
+// LES TRAMES. Mesurees le 22/08 sur deux clients attaches: quatre echanges
+// dans les deux sens, plus un avec un joueur tiers. Le detail et les octets
+// bruts sont dans docs/superpowers/specs/2026-08-22-trames-echange.md.
+//
+//   in  event   kfz { 1: proposant, 2: cible, 4: 1 }   RECUE PAR LES DEUX
+//   out request kgi { }                                l'acceptation
+//   in  event   kgt { 3: 1, 4: qui a coche }           RECUE PAR LES DEUX
+//   out request kep { 1: 1, 2: 1 }                     la validation
+//
+// LE PROPOSANT EST AU CHAMP 1 — l'inverse de `ijz`, ou le champ 1 portait le
+// destinataire. Prouve par inversion des roles sur quatre echanges: le champ 1
+// bascule avec le role, le champ 2 porte la cible. Un filtre bati sur le
+// champ 2 aurait fait accepter au proposant SA PROPRE proposition, puisque
+// `kfz` arrive chez les deux parties.
+//
+// LE CHAMP 3 DE `kgt` N'EST PAS DECORATIF. Present et valant 1, il dit « X a
+// coche »; ABSENT, il dit « X a decoche » — c'est le zero protobuf, qui ne
+// s'ecrit pas. A la conclusion de chaque echange le serveur envoie deux `kgt`
+// sans champ 3 pour remettre les coches a zero. Les traiter comme des
+// validations ferait emettre un `kep` sur un echange deja ferme.
+//
+// LE FILTRE. Un echange n'est accepte que si le proposant est un AUTRE client
+// pilote par l'application. Les characterId sont appris du trafic, donc connus
+// sans configuration. Sans ce filtre, n'importe quel joueur ouvrant un echange
+// avec un esclave le verrait valider des qu'il coche. Le filtre ecarte aussi
+// notre propre validation, qui nous revient en `kgt` avec notre identifiant.
+//
+// Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
+// avec un double du superviseur, comme l'accepteur d'invitation.
+
+const TYPE_PROPOSITION = 'kfz';
+const TYPE_PARTENAIRE_PRET = 'kgt';
+const CHAMP_PROPOSANT = 1;
+const CHAMP_PRET = 3;
+const CHAMP_VALIDANT = 4;
+const URL_ACCEPTATION = 'type.ankama.com/kgi';
+const URL_VALIDATION = 'type.ankama.com/kep';
+
+// Les deux requetes sont CONSTANTES: elles ne recopient rien de l'echange en
+// cours. On les construit une fois pour toutes, comme TRAME_PASSE.
+const TRAME_ACCEPTATION = encodeRaw([
+  { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 1, wire: WIRE.LEN, kind: 'string', value: URL_ACCEPTATION },
+      // Pas de champ 2: Any.value est vide, et un champ vide ne s'ecrit pas.
     ] },
-  ]);
-}
+    // uid = -1, comme toutes les requetes observees.
+    { no: 2, wire: WIRE.VARINT, value: -1n },
+  ] },
+]);
 
-function construireAcceptation(valeur) {
-  return requete(URL_ACCEPTATION, [{ no: 1, wire: WIRE.VARINT, value: valeur }]);
-}
-
-function construireValidation(valeur) {
-  return requete(URL_VALIDATION, [{ no: 1, wire: WIRE.VARINT, value: valeur }]);
-}
+const TRAME_VALIDATION = encodeRaw([
+  { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 1, wire: WIRE.LEN, kind: 'string', value: URL_VALIDATION },
+      { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+        { no: 1, wire: WIRE.VARINT, value: 1n },
+        { no: 2, wire: WIRE.VARINT, value: 1n },
+      ] },
+    ] },
+    { no: 2, wire: WIRE.VARINT, value: -1n },
+  ] },
+]);
 
 module.exports = {
-  construireAcceptation, construireValidation,
-  TYPE_PROPOSITION, TYPE_PARTENAIRE_PRET, CHAMP_PROPOSANT,
+  TRAME_ACCEPTATION, TRAME_VALIDATION,
+  TYPE_PROPOSITION, TYPE_PARTENAIRE_PRET,
+  CHAMP_PROPOSANT, CHAMP_PRET, CHAMP_VALIDANT,
 };
 ```
 
-**Si la mesure montre que l'acceptation ou la validation ne porte aucun champ**
-(comme `jxy`, le passe-tour), passer `[]` au lieu du tableau à un élément. **Si
-elle en porte plusieurs ou d'un autre numéro**, les reporter tels quels : les
-octets du test tranchent, pas cette esquisse.
-
-- [ ] **Étape 5 : lancer, vérifier le passage**
+- [ ] **Étape 4 : lancer, vérifier le passage**
 
 ```bash
 npm test
@@ -331,11 +348,11 @@ npm test
 
 Attendu : les deux tests en `✔`, total imprimé, `fail 0`.
 
-- [ ] **Étape 6 : commiter**
+- [ ] **Étape 5 : commiter**
 
 ```bash
 git add src/echange.js test/echange.test.js
-git commit -m "feat(echange): construire l'acceptation et la validation"
+git commit -m "feat(echange): les deux trames constantes, verifiees octet pour octet"
 ```
 
 ---
@@ -347,7 +364,7 @@ git commit -m "feat(echange): construire l'acceptation et la validation"
 - Modifier : `test/echange.test.js`
 
 **Interfaces :**
-- Consomme : `construireAcceptation`, `CHAMP_PROPOSANT`, `TYPE_PROPOSITION` de la tâche 2.
+- Consomme : `TRAME_ACCEPTATION`, `CHAMP_PROPOSANT` (= 1), `TYPE_PROPOSITION` (= `'kfz'`) de la tâche 2.
 - Produit : `creerAccepteurEchange({ superviseur, reglages, onCompteRendu })`, rendant une fonction `onTrame({ pid, dir, frame })`.
 
 - [ ] **Étape 1 : écrire les tests du filtre et des refus**
@@ -376,9 +393,15 @@ function fauxSuperviseur(comptes = [[1, MOI], [2, AMI]]) {
   };
 }
 
-const proposition = (proposant, valeur = VALEUR_MESUREE) => ({
+// kfz { 1: proposant, 2: cible, 4: 1 } — la cible est celle du client qui
+// recoit, puisque la trame arrive chez les DEUX parties.
+const proposition = (proposant, cible = MOI) => ({
   kind: 'event', type: TYPE_PROPOSITION,
-  payload: [{ no: CHAMP_PROPOSANT, value: proposant }, { no: 1, value: valeur }],
+  payload: [
+    { no: CHAMP_PROPOSANT, value: proposant },
+    { no: 2, value: cible },
+    { no: 4, value: 1n },
+  ],
 });
 const evenement = (frame, pid = 1) => ({ pid, dir: 'in', frame, brute: Buffer.alloc(0) });
 
@@ -499,18 +522,18 @@ function creerAccepteurEchange({ superviseur, reglages, onCompteRendu = () => {}
       return refus(`echange refuse : proposant ${proposant.value} inconnu de l'application`);
     }
 
-    const res = superviseur.emettre(pid, construireAcceptation(proposant.value));
+    const res = superviseur.emettre(pid, TRAME_ACCEPTATION);
     onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets });
   };
 }
 ```
 
-**Note :** `construireAcceptation` reçoit ici la valeur du champ proposant. **Si
-la mesure montre que l'acceptation recopie un autre champ** (un identifiant
-d'échange, par exemple), lire ce champ-là et le passer à la place — la section 4
-du document de mesure le dit.
-
 Ajouter `creerAccepteurEchange` à `module.exports`.
+
+**Le test « notre propre identifiant est refusé » n'est pas théorique ici.**
+`kfz` arrive chez les **deux** parties : le client qui propose la reçoit aussi,
+avec son propre identifiant au champ 1. Sans le filtre, il s'accepterait
+lui-même.
 
 - [ ] **Étape 4 : lancer, vérifier le passage**
 
@@ -536,31 +559,33 @@ git commit -m "feat(echange): accepter la proposition d'un autre de nos clients"
 - Modifier : `test/echange.test.js`
 
 **Interfaces :**
-- Consomme : `construireValidation`, `TYPE_PARTENAIRE_PRET` de la tâche 2 ; `autresNotres`, `champ` de la tâche 3.
+- Consomme : `TRAME_VALIDATION`, `TYPE_PARTENAIRE_PRET` (= `'kgt'`), `CHAMP_PRET` (= 3), `CHAMP_VALIDANT` (= 4) de la tâche 2 ; `autresNotres`, `champ` de la tâche 3.
 - Produit : la même fonction `onTrame` rendue par `creerAccepteurEchange`, qui traite désormais **deux** types de trames.
 
-**Cette tâche a deux formes. Le document de mesure, section 6, dit laquelle.**
+**La mesure a tranché : forme sans état.** `kgt` porte l'identifiant du validant
+au champ 4, donc le même filtre sert aux deux étapes et il n'y a rien à retenir
+entre les trames. La forme « avec état par compte » envisagée dans le spec est
+sans objet.
 
-- [ ] **Étape 1 : lire la réponse à la question 3**
+**Le piège de cette tâche est le champ 3.** Présent et valant 1, il dit « X a
+coché » ; **absent**, il dit « X a décoché » — c'est le zéro protobuf, qui ne
+s'écrit pas. À la conclusion de chaque échange le serveur envoie **deux `kgt`
+sans champ 3**, une par partie. Les traiter comme des validations ferait émettre
+un `kep` sur un échange déjà fermé.
 
-Ouvrir `docs/superpowers/specs/2026-08-22-trames-echange.md`, section 6.
-
-- **L'événement « l'autre a validé » porte l'identifiant du partenaire** →
-  forme A, étapes 2 à 5.
-- **Il ne le porte pas** → forme B, étapes 6 à 10. Elle exige que la section 6
-  dise aussi **comment un échange se termine** ; si ce n'est pas mesuré,
-  retourner en tâche 1 plutôt que d'inventer une fin d'échange.
-
-#### Forme A — sans état
-
-- [ ] **Étape 2 : écrire les tests**
+- [ ] **Étape 1 : écrire les tests**
 
 ```js
-const { TYPE_PARTENAIRE_PRET } = require('../src/echange');
+const { TYPE_PARTENAIRE_PRET, CHAMP_PRET, CHAMP_VALIDANT } = require('../src/echange');
 
+// kgt { 3: 1, 4: qui } = X a coche. Sans le champ 3 = X a DEcoche.
 const partenairePret = (partenaire) => ({
   kind: 'event', type: TYPE_PARTENAIRE_PRET,
-  payload: [{ no: CHAMP_PROPOSANT, value: partenaire }],
+  payload: [{ no: CHAMP_PRET, value: 1n }, { no: CHAMP_VALIDANT, value: partenaire }],
+});
+const partenaireDecoche = (partenaire) => ({
+  kind: 'event', type: TYPE_PARTENAIRE_PRET,
+  payload: [{ no: CHAMP_VALIDANT, value: partenaire }],
 });
 
 test('la validation du partenaire declenche la notre', () => {
@@ -594,9 +619,27 @@ test('interrupteur general eteint : la validation ne part pas non plus', () => {
   accepteur(sup, { actif: false })(evenement(partenairePret(AMI)));
   assert.strictEqual(sup.emis.length, 0);
 });
+
+// LE test de cette tache. A la fin de chaque echange le serveur remet les deux
+// coches a zero avec des kgt SANS champ 3. Les prendre pour des validations
+// ferait emettre un kep sur un echange deja ferme.
+test('une coche qui retombe ne declenche aucune validation', () => {
+  const sup = fauxSuperviseur();
+  const rendu = [];
+  accepteur(sup, { actif: true }, rendu)(evenement(partenaireDecoche(AMI)));
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+// Notre propre validation nous revient en kgt avec NOTRE identifiant. Sans le
+// filtre, le client se repondrait a lui-meme.
+test('notre propre validation ne se redeclenche pas', () => {
+  const sup = fauxSuperviseur();
+  accepteur(sup)(evenement(partenairePret(MOI)));
+  assert.strictEqual(sup.emis.length, 0);
+});
 ```
 
-- [ ] **Étape 3 : lancer, vérifier l'échec**
+- [ ] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
 npm test
@@ -604,103 +647,49 @@ npm test
 
 Attendu : `la validation du partenaire declenche la notre` en `✖`, aucune trame émise.
 
-- [ ] **Étape 4 : implémenter la seconde réaction**
+- [ ] **Étape 3 : implémenter la seconde réaction**
 
-Dans `creerAccepteurEchange`, remplacer la garde de type par un aiguillage.
-Après les trois gardes communes (`reglages.actif`, compte connu,
-`etat.accepteEchange`), router selon le type :
+Les deux types n'ont pas le même champ d'identité — `kfz` porte le proposant au
+champ 1, `kgt` porte le validant au champ 4 — donc l'aiguillage précède la
+lecture du champ. Remplacer la garde de type :
 
 ```js
     if (frame.type !== TYPE_PROPOSITION && frame.type !== TYPE_PARTENAIRE_PRET) return;
 ```
 
-puis, après les gardes et la vérification du proposant :
+Puis, après les trois gardes communes (`reglages.actif`, compte connu,
+`etat.accepteEchange`), lire l'identité selon le type et appliquer le même
+filtre aux deux :
 
 ```js
-    // Le partenaire a valide: on valide a notre tour. Le meme filtre
-    // s'applique -- un tiers qui coche ne doit pas nous faire cocher.
-    if (frame.type === TYPE_PARTENAIRE_PRET) {
-      const res = superviseur.emettre(pid, construireValidation(proposant.value));
-      return onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets, validation: true });
+    const pret = frame.type === TYPE_PARTENAIRE_PRET;
+    // kgt ne vaut validation QUE si le champ 3 est present et vaut 1. Absent,
+    // il annonce une coche qui retombe -- ce que le serveur envoie deux fois,
+    // une par partie, a la conclusion de chaque echange.
+    if (pret) {
+      const coche = champ(frame, CHAMP_PRET);
+      if (coche === null || coche.value !== 1n) return;
     }
+
+    const qui = champ(frame, pret ? CHAMP_VALIDANT : CHAMP_PROPOSANT);
+    if (qui === null) return refus(`echange refuse : aucun ${pret ? 'validant' : 'proposant'} dans la trame`);
+    if (!autresNotres(superviseur, pid).some((id) => id === qui.value)) {
+      return refus(`echange refuse : ${qui.value} inconnu de l'application`);
+    }
+
+    const res = superviseur.emettre(pid, pret ? TRAME_VALIDATION : TRAME_ACCEPTATION);
+    onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets, validation: pret });
 ```
 
-Renommer la variable `proposant` en `partenaire` si le champ mesuré porte un
-autre nom dans le document ; garder un seul nom dans tout le module.
+La coche qui retombe sort **sans compte rendu** : c'est un événement normal de
+fin d'échange, pas un refus, et le journaliser noierait les vrais refus.
 
-- [ ] **Étape 5 : lancer, vérifier le passage, commiter**
+- [ ] **Étape 4 : lancer, vérifier le passage, commiter**
 
 ```bash
 npm test
 git add src/echange.js test/echange.test.js
 git commit -m "feat(echange): valider en reaction a la validation du partenaire"
-```
-
-#### Forme B — avec état par compte
-
-- [ ] **Étape 6 : écrire les tests, dont celui de non-fuite**
-
-```js
-test('la validation du partenaire declenche la notre apres acceptation', () => {
-  const sup = fauxSuperviseur();
-  const a = accepteur(sup);
-  a(evenement(proposition(AMI)));
-  a(evenement(partenairePret()));
-  assert.strictEqual(sup.emis.length, 2);
-});
-
-// LE test de cette forme: sans effacement a la fermeture, un echange
-// ultérieur avec un inconnu hérite de l'autorisation du precedent. C'est la
-// collision d'etat deja corrigee dans le no-anim.
-test('l autorisation ne survit pas a la fermeture de l echange', () => {
-  const sup = fauxSuperviseur();
-  const a = accepteur(sup);
-  a(evenement(proposition(AMI)));
-  a(evenement(fermeture()));
-  a(evenement(partenairePret()));
-  assert.strictEqual(sup.emis.length, 1, 'seule l acceptation initiale');
-});
-
-test('la validation sans acceptation prealable ne declenche rien', () => {
-  const sup = fauxSuperviseur();
-  accepteur(sup)(evenement(partenairePret()));
-  assert.strictEqual(sup.emis.length, 0);
-});
-```
-
-`partenairePret()` et `fermeture()` se construisent d'après les types et champs
-de la section 3 du document de mesure, sur le modèle de `proposition()`.
-
-- [ ] **Étape 7 : lancer, vérifier l'échec**
-
-```bash
-npm test
-```
-
-- [ ] **Étape 8 : implémenter l'état par compte**
-
-```js
-  // Echanges acceptes, par pid. Pose a l'acceptation, EFFACE a la fermeture:
-  // sans cet effacement l'autorisation fuit vers l'echange suivant, y compris
-  // avec un inconnu. Meme piege que l'etat par connexion du no-anim.
-  const enCours = new Map();   // pid -> characterId du partenaire
-```
-
-Poser `enCours.set(pid, proposant.value)` après l'émission de l'acceptation,
-`enCours.delete(pid)` sur le type de fermeture, et n'émettre la validation que
-si `enCours.has(pid)`.
-
-- [ ] **Étape 9 : lancer, vérifier le passage**
-
-```bash
-npm test
-```
-
-- [ ] **Étape 10 : commiter**
-
-```bash
-git add src/echange.js test/echange.test.js
-git commit -m "feat(echange): valider en reaction, avec etat par compte"
 ```
 
 ---
@@ -1088,10 +1077,17 @@ tâche 1 les produit, et chaque emplacement dit dans quelle section du document
 de mesure les lire. Aucune ne peut être devinée, et le plan interdit
 explicitement de le faire.
 
-**Cohérence des noms.** `creerAccepteurEchange`, `construireAcceptation`,
-`construireValidation`, `TYPE_PROPOSITION`, `TYPE_PARTENAIRE_PRET`,
-`CHAMP_PROPOSANT`, `accepteEchange`, `echangeActif`, `marquerEchange`,
-`tousEchange`, `basculerEchange`, `basculerEchangeCompte`, `bech`,
-`ICONE_ECHANGE` — chacun est défini une fois et réutilisé tel quel.
-`construireAcceptation` existe aussi dans `src/invitation.js` : les deux modules
-ne s'importent pas l'un l'autre, il n'y a pas de collision.
+**Cohérence des noms.** `creerAccepteurEchange`, `TRAME_ACCEPTATION`,
+`TRAME_VALIDATION`, `TYPE_PROPOSITION`, `TYPE_PARTENAIRE_PRET`,
+`CHAMP_PROPOSANT`, `CHAMP_PRET`, `CHAMP_VALIDANT`, `accepteEchange`,
+`echangeActif`, `marquerEchange`, `tousEchange`, `basculerEchange`,
+`basculerEchangeCompte`, `bech`, `ICONE_ECHANGE` — chacun est défini une fois
+et réutilisé tel quel. Aucun nom n'entre en collision avec `src/invitation.js`,
+que ce plan ne touche pas.
+
+**Mise à jour après la tâche 1.** Les tâches 2 à 4 ont été réécrites d'après la
+mesure : les deux trames sortantes sont **constantes** et non construites, le
+proposant est au **champ 1** de `kfz` (l'inverse de `ijz`, prouvé par inversion
+des rôles sur quatre échanges), et la forme « avec état par compte » est sans
+objet — `kgt` porte l'identifiant du validant. Le champ 3 de `kgt` est devenu le
+piège principal de la tâche 4 : absent, il annonce une coche qui retombe.

@@ -82,6 +82,50 @@ function noterTrafic() {
   };
 }
 
+// MESURE TEMPORAIRE — tache 1 du plan echange, a retirer en tache 9.
+// Journalise le PREMIER exemplaire de chaque type de trame, par client et par
+// sens. Un echange est un evenement rare: il ressort du bruit sans qu'il
+// faille tout journaliser. L'instrumentation qui journalisait chaque jalon de
+// tour noyait le signal sous trente lignes par manche.
+function typesInedits() {
+  const vus = new Map();   // pid -> Set de "sens type"
+  return function onTrame({ pid, dir, frame }) {
+    if (frame === null) return;
+    let lot = vus.get(pid);
+    if (lot === undefined) { lot = new Set(); vus.set(pid, lot); }
+    const cle = `${dir} ${frame.type}`;
+    if (lot.has(cle)) return;
+    lot.add(cle);
+    const champs = (frame.payload || []).map((f) => `${f.no}=${f.value}`).join(' ');
+    journal(pid, `inedit : ${dir} ${frame.kind} ${frame.type} { ${champs} }`);
+  };
+}
+
+// MESURE TEMPORAIRE — tache 1 du plan echange, a retirer en tache 9.
+// Les octets bruts, a CHAQUE occurrence et non seulement a la premiere: la
+// validation d'un echange est un evenement qui se repete, et c'est sa
+// repetition qu'on veut observer. Les champs decodes ne suffisent pas a
+// construire une trame, il faut l'hexadecimal.
+//
+// Releves en passe 1, le 22/08:
+//   keu  out  la proposition envoyee            { 2: cible }
+//   kfz  in   la proposition, RECUE PAR LES DEUX { 1: proposant, 2: cible, 4: 1 }
+//   kgi  out  l'acceptation                     aucun champ
+//   kbg  in   la fenetre ouverte                { 2: idEchange, 6: ., 7: . }
+//   kcr  out  le depot d'un objet               { 1: ., 2: idObjet }
+//   kep  out  la validation                     { 1: 1, 2: 1 }
+//   kgt  in   « X a valide », RECUE PAR LES DEUX { 3: 1, 4: qui a valide }
+//   keq  in   la fin de l'echange               { 1: idEchange, 3: . }
+const TYPES_MESURES = new Set(['keu', 'kfz', 'kgi', 'kbg', 'kcr', 'kep', 'kgt', 'keq']);
+
+function octetsDesTrames() {
+  return function onTrame({ pid, dir, frame, brute }) {
+    if (frame === null || !TYPES_MESURES.has(frame.type)) return;
+    const champs = (frame.payload || []).map((f) => `${f.no}=${f.value}`).join(' ');
+    journal(pid, `octets : ${dir} ${frame.kind} ${frame.type} { ${champs} } = ${brute.toString('hex')}`);
+  };
+}
+
 // Prend en charge tout nouveau client. La connexion au serveur de jeu s'ouvre
 // des l'ecran de connexion: un client deja lance ne peut plus etre rattrape,
 // d'ou l'etat « non intercepte » plutot qu'une tentative vouee a l'echec.
@@ -309,6 +353,8 @@ app.whenReady().then(async () => {
       },
     }),
     noterTrafic(),
+    typesInedits(),
+    octetsDesTrames(),
     // Une politique qui leve doit se voir. C'est ce qui manquait: le passeur
     // pouvait echouer sur une trame sans laisser la moindre trace.
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
