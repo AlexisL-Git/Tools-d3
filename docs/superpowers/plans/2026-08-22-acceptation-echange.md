@@ -1060,6 +1060,189 @@ les cinq boutons.
 
 ---
 
+### Tâche 10 : délai de réaction humain avant d'émettre
+
+Ajoutée après l'essai en jeu du 22/08, qui a montré la fonction opérationnelle.
+Une acceptation émise à la milliseconde où la proposition arrive n'est pas un
+comportement qu'un joueur produit. Même raisonnement que l'étalement du rejeu,
+et mêmes bornes de bon sens.
+
+**Fichiers :**
+- Modifier : `src/echange.js`
+- Modifier : `test/echange.test.js`
+- Modifier : `desktop/main.js`
+
+**Interfaces :**
+- Produit : la constante `DELAI_REACTION = { minMs: 150, maxMs: 600 }` exportée par `src/echange.js` ; `creerAccepteurEchange` accepte trois options de plus — `delai` (objet ou `null`), `alea` (défaut `Math.random`), `planifier` (défaut `setTimeout`).
+
+**Défaut inerte, comme partout ailleurs dans ce dépôt.** `delai = null` émet
+pendant l'appel. C'est ce qui garde verts les 16 tests existants, et c'est la
+même règle que `arme` du superviseur et que son `etalementRejeu`. Seul
+`desktop/main.js` demande le délai.
+
+**LE PIÈGE, et il a un précédent exact dans ce dépôt.** Entre l'armement et
+l'échéance, tout peut changer : l'utilisateur décoche la case, le client se
+ferme, et **Windows peut réattribuer le même pid à un autre client Dofus**.
+`src/passeur.js` a déjà rencontré ce cas et le résout en comparant l'**identité
+de l'objet d'état**, pas seulement le pid — `etat !== etatArme` — en plus de
+relire l'interrupteur. Va lire les lignes autour de `if (etat === null || etat
+!== etatArme || !etat.passeTour) return;` et reproduis la garde.
+
+- [ ] **Étape 1 : écrire les tests**
+
+```js
+const { DELAI_REACTION } = require('../src/echange');
+
+// Comme superviseurEtale du passe-tour: `alea` rend une suite fixee et
+// `planifier` capture au lieu d'attendre. Le test reste instantane.
+function accepteurRetarde(sup, tirages, reglages = { actif: true }) {
+  let i = 0;
+  const planifies = [];
+  const rendu = [];
+  const a = creerAccepteurEchange({
+    superviseur: sup,
+    reglages,
+    delai: { minMs: 150, maxMs: 600 },
+    alea: () => tirages[i++ % tirages.length],
+    planifier: (fn, ms) => { planifies.push({ fn, ms }); return null; },
+    onCompteRendu: (r) => rendu.push(r),
+  });
+  return { a, planifies, rendu };
+}
+
+test('avec delai, rien ne part pendant l appel', () => {
+  const sup = fauxSuperviseur();
+  const { a, planifies } = accepteurRetarde(sup, [0]);
+  a(evenement(proposition(AMI)));
+  assert.strictEqual(sup.emis.length, 0);
+  assert.strictEqual(planifies.length, 1);
+  planifies[0].fn();
+  assert.strictEqual(sup.emis.length, 1);
+});
+
+test('le retard reste dans les bornes', () => {
+  const sup = fauxSuperviseur();
+  const { a, planifies } = accepteurRetarde(sup, [0, 0.999999]);
+  a(evenement(proposition(AMI)));
+  a(evenement(partenairePret(AMI)));
+  assert.deepStrictEqual(planifies.map((p) => p.ms), [150, 600]);
+});
+
+// LE test de cette tache. Sans la garde d'identite, une acceptation armee
+// pour un client ferme partirait chez le client qui a herite de son pid.
+test('un compte decoche pendant le delai n emet rien', () => {
+  const sup = fauxSuperviseur();
+  const { a, planifies } = accepteurRetarde(sup, [0]);
+  a(evenement(proposition(AMI)));
+  sup.etats.get(1).accepteEchange = false;
+  planifies[0].fn();
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+test('un interrupteur general eteint pendant le delai n emet rien', () => {
+  const sup = fauxSuperviseur();
+  const reglages = { actif: true };
+  const { a, planifies } = accepteurRetarde(sup, [0], reglages);
+  a(evenement(proposition(AMI)));
+  reglages.actif = false;
+  planifies[0].fn();
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+// Windows reattribue les pid. Le meme pid peut designer un AUTRE client a
+// l'echeance: comparer l'identite de l'objet d'etat, pas le pid.
+test('un etat remplace pendant le delai n emet rien', () => {
+  const sup = fauxSuperviseur();
+  const { a, planifies } = accepteurRetarde(sup, [0]);
+  a(evenement(proposition(AMI)));
+  sup.etats.set(1, { pid: 1, accepteEchange: true, characterId: MOI });
+  planifies[0].fn();
+  assert.strictEqual(sup.emis.length, 0);
+});
+
+test('sans delai configure, l emission reste dans l appel', () => {
+  const sup = fauxSuperviseur();
+  accepteur(sup)(evenement(proposition(AMI)));
+  assert.strictEqual(sup.emis.length, 1);
+});
+
+test('la constante vaut 150 a 600 ms', () => {
+  assert.deepStrictEqual(DELAI_REACTION, { minMs: 150, maxMs: 600 });
+});
+```
+
+- [ ] **Étape 2 : lancer, vérifier l'échec**
+
+```bash
+npm test
+```
+
+Attendu : les tests du délai en `✖`.
+
+- [ ] **Étape 3 : implémenter**
+
+Dans `src/echange.js` :
+
+```js
+// Delai de reaction avant d'emettre. Une acceptation partie a la milliseconde
+// ou la proposition arrive n'est pas un comportement qu'un joueur produit --
+// meme raisonnement que l'etalement du rejeu. 150 a 600 ms est le temps qu'il
+// faut a quelqu'un pour voir une fenetre, viser et cliquer.
+const DELAI_REACTION = { minMs: 150, maxMs: 600 };
+```
+
+Dans `creerAccepteurEchange`, ajouter les trois options, un tirage, et
+remplacer l'émission directe par :
+
+```js
+  // Relu A L'ECHEANCE, pas a l'armement: entre les deux, l'utilisateur a pu
+  // decocher, le client se fermer, et Windows reattribuer le pid a un AUTRE
+  // client Dofus. On compare donc l'IDENTITE de l'objet d'etat, pas seulement
+  // le pid -- meme garde que src/passeur.js, pour la meme raison.
+  const emettre = (pid, etatArme, trame, validation, retardMs) => {
+    const etat = superviseur.comptes.get(pid);
+    if (!reglages.actif || etat === null || etat === undefined
+        || etat !== etatArme || !etat.accepteEchange) return;
+    const res = superviseur.emettre(pid, trame);
+    onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets, validation, retardMs });
+  };
+```
+
+et, au point d'émission :
+
+```js
+    const trame = pret ? TRAME_VALIDATION : TRAME_ACCEPTATION;
+    if (delai === null) return emettre(pid, etat, trame, pret, 0);
+    const retardMs = delai.minMs + Math.floor(alea() * (delai.maxMs - delai.minMs + 1));
+    planifier(() => emettre(pid, etat, trame, pret, retardMs), retardMs);
+```
+
+- [ ] **Étape 4 : lancer, vérifier le passage**
+
+```bash
+npm test
+```
+
+- [ ] **Étape 5 : brancher le délai dans l'application**
+
+Dans `desktop/main.js`, à la construction de `creerAccepteurEchange`, ajouter
+`delai: DELAI_REACTION,` et importer la constante. Le compte rendu journalise
+désormais le retard :
+
+```js
+        if (ok) journal(pid, `echange : ${validation ? 'valide' : 'accepte'} apres ${retardMs} ms`);
+```
+
+- [ ] **Étape 6 : vérifier et commiter**
+
+```bash
+npm test
+git add src/echange.js test/echange.test.js desktop/main.js
+git commit -m "feat(echange): delai de reaction de 150 a 600 ms avant d'emettre"
+```
+
+---
+
 ## Revue du plan
 
 **Couverture du spec.** Les six critères de réussite sont l'étape 1 de la
