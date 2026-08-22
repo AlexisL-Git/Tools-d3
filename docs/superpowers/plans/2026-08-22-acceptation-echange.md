@@ -1603,6 +1603,196 @@ Cocher `ÉCHANGE` et les cases des deux comptes **avant** de lancer les clients.
 
 ---
 
+### Tâche 13 : bouton OFF — fermer tous les clients Dofus
+
+Demandé après la livraison. Un bouton qui ferme d'un coup toutes les instances
+de Dofus, pour ne pas avoir à les fermer une par une.
+
+**Fichiers :**
+- Modifier : `src/comptes/clients.js`
+- Modifier : `test/comptes-clients.test.js`
+- Modifier : `desktop/main.js`, `desktop/preload.js`, `desktop/index.html`
+
+**Interfaces :**
+- Produit : `fermerClients(pids, tuer)` dans `src/comptes/clients.js`, rendant un tableau `{ pid, ok, raison }` ; l'IPC `fermerTousLesClients`.
+
+**DEUX GARDES QUI NE SONT PAS DÉCORATIVES.**
+
+1. **`pid` doit être un entier strictement positif.** Sous Node, `process.kill(0)`
+   ne tue pas « le processus 0 » : il vise **le groupe de processus courant**,
+   c'est-à-dire l'application elle-même. Un zéro qui se glisse dans la liste
+   ferait donc que le bouton OFF ferme l'application au lieu des clients.
+2. **Ne jamais viser `process.pid`.** Même raison, cas plus direct.
+
+- [ ] **Étape 1 : écrire les tests**
+
+Dans `test/comptes-clients.test.js` :
+
+```js
+const { fermerClients } = require('../src/comptes/clients');
+
+test('chaque pid est tue une fois, dans l ordre', () => {
+  const tues = [];
+  const rendu = fermerClients([101, 102, 103], (pid) => tues.push(pid));
+  assert.deepStrictEqual(tues, [101, 102, 103]);
+  assert.deepStrictEqual(rendu.map((r) => r.ok), [true, true, true]);
+});
+
+// process.kill(0) vise le GROUPE de processus courant: l'application se
+// fermerait elle-meme au lieu de fermer les clients.
+test('le pid zero est refuse, jamais transmis', () => {
+  const tues = [];
+  const rendu = fermerClients([0], (pid) => tues.push(pid));
+  assert.deepStrictEqual(tues, []);
+  assert.strictEqual(rendu[0].ok, false);
+  assert.match(rendu[0].raison, /invalide/);
+});
+
+test('un pid negatif ou non entier est refuse', () => {
+  const tues = [];
+  const rendu = fermerClients([-1, 1.5, null, 'x'], (pid) => tues.push(pid));
+  assert.deepStrictEqual(tues, []);
+  assert.strictEqual(rendu.filter((r) => r.ok).length, 0);
+});
+
+test('notre propre pid est refuse', () => {
+  const tues = [];
+  const rendu = fermerClients([process.pid], (pid) => tues.push(pid));
+  assert.deepStrictEqual(tues, []);
+  assert.strictEqual(rendu[0].ok, false);
+});
+
+// Un client deja ferme entre l'enumeration et le clic fait lever process.kill.
+// Ce n'est pas une anomalie: les autres doivent quand meme etre fermes.
+test('un echec n interrompt pas les suivants', () => {
+  const tues = [];
+  const rendu = fermerClients([101, 102, 103], (pid) => {
+    if (pid === 102) throw new Error('ESRCH');
+    tues.push(pid);
+  });
+  assert.deepStrictEqual(tues, [101, 103]);
+  assert.deepStrictEqual(rendu.map((r) => r.ok), [true, false, true]);
+  assert.match(rendu[1].raison, /ESRCH/);
+});
+
+test('une liste vide ne fait rien et ne leve pas', () => {
+  assert.deepStrictEqual(fermerClients([], () => { throw new Error('jamais'); }), []);
+});
+```
+
+- [ ] **Étape 2 : lancer, vérifier l'échec**
+
+```bash
+npm test
+```
+
+- [ ] **Étape 3 : implémenter**
+
+Dans `src/comptes/clients.js` :
+
+```js
+// Ferme les clients dont on donne les pid. `tuer` est injecte pour que la
+// fonction se teste sans tuer quoi que ce soit.
+//
+// LE GARDE SUR LE PID N'EST PAS COSMETIQUE: sous Node, process.kill(0) vise le
+// GROUPE de processus courant, donc l'application elle-meme. Un zero dans la
+// liste ferait que le bouton OFF ferme l'application au lieu des clients.
+function fermerClients(pids, tuer = (pid) => process.kill(pid)) {
+  const rendu = [];
+  for (const pid of pids) {
+    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) {
+      rendu.push({ pid, ok: false, raison: 'pid invalide' });
+      continue;
+    }
+    // Un client ferme entre l'enumeration et le clic fait lever: c'est un
+    // chemin normal, pas une anomalie, et les suivants doivent suivre.
+    try { tuer(pid); rendu.push({ pid, ok: true }); }
+    catch (e) { rendu.push({ pid, ok: false, raison: e.message }); }
+  }
+  return rendu;
+}
+```
+
+Ajouter `fermerClients` à `module.exports`.
+
+- [ ] **Étape 4 : l'IPC**
+
+Dans `desktop/main.js` :
+
+```js
+ipcMain.handle('fermerTousLesClients', async () => {
+  const clients = await listerClients();
+  const rendu = fermerClients(clients.map((c) => c.pid));
+  for (const r of rendu) {
+    journal(r.pid, r.ok ? 'client ferme par le bouton OFF' : `fermeture impossible : ${r.raison}`);
+  }
+  // Le balayage retire les clients morts et purge leur etat tout seul, sous
+  // 500 ms. On rafraichit quand meme pour que la liste ne mente pas d'ici la.
+  await envoyerEtat();
+});
+```
+
+Dans `desktop/preload.js`, un ordre de plus, et le commentaire d'en-tête passe
+de « douze ordres » à « treize ordres » :
+
+```js
+  fermerTousLesClients: () => ipcRenderer.invoke('fermerTousLesClients'),
+```
+
+- [ ] **Étape 5 : le bouton, en deux temps**
+
+Dans `desktop/index.html`. Le style, à côté des autres règles de bouton :
+
+```css
+  #boff { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
+          color: #e6e8ec; cursor: pointer; font: inherit; margin-left: auto; }
+  #boff.confirme { background: #7a3b2e; color: #ffdcd2; }
+```
+
+Le bouton se place **après le champ délai et avant le résumé**, avec
+`margin-left: auto` pour le pousser à droite, à l'écart des cinq interrupteurs :
+
+```html
+  <button id="boff" title="fermer tous les clients Dofus">OFF</button>
+```
+
+Et le câblage, en deux temps — un clic de travers ne doit rien fermer :
+
+```js
+  // Confirmation en place plutot qu'une fenetre modale: un clic de travers
+  // parmi six boutons fermerait tous les clients, potentiellement en plein
+  // combat. Le premier clic arme, le second ferme, et l'armement retombe seul.
+  let offArme = null;
+  document.getElementById('boff').addEventListener('click', () => {
+    const b = document.getElementById('boff');
+    if (offArme !== null) {
+      clearTimeout(offArme);
+      offArme = null;
+      b.classList.remove('confirme');
+      b.textContent = 'OFF';
+      window.app.fermerTousLesClients();
+      return;
+    }
+    b.classList.add('confirme');
+    b.textContent = 'CONFIRMER ?';
+    offArme = setTimeout(() => {
+      offArme = null;
+      b.classList.remove('confirme');
+      b.textContent = 'OFF';
+    }, 3000);
+  });
+```
+
+- [ ] **Étape 6 : vérifier et commiter**
+
+```bash
+npm test
+git add src/comptes/clients.js test/comptes-clients.test.js desktop/
+git commit -m "feat: bouton OFF pour fermer tous les clients Dofus"
+```
+
+---
+
 ## Revue du plan
 
 **Couverture du spec.** Les six critères de réussite sont l'étape 1 de la
