@@ -41,7 +41,14 @@ const { traduire } = require('./noanim');
 // acceptable et honnete: le no-anim ne prend effet que sur les connexions
 // ouvertes apres son activation.
 
-function creerTransformateurFlux({ reglages, estArmePourCompte = null, onCompteRendu = () => {} }) {
+function creerTransformateurFlux({
+  reglages, estArmePourCompte = null, onCompteRendu = () => {},
+  // Retrait de trames entieres du flux descendant. Null = le module se
+  // comporte exactement comme avant. { reglages, estArmePourCompte,
+  // doitSupprimer } sinon: les deux premiers arment par compte comme pour le
+  // no-anim, le troisieme decide trame par trame.
+  suppression = null,
+}) {
   // conn.id -> etat. Deux statuts possibles:
   //   'suivie'  -- reassembleur suivi depuis un octet initial connu, donc
   //                transformable tant qu'il n'est pas devenu inerte.
@@ -57,10 +64,27 @@ function creerTransformateurFlux({ reglages, estArmePourCompte = null, onCompteR
   // l'armait sur tous, car reglages.actif etait la SEULE porte). Sans
   // predicat, seul le drapeau general compte, pour ne rien changer aux
   // appelants qui n'en fournissent pas.
-  function armeePour(conn) {
+  function noAnimArmeePour(conn) {
     if (!reglages.actif) return false;
     if (typeof estArmePourCompte !== 'function') return true;
     return estArmePourCompte(conn.pid);
+  }
+
+  // Second predicat d'armement, sur le modele exact de noAnimArmeePour: la
+  // suppression a son propre interrupteur et son propre armement par compte,
+  // independants de ceux du no-anim.
+  function suppressionArmeePour(conn) {
+    if (suppression === null || !suppression.reglages.actif) return false;
+    if (typeof suppression.estArmePourCompte !== 'function') return true;
+    return suppression.estArmePourCompte(conn.pid);
+  }
+
+  // Vraie si l'UNE OU L'AUTRE des deux fonctions est armee -- sinon la
+  // suppression ne marcherait que quand le no-anim est allume aussi. Toutes
+  // les decisions de cadrage (suivie / refusee / inerte / extinction) restent
+  // branchees ici, donc sur « au moins une fonction veut transformer ».
+  function armeePour(conn) {
+    return noAnimArmeePour(conn) || suppressionArmeePour(conn);
   }
 
   function transformer(buf, conn) {
@@ -139,8 +163,25 @@ function creerTransformateurFlux({ reglages, estArmePourCompte = null, onCompteR
 
     if (trames.length === 0) return Buffer.alloc(0);
 
+    const supprime = suppressionArmeePour(conn);
+    const traduit = noAnimArmeePour(conn);
     const morceaux = [];
     for (const brute of trames) {
+      // Supprimer, c'est n'ecrire aucun octet pour cette trame -- ni sa
+      // longueur, ni son corps. C'est la seule difference avec « inchangee ».
+      if (supprime) {
+        let aRetirer = false;
+        try { aRetirer = suppression.doitSupprimer(brute); }
+        catch (e) {
+          aRetirer = false;
+          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: `filtre en echec, trame relayee : ${e.message}` });
+        }
+        if (aRetirer) {
+          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: 'proposition d\'echange retiree du flux' });
+          continue;
+        }
+      }
+      if (!traduit) { morceaux.push(writeVarint(brute.length), brute); continue; }
       let r = { octets: [], raison: null };
       try { r = traduire(brute); }
       catch (e) { r = { octets: [], raison: `traduction en echec, trame relayee telle quelle : ${e.message}` }; }
