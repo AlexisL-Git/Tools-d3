@@ -1,5 +1,5 @@
 'use strict';
-const { encodeRaw, decodeFrameRaw, WIRE } = require('./codec/rawProto');
+const { encodeRaw, WIRE } = require('./codec/rawProto');
 
 // L'acceptation automatique de l'echange entre joueurs, et elle seule.
 //
@@ -83,16 +83,6 @@ function autresNotres(superviseur, pid) {
     .map((e) => e.characterId);
 }
 
-// Vrai si cette trame est la proposition d'echange. Sert a la retirer du flux
-// descendant: le client cree sa popup en la decodant, et ne la retire qu'au
-// clic sur son propre bouton -- que nous ne cliquons jamais.
-function doitSupprimerProposition(brute) {
-  let frame = null;
-  // Une trame indecodable n'est jamais supprimee: dans le doute, on relaie.
-  try { frame = decodeFrameRaw(brute); } catch (e) { return false; }
-  return frame !== null && frame.type === TYPE_PROPOSITION;
-}
-
 // superviseur   — porte emettre(pid, octets), comptes.get(pid) et comptes.tous
 // reglages      — { actif }, RELU a chaque trame pour que l'interrupteur
 //                 general prenne effet aussitot
@@ -158,5 +148,5 @@ module.exports = {
   TRAME_ACCEPTATION, TRAME_VALIDATION, DELAI_REACTION,
   TYPE_PROPOSITION, TYPE_PARTENAIRE_PRET,
   CHAMP_PROPOSANT, CHAMP_PRET, CHAMP_VALIDANT,
-  creerAccepteurEchange, doitSupprimerProposition,
+  creerAccepteurEchange,
 };

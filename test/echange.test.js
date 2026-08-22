@@ -261,22 +261,3 @@ test('sans delai configure, l emission reste dans l appel', () => {
 test('la constante vaut 150 a 600 ms', () => {
   assert.deepStrictEqual(DELAI_REACTION, { minMs: 150, maxMs: 600 });
 });
-
-const { doitSupprimerProposition } = require('../src/echange');
-
-test('la proposition est reconnue pour suppression', () => {
-  // kfz mesuree le 22/08, octets bruts du document de mesure.
-  const kfz = Buffer.from(
-    '0a290a270a13747970652e616e6b616d612e636f6d2f6b667a121008a682c4aab01310a68284cbb4132001', 'hex');
-  assert.strictEqual(doitSupprimerProposition(kfz), true);
-});
-
-test('toute autre trame est relayee', () => {
-  assert.strictEqual(doitSupprimerProposition(TRAME_ACCEPTATION), false);
-});
-
-// Dans le doute on relaie: supprimer une trame qu'on n'a pas su lire serait
-// pire que la popup.
-test('une trame indecodable est relayee', () => {
-  assert.strictEqual(doitSupprimerProposition(Buffer.from([0xff, 0xff, 0xff])), false);
-});
