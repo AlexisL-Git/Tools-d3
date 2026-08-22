@@ -43,13 +43,11 @@ const { traduire } = require('./noanim');
 
 function creerTransformateurFlux({
   reglages, estArmePourCompte = null, onCompteRendu = () => {},
-  // Reecriture de trames dans le flux descendant. Null = le module se
-  // comporte exactement comme avant. { reglages, estArmePourCompte, reecrire }
-  // sinon: les deux premiers arment par compte comme pour le no-anim, le
-  // troisieme rend un Buffer de remplacement pour une trame, ou null pour la
-  // laisser intacte. C'est l'operation native de ce module: `traduire` rend
-  // deja des octets de remplacement pour le no-anim.
-  reecriture = null,
+  // Retrait de trames entieres du flux descendant. Null = le module se
+  // comporte exactement comme avant. { reglages, estArmePourCompte,
+  // doitSupprimer } sinon: les deux premiers arment par compte comme pour le
+  // no-anim, le troisieme decide trame par trame.
+  suppression = null,
 }) {
   // conn.id -> etat. Deux statuts possibles:
   //   'suivie'  -- reassembleur suivi depuis un octet initial connu, donc
@@ -73,20 +71,20 @@ function creerTransformateurFlux({
   }
 
   // Second predicat d'armement, sur le modele exact de noAnimArmeePour: la
-  // reecriture a son propre interrupteur et son propre armement par compte,
+  // suppression a son propre interrupteur et son propre armement par compte,
   // independants de ceux du no-anim.
-  function reecritureArmeePour(conn) {
-    if (reecriture === null || !reecriture.reglages.actif) return false;
-    if (typeof reecriture.estArmePourCompte !== 'function') return true;
-    return reecriture.estArmePourCompte(conn.pid);
+  function suppressionArmeePour(conn) {
+    if (suppression === null || !suppression.reglages.actif) return false;
+    if (typeof suppression.estArmePourCompte !== 'function') return true;
+    return suppression.estArmePourCompte(conn.pid);
   }
 
   // Vraie si l'UNE OU L'AUTRE des deux fonctions est armee -- sinon la
-  // reecriture ne marcherait que quand le no-anim est allume aussi. Toutes
+  // suppression ne marcherait que quand le no-anim est allume aussi. Toutes
   // les decisions de cadrage (suivie / refusee / inerte / extinction) restent
   // branchees ici, donc sur « au moins une fonction veut transformer ».
   function armeePour(conn) {
-    return noAnimArmeePour(conn) || reecritureArmeePour(conn);
+    return noAnimArmeePour(conn) || suppressionArmeePour(conn);
   }
 
   function transformer(buf, conn) {
@@ -165,25 +163,21 @@ function creerTransformateurFlux({
 
     if (trames.length === 0) return Buffer.alloc(0);
 
-    const reecrit = reecritureArmeePour(conn);
+    const supprime = suppressionArmeePour(conn);
     const traduit = noAnimArmeePour(conn);
     const morceaux = [];
     for (const brute of trames) {
-      // Le remplacement porte son propre prefixe de longueur, recalcule sur
-      // SA longueur -- pas celle de l'original. Une trame reecrite n'a aucune
-      // raison de faire la meme taille; reprendre celle de l'original
-      // desynchroniserait le reassembleur du client, donc le gel silencieux
-      // que ce module existe pour eviter.
-      if (reecrit) {
-        let remplacement = null;
-        try { remplacement = reecriture.reecrire(brute); }
+      // Supprimer, c'est n'ecrire aucun octet pour cette trame -- ni sa
+      // longueur, ni son corps. C'est la seule difference avec « inchangee ».
+      if (supprime) {
+        let aRetirer = false;
+        try { aRetirer = suppression.doitSupprimer(brute); }
         catch (e) {
-          remplacement = null;
-          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: `reecriture en echec, trame relayee : ${e.message}` });
+          aRetirer = false;
+          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: `filtre en echec, trame relayee : ${e.message}` });
         }
-        if (remplacement !== null) {
-          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: 'proposition d\'echange reecrite (champ 4 a zero)' });
-          morceaux.push(writeVarint(remplacement.length), remplacement);
+        if (aRetirer) {
+          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: 'proposition d\'echange retiree du flux' });
           continue;
         }
       }

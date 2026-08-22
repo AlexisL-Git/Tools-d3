@@ -34,19 +34,19 @@ function flux(actif = true) {
   return { f, reglages, rendu, conn: { id: 1, port: 5555 } };
 }
 
-// Meme fabrique que flux(), mais avec l'option `reecriture` armee et le
-// no-anim eteint: sert a tester la reecriture isolement, sans jamais
+// Meme fabrique que flux(), mais avec l'option `suppression` armee et le
+// no-anim eteint: sert a tester la suppression isolement, sans jamais
 // confondre ses effets avec ceux de la traduction no-anim.
-function fluxAvecReecriture({ actif = true, reecrire, estArmePourCompte = null } = {}) {
+function fluxAvecSuppression({ actif = true, doitSupprimer, estArmePourCompte = null } = {}) {
   const reglagesNoAnim = { actif: false };
-  const reglagesReecriture = { actif };
+  const reglagesSuppression = { actif };
   const rendu = [];
   const f = creerTransformateurFlux({
     reglages: reglagesNoAnim,
     onCompteRendu: (r) => rendu.push(r),
-    reecriture: { reglages: reglagesReecriture, estArmePourCompte, reecrire },
+    suppression: { reglages: reglagesSuppression, estArmePourCompte, doitSupprimer },
   });
-  return { f, reglagesNoAnim, reglagesReecriture, rendu, conn: { id: 1, port: 5555 } };
+  return { f, reglagesNoAnim, reglagesSuppression, rendu, conn: { id: 1, port: 5555 } };
 }
 
 // GARANTIE 1: eteint, le transformateur ne touche a rien et ne retient rien.
@@ -286,13 +286,13 @@ test('duplication apres cadrage perdu puis extinction: buffer vide (CRITICAL nou
   assert.strictEqual(out2.toString('hex'), nouveau.toString('hex'));
 });
 
-// --- Option `reecriture` ---
+// --- Option `suppression` ---
 
-test('sans option reecriture, le module se comporte exactement comme avant', () => {
+test('sans option suppression, le module se comporte exactement comme avant', () => {
   // Meme test que « un deplacement ressort precede de sa pose... », repris
-  // avec `reecriture: null` explicite: le resultat doit etre identique.
+  // avec `suppression: null` explicite: le resultat doit etre identique.
   const reglages = { actif: true };
-  const f = creerTransformateurFlux({ reglages, onCompteRendu: () => {}, reecriture: null });
+  const f = creerTransformateurFlux({ reglages, onCompteRendu: () => {}, suppression: null });
   const conn = { id: 1, port: 5555 };
   const sortie = f(surLeFil(JSJ), conn);
   assert.ok(sortie.length > surLeFil(JSJ).length);
@@ -300,59 +300,46 @@ test('sans option reecriture, le module se comporte exactement comme avant', () 
   assert.ok(sortie.toString('hex').includes('9a020e089c0210fcffffffffffffffff01'));
 });
 
-test('une trame ciblee est reecrite, les autres passent intactes', () => {
-  const remplacement = Buffer.from([0xaa, 0xbb, 0xcc]);
-  const reecrire = (brute) => (brute.equals(JSJ) ? remplacement : null);
-  const { f, conn } = fluxAvecReecriture({ reecrire });
+test('une trame ciblee est retiree, les autres passent intactes', () => {
+  const doitSupprimer = (brute) => brute.equals(JSJ);
+  const { f, conn } = fluxAvecSuppression({ doitSupprimer });
   const sortie = f(surLeFil(AUTRE, JSJ), conn);
-  assert.strictEqual(sortie.toString('hex'), surLeFil(AUTRE, remplacement).toString('hex'));
+  assert.strictEqual(sortie.toString('hex'), surLeFil(AUTRE).toString('hex'));
 });
 
-// LE piege de cette tache: une trame reecrite n'a aucune raison de faire la
-// meme taille que l'originale. Le remplacement ici (1 octet) est bien plus
-// court que JSJ (plusieurs dizaines d'octets) -- si le code reprenait le
-// prefixe de longueur de l'original, le reassembleur du client lirait la
-// longueur suivante au mauvais endroit et gelerait silencieusement.
-test('le prefixe de longueur du remplacement correspond a SA longueur, pas a celle de l original', () => {
-  const remplacement = Buffer.from([0x2a]); // 1 octet, tres different de JSJ
-  const reecrire = () => remplacement;
-  const { f, conn } = fluxAvecReecriture({ reecrire });
-  const sortie = f(surLeFil(JSJ), conn);
-  assert.strictEqual(sortie.toString('hex'), surLeFil(remplacement).toString('hex'));
+test('supprimer n ecrit ni longueur ni corps', () => {
+  const doitSupprimer = () => true;
+  const { f, conn } = fluxAvecSuppression({ doitSupprimer });
+  const sortie = f(surLeFil(AUTRE), conn);
+  // Buffer VIDE, pas un prefixe de longueur zero.
+  assert.strictEqual(sortie.length, 0);
 });
 
-test('reecrire en rendant null laisse la trame intacte', () => {
-  const reecrire = () => null;
-  const { f, conn } = fluxAvecReecriture({ reecrire });
+test('la suppression seule n active pas la traduction no-anim', () => {
+  // reglages no-anim eteint (voir fluxAvecSuppression), suppression armee
+  // mais qui ne cible rien: JSJ doit ressortir OCTET POUR OCTET, sans la pose
+  // que le no-anim y ajouterait s'il etait arme.
+  const doitSupprimer = () => false;
+  const { f, conn } = fluxAvecSuppression({ doitSupprimer });
   const sortie = f(surLeFil(JSJ), conn);
   assert.strictEqual(sortie.toString('hex'), surLeFil(JSJ).toString('hex'));
 });
 
-test('la reecriture seule n active pas la traduction no-anim', () => {
-  // reglages no-anim eteint (voir fluxAvecReecriture), reecriture armee mais
-  // qui ne cible rien: JSJ doit ressortir OCTET POUR OCTET, sans la pose que
-  // le no-anim y ajouterait s'il etait arme.
-  const reecrire = () => null;
-  const { f, conn } = fluxAvecReecriture({ reecrire });
-  const sortie = f(surLeFil(JSJ), conn);
-  assert.strictEqual(sortie.toString('hex'), surLeFil(JSJ).toString('hex'));
-});
-
-test('un reecriveur qui leve relaie la trame et le dit', () => {
-  const reecrire = () => { throw new Error('boom'); };
-  const { f, conn, rendu } = fluxAvecReecriture({ reecrire });
+test('un filtre qui leve relaie la trame et le dit', () => {
+  const doitSupprimer = () => { throw new Error('boom'); };
+  const { f, conn, rendu } = fluxAvecSuppression({ doitSupprimer });
   const sortie = f(surLeFil(AUTRE), conn);
   assert.strictEqual(sortie.toString('hex'), surLeFil(AUTRE).toString('hex'));
-  assert.ok(rendu.some((r) => /reecriture en echec/.test(r.raison)));
+  assert.ok(rendu.some((r) => /filtre en echec/.test(r.raison)));
 });
 
-test('la reecriture respecte le refus des connexions deja en cours', () => {
-  const reecrire = () => Buffer.from([0x00]);
-  const { f, reglagesReecriture, conn, rendu } = fluxAvecReecriture({ actif: false, reecrire });
+test('la suppression respecte le refus des connexions deja en cours', () => {
+  const doitSupprimer = () => true;
+  const { f, reglagesSuppression, conn, rendu } = fluxAvecSuppression({ actif: false, doitSupprimer });
   // Vue une premiere fois hors armement.
   assert.strictEqual(f(surLeFil(AUTRE), conn), null);
-  // Armee ensuite: refusee pour de bon, rien n'est reecrit ni transforme.
-  reglagesReecriture.actif = true;
+  // Armee ensuite: refusee pour de bon, rien n'est supprime ni transforme.
+  reglagesSuppression.actif = true;
   assert.strictEqual(f(surLeFil(AUTRE), conn), null);
   assert.strictEqual(rendu.length, 1);
   assert.match(rendu[0].raison, /deja en cours/);

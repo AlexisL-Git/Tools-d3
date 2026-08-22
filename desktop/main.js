@@ -6,7 +6,7 @@ const { Superviseur } = require('../src/superviseur');
 const { creerReplicateur, ETALEMENT_REJEU } = require('../src/replicateur');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
-const { creerAccepteurEchange, DELAI_REACTION, reecrireProposition } = require('../src/echange');
+const { creerAccepteurEchange, DELAI_REACTION, doitSupprimerProposition } = require('../src/echange');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
@@ -322,18 +322,16 @@ app.whenReady().then(async () => {
         return etat !== null && Boolean(etat.noAnim);
       },
       onCompteRendu: ({ conn, pid, raison }) => journal(pid, `no-anim (connexion ${conn}) : ${raison}`),
-      // Sonde tache 12: reecrit le champ 4 de la proposition d'echange (kfz)
-      // a zero dans le flux descendant, arme par compte comme le no-anim mais
-      // sur son propre interrupteur (reglagesEchange), independant de
-      // celui-la. Hypothese non prouvee (50/50, voir src/echange.js): le
-      // champ 4 serait le drapeau « demander confirmation ».
-      reecriture: {
+      // Sonde tache 11: retire la proposition d'echange (kfz) du flux
+      // descendant, arme par compte comme le no-anim mais sur son propre
+      // interrupteur (reglagesEchange), independant de celui-la.
+      suppression: {
         reglages: reglagesEchange,
         estArmePourCompte: (pid) => {
           const etat = superviseur.comptes.get(pid);
           return etat !== null && Boolean(etat.accepteEchange);
         },
-        reecrire: reecrireProposition,
+        doitSupprimer: doitSupprimerProposition,
       },
     }),
   });
