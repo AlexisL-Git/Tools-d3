@@ -23,6 +23,9 @@ class Favoris {
     // Comptes dont les animations de deplacement sont supprimees. Meme nature
     // que les trois listes precedentes: que des identifiants numeriques.
     this._noAnim = new Set();
+    // Comptes qui acceptent seuls les echanges proposes. Meme nature que les
+    // quatre listes precedentes: que des identifiants numeriques.
+    this._echange = new Set();
   }
 
   charger() {
@@ -40,6 +43,9 @@ class Favoris {
       if (Array.isArray(json.noAnim)) {
         this._noAnim = new Set(json.noAnim.filter((n) => Number.isInteger(n)));
       }
+      if (Array.isArray(json.echange)) {
+        this._echange = new Set(json.echange.filter((n) => Number.isInteger(n)));
+      }
       if (typeof json.delai === 'number' && json.delai >= 0) this._delai = json.delai;
     } catch (e) {
       // Fichier absent ou corrompu: on repart d'une liste vide plutot que de
@@ -48,6 +54,7 @@ class Favoris {
       this._passeTour = new Set();
       this._invitation = new Set();
       this._noAnim = new Set();
+      this._echange = new Set();
       this._delai = 0;
     }
     return this;
@@ -119,6 +126,20 @@ class Favoris {
     return [...this._noAnim];
   }
 
+  echangeActif(id) {
+    return this._echange.has(id);
+  }
+
+  marquerEchange(id, actif) {
+    if (actif) this._echange.add(id);
+    else this._echange.delete(id);
+    this._ecrire();
+  }
+
+  tousEchange() {
+    return [...this._echange];
+  }
+
   _ecrire() {
     try {
       fs.mkdirSync(path.dirname(this.chemin), { recursive: true });
@@ -128,6 +149,7 @@ class Favoris {
         passeTour: this.tousPasseTour(),
         invitation: this.tousInvitation(),
         noAnim: this.tousNoAnim(),
+        echange: this.tousEchange(),
       };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
     } catch (e) {
