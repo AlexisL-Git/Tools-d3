@@ -10,7 +10,7 @@ const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
-const { listerClients } = require('../src/comptes/clients');
+const { listerClients, fermerClients } = require('../src/comptes/clients');
 const { construireVue } = require('../src/comptes/vue');
 const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
@@ -450,6 +450,17 @@ ipcMain.handle('reglerDelai', async (_e, secondes) => {
   if (!Number.isFinite(v) || v < 0) return;
   favoris.reglerDelai(v);
   reglagesPasseTour.delaiMs = Math.round(v * 1000);
+  await envoyerEtat();
+});
+
+ipcMain.handle('fermerTousLesClients', async () => {
+  const clients = await listerClients();
+  const rendu = fermerClients(clients.map((c) => c.pid));
+  for (const r of rendu) {
+    journal(r.pid, r.ok ? 'client ferme par le bouton OFF' : `fermeture impossible : ${r.raison}`);
+  }
+  // Le balayage retire les clients morts et purge leur etat tout seul, sous
+  // 500 ms. On rafraichit quand meme pour que la liste ne mente pas d'ici la.
   await envoyerEtat();
 });
 

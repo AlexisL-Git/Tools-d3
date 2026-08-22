@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { extraireIdCompte, extrairePersonnage, analyserSortie, listerClients } = require('../src/comptes/clients');
+const { extraireIdCompte, extrairePersonnage, analyserSortie, listerClients, fermerClients } = require('../src/comptes/clients');
 
 // Ligne de commande reelle relevee le 19/08.
 const LIGNE = 'Dofus.exe  -logFile "C:\\Users\\X\\AppData\\Roaming\\zaap\\gamesLogs\\dofus-dofus3\\dofus.10612457.log" --port 26116 --gameName dofus --gameRelease dofus3 --instanceId 8 --hash fdc7ab5e-0940-4ac1-b275-7402c73b5cd4 --canLogin true --langCode fr --autoConnectType 0 --connectionPort 5555 ""';
@@ -78,4 +78,52 @@ test('listerClients analyse la sortie du lanceur quand il reussit', async () => 
   assert.deepStrictEqual(await listerClients(executeurEnSucces), [
     { pid: 4336, idCompte: 10612457, personnage: 'Spoony', classe: 'Pandawa' },
   ]);
+});
+
+test('chaque pid est tue une fois, dans l ordre', () => {
+  const tues = [];
+  const rendu = fermerClients([101, 102, 103], (pid) => tues.push(pid));
+  assert.deepStrictEqual(tues, [101, 102, 103]);
+  assert.deepStrictEqual(rendu.map((r) => r.ok), [true, true, true]);
+});
+
+// process.kill(0) vise le GROUPE de processus courant: l'application se
+// fermerait elle-meme au lieu de fermer les clients.
+test('le pid zero est refuse, jamais transmis', () => {
+  const tues = [];
+  const rendu = fermerClients([0], (pid) => tues.push(pid));
+  assert.deepStrictEqual(tues, []);
+  assert.strictEqual(rendu[0].ok, false);
+  assert.match(rendu[0].raison, /invalide/);
+});
+
+test('un pid negatif ou non entier est refuse', () => {
+  const tues = [];
+  const rendu = fermerClients([-1, 1.5, null, 'x'], (pid) => tues.push(pid));
+  assert.deepStrictEqual(tues, []);
+  assert.strictEqual(rendu.filter((r) => r.ok).length, 0);
+});
+
+test('notre propre pid est refuse', () => {
+  const tues = [];
+  const rendu = fermerClients([process.pid], (pid) => tues.push(pid));
+  assert.deepStrictEqual(tues, []);
+  assert.strictEqual(rendu[0].ok, false);
+});
+
+// Un client deja ferme entre l'enumeration et le clic fait lever process.kill.
+// Ce n'est pas une anomalie: les autres doivent quand meme etre fermes.
+test('un echec n interrompt pas les suivants', () => {
+  const tues = [];
+  const rendu = fermerClients([101, 102, 103], (pid) => {
+    if (pid === 102) throw new Error('ESRCH');
+    tues.push(pid);
+  });
+  assert.deepStrictEqual(tues, [101, 103]);
+  assert.deepStrictEqual(rendu.map((r) => r.ok), [true, false, true]);
+  assert.match(rendu[1].raison, /ESRCH/);
+});
+
+test('une liste vide ne fait rien et ne leve pas', () => {
+  assert.deepStrictEqual(fermerClients([], () => { throw new Error('jamais'); }), []);
 });

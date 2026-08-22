@@ -42,6 +42,9 @@
   #bech { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
           color: #e6e8ec; cursor: pointer; font: inherit; }
   #bech.actif { background: #2e7d4f; }
+  #boff { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
+          color: #e6e8ec; cursor: pointer; font: inherit; margin-left: auto; }
+  #boff.confirme { background: #7a3b2e; color: #ffdcd2; }
 </style>
 <header>
   <h1>Replicate</h1>
@@ -51,7 +54,8 @@
   <button id="banim">ANIM</button>
   <button id="bech">ÉCHANGE</button>
   <label style="color:#8b93a3">délai <input id="delai" type="number" min="0" step="0.1" value="0"></label>
-  <span id="resume" style="margin-left:auto"></span>
+  <button id="boff" title="fermer tous les clients Dofus">OFF</button>
+  <span id="resume"></span>
 </header>
 <div id="erreur"></div>
 <ul id="liste"></ul>
@@ -136,6 +140,29 @@
 
   document.getElementById('delai').addEventListener('change', (e) => {
     window.app.reglerDelai(e.target.value);
+  });
+
+  // Confirmation en place plutot qu'une fenetre modale: un clic de travers
+  // parmi six boutons fermerait tous les clients, potentiellement en plein
+  // combat. Le premier clic arme, le second ferme, et l'armement retombe seul.
+  let offArme = null;
+  document.getElementById('boff').addEventListener('click', () => {
+    const b = document.getElementById('boff');
+    if (offArme !== null) {
+      clearTimeout(offArme);
+      offArme = null;
+      b.classList.remove('confirme');
+      b.textContent = 'OFF';
+      window.app.fermerTousLesClients();
+      return;
+    }
+    b.classList.add('confirme');
+    b.textContent = 'CONFIRMER ?';
+    offArme = setTimeout(() => {
+      offArme = null;
+      b.classList.remove('confirme');
+      b.textContent = 'OFF';
+    }, 3000);
   });
 
   window.app.surEtat((etat) => {
