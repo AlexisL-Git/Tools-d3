@@ -181,7 +181,7 @@ function creerTransformateurFlux({
           remplacement = null;
           onCompteRendu({ conn: conn.id, pid: conn.pid, raison: `reecriture en echec, trame relayee : ${e.message}` });
         }
-        if (remplacement !== null) {
+        if (Buffer.isBuffer(remplacement)) {
           onCompteRendu({ conn: conn.id, pid: conn.pid, raison: 'proposition d\'echange reecrite (champ 4 a zero)' });
           morceaux.push(writeVarint(remplacement.length), remplacement);
           continue;
