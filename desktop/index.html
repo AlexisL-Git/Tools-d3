@@ -42,7 +42,7 @@
 </style>
 <header>
   <h1>Replicate</h1>
-  <button id="bascule">INACTIF</button>
+  <button id="bascule">REPLI</button>
   <button id="bpt">PASSE-TOUR</button>
   <button id="binv">GROUPE</button>
   <button id="banim">ANIM</button>
@@ -55,6 +55,7 @@
   const LIBELLES = {
     'hors-ligne': 'hors ligne',
     'intercepte': 'suit',
+    'en-attente': 'attente du trafic…',
     'non-intercepte': 'non intercepté — relance ce client',
     'erreur': 'erreur',
     'inconnu': 'compte inconnu',
@@ -124,9 +125,9 @@
 
   window.app.surEtat((etat) => {
     actif = etat.replicate;
-    const b = document.getElementById('bascule');
-    b.textContent = actif ? 'ACTIF' : 'INACTIF';
-    b.classList.toggle('actif', actif);
+    // Le libelle ne change plus: c'est la couleur qui porte l'etat, comme pour
+    // les trois autres interrupteurs (vert = arme, gris = au repos).
+    document.getElementById('bascule').classList.toggle('actif', actif);
 
     passeTourActif = etat.passeTourActif;
     const bpt = document.getElementById('bpt');
@@ -167,12 +168,16 @@
       // une promesse fausse: hors ligne, non intercepte ou en erreur, aucun
       // des quatre ne peut agir sur ce client.
       //
-      // C'est `suivi` qui en decide, PAS le libelle `etat`: un client passe par
-      // notre proxy mais dont le compte est absent de la liste Zaap s'affiche
-      // « compte inconnu » tout en etant parfaitement pilotable. Tester
-      // l'etat le rendait indebrayable — c'est precisement pour cela que
-      // `suivi` existe.
-      const utilisable = l.id !== null && l.suivi;
+      // C'est `pilotable` qui en decide, PAS le libelle `etat`: un client passe
+      // par notre proxy mais dont le compte est absent de la liste Zaap
+      // s'affiche « compte inconnu » tout en etant parfaitement pilotable.
+      // Tester l'etat le rendait indebrayable — c'est precisement pour cela que
+      // ce champ existe.
+      //
+      // Et pas `suivi` non plus, qui ne vaut vrai que sur preuve de trafic:
+      // pendant la seconde d'attente d'un client qui vient d'etre attache, ses
+      // quatre interrupteurs se seraient eteints sous le curseur.
+      const utilisable = l.id !== null && l.pilotable;
       const swRep = interrupteur(ICONE_REPLICATE, !l.exclu, !utilisable,
         (v) => window.app.exclureCompte(l.id, !v));
       const swPasse = interrupteur(ICONE_PASSE, l.passeTour, !utilisable,
@@ -190,11 +195,17 @@
       perso.className = 'perso';
       perso.textContent = l.personnage ? `${l.personnage} — ${l.classe}` : '—';
 
+      // Le titre de maitre ne masque plus l'etat: le superviseur le decerne au
+      // premier client attache, trafic ou pas. Un client irrattrapable
+      // s'affichait donc « maître » — l'etiquette la plus rassurante possible
+      // sur la seule ligne qui demandait une action. L'alerte passe devant.
+      const alerte = l.etat === 'non-intercepte' || l.etat === 'erreur';
+      const maitreEffectif = l.estMaitre && l.etat === 'intercepte';
       const badge = document.createElement('span');
       badge.className = 'badge'
-        + (l.estMaitre ? ' maitre' : '')
-        + (l.etat === 'non-intercepte' || l.etat === 'erreur' ? ' alerte' : '');
-      badge.textContent = l.estMaitre ? 'maître' : LIBELLES[l.etat];
+        + (maitreEffectif ? ' maitre' : '')
+        + (alerte ? ' alerte' : '');
+      badge.textContent = maitreEffectif ? 'maître' : LIBELLES[l.etat];
 
       li.append(etoile, swRep, swPasse, swInv, swAnim, nom, perso, badge);
 

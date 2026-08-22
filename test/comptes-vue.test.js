@@ -150,6 +150,93 @@ test('un client lancé avant l application est signalé non intercepté', () => 
   assert.strictEqual(l.etat, 'non-intercepte');
 });
 
+// --- attache != interception ----------------------------------------------
+//
+// Le faux positif reproduit le 22/08: un client lance a 13:09, l'application a
+// 14:27. L'agent s'injecte quand meme (il detourne `connect` pour les
+// connexions A VENIR), donc l'ancien code le comptait comme intercepte et
+// affichait « suit ». Sa session de jeu, elle, etait ouverte hors du proxy:
+// rien ne pouvait etre rejoue. Seule une trame decodee le prouve.
+
+test('un client attaché mais sans trafic observé n est pas intercepté', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set(),
+    enAttente: new Set(),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'non-intercepte');
+  assert.strictEqual(l.suivi, false);
+  assert.strictEqual(l.pilotable, false);
+});
+
+// Sans fenetre de grace, un client tout juste lance s'afficherait « relance ce
+// client » pendant la seconde qui separe l'attache de sa premiere trame — un
+// faux negatif a la place d'un faux positif.
+test('un client attaché depuis peu, sans trafic encore, est en attente', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set(),
+    enAttente: new Set([100]),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'en-attente');
+  // Rien n'est prouve: il ne compte pas parmi les comptes en jeu...
+  assert.strictEqual(l.suivi, false);
+  // ...mais son agent est en place, donc ses interrupteurs ont un sens.
+  assert.strictEqual(l.pilotable, true);
+});
+
+test('une trame observée prime sur l attente', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set([100]),
+    enAttente: new Set([100]),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'intercepte');
+  assert.strictEqual(l.suivi, true);
+  assert.strictEqual(l.pilotable, true);
+});
+
+test('l erreur prime sur l attente', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    enAttente: new Set([100]),
+    erreurs: new Map([[100, 'attache impossible : accès refusé']]),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'erreur');
+  assert.strictEqual(l.pilotable, false);
+});
+
+// Meme piege que passeTour/invitation/noAnim, rencontre trois fois: un champ
+// code en dur dans les lignes de repli. Toutes les lignes y passent si
+// lireComptes() echoue.
+test('un client au compte absent de la liste porte aussi son attente', () => {
+  const l = vue({
+    clients: [{ pid: 500, idCompte: 42, personnage: 'Tardif', classe: 'Eniripsa' }],
+    intercepte: new Set(),
+    enAttente: new Set([500]),
+  }).pop();
+  assert.strictEqual(l.id, 42);
+  assert.strictEqual(l.etat, 'en-attente');
+  assert.strictEqual(l.suivi, false);
+  assert.strictEqual(l.pilotable, true);
+});
+
+test('un compte hors ligne n est ni suivi ni pilotable', () => {
+  for (const l of vue()) {
+    assert.strictEqual(l.suivi, false);
+    assert.strictEqual(l.pilotable, false);
+  }
+});
+
+test('l absence d enAttente ne casse pas la vue', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set([100]),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'intercepte');
+  assert.strictEqual(l.pilotable, true);
+});
+
 test('le maître est marqué', () => {
   const lignes = vue({
     clients: [
