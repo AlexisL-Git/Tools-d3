@@ -1243,6 +1243,223 @@ git commit -m "feat(echange): delai de reaction de 150 a 600 ms avant d'emettre"
 
 ---
 
+### Tâche 11 : sonde — supprimer `kfz` du flux descendant
+
+**C'est un SONDAGE, pas une livraison.** Il répond à une question qu'aucune
+lecture de code ne peut trancher : **le client Dofus ouvre-t-il la fenêtre
+d'échange sur `kbg` seul, sans avoir vu la proposition `kfz` ?** Si oui, la
+popup disparaît et on durcit. Si non, on jette cette tâche et l'utilisateur
+garde la popup.
+
+**Pourquoi il n'y a pas d'autre route.** Quand l'utilisateur accepte à la main,
+son client n'envoie que `kgi` — vérifié sur le journal de mesure du 22/08,
+aucune autre requête sortante entre `kfz` et l'ouverture. La popup est donc
+purement locale : l'interface la crée en décodant `kfz` et ne la retire qu'au
+clic sur son propre bouton. Aucune trame émise ne la fera partir.
+
+**Fichiers :**
+- Modifier : `src/noanim-flux.js`
+- Modifier : `src/echange.js`
+- Modifier : `desktop/main.js`
+- Modifier : `test/noanim-flux.test.js`, `test/echange.test.js`
+
+**Interfaces :**
+- Produit : `creerTransformateurFlux` accepte une option `suppression` valant `null` ou `{ reglages, estArmePourCompte, doitSupprimer }` ; `src/echange.js` exporte `doitSupprimerProposition(brute)`.
+
+**CE MODULE EST LE PLUS DANGEREUX DU DÉPÔT.** Le no-anim y a produit **9
+défauts, dont 6 bloquants**, et **aucun ne se voyait à la relecture** : deux
+pertes d'octets, une duplication introduite par un correctif, une collision
+d'état entre comptes, et le transformateur appliqué aux connexions HTTPS/CDN
+(124 Ko avalés). Tous ont été trouvés en **exécutant** le code. Les garanties
+posées en tête du fichier ne sont pas des commentaires décoratifs :
+
+- **Éteint signifie intouché.** Tant que rien n'est armé, le module rend `null`
+  sans rien lire, et le proxy écrit les octets d'origine.
+- **Une connexion déjà en cours est refusée définitivement.** Un réassembleur
+  neuf branché au milieu d'un flux lit les longueurs au hasard → gel silencieux.
+- **Inerte est définitif.** Un cadrage perdu ne se resynchronise jamais.
+
+Tu ne touches à aucune de ces trois garanties. Tu ajoutes une seule chose : la
+possibilité de **supprimer** une trame, là où le module ne savait que la laisser
+ou la remplacer.
+
+- [ ] **Étape 1 : le prédicat, dans `src/echange.js`**
+
+```js
+const { decodeFrameRaw } = require('./codec/rawProto');
+
+// Vrai si cette trame est la proposition d'echange. Sert a la retirer du flux
+// descendant: le client cree sa popup en la decodant, et ne la retire qu'au
+// clic sur son propre bouton -- que nous ne cliquons jamais.
+function doitSupprimerProposition(brute) {
+  let frame = null;
+  // Une trame indecodable n'est jamais supprimee: dans le doute, on relaie.
+  try { frame = decodeFrameRaw(brute); } catch (e) { return false; }
+  return frame !== null && frame.type === TYPE_PROPOSITION;
+}
+```
+
+Test, dans `test/echange.test.js` :
+
+```js
+const { doitSupprimerProposition, TRAME_ACCEPTATION } = require('../src/echange');
+
+test('la proposition est reconnue pour suppression', () => {
+  // kfz mesuree le 22/08, octets bruts du document de mesure.
+  const kfz = Buffer.from(
+    '0a290a270a13747970652e616e6b616d612e636f6d2f6b667a121008a682c4aab01310a68284cbb4132001', 'hex');
+  assert.strictEqual(doitSupprimerProposition(kfz), true);
+});
+
+test('toute autre trame est relayee', () => {
+  assert.strictEqual(doitSupprimerProposition(TRAME_ACCEPTATION), false);
+});
+
+// Dans le doute on relaie: supprimer une trame qu'on n'a pas su lire serait
+// pire que la popup.
+test('une trame indecodable est relayee', () => {
+  assert.strictEqual(doitSupprimerProposition(Buffer.from([0xff, 0xff, 0xff])), false);
+});
+```
+
+- [ ] **Étape 2 : l'option `suppression` dans `src/noanim-flux.js`**
+
+Signature :
+
+```js
+function creerTransformateurFlux({
+  reglages, estArmePourCompte = null, onCompteRendu = () => {},
+  // Retrait de trames entieres du flux descendant. Null = le module se
+  // comporte exactement comme avant. { reglages, estArmePourCompte,
+  // doitSupprimer } sinon: les deux premiers arment par compte comme pour le
+  // no-anim, le troisieme decide trame par trame.
+  suppression = null,
+}) {
+```
+
+Un second prédicat d'armement, sur le modèle exact de `armeePour` :
+
+```js
+  function suppressionArmeePour(conn) {
+    if (suppression === null || !suppression.reglages.actif) return false;
+    if (typeof suppression.estArmePourCompte !== 'function') return true;
+    return suppression.estArmePourCompte(conn.pid);
+  }
+```
+
+**`armeePour` doit désormais rendre vrai si l'UNE OU L'AUTRE des deux fonctions
+est armée** — sinon la suppression ne marcherait que quand le no-anim est allumé
+aussi. Renomme l'actuelle `armeePour` en `noAnimArmeePour`, et fais de
+`armeePour(conn)` la disjonction des deux. Toutes les décisions de cadrage
+(suivie / refusée / inerte / extinction) restent branchées sur `armeePour`,
+donc sur « au moins une fonction veut transformer ».
+
+Dans la boucle sur les trames, la suppression passe **avant** la traduction :
+
+```js
+    const supprime = suppressionArmeePour(conn);
+    const traduit = noAnimArmeePour(conn);
+    const morceaux = [];
+    for (const brute of trames) {
+      // Supprimer, c'est n'ecrire aucun octet pour cette trame -- ni sa
+      // longueur, ni son corps. C'est la seule difference avec « inchangee ».
+      if (supprime) {
+        let aRetirer = false;
+        try { aRetirer = suppression.doitSupprimer(brute); }
+        catch (e) {
+          aRetirer = false;
+          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: `filtre en echec, trame relayee : ${e.message}` });
+        }
+        if (aRetirer) {
+          onCompteRendu({ conn: conn.id, pid: conn.pid, raison: 'proposition d\'echange retiree du flux' });
+          continue;
+        }
+      }
+      if (!traduit) { morceaux.push(writeVarint(brute.length), brute); continue; }
+      // ... le chemin `traduire` existant, inchange
+    }
+```
+
+- [ ] **Étape 3 : les tests du transformateur**
+
+Dans `test/noanim-flux.test.js`, en réutilisant les fabriques de trames déjà
+présentes dans ce fichier :
+
+```js
+test('sans option suppression, le module se comporte exactement comme avant', () => {
+  // Reprendre un test existant du fichier et verifier que son resultat est
+  // identique avec `suppression: null` explicite.
+});
+
+test('une trame ciblee est retiree, les autres passent intactes', () => {
+  // Deux trames dans un meme chunk, une seule ciblee: la sortie ne doit
+  // contenir que l'autre, prefixe de longueur compris.
+});
+
+test('supprimer n ecrit ni longueur ni corps', () => {
+  // Une seule trame, ciblee: la sortie doit etre un Buffer VIDE, pas un
+  // prefixe de longueur zero.
+});
+
+test('la suppression seule n active pas la traduction no-anim', () => {
+  // reglages no-anim eteint, suppression armee: les trames non ciblees
+  // ressortent OCTET POUR OCTET, aucune insertion.
+});
+
+test('un filtre qui leve relaie la trame et le dit', () => {
+  // doitSupprimer jette: la trame passe, un compte rendu est emis.
+});
+
+test('la suppression respecte le refus des connexions deja en cours', () => {
+  // Connexion vue une premiere fois hors armement, puis armee: refusee, rien
+  // n'est supprime.
+});
+```
+
+- [ ] **Étape 4 : lancer, vérifier l'échec puis le passage**
+
+```bash
+npm test
+```
+
+- [ ] **Étape 5 : brancher dans `desktop/main.js`**
+
+Passer l'option au transformateur déjà construit :
+
+```js
+      suppression: {
+        reglages: reglagesEchange,
+        estArmePourCompte: (pid) => {
+          const etat = superviseur.comptes.get(pid);
+          return etat !== null && Boolean(etat.accepteEchange);
+        },
+        doitSupprimer: doitSupprimerProposition,
+      },
+```
+
+- [ ] **Étape 6 : commiter**
+
+```bash
+npm test
+git add src/noanim-flux.js src/echange.js desktop/main.js test/
+git commit -m "sonde: retirer la proposition d'echange du flux descendant"
+```
+
+- [ ] **Étape 7 : l'essai, par l'utilisateur**
+
+**Rappel qui décide de tout : la suppression ne prend effet que sur les
+connexions ouvertes APRÈS son activation.** Cocher `ÉCHANGE` et les cases des
+deux comptes, **puis** lancer les clients.
+
+La question à laquelle l'essai répond, et rien d'autre : **la fenêtre d'échange
+s'ouvre-t-elle chez l'esclave ?**
+
+- Elle s'ouvre et la popup a disparu → la sonde est concluante, on durcit.
+- Elle ne s'ouvre pas → on révoque le commit, l'utilisateur garde la popup.
+- Le client gèle → cadrage perdu, on révoque et on lit le journal.
+
+---
+
 ## Revue du plan
 
 **Couverture du spec.** Les six critères de réussite sont l'étape 1 de la
