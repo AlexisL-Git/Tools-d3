@@ -134,6 +134,121 @@ test('la trame part vers les sept esclaves, jamais vers le maître', () => {
   for (const pid of [1, 2, 4, 5, 6, 7, 8]) assert.strictEqual(ecrits.get(pid).length, 1, `pid ${pid}`);
 });
 
+// --- etalement du rejeu ----------------------------------------------------
+//
+// Sept esclaves qui se teleportent a la milliseconde pres, c'est une signature.
+// Chaque esclave part donc apres son predecesseur, d'un ecart tire au hasard
+// entre minMs et maxMs. Les tirages sont cumules: c'est l'ECART ENTRE DEUX
+// COMPTES qui est borne, pas le retard absolu du dernier.
+
+// `alea` rend une suite fixee, `planifier` capture au lieu d'attendre: le test
+// reste instantane et deterministe. Sans injection, rien de tout cela ne
+// serait testable autrement qu'en dormant 300 ms.
+function superviseurEtale(pids, { tirages, minMs = 1, maxMs = 40 } = {}) {
+  let i = 0;
+  const planifies = [];
+  const s = new Superviseur({
+    arme: true,
+    etalementRejeu: { minMs, maxMs },
+    alea: () => tirages[i++ % tirages.length],
+    planifier: (fn, delai) => { planifies.push({ fn, delai }); return null; },
+  });
+  for (const pid of pids) s.comptes.ajouter({ pid, port: 8300 + pid });
+  return { s, planifies };
+}
+
+test('chaque esclave part après le précédent, jamais tous ensemble', () => {
+  // 0 -> minMs, 0.5 -> milieu, ~1 -> maxMs.
+  const { s, planifies } = superviseurEtale([1, 2, 3, 4], { tirages: [0, 0.5, 0.999999] });
+  const ecrits = new Map();
+  for (const pid of [2, 3, 4]) ecrits.set(pid, fauxClient(s, pid));
+
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+
+  assert.strictEqual(rendu.length, 3);
+  assert.strictEqual(planifies.length, 3);
+  // Rien n'est encore parti: l'emission est differee, pas immediate.
+  for (const pid of [2, 3, 4]) assert.strictEqual(ecrits.get(pid).length, 0, `pid ${pid}`);
+
+  // Ecarts tires: 1, 21, 40 — cumules, donc 1, 22, 62. Croissance stricte.
+  assert.deepStrictEqual(planifies.map((p) => p.delai), [1, 22, 62]);
+  const retards = planifies.map((p) => p.delai);
+  for (let k = 1; k < retards.length; k++) {
+    const ecart = retards[k] - retards[k - 1];
+    assert.ok(ecart >= 1 && ecart <= 40, `écart ${ecart} hors bornes`);
+  }
+
+  for (const p of planifies) p.fn();
+  for (const pid of [2, 3, 4]) assert.strictEqual(ecrits.get(pid).length, 1, `pid ${pid}`);
+});
+
+test('le compte rendu porte le retard de chaque esclave', () => {
+  const { s } = superviseurEtale([1, 2, 3], { tirages: [0, 0.999999] });
+  fauxClient(s, 2);
+  fauxClient(s, 3);
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  assert.deepStrictEqual(rendu.map((r) => r.retardMs), [1, 41]);
+  // `emis` reste vrai: l'emission est acquise, seule son echeance est differee.
+  for (const r of rendu) assert.strictEqual(r.emis, true);
+});
+
+// Un esclave qui s'abstient ne doit pas consommer de tour d'etalement: sinon
+// un trou de 40 ms s'ouvre sans qu'aucune trame ne parte.
+test('un esclave qui ne rejoue pas ne décale pas les suivants', () => {
+  const { s, planifies } = superviseurEtale([1, 2, 3], { tirages: [0] });
+  // pid 2 n'a pas de socket amont: il est refuse.
+  fauxClient(s, 3);
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  assert.strictEqual(rendu[0].ok, false);
+  assert.strictEqual(rendu[1].retardMs, 1);
+  assert.deepStrictEqual(planifies.map((p) => p.delai), [1]);
+});
+
+// Meme garde que emettre(): a l'echeance, on est hors de toute pile d'appel.
+// Une socket fermee entre-temps y ferait remonter une exception non capturee
+// dans le process principal.
+test('une socket fermée à l échéance se journalise au lieu de lever', () => {
+  const journaux = [];
+  const s = new Superviseur({
+    arme: true,
+    etalementRejeu: { minMs: 1, maxMs: 40 },
+    alea: () => 0,
+    planifier: (fn) => { fn(); return null; },   // echeance immediate
+    onJournal: (pid, texte) => journaux.push({ pid, texte }),
+  });
+  s.comptes.ajouter({ pid: 1, port: 1 });
+  s.comptes.ajouter({ pid: 2, port: 2 });
+  s.clients.set(2, { pid: 2, amont: { write: () => { throw new Error('socket fermée'); } } });
+
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  assert.strictEqual(rendu[0].ok, true);
+  assert.strictEqual(journaux.length, 1);
+  assert.match(journaux[0].texte, /socket fermée/);
+  assert.strictEqual(journaux[0].pid, 2);
+});
+
+// Le desarmement prime sur tout le reste: pas d'emission, donc rien a etaler.
+test('non armé, l étalement ne planifie rien', () => {
+  const { s, planifies } = superviseurEtale([1, 2], { tirages: [0] });
+  s.arme = false;
+  const ecrits = fauxClient(s, 2);
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  assert.strictEqual(rendu[0].emis, false);
+  assert.strictEqual(planifies.length, 0);
+  assert.strictEqual(ecrits.length, 0);
+});
+
+// Defaut inerte, comme `arme`: sans etalement configure, rejouer() ecrit
+// pendant l'appel. C'est ce que verifient les tests d'emission ci-dessus.
+test('sans étalement configuré, la trame part pendant l appel', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  s.arme = true;
+  const ecrits = fauxClient(s, 2);
+  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  assert.strictEqual(ecrits.length, 1);
+  assert.strictEqual(rendu[0].retardMs, 0);
+});
+
 test('sans socket amont, rien n est émis et la raison est donnée', () => {
   const s = superviseurAvecComptes([1, 2]);
   s.arme = true;

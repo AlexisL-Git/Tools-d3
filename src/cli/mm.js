@@ -1,7 +1,7 @@
 'use strict';
 const { Superviseur } = require('../superviseur');
 const { findDofusProcesses } = require('../injector');
-const { creerReplicateur } = require('../replicateur');
+const { creerReplicateur, ETALEMENT_REJEU } = require('../replicateur');
 const { creerPasseur } = require('../passeur');
 const { composer } = require('../composer');
 
@@ -93,6 +93,9 @@ async function main() {
 
   const superviseur = new Superviseur({
     arme,
+    // Meme etalement que l'application. Une politique de rejeu qui differe
+    // entre les deux rendrait un essai au CLI non representatif.
+    etalementRejeu: ETALEMENT_REJEU,
     onJournal: (pid, texte) => console.log(`[${pid}] ${texte}`),
   });
 
@@ -110,7 +113,10 @@ async function main() {
         (armeAlors ? 'rejoué(s)' : 'rejouable(s), rien envoyé'),
       );
       for (const r of ok) {
-        console.log(`    ${nomCourt(r.pid, superviseur.clients)} : ${r.action}, ${r.octets} o${r.emis ? ' — ENVOYÉ' : ''}`);
+        // Le retard fait partie du compte rendu: sans lui, un rejeu etale et
+        // un rejeu simultane produisent la meme sortie.
+        const quand = r.emis ? ` — ENVOYÉ dans ${r.retardMs} ms` : '';
+        console.log(`    ${nomCourt(r.pid, superviseur.clients)} : ${r.action}, ${r.octets} o${quand}`);
       }
       for (const r of refus) console.log(`    ${nomCourt(r.pid, superviseur.clients)} : ${r.raison}`);
     },
