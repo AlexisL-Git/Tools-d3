@@ -31,14 +31,16 @@ le canal ne fait que transporter ce qu'ils possèdent déjà.
 
 Ce qui est réellement obtenu :
 
-- **contre un inconnu :** rien d'indexé, aucun dépôt public, une URL non listée
-  et un secret partagé. Efficace.
+- **contre un inconnu :** rien d'indexé, aucun dépôt public, une URL non listée,
+  et une clé par ami vérifiée en base — sans clé valide, les points d'entrée
+  répondent 404. Efficace.
 - **contre un ami curieux :** le code est compilé en **bytecode V8**. Ce n'est
   pas un mur — krm35 fait exactement cela, et récupérer le sien a coûté une
   séance entière en scannant le tas V8 — mais c'est un obstacle sérieux.
 
-**Le secret partagé est extractible de l'application.** Il arrête les robots et
-les curieux de passage, pas quelqu'un de déterminé qui a le binaire. C'est une
+**La clé d'un ami est extractible de sa propre installation** — c'est la sienne,
+il l'a saisie. Elle ne lui donne accès qu'aux mises à jour, jamais au panneau ni
+aux clés des autres. S'il la diffuse, elle se révoque en un clic. C'est une
 propriété du modèle, pas un défaut d'implémentation.
 
 **Ce qui est publié s'exécute chez les autres.** Une erreur se propage à tout le
@@ -50,12 +52,67 @@ arrière automatique et du coupe-circuit, plus bas.
 
 1. **Première installation manuelle**, mises à jour automatiques. Le paquet de
    482 Mo est donné une fois.
-2. **Canal : Vercel**, projet séparé, URL non listée, secret partagé.
-3. **Code compilé en bytecode V8.**
-4. **Mise à jour bloquante au lancement**, avant l'ouverture de la fenêtre.
+2. **Un seul paquet pour tout le monde.** Il ne contient aucune clé. Chaque ami
+   saisit sa clé au premier lancement.
+3. **Canal : Vercel**, projet séparé, URL non listée.
+4. **Clé par ami, révocable à distance**, via une base de données et un panneau
+   d'administration.
+5. **Code compilé en bytecode V8, amorceur compris.** Aucun `.js` lisible dans
+   le paquet, aucune carte de sources, aucun commentaire.
+6. **Aucun outil de développement dans le paquet distribué.**
+7. **Mise à jour bloquante au lancement**, avant l'ouverture de la fenêtre.
    Quelques secondes sur 12 Mo, et seulement les jours de publication. Garantie
    forte : personne ne joue avec une version périmée — ce qui compte quand une
    trame du jeu change et casse l'ancienne.
+
+## Le contrôle d'accès : clé par ami
+
+**Une base de données remplace le manifeste fixe.** Même fournisseur que
+`dofus-commerce` (Neon). Une table :
+
+```
+amis
+  cle           secret unique, saisi par l'ami au premier lancement
+  nom           l'étiquette que l'utilisateur lui donne ("Kévin")
+  actif         true / false
+  cree_le
+  derniere_vue  mise à jour à chaque interrogation réussie
+```
+
+**Le paquet ne porte aucune clé.** Au premier lancement, l'application demande
+la clé, l'envoie à `/api/manifeste`, et selon la réponse :
+
+- clé absente de la base, ou `actif = false` → **404** : l'application refuse de
+  démarrer, affiche un message clair, et redemande une clé (au cas où une
+  nouvelle aurait été fournie) ;
+- clé valide → la clé est enregistrée dans `%APPDATA%\Replicate\cle.txt`,
+  l'application démarre, `derniere_vue` est mise à jour.
+
+Aux lancements suivants, la clé est relue depuis le disque ; l'écran de saisie
+ne réapparaît pas, sauf si la clé a été révoquée entre-temps.
+
+**La clé est stockée en clair.** La chiffrer serait du théâtre : elle sert à
+être renvoyée au serveur, donc l'application doit pouvoir la lire, donc l'ami
+aussi. Le vrai levier de contrôle est la révocation côté serveur, pas le secret
+côté client.
+
+Révoquer un ami — parce qu'il a diffusé l'outil, ou pour toute autre raison —
+est un clic dans le panneau, effet au prochain lancement du concerné, sans
+toucher aux autres.
+
+## Le panneau d'administration
+
+Une page web sur le projet Vercel, derrière un **mot de passe admin** qui vit
+dans une variable d'environnement Vercel, connue de l'utilisateur seul et
+**jamais présente dans un paquet distribué**.
+
+Elle montre la liste des amis — nom, état, `derniere_vue` — avec :
+
+- un interrupteur actif/inactif par ami ;
+- un bouton « nouvel ami » qui crée une entrée, génère une clé, et l'affiche à
+  transmettre.
+
+Accessible depuis n'importe quel appareil, téléphone compris.
 
 ## Architecture
 
@@ -112,15 +169,18 @@ injoignable, démarre quand même.
 
 ## Le canal
 
-Deux fonctions sur un projet Vercel séparé :
+Trois fonctions sur un projet Vercel séparé :
 
 ```
-/api/manifeste   → { version, url, sha256, actif, message }
-/api/paquet      → l'archive du code compilé
+/api/manifeste   clé ami       → { version, url, sha256, actif, message } ; 404 sans clé valide
+/api/paquet      clé ami       → l'archive du code compilé ; 404 sans clé valide
+/api/admin       mot de passe  → sert le panneau et pilote la base
 ```
 
-Des fonctions plutôt que des fichiers statiques, pour pouvoir **exiger le secret
-partagé et répondre 404 sans lui**.
+Des fonctions plutôt que des fichiers statiques, pour pouvoir **vérifier la clé
+dans la base et répondre 404 sans clé valide**. `actif` et `message` du
+manifeste restent le coupe-circuit GLOBAL (ci-dessous), distinct de la
+révocation individuelle par clé.
 
 **La protection de déploiement Vercel doit être désactivée sur ce projet.**
 Active par défaut, elle renvoie une page de connexion d'environ 480 Ko à chaque
@@ -175,30 +235,61 @@ personnes n'en est pas un.
 L'en-tête affiche la version en cours d'exécution. Quand un ami dit « ça marche
 pas », le dépannage ne commence pas par une devinette.
 
+## Durcissement du paquet distribué
+
+- **Bytecode V8 intégral**, amorceur compris. Aucun `.js`, aucune carte de
+  sources, aucun commentaire ne subsiste dans le paquet.
+- **DevTools et console désactivés** en production ; raccourcis de débogage
+  retirés.
+- **Journal réduit** : ni trames brutes, ni état interne. Un ami ne doit pas
+  pouvoir ouvrir un inspecteur et lire ce qui circule.
+
+**Limite honnête, répétée :** un ami déterminé peut extraire et désassembler le
+bytecode — c'est ce qui a été fait au produit de krm35. Le durcissement élève le
+mur, il ne le supprime pas. Le levier de contrôle réel est la révocation de clé.
+
+## Ce qui NE sera PAS fait, et pourquoi
+
+**Renommer l'exécutable pour échapper à la détection d'Ankama.** Refusé, et
+inefficace : un anti-triche n'identifie pas un outil au nom d'un `.exe`. Les
+signaux réels sont l'agent Frida dans l'espace d'adressage du client, les hooks
+sur les fonctions du jeu, et le comportement réseau (plusieurs personnages qui
+exécutent la même action au même instant). Renommer le fichier ne masque aucun
+des trois. Cohérent avec la décision déjà inscrite au projet : `fakeDeviceId` et
+`neutralizeCache` restent inertes, contrairement au produit de krm35.
+
 ## Périmètre
 
-**Dedans :** l'amorceur, le stockage versionné, le client de mise à jour, les
-deux fonctions Vercel, le script de publication, le coupe-circuit, la version
-affichée.
+**Dedans :** l'amorceur, le stockage versionné, le client de mise à jour, la
+saisie de clé au premier lancement, les trois fonctions Vercel, la base de
+données, le panneau d'administration, le script de publication, le coupe-circuit
+global, la version affichée, le durcissement du paquet.
 
 **Dehors :** l'installateur (la première installation reste manuelle), la mise à
 jour des dépendances natives, la signature de code, les canaux multiples
-(bêta/stable), la télémétrie.
+(bêta/stable), la télémétrie, tout contournement de détection.
 
 ## Critères de réussite
 
-1. Un ami lance l'application : elle démarre sur la version embarquée, sans
-   réseau requis.
-2. L'utilisateur publie une version : au lancement suivant, l'ami l'obtient sans
+1. Au premier lancement, l'application demande une clé ; une clé valide la fait
+   démarrer et est enregistrée ; une clé invalide est refusée avec un message,
+   et l'écran redemande.
+2. Aux lancements suivants, la clé enregistrée est réutilisée sans réécran.
+3. L'utilisateur publie une version : au lancement suivant, l'ami l'obtient sans
    rien faire, et l'en-tête affiche le nouveau numéro.
-3. Vercel injoignable : l'application démarre quand même, sur la version en
-   place.
-4. Une archive corrompue est rejetée sur son SHA-256 et ne remplace rien.
-5. Une version qui plante au démarrage est abandonnée toute seule au lancement
+4. L'utilisateur désactive un ami dans le panneau : au prochain lancement de ce
+   seul ami, l'application refuse de démarrer ; les autres ne sont pas touchés.
+5. Vercel injoignable : l'application démarre quand même, sur la version en
+   place (une fois la clé déjà validée une première fois).
+6. Une archive corrompue est rejetée sur son SHA-256 et ne remplace rien.
+7. Une version qui plante au démarrage est abandonnée toute seule au lancement
    suivant, qui repart sur la précédente.
-6. `actif: false` empêche le démarrage et affiche le message.
-7. Un inconnu sans le secret reçoit 404 sur les deux points d'entrée.
-8. `npm test` passe et imprime son total.
+8. `actif: false` dans le manifeste empêche le démarrage de tous et affiche le
+   message (coupe-circuit global).
+9. Un inconnu sans clé valide reçoit 404 sur `/api/manifeste` et `/api/paquet` ;
+   `/api/admin` est inaccessible sans le mot de passe admin.
+10. Le paquet ne contient aucun `.js` lisible.
+11. `npm test` passe et imprime son total.
 
 ## Pièges connus, à ne pas repayer
 
