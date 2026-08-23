@@ -39,7 +39,15 @@ class Superviseur {
   // arme = false: tout est calcule et journalise, rien n'est envoye. C'est le
   // defaut, et il doit le rester tant qu'on n'a pas decide d'ecrire pour de
   // bon sur le reseau.
-  constructor({ onTrame = () => {}, onJournal = () => {}, arme = false, transformerEntrant = null } = {}) {
+  // etalementRejeu — { minMs, maxMs } pour espacer les esclaves, ou null pour
+  //   emettre pendant l'appel. Null par defaut, comme `arme` vaut faux par
+  //   defaut: le comportement inerte est celui qu'on obtient sans rien
+  //   demander. Les deux appelants reels (l'application et le CLI) l'activent.
+  // alea, planifier — injectes pour que l'etalement se teste sans dormir.
+  constructor({
+    onTrame = () => {}, onJournal = () => {}, arme = false, transformerEntrant = null,
+    etalementRejeu = null, alea = Math.random, planifier = setTimeout,
+  } = {}) {
     this.comptes = new Comptes();
     this.clients = new Map();
     this.maitre = null;
@@ -50,6 +58,18 @@ class Superviseur {
     // defaut: le proxy relaie alors octet pour octet, comme avant l'ajout du
     // no-anim.
     this.transformerEntrant = transformerEntrant;
+    this.etalementRejeu = etalementRejeu;
+    this.alea = alea;
+    this.planifier = planifier;
+  }
+
+  // Ecart, en millisecondes entieres, entre un esclave et le precedent. Borne
+  // aux deux bouts: un ecart nul remettrait deux comptes sur la meme
+  // milliseconde, ce que l'etalement existe justement pour eviter.
+  _ecartEtalement() {
+    if (this.etalementRejeu === null) return 0;
+    const { minMs, maxMs } = this.etalementRejeu;
+    return minMs + Math.floor(this.alea() * (maxMs - minMs + 1));
   }
 
   journal(pid, texte) {
@@ -218,8 +238,19 @@ class Superviseur {
 
   // Rejoue une action du maitre chez tous les esclaves. Rend le compte rendu
   // de ce qui a ete fait, ou de ce qui aurait ete fait si arme vaut false.
+  //
+  // Avec etalementRejeu, les esclaves ne partent plus ensemble: chacun est
+  // decale de son predecesseur d'un ecart tire entre minMs et maxMs, cumule le
+  // long de la boucle. Sept comptes qui se teleportent sur la meme
+  // milliseconde n'arrivent pas quand sept personnes jouent.
+  //
+  // Le compte rendu reste SYNCHRONE, retards compris: `emis` dit que
+  // l'emission est acquise, `retardMs` dans combien de temps. Rendre une
+  // promesse ici aurait contamine le CLI, le replicateur et leurs tests pour
+  // une information qu'aucun des deux n'attend.
   rejouer({ type, brute, pidMaitre }) {
     const rendu = [];
+    let retard = 0;
     for (const etat of this.comptes.esclaves(pidMaitre)) {
       const prep = this.preparer(type, brute, etat);
       if (!prep.ok) {
@@ -233,13 +264,32 @@ class Superviseur {
       }
       // Le reassembleur retire le prefixe de longueur: il faut le remettre.
       const paquet = Buffer.concat([writeVarint(prep.octets.length), prep.octets]);
-      if (this.arme) client.amont.write(paquet);
+      // L'ecart n'est consomme que par un esclave qui emet vraiment: le
+      // compter avant les deux refus ci-dessus ouvrirait des trous de 40 ms
+      // pendant lesquels rien ne part.
+      retard += this._ecartEtalement();
+      if (this.arme) {
+        if (retard === 0) client.amont.write(paquet);
+        else this._emettreApres(retard, etat.pid, client.amont, paquet);
+      }
       // `ok` dit que le rejeu est possible, `emis` qu'il a eu lieu. Les
       // confondre faisait passer tout succes pour un refus en mode
       // observation, ou rien n'est jamais emis.
-      rendu.push({ pid: etat.pid, ok: true, emis: this.arme, action: prep.action, octets: paquet.length });
+      rendu.push({ pid: etat.pid, ok: true, emis: this.arme, action: prep.action, octets: paquet.length, retardMs: retard });
     }
     return rendu;
+  }
+
+  // Ecriture differee d'un rejeu. A l'echeance on est hors de toute pile
+  // d'appel: une socket fermee entre-temps ferait remonter une exception non
+  // capturee dans le process principal. Meme garde que emettre(), pour la meme
+  // raison — sauf qu'ici il n'y a plus personne a qui rendre un refus, d'ou le
+  // journal.
+  _emettreApres(retardMs, pid, amont, paquet) {
+    this.planifier(() => {
+      try { amont.write(paquet); }
+      catch (e) { this.journal(pid, `rejeu differe (${retardMs} ms) : ${e.message}`); }
+    }, retardMs);
   }
 
   // Ecrit une trame sur UN client. Contrairement a rejouer(), qui vise tous

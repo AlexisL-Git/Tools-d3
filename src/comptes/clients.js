@@ -63,4 +63,25 @@ function listerClients(executer = execFile) {
   });
 }
 
-module.exports = { extraireIdCompte, extrairePersonnage, analyserSortie, listerClients };
+// Ferme les clients dont on donne les pid. `tuer` est injecte pour que la
+// fonction se teste sans tuer quoi que ce soit.
+//
+// LE GARDE SUR LE PID N'EST PAS COSMETIQUE: sous Node, process.kill(0) vise le
+// GROUPE de processus courant, donc l'application elle-meme. Un zero dans la
+// liste ferait que le bouton OFF ferme l'application au lieu des clients.
+function fermerClients(pids, tuer = (pid) => process.kill(pid)) {
+  const rendu = [];
+  for (const pid of pids) {
+    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) {
+      rendu.push({ pid, ok: false, raison: 'pid invalide' });
+      continue;
+    }
+    // Un client ferme entre l'enumeration et le clic fait lever: c'est un
+    // chemin normal, pas une anomalie, et les suivants doivent suivre.
+    try { tuer(pid); rendu.push({ pid, ok: true }); }
+    catch (e) { rendu.push({ pid, ok: false, raison: e.message }); }
+  }
+  return rendu;
+}
+
+module.exports = { extraireIdCompte, extrairePersonnage, analyserSortie, listerClients, fermerClients };

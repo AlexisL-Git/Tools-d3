@@ -3,12 +3,27 @@
 // Croise les comptes du launcher et les clients en cours pour produire l'etat
 // affichable. Fonction pure: ni fichier, ni process, ni reseau.
 //
-// Cinq etats possibles, dont le troisieme est le plus important:
+// Six etats possibles, dont le quatrieme est le plus important:
 //   hors-ligne       le compte existe, aucun client ne tourne
-//   intercepte       un client tourne et passe par notre proxy
+//   intercepte       une trame a ete decodee: le trafic passe par notre proxy
+//   en-attente       l'agent est en place, aucune trame encore — trop tot pour
+//                    conclure
 //   non-intercepte   un client tourne mais s'est connecte avant l'application
 //   erreur           l'attache a echoue: ce client ne suivra rien
 //   inconnu          un client tourne sans compte connu de la liste
+//
+// ATTENTION: `intercepte` se prouve par une TRAME OBSERVEE, jamais par une
+// attache reussie. L'agent detourne `connect` pour les connexions A VENIR: il
+// s'injecte tres bien dans un client deja connecte, dont la session restera
+// pourtant hors du proxy. C'est le faux positif du 22/08 — client lance a
+// 13:09, application a 14:27, affiche « suit », incapable de rejouer quoi que
+// ce soit. Un client attache sans trafic et un client irrattrapable produisent
+// le meme silence; seule la trame les separe.
+//
+// `en-attente` existe pour ne pas remplacer ce faux positif par un faux
+// negatif: entre l'attache et la premiere trame il s'ecoule une seconde ou
+// deux, pendant lesquelles « relance ce client » serait un mauvais conseil.
+// C'est l'appelant qui borne cette fenetre — la vue reste une fonction pure.
 //
 // Un client lance avant l'application a etabli sa session hors du proxy et ne
 // peut pas etre rattrape. Le dire explicitement evite a l'utilisateur de
@@ -16,15 +31,19 @@
 // client dont frida.attach a echoue affiche comme « suit » ferait attendre un
 // rejeu qui n'arrivera jamais.
 //
-// Deux champs completent l'etat:
-//   suivi    le client passe par notre proxy, independamment du libelle
-//            affiche. C'est lui, et non `etat`, qui dit si une exclusion a un
-//            sens: un client au compte inconnu peut tres bien etre intercepte.
-//   message  derniere raison utile pour cette ligne — echec d'attache, ou
-//            refus rendu par rejouer() (« manque skillInstanceUid pour
-//            l'element N »). null quand il n'y a rien a dire.
+// Trois champs completent l'etat:
+//   suivi      une trame a prouve que ce client passe par notre proxy. C'est
+//              lui qui compte les « comptes en jeu »: il ne vaut vrai que sur
+//              preuve.
+//   pilotable  l'agent est en place — trafic prouve ou fenetre d'attente. Ce
+//              n'est PAS `etat` qui en decide: un client passe par notre proxy
+//              mais absent de la liste Zaap s'affiche « compte inconnu » tout
+//              en etant parfaitement pilotable.
+//   message    derniere raison utile pour cette ligne — echec d'attache, ou
+//              refus rendu par rejouer() (« manque skillInstanceUid pour
+//              l'element N »). null quand il n'y a rien a dire.
 
-function ligneBase(compte, favoris, exclus, passeTour, invitation, noAnim) {
+function ligneBase(compte, favoris, exclus, passeTour, invitation, noAnim, echange) {
   return {
     id: compte.id,
     nickname: compte.nickname,
@@ -36,16 +55,18 @@ function ligneBase(compte, favoris, exclus, passeTour, invitation, noAnim) {
     passeTour: passeTour.has(compte.id),
     invitation: invitation.has(compte.id),
     noAnim: noAnim.has(compte.id),
+    echange: echange.has(compte.id),
     etat: 'hors-ligne',
     estMaitre: false,
     suivi: false,
+    pilotable: false,
     message: null,
   };
 }
 
 function construireVue({
   comptes, clients, intercepte, maitre, exclus, favoris, passeTour = new Set(),
-  invitation = new Set(), noAnim = new Set(),
+  invitation = new Set(), noAnim = new Set(), echange = new Set(), enAttente = new Set(),
   erreurs = new Map(), messages = new Map(),
 }) {
   const parCompte = new Map();
@@ -58,12 +79,24 @@ function construireVue({
   const etatDe = (pid, defaut) => (erreurs.has(pid) ? 'erreur' : defaut);
   const messageDe = (pid) => erreurs.get(pid) ?? messages.get(pid) ?? null;
 
+  // L'ordre compte: la preuve (une trame) avant l'attente, l'attente avant le
+  // constat d'echec. `erreur` passe devant tout, via etatDe.
+  const etatClient = (pid, defaut) => {
+    if (intercepte.has(pid)) return etatDe(pid, defaut);
+    if (enAttente.has(pid)) return etatDe(pid, 'en-attente');
+    return etatDe(pid, 'non-intercepte');
+  };
+  // Un client en erreur n'a pas d'agent en place: ses interrupteurs ne
+  // commanderaient rien.
+  const pilotableDe = (pid) =>
+    !erreurs.has(pid) && (intercepte.has(pid) || enAttente.has(pid));
+
   // Les clients repris a la fin sont ceux qu'aucune ligne de compte n'a
   // absorbes: on les suit ici plutot que de tester a nouveau leur idCompte.
   const absorbes = new Set();
 
   const lignes = comptes.map((compte) => {
-    const ligne = ligneBase(compte, favoris, exclus, passeTour, invitation, noAnim);
+    const ligne = ligneBase(compte, favoris, exclus, passeTour, invitation, noAnim, echange);
     const client = parCompte.get(compte.id);
     if (!client) return ligne;
     absorbes.add(client.pid);
@@ -72,7 +105,8 @@ function construireVue({
     ligne.personnage = client.personnage;
     ligne.classe = client.classe;
     ligne.suivi = intercepte.has(client.pid);
-    ligne.etat = etatDe(client.pid, ligne.suivi ? 'intercepte' : 'non-intercepte');
+    ligne.pilotable = pilotableDe(client.pid);
+    ligne.etat = etatClient(client.pid, 'intercepte');
     ligne.estMaitre = client.pid === maitre;
     ligne.message = messageDe(client.pid);
     return ligne;
@@ -105,9 +139,14 @@ function construireVue({
       passeTour: c.idCompte !== null && passeTour.has(c.idCompte),
       invitation: c.idCompte !== null && invitation.has(c.idCompte),
       noAnim: c.idCompte !== null && noAnim.has(c.idCompte),
-      etat: etatDe(c.pid, 'inconnu'),
+      echange: c.idCompte !== null && echange.has(c.idCompte),
+      etat: etatClient(c.pid, 'inconnu'),
       estMaitre: c.pid === maitre,
       suivi,
+      // Meme piege que passeTour/invitation/noAnim, rencontre trois fois deja:
+      // un champ code en dur ici rendrait la ligne indebrayable. Toutes les
+      // lignes passent par ce repli si lireComptes() echoue.
+      pilotable: pilotableDe(c.pid),
       message: messageDe(c.pid),
     });
   }

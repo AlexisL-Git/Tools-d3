@@ -3,31 +3,52 @@ const path = require('node:path');
 const { app, BrowserWindow, ipcMain } = require('electron');
 
 const { Superviseur } = require('../src/superviseur');
-const { creerReplicateur } = require('../src/replicateur');
+const { creerReplicateur, ETALEMENT_REJEU } = require('../src/replicateur');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
+const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
-const { listerClients } = require('../src/comptes/clients');
+const { listerClients, fermerClients } = require('../src/comptes/clients');
 const { construireVue } = require('../src/comptes/vue');
 const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
 
 const PERIODE_PROCESS = 500;    // prise en charge des nouveaux clients
 const PERIODE_VUE = 2000;       // rafraichissement de la liste affichee
+// Delai laisse a un client fraichement attache pour produire sa premiere
+// trame. Mesure: un client lance derriere le proxy ouvre sa connexion des
+// l'ecran de connexion et le serveur repond en moins d'une seconde. Passe ce
+// delai sans une seule trame, la conclusion est acquise: sa session s'est
+// ouverte ailleurs, il est irrattrapable. Genereux expres — se tromper ici
+// coute un mauvais conseil (« relance ce client ») a un client parfaitement
+// sain.
+const DELAI_PREUVE_TRAFIC = 10000;
 
 let fenetre = null;
 let superviseur = null;
 let favoris = null;
 let comptes = [];
 let erreurComptes = null;
-// Trois ensembles distincts, et les confondre coute cher: `vus` evite de
+// Cinq ensembles distincts, et les confondre coute cher: `vus` evite de
 // retenter sans fin une attache impossible, `prisEnCharge` ne contient que les
-// clients dont l'agent est en place — c'est lui que la vue lit — et `erreurs`
-// dit pourquoi les autres n'y sont pas.
+// clients dont l'agent est en place, `erreurs` dit pourquoi les autres n'y
+// sont pas.
+//
+// `avecTrafic` est celui que la vue lit comme preuve d'interception, et
+// prisEnCharge NE SUFFIT PAS: l'agent detourne `connect` pour les connexions a
+// venir, donc il s'injecte parfaitement dans un client deja connecte, dont la
+// session restera pourtant hors du proxy. Affiche « suit », ce client ne
+// rejouait rien — faux positif observe le 22/08 (client a 13:09, application a
+// 14:27). Seule une trame decodee le prouve.
+//
+// `attacheA` date l'attache, pour ne pas remplacer ce faux positif par un faux
+// negatif pendant la seconde qui precede la premiere trame.
 const vus = new Set();
 const prisEnCharge = new Set();
+const avecTrafic = new Set();   // pid -> au moins une trame decodee a traverse
+const attacheA = new Map();     // pid -> instant de l'attache reussie
 const erreurs = new Map();      // pid -> message d'echec d'attache
 const messages = new Map();     // pid -> dernier refus de rejeu, pour l'affichage
 let minuteurProcess = null;
@@ -40,6 +61,8 @@ const reglagesInvitation = { actif: false };
 // Lu a chaque chunk par le transformateur: modifier ce champ suffit. Faux =
 // le proxy relaie le flux descendant octet pour octet, comme avant.
 const reglagesNoAnim = { actif: false };
+// Lu a chaque trame par l'accepteur d'echange: modifier ce champ suffit.
+const reglagesEchange = { actif: false };
 
 const DEPART = Date.now();
 function journal(pid, texte) {
@@ -50,11 +73,14 @@ function journal(pid, texte) {
 // Une trame decodee prouve que le trafic traverse le proxy. Un client attache
 // sans une seule trame et un client qui n'a rien a dire produisent le meme
 // silence, et ce silence a coute deux faux diagnostics.
-function premiereTrame() {
-  const vus = new Set();
+//
+// Cette preuve ne sert plus seulement le journal: c'est elle, et non l'attache
+// reussie, qui fait passer une ligne a « suit ». D'ou l'ecriture dans
+// `avecTrafic`, en plus de la ligne de journal qui reste emise une seule fois.
+function noterTrafic() {
   return function onTrame({ pid, dir, frame }) {
-    if (dir !== 'in' || frame === null || vus.has(pid)) return;
-    vus.add(pid);
+    if (dir !== 'in' || frame === null || avecTrafic.has(pid)) return;
+    avecTrafic.add(pid);
     journal(pid, 'premiere trame decodee — le trafic passe bien par le proxy');
   };
 }
@@ -71,6 +97,11 @@ async function balayerProcess() {
     if (vivants.has(pid)) continue;
     vus.delete(pid);
     prisEnCharge.delete(pid);
+    // Sans ces deux lignes, un pid recycle par Windows heriterait de la preuve
+    // de trafic du client precedent — et repasserait « suit » sans rien avoir
+    // montre.
+    avecTrafic.delete(pid);
+    attacheA.delete(pid);
     erreurs.delete(pid);
     messages.delete(pid);
     await superviseur.retirer(pid);
@@ -84,6 +115,7 @@ async function balayerProcess() {
     try {
       await superviseur.ajouter({ pid: p.pid, nom: p.name });
       prisEnCharge.add(p.pid);
+      attacheA.set(p.pid, Date.now());
       // Un compte relance doit retrouver son interrupteur enregistre plutot
       // que de repartir a faux a chaque redemarrage de client.
       const clients = await listerClients();
@@ -93,6 +125,7 @@ async function balayerProcess() {
         etat.passeTour = favoris.passeTourActif(idCompte);
         etat.accepteInvitation = favoris.invitationActive(idCompte);
         etat.noAnim = favoris.noAnimActif(idCompte);
+        etat.accepteEchange = favoris.echangeActif(idCompte);
         etat.exclu = false;
       }
     } catch (e) {
@@ -121,6 +154,7 @@ async function envoyerEtat() {
     etat.passeTour = favoris.passeTourActif(idCompte);
     etat.accepteInvitation = favoris.invitationActive(idCompte);
     etat.noAnim = favoris.noAnimActif(idCompte);
+    etat.accepteEchange = favoris.echangeActif(idCompte);
   }
 
   const exclus = new Set(
@@ -141,29 +175,48 @@ async function envoyerEtat() {
   const noAnim = new Set(
     superviseur.comptes.tous.filter((e) => e.noAnim).map((e) => pidVersCompte(e.pid, clients)),
   );
+  // Comme les quatre autres: la case affichee vient de l'etat vivant.
+  const echange = new Set(
+    superviseur.comptes.tous.filter((e) => e.accepteEchange).map((e) => pidVersCompte(e.pid, clients)),
+  );
   // IMPORTANT de revue finale: reglagesNoAnim.actif etait recalcule ICI a
   // chaque tick (noAnim.size > 0), donc basculerNoAnim() n'avait aucun effet
   // propre -- le bouton ANIM se rallumait ou se rallumait jamais selon les
   // cases par compte, pas selon le clic. Comme reglagesPasseTour.actif et
   // reglagesInvitation.actif, c'est desormais un interrupteur general
   // independant, mis a jour uniquement par l'IPC basculerNoAnim.
+  // Agent en place, pas encore de trame, et attache trop recente pour
+  // conclure. Passe DELAI_PREUVE_TRAFIC, le pid quitte cet ensemble de
+  // lui-meme et la vue le montre « non intercepte ».
+  const maintenant = Date.now();
+  const enAttente = new Set(
+    [...prisEnCharge].filter(
+      (pid) => !avecTrafic.has(pid)
+        && maintenant - (attacheA.get(pid) ?? 0) < DELAI_PREUVE_TRAFIC,
+    ),
+  );
+
   fenetre.webContents.send('etat', {
     replicate: superviseur.arme,
     erreurComptes,
     passeTourActif: reglagesPasseTour.actif,
     invitationActive: reglagesInvitation.actif,
     noAnimActif: reglagesNoAnim.actif,
+    echangeActif: reglagesEchange.actif,
     delai: favoris.delai(),
     lignes: construireVue({
       comptes,
       clients,
-      intercepte: prisEnCharge,
+      // `avecTrafic`, PAS `prisEnCharge`: voir le commentaire de ces ensembles.
+      intercepte: avecTrafic,
+      enAttente,
       maitre: superviseur.maitre,
       exclus,
       favoris: new Set(favoris.tous()),
       passeTour,
       invitation,
       noAnim,
+      echange,
       erreurs,
       messages,
     }),
@@ -182,7 +235,7 @@ function compteVersPid(idCompte, clients) {
 
 function creerFenetre() {
   fenetre = new BrowserWindow({
-    width: 720,
+    width: 820,
     height: 560,
     title: 'Replicate',
     webPreferences: {
@@ -207,6 +260,10 @@ app.whenReady().then(async () => {
   reglagesPasseTour.delaiMs = Math.round(favoris.delai() * 1000);
   superviseur = new Superviseur({
     arme: false,
+    // Les esclaves ne partent plus sur la meme milliseconde: 16 a 80 ms
+    // d'ecart tire au hasard entre chacun, cumule. Le plancher tient au pas
+    // des minuteurs Windows — voir la constante, partagee avec le CLI.
+    etalementRejeu: ETALEMENT_REJEU,
     onJournal: journal,
     transformerEntrant: creerTransformateurFlux({
       reglages: reglagesNoAnim,
@@ -262,7 +319,16 @@ app.whenReady().then(async () => {
         else journal(pid, `invitation : ${raison}`);
       },
     }),
-    premiereTrame(),
+    creerAccepteurEchange({
+      superviseur,
+      reglages: reglagesEchange,
+      delai: DELAI_REACTION,
+      onCompteRendu: ({ pid, ok, raison, validation, retardMs }) => {
+        if (ok) journal(pid, `echange : ${validation ? 'valide' : 'accepte'} apres ${retardMs} ms`);
+        else journal(pid, `echange : ${raison}`);
+      },
+    }),
+    noterTrafic(),
     // Une politique qui leve doit se voir. C'est ce qui manquait: le passeur
     // pouvait echouer sur une trame sans laisser la moindre trace.
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
@@ -358,11 +424,43 @@ ipcMain.handle('basculerNoAnimCompte', async (_e, idCompte, actif) => {
   await envoyerEtat();
 });
 
+ipcMain.handle('basculerEchange', async (_e, actif) => {
+  // Interrupteur general independant, mis a jour par l'IPC SEUL: le recalculer
+  // dans envoyerEtat() depuis les cases par compte est ce qui a fait que le
+  // bouton ANIM ne commandait rien.
+  reglagesEchange.actif = Boolean(actif);
+  await envoyerEtat();
+});
+
+ipcMain.handle('basculerEchangeCompte', async (_e, idCompte, actif) => {
+  // Frontiere de confiance: le renderer est sandboxe mais reste hors de notre
+  // controle. Un idCompte non entier ne doit ni chercher de pid ni atteindre
+  // l'etat du superviseur.
+  if (!Number.isInteger(idCompte)) return;
+  favoris.marquerEchange(idCompte, Boolean(actif));
+  const clients = await listerClients();
+  const pid = compteVersPid(idCompte, clients);
+  const etat = pid === null ? null : superviseur.comptes.get(pid);
+  if (etat) etat.accepteEchange = Boolean(actif);
+  await envoyerEtat();
+});
+
 ipcMain.handle('reglerDelai', async (_e, secondes) => {
   const v = Number(secondes);
   if (!Number.isFinite(v) || v < 0) return;
   favoris.reglerDelai(v);
   reglagesPasseTour.delaiMs = Math.round(v * 1000);
+  await envoyerEtat();
+});
+
+ipcMain.handle('fermerTousLesClients', async () => {
+  const clients = await listerClients();
+  const rendu = fermerClients(clients.map((c) => c.pid));
+  for (const r of rendu) {
+    journal(r.pid, r.ok ? 'client ferme par le bouton OFF' : `fermeture impossible : ${r.raison}`);
+  }
+  // Le balayage retire les clients morts et purge leur etat tout seul, sous
+  // 500 ms. On rafraichit quand meme pour que la liste ne mente pas d'ici la.
   await envoyerEtat();
 });
 

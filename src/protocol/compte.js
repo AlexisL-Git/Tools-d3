@@ -58,6 +58,9 @@ class EtatCompte {
     // Suppression des animations de deplacement en combat. Independant des
     // trois autres interrupteurs.
     this.noAnim = false;
+    // Acceptation automatique de l'echange propose par un autre de nos
+    // clients. Independant de `exclu`, `passeTour` et `accepteInvitation`.
+    this.accepteEchange = false;
     // elementId -> skillInstanceUid, propre a ce compte.
     this.skillParElement = new Map();
     this.trames = 0;

@@ -52,7 +52,7 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   // Depuis les extensions au passe-tour et a l'invitation, le fichier porte
   // aussi passeTour, invitation et delai (vides/nuls ici): voir le test
   // dedie plus bas pour le contenu complet.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'invitation', 'noAnim', 'passeTour']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'echange', 'favoris', 'invitation', 'noAnim', 'passeTour']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -103,11 +103,12 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'favoris', 'invitation', 'noAnim', 'passeTour']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['delai', 'echange', 'favoris', 'invitation', 'noAnim', 'passeTour']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
   assert.deepStrictEqual(contenu.noAnim, []);
+  assert.deepStrictEqual(contenu.echange, []);
   assert.strictEqual(contenu.delai, 0.5);
 });
 
@@ -200,5 +201,32 @@ test('un fichier sans cle noAnim se lit sans erreur', (t) => {
   fs.writeFileSync(chemin, JSON.stringify({ delai: 0, favoris: [3], passeTour: [], invitation: [] }), 'utf8');
   const f = new Favoris(chemin).charger();
   assert.deepStrictEqual(f.tousNoAnim(), []);
+  assert.strictEqual(f.estFavori(3), true);
+});
+
+test('l echange se marque, se lit et survit au rechargement', (t) => {
+  const chemin = fichierTemporaire(t);
+  const f = new Favoris(chemin).charger();
+  assert.strictEqual(f.echangeActif(42), false);
+  f.marquerEchange(42, true);
+  assert.strictEqual(f.echangeActif(42), true);
+  assert.deepStrictEqual(new Favoris(chemin).charger().tousEchange(), [42]);
+});
+
+test('l echange se retire', (t) => {
+  const chemin = fichierTemporaire(t);
+  const f = new Favoris(chemin).charger();
+  f.marquerEchange(42, true);
+  f.marquerEchange(42, false);
+  assert.deepStrictEqual(new Favoris(chemin).charger().tousEchange(), []);
+});
+
+// Un fichier ecrit par une version anterieure n'a pas la cle: la lecture doit
+// rendre une liste vide, pas faire echouer le demarrage.
+test('un fichier sans cle echange se lit sans erreur', (t) => {
+  const chemin = fichierTemporaire(t);
+  fs.writeFileSync(chemin, JSON.stringify({ delai: 0, favoris: [3], passeTour: [], invitation: [], noAnim: [] }), 'utf8');
+  const f = new Favoris(chemin).charger();
+  assert.deepStrictEqual(f.tousEchange(), []);
   assert.strictEqual(f.estFavori(3), true);
 });

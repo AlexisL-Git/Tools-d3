@@ -1,7 +1,21 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { creerReplicateur } = require('../src/replicateur');
+const { creerReplicateur, ETALEMENT_REJEU, MIN_TICK_WINDOWS } = require('../src/replicateur');
+
+// Ce test verrouille une MESURE, pas une preference. Sous le pas des minuteurs
+// Windows (~15,6 ms), deux echeances retombent dans le meme tick et s'ecrivent
+// dans le meme tour de boucle: l'ecart annonce ne se retrouve pas sur le
+// reseau. Constate sur 3 essais avec un plancher a 1 ms — 149,2 et 149,3 ms
+// pour 6 ms d'ecart annonce. Abaisser minMs sous ce seuil rend l'etalement
+// decoratif.
+test('le plancher d étalement dépasse le pas des minuteurs Windows', () => {
+  assert.ok(
+    ETALEMENT_REJEU.minMs >= MIN_TICK_WINDOWS,
+    `minMs=${ETALEMENT_REJEU.minMs} : sous ${MIN_TICK_WINDOWS} ms, deux comptes partent sur la même milliseconde`,
+  );
+  assert.ok(ETALEMENT_REJEU.maxMs > ETALEMENT_REJEU.minMs);
+});
 
 // La decision de rejeu, testee sans Electron, sans Frida et sans jeu: le
 // superviseur est remplace par un double qui note ce qu'on lui demande.
