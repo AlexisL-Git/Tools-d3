@@ -1,0 +1,55 @@
+<!doctype html><meta charset="utf-8"><title>OMNI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font: 15px/1.6 system-ui; background:#16181d; color:#e6e8ec; margin:0;
+         min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .carte { max-width:32em; width:100%; }
+  h1 { font-size:22px; margin:0 0 6px; letter-spacing:.08em; }
+  p { color:#8b93a3; margin:0 0 18px; }
+  .rangee { display:flex; gap:8px; }
+  input, button { font:inherit; padding:10px 14px; border-radius:8px;
+                  border:1px solid #3a3f4b; background:#22252c; color:#e6e8ec; }
+  input { flex:1; }
+  button { cursor:pointer; background:#2e5d8a; border:0; }
+  #avis { margin-top:14px; min-height:1.4em; color:#e8a598; }
+  #avis a { color:#7fb2e5; }
+  .note { margin-top:22px; font-size:13px; color:#6d7482; }
+</style>
+<div class="carte">
+  <h1>OMNI</h1>
+  <p>Colle la cle qui t'a ete transmise pour telecharger l'application.</p>
+  <div class="rangee">
+    <input id="cle" placeholder="cle" autofocus>
+    <button id="ok">telecharger</button>
+  </div>
+  <div id="avis"></div>
+  <p class="note">Le telechargement fait environ 480 Mo. Garde la cle: elle te
+    sera redemandee au premier lancement de l'application.</p>
+</div>
+<script>
+  // Aucun dialogue natif, et la cle ne passe jamais par l'adresse: un POST.
+  const avis = (t) => { document.getElementById('avis').textContent = t; };
+  async function demander() {
+    const cle = document.getElementById('cle').value.trim();
+    if (!cle) { avis('il faut une cle'); return; }
+    avis('verification...');
+    let r;
+    try {
+      r = await fetch('/api/telecharger', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cle }),
+      });
+    } catch (e) { avis('connexion impossible: ' + e.message); return; }
+    if (r.status === 404) { avis("cette cle n'est pas valide, ou aucun paquet n'est disponible"); return; }
+    if (!r.ok) { avis('le serveur a repondu ' + r.status + ' — reessaie'); return; }
+    const { url } = await r.json();
+    avis('telechargement lance. Si rien ne se passe, clique ici : ');
+    const a = document.createElement('a');
+    a.href = url; a.textContent = 'telecharger OMNI';
+    document.getElementById('avis').append(a);
+    location.href = url;
+  }
+  document.getElementById('ok').onclick = demander;
+  document.getElementById('cle').addEventListener('keydown', (e) => { if (e.key === 'Enter') demander(); });
+</script>

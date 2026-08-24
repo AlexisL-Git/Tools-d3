@@ -37,3 +37,17 @@ test('basculerService ecrit actif et message', async () => {
   assert.ok(sql.appels[0].valeurs.includes(false));
   assert.ok(sql.appels[0].valeurs.includes('maintenance'));
 });
+
+test('lireUrlPaquet rend l URL, ou null quand elle n est pas posee', async () => {
+  const { lireUrlPaquet } = require('../lib/manifeste');
+  assert.strictEqual(await lireUrlPaquet(fauxSql([[{ url_paquet: 'https://exemple/omni.zip' }]])), 'https://exemple/omni.zip');
+  assert.strictEqual(await lireUrlPaquet(fauxSql([[{ url_paquet: null }]])), null);
+  assert.strictEqual(await lireUrlPaquet(fauxSql([[]])), null);
+});
+
+test('ecrireUrlPaquet passe l URL en parametre', async () => {
+  const { ecrireUrlPaquet } = require('../lib/manifeste');
+  const sql = fauxSql([[]]);
+  await ecrireUrlPaquet(sql, 'https://exemple/omni.zip');
+  assert.ok(sql.appels[0].valeurs.includes('https://exemple/omni.zip'));
+});

@@ -14,4 +14,13 @@ async function basculerService(sql, actif, message) {
   await sql`UPDATE config SET actif = ${actif}, message = ${message} WHERE id = 1`;
 }
 
-module.exports = { lireManifeste, ecrireManifeste, basculerService };
+async function lireUrlPaquet(sql) {
+  const lignes = await sql`SELECT url_paquet FROM config WHERE id = 1`;
+  return lignes.length ? lignes[0].url_paquet || null : null;
+}
+
+async function ecrireUrlPaquet(sql, url) {
+  await sql`UPDATE config SET url_paquet = ${url} WHERE id = 1`;
+}
+
+module.exports = { lireManifeste, ecrireManifeste, basculerService, lireUrlPaquet, ecrireUrlPaquet };

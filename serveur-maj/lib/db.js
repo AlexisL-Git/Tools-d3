@@ -27,6 +27,9 @@ async function appliquerSchema(sql) {
     message TEXT,
     CHECK (id = 1)
   )`;
+  // Ajoutee apres coup: l'URL du paquet complet (480 Mo), qui vit chez un
+  // hebergeur de fichiers — Vercel ne sert pas des objets de cette taille.
+  await sql`ALTER TABLE config ADD COLUMN IF NOT EXISTS url_paquet TEXT`;
   await sql`INSERT INTO config (id) VALUES (1) ON CONFLICT (id) DO NOTHING`;
 }
 

@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { creerClient, appliquerSchema } = require('../lib/db');
 const { listerAmis, creerAmi, basculerAmi } = require('../lib/amis');
-const { basculerService, ecrireManifeste } = require('../lib/manifeste');
+const { basculerService, ecrireManifeste, ecrireUrlPaquet, lireUrlPaquet } = require('../lib/manifeste');
 
 // Comparaison a temps constant: une comparaison ordinaire revele la longueur
 // et les prefixes du secret par le temps de reponse.
@@ -50,6 +50,16 @@ async function traiterAdmin({ motDePasse, action, corps = {}, sql, genererCle, m
       }
       await ecrireManifeste(sql, { version: String(version), sha256: String(sha256).toLowerCase() });
       return { statut: 200, corps: { ok: true, version: String(version) } };
+    }
+    case 'paquet': {
+      // L'adresse du paquet complet, chez l'hebergeur de fichiers choisi.
+      if (corps.url === undefined) return { statut: 200, corps: { url: await lireUrlPaquet(sql) } };
+      const url = String(corps.url).trim();
+      if (url && !/^https:\/\//i.test(url)) {
+        return { statut: 400, corps: { erreur: 'une adresse https est attendue' } };
+      }
+      await ecrireUrlPaquet(sql, url || null);
+      return { statut: 200, corps: { ok: true, url: url || null } };
     }
     case 'service':
       await basculerService(sql, Boolean(corps.actif), corps.message || null);

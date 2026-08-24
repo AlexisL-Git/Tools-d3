@@ -3,6 +3,7 @@
   "functions": {
     "api/manifeste.js": { "maxDuration": 10 },
     "api/paquet.js": { "maxDuration": 10, "includeFiles": "paquets/**" },
-    "api/admin.js": { "maxDuration": 10, "includeFiles": "web/**" }
+    "api/admin.js": { "maxDuration": 10, "includeFiles": "web/**" },
+    "api/telecharger.js": { "maxDuration": 10, "includeFiles": "web/**" }
   }
 }

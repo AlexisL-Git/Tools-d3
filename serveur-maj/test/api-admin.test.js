@@ -77,6 +77,26 @@ test('publier refuse une empreinte qui n est pas un sha256', async () => {
   assert.strictEqual(r.statut, 400);
 });
 
+test('paquet enregistre une adresse https', async () => {
+  const sql = fauxSql([[]]);
+  const r = await traiterAdmin({ motDePasse: SECRET, action: 'paquet', corps: { url: 'https://exemple/omni.zip' }, sql, motDePasseAttendu: SECRET });
+  assert.strictEqual(r.statut, 200);
+  assert.strictEqual(r.corps.url, 'https://exemple/omni.zip');
+});
+
+// Une adresse en http exposerait la redirection a une interception triviale.
+test('paquet refuse une adresse qui n est pas en https', async () => {
+  const r = await traiterAdmin({ motDePasse: SECRET, action: 'paquet', corps: { url: 'http://exemple/omni.zip' }, sql: fauxSql([]), motDePasseAttendu: SECRET });
+  assert.strictEqual(r.statut, 400);
+});
+
+test('paquet sans url rend l adresse en place', async () => {
+  const sql = fauxSql([[{ url_paquet: 'https://exemple/omni.zip' }]]);
+  const r = await traiterAdmin({ motDePasse: SECRET, action: 'paquet', corps: {}, sql, motDePasseAttendu: SECRET });
+  assert.strictEqual(r.statut, 200);
+  assert.strictEqual(r.corps.url, 'https://exemple/omni.zip');
+});
+
 test('action inconnue, 400', async () => {
   const r = await traiterAdmin({ motDePasse: SECRET, action: 'xyz', sql: fauxSql([]), motDePasseAttendu: SECRET });
   assert.strictEqual(r.statut, 400);

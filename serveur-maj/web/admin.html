@@ -25,6 +25,13 @@
   <input id="nom" placeholder="nom du nouvel ami">
   <button id="b-creer">nouvel ami</button>
   <div class="bloc">
+    <h2>Lien de telechargement</h2>
+    <p class="aide">Adresse du paquet complet (480 Mo) chez ton hebergeur de fichiers. Les amis n'ont qu'un seul lien a connaitre : <a href="/api/telecharger" target="_blank" style="color:#7fb2e5">/api/telecharger</a> — ils y collent leur cle, et seule une cle valide obtient l'adresse.</p>
+    <input id="urlpaquet" placeholder="https://..." size="60">
+    <button id="b-url">enregistrer</button>
+    <div id="etaturl"></div>
+  </div>
+  <div class="bloc">
     <h2>Coupe-circuit</h2>
     <p class="aide">Arrete TOUS les amis au prochain lancement, avec ce message. A utiliser le jour ou une mise a jour de Dofus rend l'outil dangereux.</p>
     <input id="msgservice" placeholder="message affiche aux amis" size="50">
@@ -85,6 +92,10 @@
   async function rafraichir() {
     const amis = await api('lister');
     avis('');
+    try {
+      const p = await api('paquet', {});
+      if (p && p.url) document.getElementById('urlpaquet').value = p.url;
+    } catch (e) { /* le lien n'est pas essentiel a l'affichage */ }
     const t = document.getElementById('liste');
     t.textContent = '';
     const entete = document.createElement('tr');
@@ -128,6 +139,14 @@
       ? (actif ? 'service rouvert' : 'service coupe')
       : 'refuse';
   }
+  async function enregistrerUrl() {
+    const url = document.getElementById('urlpaquet').value.trim();
+    const r = await api('paquet', { url });
+    document.getElementById('etaturl').textContent = r.ok
+      ? (r.url ? 'lien enregistre' : 'lien efface')
+      : ('refuse: ' + (r.erreur || ''));
+  }
+  document.getElementById('b-url').onclick = enregistrerUrl;
   document.getElementById('b-couper').onclick = () => service(false);
   document.getElementById('b-rouvrir').onclick = () => service(true);
   document.getElementById('b-publier').onclick = publier;
