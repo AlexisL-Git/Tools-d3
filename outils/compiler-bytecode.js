@@ -39,12 +39,33 @@ function compilerFichier(chemin) {
   fs.rmSync(chemin);
 }
 
-function parcourir(dossier) {
+// Ce qui ne peut PAS etre compile, et pourquoi:
+//   node_modules     une dependance declare son point d'entree en .js dans son
+//                    package.json; le compiler rend le module introuvable
+//   electron.js      point d'entree du paquet: il installe le chargeur de
+//                    bytecode, il ne peut donc pas etre lui-meme du bytecode
+//   jsc.js           le chargeur lui-meme, meme raison
+//   *preload*.js     Electron lit ces fichiers COMME DU TEXTE et les execute;
+//                    il n'a aucune idee de notre format
+const DOSSIERS_EXCLUS = new Set(['node_modules']);
+const FICHIERS_EXCLUS = new Set(['electron.js', 'jsc.js']);
+
+function estExclu(nom) {
+  return FICHIERS_EXCLUS.has(nom) || nom.includes('preload');
+}
+
+function parcourir(dossier, laisses = []) {
   let n = 0;
   for (const e of fs.readdirSync(dossier, { withFileTypes: true })) {
     const c = path.join(dossier, e.name);
-    if (e.isDirectory()) n += parcourir(c);
-    else if (e.name.endsWith('.js')) { compilerFichier(c); n += 1; }
+    if (e.isDirectory()) {
+      if (DOSSIERS_EXCLUS.has(e.name)) continue;
+      n += parcourir(c, laisses);
+    } else if (e.name.endsWith('.js')) {
+      if (estExclu(e.name)) { laisses.push(c); continue; }
+      compilerFichier(c);
+      n += 1;
+    }
   }
   return n;
 }
@@ -55,8 +76,13 @@ function main() {
     console.error('usage: electron.exe outils/compiler-bytecode.js <dossier>');
     process.exit(1);
   }
-  console.log(`${parcourir(cible)} fichiers compiles (V8 ${process.versions.v8})`);
+  const laisses = [];
+  const n = parcourir(cible, laisses);
+  console.log(`${n} fichiers compiles (V8 ${process.versions.v8})`);
+  // Les exceptions sont ANNONCEES, pas tues: pretendre qu'il ne reste aucun
+  // .js lisible alors qu'il en reste quatre serait un mensonge de plus.
+  for (const l of laisses) console.log('laisse en clair:', path.relative(cible, l));
 }
 
 if (require.main === module) main();
-module.exports = { compilerSource, compilerFichier, envelopper };
+module.exports = { compilerSource, compilerFichier, envelopper, parcourir, estExclu };

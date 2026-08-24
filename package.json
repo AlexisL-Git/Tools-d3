@@ -1,6 +1,6 @@
 {
   "name": "mm",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "Launcher multi-compte Dofus 3",
   "main": "amorceur/electron.js",
@@ -11,7 +11,8 @@
     "analyze": "node src/cli/analyze.js",
     "paquet-code": "node outils/faire-paquet-code.js",
     "app": "electron amorceur/electron.js",
-    "pack": "electron-packager . Replicate --platform=win32 --arch=x64 --out=desktop/dist --overwrite --ignore=\"^/(docs|test|serveur-maj)\""
+    "etape": "echo Lancer avec le binaire package: ELECTRON_RUN_AS_NODE=1 Replicate.exe outils/faire-etape.js",
+    "pack": "node outils/faire-paquet.js"
   },
   "engines": {
     "node": ">=18"
