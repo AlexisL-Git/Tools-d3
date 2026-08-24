@@ -197,6 +197,9 @@ async function envoyerEtat() {
   );
 
   fenetre.webContents.send('etat', {
+    // Pose par l'amorceur avant de charger cette version. Quand un ami dit
+    // « ca marche pas », le depannage ne commence pas par une devinette.
+    version: process.env.REPLICATE_VERSION || 'dev',
     replicate: superviseur.arme,
     erreurComptes,
     passeTourActif: reglagesPasseTour.actif,

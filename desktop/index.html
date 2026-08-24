@@ -10,6 +10,7 @@
              background: #3a3f4b; color: #e6e8ec; cursor: pointer; font: inherit; }
   #bascule.actif { background: #2e7d4f; }
   #resume { color: #8b93a3; font-size: 13px; }
+  #version { color: #8b93a3; font-size: 12px; margin-left: -6px; }
   ul { list-style: none; margin: 0; padding: 0; }
   li { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid #22252c; }
   li.hors-ligne { opacity: .45; }
@@ -47,7 +48,7 @@
   #boff.confirme { background: #7a3b2e; color: #ffdcd2; }
 </style>
 <header>
-  <h1>Replicate</h1>
+  <h1>Replicate</h1><span id="version"></span>
   <button id="bascule">REPLI</button>
   <button id="bpt">PASSE-TOUR</button>
   <button id="binv">GROUPE</button>
@@ -191,6 +192,8 @@
 
     // « en jeu » = derriere notre proxy, y compris un client dont le compte
     // n'est pas dans la liste du launcher.
+    document.getElementById('version').textContent = etat.version || '';
+
     const enJeu = etat.lignes.filter((l) => l.suivi).length;
     document.getElementById('resume').textContent =
       `${enJeu} compte${enJeu > 1 ? 's' : ''} en jeu`;
