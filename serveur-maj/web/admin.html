@@ -11,6 +11,8 @@
   #avis input { width:34em; }
   .bloc { margin-top:22px; padding-top:16px; border-top:1px solid #22252c; }
   .bloc h2 { font-size:14px; margin:0 0 10px; color:#8b93a3; font-weight:600; }
+  .aide { color:#8b93a3; font-size:12px; margin:0 0 10px; max-width:60em; }
+  #etatservice { margin-top:10px; color:#8b93a3; font-size:12px; }
   #manifeste { margin-top:10px; color:#8b93a3; font-family:monospace; font-size:12px; }
 </style>
 <h1>Amis</h1>
@@ -22,6 +24,14 @@
 <div id="panneau" hidden>
   <input id="nom" placeholder="nom du nouvel ami">
   <button id="b-creer">nouvel ami</button>
+  <div class="bloc">
+    <h2>Coupe-circuit</h2>
+    <p class="aide">Arrete TOUS les amis au prochain lancement, avec ce message. A utiliser le jour ou une mise a jour de Dofus rend l'outil dangereux.</p>
+    <input id="msgservice" placeholder="message affiche aux amis" size="50">
+    <button id="b-couper">couper le service</button>
+    <button id="b-rouvrir">rouvrir</button>
+    <div id="etatservice"></div>
+  </div>
   <div class="bloc">
     <h2>Publier une version</h2>
     <input id="pubversion" placeholder="version (ex: 0.2.0)">
@@ -110,6 +120,16 @@
     const r = await api('publier', { version, sha256 });
     avis(r.ok ? ('manifeste bascule sur ' + r.version) : ('refuse: ' + (r.erreur || '')));
   }
+  async function service(actif) {
+    const message = document.getElementById('msgservice').value.trim();
+    if (!actif && !message) { avis("mets un message: c'est tout ce que les amis verront"); return; }
+    const r = await api('service', { actif, message: actif ? null : message });
+    document.getElementById('etatservice').textContent = r.ok
+      ? (actif ? 'service rouvert' : 'service coupe')
+      : 'refuse';
+  }
+  document.getElementById('b-couper').onclick = () => service(false);
+  document.getElementById('b-rouvrir').onclick = () => service(true);
   document.getElementById('b-publier').onclick = publier;
   document.getElementById('b-entrer').onclick = entrer;
   document.getElementById('b-creer').onclick = creer;
