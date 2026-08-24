@@ -14,9 +14,11 @@ async function traiterTelechargement({ cle, sql }) {
   if (!cle) return { statut: 404, corps: null };
   const v = await verifierCle(sql, cle);
   if (!v.ok) return { statut: 404, corps: null };
+  // Cle valide mais aucun paquet publie: on le DIT. Rendre 404 comme pour une
+  // cle inconnue melangeait deux situations que rien ne permettait ensuite de
+  // distinguer — ni pour l'ami, ni pour celui qui depanne.
   const url = await lireUrlPaquet(sql);
-  if (!url) return { statut: 404, corps: null };
-  return { statut: 200, corps: { url } };
+  return { statut: 200, corps: { url: url || null } };
 }
 
 module.exports = async (req, res) => {

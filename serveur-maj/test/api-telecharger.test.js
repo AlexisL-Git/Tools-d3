@@ -26,10 +26,12 @@ test('cle valide, l URL du paquet est rendue', async () => {
   assert.deepStrictEqual(r.corps, { url: 'https://exemple/omni.zip' });
 });
 
-// Une cle valide mais aucun paquet publie: 404 aussi. Rendre 200 avec une URL
-// nulle ferait cliquer dans le vide.
-test('cle valide mais aucune URL posee, 404', async () => {
+// Une cle valide mais aucun paquet publie n'est PAS un refus: l'ami a prouve
+// qu'il a le droit d'etre la. Lui rendre 404 lui faisait lire « ta cle est
+// invalide » alors que sa cle etait bonne.
+test('cle valide mais aucune URL posee: 200 et url nulle', async () => {
   const sql = fauxSql([[{ nom: 'Kevin' }], [], [{ url_paquet: null }]]);
   const r = await traiterTelechargement({ cle: 'ok', sql });
-  assert.strictEqual(r.statut, 404);
+  assert.strictEqual(r.statut, 200);
+  assert.deepStrictEqual(r.corps, { url: null });
 });

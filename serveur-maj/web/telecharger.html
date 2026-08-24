@@ -41,9 +41,10 @@
         body: JSON.stringify({ cle }),
       });
     } catch (e) { avis('connexion impossible: ' + e.message); return; }
-    if (r.status === 404) { avis("cette cle n'est pas valide, ou aucun paquet n'est disponible"); return; }
+    if (r.status === 404) { avis("cette cle n'est pas valide"); return; }
     if (!r.ok) { avis('le serveur a repondu ' + r.status + ' — reessaie'); return; }
     const { url } = await r.json();
+    if (!url) { avis("ta cle est bonne, mais aucun paquet n'est encore en ligne. Reviens plus tard."); return; }
     avis('telechargement lance. Si rien ne se passe, clique ici : ');
     const a = document.createElement('a');
     a.href = url; a.textContent = 'telecharger OMNI';
