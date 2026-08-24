@@ -939,7 +939,7 @@ git commit -m "feat(maj): script de publication, sha256 et bascule du manifeste"
 en vrai. Elle est faite **par l'utilisateur**, guidée pas à pas — un agent ne
 crée pas de compte ni de base.
 
-- [ ] **Étape 1 : la base Neon**
+- [x] **Étape 1 : la base Neon** — `paquets-maj-db`, Neon ID `withered-dawn-11076602`, Francfort (fra1), palier gratuit, Neon Auth désactivé. Connectée au projet en Production et Preview ; elle injecte `DATABASE_URL`. Le schéma s'est appliqué tout seul au premier appel de fonction.
 
 L'utilisateur crée une base Neon (ou réutilise une instance) et fournit son
 `DATABASE_URL`. Le schéma s'applique tout seul au premier appel de fonction.
@@ -957,7 +957,7 @@ d'environnement à définir dans le tableau de bord Vercel :
 Tableau de bord Vercel → Settings → Deployment Protection → désactiver. Sinon
 chaque requête reçoit une page de connexion de ~480 Ko au lieu de la réponse.
 
-- [ ] **Étape 4 : essais au curl**
+- [x] **Étape 4 : essais au curl** — faits, plus une passe depuis la page pour ne pas sortir la clé du navigateur.
 
 ```bash
 # sans cle: 404
@@ -974,11 +974,35 @@ curl -s -H "x-cle: <cle-test>" https://<projet>.vercel.app/api/manifeste
 # => { "version": null, ... } tant que rien n'est publie, mais 200
 ```
 
-- [ ] **Étape 5 : consigner l'URL et les critères**
+- [x] **Étape 5 : consigner l'URL et les critères**
 
 Vérifier, un par un, les critères de réussite 4, 8, 9 du spec (révocation
 individuelle, coupe-circuit, 404 sans clé). Noter l'URL du projet et le nom de
 la base dans le handoff.
+
+**Mesuré en production le 2026-08-24** (projet `exode1/paquets-maj`, base
+`paquets-maj-db`) :
+
+| critère | mesure |
+|---|---|
+| 404 sans clé | `/api/manifeste` et `/api/paquet` : 404, corps vide |
+| 404 sur clé inconnue | 404 ; **un seul caractère modifié suffit** à faire tomber une clé valide |
+| 200 sur clé valide | `{version:null, sha256:null, actif:true, message:null}` — rien n'est encore publié |
+| `derniere_vue` | passe à l'horodatage de l'appel : la trace de vie fonctionne |
+| révocation individuelle | « désactiver » dans le panneau → 404 à l'appel suivant ; « activer » → 200 de nouveau |
+| coupe-circuit global | `service {actif:false}` → le manifeste rend `actif:false` et le message ; remis à `true` |
+| mot de passe admin faux | 404 sur `/api/admin`, jamais 401/403 |
+| panneau | servi à `/api/admin` (3831 o) — `includeFiles: web/**` vérifié en vrai |
+
+**Deux défauts trouvés à l'essai, corrigés :**
+1. Le bloc de messages du panneau vivait **dans** le panneau caché : un mot de
+   passe refusé n'affichait rien. Et `api()` ne traitait que le 404 — le 503 du
+   démarrage à froid de la fonction levait une exception avalée par un `catch`
+   vide. Deux silences superposés.
+2. Le champ *Value* du tableau de bord Vercel est une **zone de texte
+   multiligne** : la valeur y arrive facilement avec un retour à la ligne, et la
+   comparaison à temps constant échouait alors sans rien dire. Les blancs de
+   bordure sont maintenant coupés des deux côtés, avec deux tests.
 
 ---
 
