@@ -35,7 +35,7 @@ test('un titre sans personnage ne fabrique pas de nom', () => {
 // Le titre reecrit par un launcher tiers ne doit pas passer pour un personnage.
 test('un titre de launcher tiers est ignoré', () => {
   assert.deepStrictEqual(
-    extrairePersonnage('Spoony Replicate:ON Follow:OFF'),
+    extrairePersonnage('Spoony OMNI:ON Follow:OFF'),
     { personnage: null, classe: null },
   );
 });

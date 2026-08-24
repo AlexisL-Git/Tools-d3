@@ -59,7 +59,7 @@ C'est précisément ce travail — non publié, refait à chaque patch — qui c
 
 1. **Suivre les mises à jour publiques de krm35 ne rattrapera jamais le produit payant.** Le dépôt public est une base Dofus 2 ; l'adaptation Dofus 3 n'existe que dans le bytecode.
 2. **L'architecture « proxy + redirection `connect` » est inapplicable à Dofus 3.** Elle reste valide pour Dofus Retro et Wakfu, dont le handshake a fonctionné pendant les essais.
-3. **Le Replicate sémantique suppose de la rétro-ingénierie IL2CPP** de `GameAssembly.dll` : localiser les méthodes de sérialisation du jeu, y poser des hooks, et refaire ce travail à chaque patch. C'est un ordre de grandeur au-dessus de tout ce qui a été estimé jusqu'ici.
+3. **Le OMNI sémantique suppose de la rétro-ingénierie IL2CPP** de `GameAssembly.dll` : localiser les méthodes de sérialisation du jeu, y poser des hooks, et refaire ce travail à chaque patch. C'est un ordre de grandeur au-dessus de tout ce qui a été estimé jusqu'ici.
 4. La question du chiffrement du protocole reste **sans objet en l'état** : on ne peut pas atteindre le flux par le réseau.
 
 ## Ce qui reste acquis et réutilisable
@@ -70,8 +70,8 @@ C'est précisément ce travail — non publié, refait à chaque patch — qui c
 
 ## Options
 
-- **Voie input pure** — replicate par rejeu d'inputs Win32, sans jamais lire le protocole. Ne nécessite aucun hook réseau. Dégradé par rapport au produit payant, mais réalisable avec ce qui existe déjà.
-- **Voie IL2CPP** — la seule qui mène au Replicate sémantique. Projet de rétro-ingénierie à part entière, avec maintenance à chaque patch.
+- **Voie input pure** — omni par rejeu d'inputs Win32, sans jamais lire le protocole. Ne nécessite aucun hook réseau. Dégradé par rapport au produit payant, mais réalisable avec ce qui existe déjà.
+- **Voie IL2CPP** — la seule qui mène au OMNI sémantique. Projet de rétro-ingénierie à part entière, avec maintenance à chaque patch.
 - **Statu quo** — conserver l'abonnement pour les features, `mm-public` restant utilisable pour Wakfu et Retro.
 
 ---
@@ -130,11 +130,11 @@ Fenêtre cible vérifiée au premier plan à chaque essai.
 Cela confirme, par la mesure, ce que la liste de features du produit payant indiquait dès le départ :
 
 ```
-["Replicate clicks", ["retro"], "mouse"]      inputs  -> Retro uniquement
-["Replicate",        ["dofus"], "replicate"]  protocole -> Dofus uniquement
+["OMNI clicks", ["retro"], "mouse"]      inputs  -> Retro uniquement
+["OMNI",        ["dofus"], "omni"]  protocole -> Dofus uniquement
 ```
 
-L'absence de replicate par inputs sur Dofus 3 dans le produit payant n'est pas un choix de conception : c'est une impossibilité technique.
+L'absence de omni par inputs sur Dofus 3 dans le produit payant n'est pas un choix de conception : c'est une impossibilité technique.
 
 **Réserve :** les tests supposent que Échap ouvre le menu et M la carte. Un raccourci différent fausserait un essai, mais pas les quatre.
 
@@ -147,4 +147,4 @@ L'absence de replicate par inputs sur Dofus 3 dans le produit payant n'est pas u
 | Rejeu d'inputs (`PostMessage`, `SendInput`, scan codes) | fermée — entrées injectées ignorées |
 | Hooks IL2CPP dans `GameAssembly.dll` | **seule voie restante** — non explorée |
 
-Le Replicate sémantique sur Dofus 3 suppose donc de la rétro-ingénierie du moteur : localiser dans `GameAssembly.dll` les méthodes de sérialisation ou de traitement d'entrées, y poser des hooks Frida, et refaire ce travail à chaque patch. C'est exactement ce que le produit payant réalise, et ce que son abonnement finance.
+Le OMNI sémantique sur Dofus 3 suppose donc de la rétro-ingénierie du moteur : localiser dans `GameAssembly.dll` les méthodes de sérialisation ou de traitement d'entrées, y poser des hooks Frida, et refaire ce travail à chaque patch. C'est exactement ce que le produit payant réalise, et ce que son abonnement finance.

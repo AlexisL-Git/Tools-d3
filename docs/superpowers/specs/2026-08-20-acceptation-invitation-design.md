@@ -97,7 +97,7 @@ Ne dépend ni d'Electron, ni de Frida, ni du système : il se teste avec un
 double du superviseur, comme le passeur.
 
 Il est composé dans `superviseur.onTrame` par `composer()`, aux côtés du
-Replicate et du passe-tour. `src/passeur.js` n'est pas touché : il vient d'être
+OMNI et du passe-tour. `src/passeur.js` n'est pas touché : il vient d'être
 validé en combat réel.
 
 **Enchaînement, sur une trame entrante du type invitation :**
@@ -140,7 +140,7 @@ un compte relancé retrouve son interrupteur.
   bascule verte quand il est actif. Coupe-circuit immédiat.
 - **Un interrupteur par ligne**, icône deux personnes : SVG au trait,
   `currentColor`, sans fichier ni dépendance, à la même facture que
-  `ICONE_REPLICATE` et `ICONE_PASSE`.
+  `ICONE_DUPLICATION` et `ICONE_PASSE`.
 - Désactivé quand `l.suivi` est faux, comme les deux autres — un interrupteur
   actionnable sur un client injoignable est une promesse fausse.
 

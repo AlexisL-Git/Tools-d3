@@ -26,7 +26,7 @@ Dans `C:\Users\<user>\.cache\` :
 
 | Élément | Nature |
 |---|---|
-| `InputReplicate/input_monitor.node` | Addon N-API. Exporte `start`, `stop`, `sendKeyGlobal`, `sendMouseGlobal`, `sendKeyToPid`, `sendMouseToPid`. Utilise `SetWindowsHookExW`, `SendInput`, `PostMessageW`, `EnumWindows`. |
+| `InputOMNI/input_monitor.node` | Addon N-API. Exporte `start`, `stop`, `sendKeyGlobal`, `sendMouseGlobal`, `sendKeyToPid`, `sendMouseToPid`. Utilise `SetWindowsHookExW`, `SendInput`, `PostMessageW`, `EnumWindows`. |
 | `FocusWindow/focus_window.node` | Addon N-API. Exporte `focusWindow`, `maximizeWindow`, `getWindowTitle`, `showWindow`. Utilise `AttachThreadInput` + `BringWindowToTop` + `SetForegroundWindow`. |
 | `RobotJS/robotjs.node` | Addon N-API de rejeu clavier/souris. |
 | `Release/frida_binding.node` | Binding Frida (73 Mo). |
@@ -35,12 +35,12 @@ Dans `C:\Users\<user>\.cache\` :
 
 `sendKeyToPid` / `sendMouseToPid` reposent sur `PostMessageW`, ce qui explique la réplication « sans switch » : le message est délivré à une fenêtre en arrière-plan sans lui donner le focus.
 
-### Nature de la feature « Replicate (dofus) »
+### Nature de la feature « OMNI (dofus) »
 
 Établi par extraction des littéraux de chaînes de `index.jsc` :
 
-- Deux files distinctes coexistent : `inputReplicateQueue` (niveau input) et `replicateQueue` (niveau protocole).
-- Changelogs embarqués : *« Replicate group leader actions (NPC, Zaap, Travel) / Keyboard Shortcut / Accept Teleport »*, *« … / Accept Exchange / Accept Teleport »*.
+- Deux files distinctes coexistent : `inputOMNIQueue` (niveau input) et `omniQueue` (niveau protocole).
+- Changelogs embarqués : *« OMNI group leader actions (NPC, Zaap, Travel) / Keyboard Shortcut / Accept Teleport »*, *« … / Accept Exchange / Accept Teleport »*.
 
 Répliquer « PNJ / Zaap / Voyage / Accepter échange » n'a pas de sens au niveau du clic. **La feature que l'utilisateur paie est une réplication sémantique par paquets réseau.** Confirmé par l'utilisateur : la réplication fonctionne même sur une fenêtre minimisée ou dont le personnage est dans un état différent.
 
@@ -58,7 +58,7 @@ new NativeFunction(Module.findExportByName("GameAssembly.dll", "il2cpp_string_ne
 
 Reproduire six features à parité fonctionnelle avec le produit payant, sur les comptes Dofus 3 de l'utilisateur :
 
-1. **Replicate (dofus)** — priorité absolue, c'est la raison de l'abonnement
+1. **OMNI (dofus)** — priorité absolue, c'est la raison de l'abonnement
 2. Pass turn
 3. Accept group invitation
 4. Focus group leader
@@ -77,7 +77,7 @@ Conséquence assumée : le clone est fonctionnellement à parité mais **plus d�
 
 | Décision | Choix | Justification |
 |---|---|---|
-| Approche | **Clone complet, injection de paquets comprise** | Seule voie vers la parité stricte sur Replicate sémantique. Une alternative hybride « lire par le protocole, agir par l'input » a été proposée et écartée par l'utilisateur : moins chère et moins risquée, mais elle ne rendait pas le Replicate sémantique sur fenêtre minimisée. |
+| Approche | **Clone complet, injection de paquets comprise** | Seule voie vers la parité stricte sur OMNI sémantique. Une alternative hybride « lire par le protocole, agir par l'input » a été proposée et écartée par l'utilisateur : moins chère et moins risquée, mais elle ne rendait pas le OMNI sémantique sur fenêtre minimisée. |
 | Stack | Node.js + addons `.node` existants + UI web | Réutilise `input_monitor.node` et `focus_window.node` dont l'API est connue, évite une toolchain C++, et correspond à l'architecture que l'utilisateur connaît déjà. |
 | Maintenance | Re-mapping manuel à chaque patch Dofus | Accepté par l'utilisateur. Le design vise à ramener ce coût de 1–3 h à ~20 min. |
 | Emplacement | `C:\Users\Utilisateur\mm` | Nom neutre, choisi par l'utilisateur. |
@@ -124,7 +124,7 @@ Huit modules, chacun avec une responsabilité unique et une interface explicite.
 
 **`mapping` est un fichier de données, pas du code.** C'est le seul module qui casse à chaque patch Dofus. En l'isolant totalement, une mise à jour du jeu se traduit par l'édition d'un JSON, sans toucher à une ligne de logique.
 
-**Un module par feature, un fichier chacun.** Les six features sont indépendantes. Si `exchange` casse après un patch, `replicate` continue de fonctionner. Cela permet aussi de les livrer une par une, en commençant par `replicate`.
+**Un module par feature, un fichier chacun.** Les six features sont indépendantes. Si `exchange` casse après un patch, `omni` continue de fonctionner. Cela permet aussi de les livrer une par une, en commençant par `omni`.
 
 **`injector` expose une interface transport, pas une interface Dofus.** Il ne connaît rien du jeu, il déplace des octets. Si le spike (section 7) montre qu'un proxy local suffit, on remplace son implémentation sans toucher au reste du système.
 
@@ -244,7 +244,7 @@ Une touche globale désactive instantanément toute réplication et toute inject
 
 Le compteur de messages `unknown` sert de détecteur. Au-delà d'un seuil, le launcher désactive de lui-même les features dont le mapping est devenu douteux, plutôt que de les laisser agir sur des données mal interprétées.
 
-Chaque feature déclare les clés de mapping dont elle dépend, ce qui rend la désactivation ciblée : si seul `exchange` est cassé, `replicate` continue.
+Chaque feature déclare les clés de mapping dont elle dépend, ce qui rend la désactivation ciblée : si seul `exchange` est cassé, `omni` continue.
 
 ### 6.4 Isolation par compte
 
@@ -305,16 +305,16 @@ Cette étape précède tout le reste car elle détermine le coût réel de l'`in
 3. `mapping` initial + outil de diff structurel
 4. `state`
 5. `input` + `core` + `ui`
-6. Features, dans l'ordre : `replicate`, `shortcut`, `focusGroupLeader`, `passTurn`, `acceptGroupInvitation`, `exchange`
+6. Features, dans l'ordre : `omni`, `shortcut`, `focusGroupLeader`, `passTurn`, `acceptGroupInvitation`, `exchange`
 
-`replicate` passe en premier : c'est le besoin réel de l'utilisateur et la seule feature dont l'absence justifie l'abonnement.
+`omni` passe en premier : c'est le besoin réel de l'utilisateur et la seule feature dont l'absence justifie l'abonnement.
 
 ## 9. Risques ouverts
 
 | Risque | Impact | Traitement |
 |---|---|---|
 | Flux de jeu chiffré | Coût de l'`injector` fortement accru | Spike bloquant, étape 0 |
-| Injection rejetée par le serveur (état client non répliqué, jeton, séquence applicative) | Replicate sémantique irréalisable tel que conçu | À valider dès que `codec` et `injector` fonctionnent, avant d'écrire les features |
+| Injection rejetée par le serveur (état client non répliqué, jeton, séquence applicative) | OMNI sémantique irréalisable tel que conçu | À valider dès que `codec` et `injector` fonctionnent, avant d'écrire les features |
 | Détection par l'anti-cheat | Bannissement des comptes | Hors périmètre par décision explicite. Risque assumé par l'utilisateur |
 | Le diff structurel n'apparie pas de façon fiable | Maintenance revient à 1–3 h par patch | L'enregistreur corrélé (5.3) reste le filet |
 | Lancement multi-instance de Dofus bloqué par le client | Impossible d'ouvrir 10 clients | Le produit payant hooke `CreateFileW` pour cela ; à traiter si le blocage se manifeste |

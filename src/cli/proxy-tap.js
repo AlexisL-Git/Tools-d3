@@ -5,7 +5,7 @@ const { shannonEntropy } = require('../analysis/entropy');
 
 // Ecoute des E/S du proxy local du launcher, socket par socket.
 //
-// La duplication du Replicate n'est PAS observable dans le jeu: c'est le proxy
+// La duplication du OMNI n'est PAS observable dans le jeu: c'est le proxy
 // qui fabrique le message et l'emet a la place du client esclave. Le seul point
 // ou elle se voit est donc le launcher. Node y passe bien par WSASend/WSARecv,
 // contrairement a .NET.

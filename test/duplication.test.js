@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { MESSAGES, lookup, lookupByName, needsRewrite, accountFields } = require('../src/protocol/replicate');
+const { MESSAGES, lookup, lookupByName, needsRewrite, accountFields } = require('../src/protocol/omni');
 
 test('les neuf types répliqués sont présents', () => {
   assert.strictEqual(Object.keys(MESSAGES).length, 9);

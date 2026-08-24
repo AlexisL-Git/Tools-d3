@@ -11,8 +11,8 @@ const { findDofusProcesses } = require('../injector');
 // produit payant utilise, au lieu de lire depuis l'interieur du jeu.
 //
 // usage:
-//   node src/cli/replicate.js spawn <chemin\Dofus.exe> [--port 8210] [--id <empreinte>]
-//   node src/cli/replicate.js attach [pid]            (trop tard pour les premiers connect)
+//   node src/cli/omni.js spawn <chemin\Dofus.exe> [--port 8210] [--id <empreinte>]
+//   node src/cli/omni.js attach [pid]            (trop tard pour les premiers connect)
 
 function parseArgs(argv) {
   const out = { port: 8210, id: null, exclude: [], only: null, mode: argv[0], target: argv[1] };
@@ -67,8 +67,8 @@ function reportStats(stats) {
 async function main() {
   const a = parseArgs(process.argv.slice(2));
   if (a.mode !== 'spawn' && a.mode !== 'attach') {
-    console.error('usage: node src/cli/replicate.js spawn <Dofus.exe> [--port N] [--id X]');
-    console.error('       node src/cli/replicate.js attach [pid] [--port N] [--id X]');
+    console.error('usage: node src/cli/omni.js spawn <Dofus.exe> [--port N] [--id X]');
+    console.error('       node src/cli/omni.js attach [pid] [--port N] [--id X]');
     process.exit(1);
   }
 

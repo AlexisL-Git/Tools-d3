@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { creerReplicateur, ETALEMENT_REJEU, MIN_TICK_WINDOWS } = require('../src/replicateur');
+const { creerDuplicateur, ETALEMENT_REJEU, MIN_TICK_WINDOWS } = require('../src/duplicateur');
 
 // Ce test verrouille une MESURE, pas une preference. Sous le pas des minuteurs
 // Windows (~15,6 ms), deux echeances retombent dans le meme tick et s'ecrivent
@@ -45,7 +45,7 @@ function trame(extra = {}) {
 test('une trame entrante n est pas rejouée', () => {
   const s = faux();
   const comptesRendus = [];
-  const onTrame = creerReplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
 
   onTrame(trame({ dir: 'in' }));
 
@@ -55,7 +55,7 @@ test('une trame entrante n est pas rejouée', () => {
 
 test('une réponse sortante n est pas rejouée, seules les requêtes le sont', () => {
   const s = faux();
-  const onTrame = creerReplicateur({ superviseur: s, onCompteRendu: () => {} });
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: () => {} });
 
   onTrame(trame({ frame: { kind: 'response', type: 'hjc', payload: [] } }));
 
@@ -67,7 +67,7 @@ test('une réponse sortante n est pas rejouée, seules les requêtes le sont', (
 test('une trame sortante d un non-maître n est pas rejouée', () => {
   const s = faux();
   const comptesRendus = [];
-  const onTrame = creerReplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
 
   onTrame(trame({ estMaitre: false }));
 
@@ -79,7 +79,7 @@ test('une trame sortante d un non-maître n est pas rejouée', () => {
 test('un type inconnu n est pas rejoué', () => {
   const s = faux();
   const comptesRendus = [];
-  const onTrame = creerReplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
 
   onTrame(trame({ frame: { kind: 'request', type: 'zzz', payload: [] } }));
 
@@ -90,7 +90,7 @@ test('un type inconnu n est pas rejoué', () => {
 test('une trame sortante du maître d un type connu déclenche rejouer', () => {
   const s = faux();
   const brute = Buffer.from([0x08, 0x2a]);
-  const onTrame = creerReplicateur({ superviseur: s, onCompteRendu: () => {} });
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: () => {} });
 
   onTrame(trame({ pid: 7, brute }));
 
@@ -102,7 +102,7 @@ test('le compte rendu porte le nom du message, le rendu et le mode', () => {
   const rendu = [{ pid: 2, ok: true, emis: true, action: 'copier', octets: 12 }];
   const s = faux({ arme: true, rendu });
   const comptesRendus = [];
-  const onTrame = creerReplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
 
   onTrame(trame({ pid: 7 }));
 
@@ -116,7 +116,7 @@ test('le compte rendu porte le nom du message, le rendu et le mode', () => {
 test('un rejeu sans esclave ne produit pas de compte rendu', () => {
   const s = faux({ rendu: [] });
   const comptesRendus = [];
-  const onTrame = creerReplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
 
   onTrame(trame());
 
@@ -133,7 +133,7 @@ test('la raison d un refus remonte telle quelle dans le compte rendu', () => {
   ];
   const s = faux({ rendu });
   const comptesRendus = [];
-  const onTrame = creerReplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
 
   onTrame(trame({ frame: { kind: 'request', type: 'iwo', payload: [] } }));
 
@@ -145,7 +145,7 @@ test('la raison d un refus remonte telle quelle dans le compte rendu', () => {
 // avoir a en fournir un.
 test('sans rappel de compte rendu, le rejeu a quand même lieu', () => {
   const s = faux();
-  const onTrame = creerReplicateur({ superviseur: s });
+  const onTrame = creerDuplicateur({ superviseur: s });
 
   onTrame(trame());
 

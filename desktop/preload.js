@@ -2,7 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Le renderer n'a acces ni au reseau, ni aux process, ni au disque. Il recoit
-// un etat et emet treize ordres, rien d'autre: armer le Replicate, exclure un
+// un etat et emet treize ordres, rien d'autre: armer le OMNI, exclure un
 // compte, le mettre en favori, l'interrupteur general du passe-tour, celui
 // d'un compte, le delai, l'interrupteur general de l'acceptation des
 // invitations de groupe et celui d'un compte, l'interrupteur general du
@@ -12,7 +12,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // elle ne s'elargit pas sans raison.
 contextBridge.exposeInMainWorld('app', {
   surEtat: (rappel) => ipcRenderer.on('etat', (_e, etat) => rappel(etat)),
-  basculerReplicate: (actif) => ipcRenderer.invoke('basculerReplicate', actif),
+  basculerDuplication: (actif) => ipcRenderer.invoke('basculerDuplication', actif),
   exclureCompte: (idCompte, exclu) => ipcRenderer.invoke('exclureCompte', idCompte, exclu),
   marquerFavori: (idCompte, favori) => ipcRenderer.invoke('marquerFavori', idCompte, favori),
   basculerPasseTour: (actif) => ipcRenderer.invoke('basculerPasseTour', actif),

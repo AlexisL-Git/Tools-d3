@@ -16,7 +16,7 @@ const BASE = 'https://paquets-maj.vercel.app';
 // Fixe, en developpement comme dans le paquet: app.getPath('userData') vaut
 // %APPDATA%\Electron quand on lance npm run app, et le depot changerait de
 // place entre les deux.
-const RACINE = path.join(app.getPath('appData'), 'Replicate');
+const RACINE = path.join(app.getPath('appData'), 'OMNI');
 const VERSION_PAQUET = require('../package.json').version;
 
 // Les dependances du code versionne restent dans le paquet: frida et
@@ -47,7 +47,7 @@ function installerInitiale(depot) {
 const TITRES = {
   'cle-refusee': "Cette cle n'est plus valide",
   'sans-cle': 'Aucune cle saisie',
-  'coupe-circuit': 'Replicate est momentanement arrete',
+  'coupe-circuit': 'OMNI est momentanement arrete',
   'aucune-version': 'Aucune version installee',
 };
 
@@ -89,7 +89,7 @@ async function principal() {
   if (resultat.action === 'arreter') {
     journal(`arret: ${resultat.raison}`);
     await ecrans.afficherArret({
-      titre: TITRES[resultat.raison] || 'Replicate ne peut pas demarrer',
+      titre: TITRES[resultat.raison] || 'OMNI ne peut pas demarrer',
       message: resultat.message || '',
     });
     app.quit();
@@ -108,7 +108,7 @@ async function principal() {
     dossiers: dossiersDeDependances(),
   });
   journal(`dependances resolues par ${resolution.methode}`);
-  process.env.REPLICATE_VERSION = resultat.version;
+  process.env.OMNI_VERSION = resultat.version;
   const entree = path.join(resultat.dossier, 'desktop', 'main.js');
   if (!fs.existsSync(entree)) {
     await ecrans.afficherArret({
@@ -128,7 +128,7 @@ async function principal() {
 app.whenReady().then(principal).catch(async (e) => {
   journal(`panne de l'amorceur: ${e && e.stack ? e.stack : e}`);
   try {
-    await creerEcrans().afficherArret({ titre: "Replicate n'a pas pu demarrer", message: String(e && e.message ? e.message : e) });
+    await creerEcrans().afficherArret({ titre: "OMNI n'a pas pu demarrer", message: String(e && e.message ? e.message : e) });
   } catch (e2) { /* meme le dialogue a echoue */ }
   app.quit();
 });

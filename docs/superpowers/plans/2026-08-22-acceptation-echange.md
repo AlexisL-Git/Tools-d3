@@ -1054,7 +1054,7 @@ git commit -m "chore: retirer l'instrumentation de mesure de l'echange"
 npm run pack
 ```
 
-L'exe de `desktop/dist/Replicate-win32-x64/` est périmée dès qu'une
+L'exe de `desktop/dist/OMNI-win32-x64/` est périmée dès qu'une
 fonctionnalité est ajoutée. La lancer une fois pour vérifier qu'elle porte bien
 les cinq boutons.
 

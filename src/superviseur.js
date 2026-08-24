@@ -6,7 +6,7 @@ const { decodeFrameRaw, remplacerChamp } = require('./codec/rawProto');
 const { writeVarint } = require('./codec/framing');
 const { connectAgentSource } = require('./il2cpp/connectAgent');
 const { Comptes } = require('./protocol/compte');
-const { lookup, needsRewrite } = require('./protocol/replicate');
+const { lookup, needsRewrite } = require('./protocol/omni');
 
 // Pilote 1 a 8 clients Dofus simultanes.
 //
@@ -246,7 +246,7 @@ class Superviseur {
   //
   // Le compte rendu reste SYNCHRONE, retards compris: `emis` dit que
   // l'emission est acquise, `retardMs` dans combien de temps. Rendre une
-  // promesse ici aurait contamine le CLI, le replicateur et leurs tests pour
+  // promesse ici aurait contamine le CLI, le duplicateur et leurs tests pour
   // une information qu'aucun des deux n'attend.
   rejouer({ type, brute, pidMaitre }) {
     const rendu = [];
@@ -293,9 +293,9 @@ class Superviseur {
   }
 
   // Ecrit une trame sur UN client. Contrairement a rejouer(), qui vise tous
-  // les esclaves et obeit au drapeau `arme` du Replicate, emettre ne juge
+  // les esclaves et obeit au drapeau `arme` du OMNI, emettre ne juge
   // rien: l'appelant a deja decide. C'est ce qui permet au passe-tour d'avoir
-  // son propre interrupteur sans dependre de celui du Replicate.
+  // son propre interrupteur sans dependre de celui du OMNI.
   emettre(pid, octets) {
     const client = this.clients.get(pid);
     if (!client) return { ok: false, raison: 'client inconnu' };

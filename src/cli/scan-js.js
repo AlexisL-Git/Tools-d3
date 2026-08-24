@@ -5,7 +5,7 @@ const frida = require('frida');
 //
 // Un agent Frida est envoye au process sous forme de source JavaScript, puis
 // compile par le moteur embarque. Le texte d'origine survit en general dans le
-// tas: le retrouver rend la recette complete du Replicate, plutot que d'avoir a
+// tas: le retrouver rend la recette complete du OMNI, plutot que d'avoir a
 // la deduire de ses effets.
 //
 // Le motif est cherche en Latin-1 et en UTF-16, les deux representations que

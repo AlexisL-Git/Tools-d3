@@ -11,7 +11,7 @@ automatiquement dès qu'il commence. Un interrupteur par compte, plus un
 interrupteur général, dans l'application déjà livrée.
 
 L'interface reprend deux icônes du launcher de krm35 : l'astérisque à six
-branches pour le Replicate, le cercle barré pour le passe-tour.
+branches pour le OMNI, le cercle barré pour le passe-tour.
 
 ## Les deux messages, identifiés
 
@@ -158,7 +158,7 @@ porter 3, 4, 7, 8, 13 et 16 pour d'autres gestes en combat.
 ## La seule voie praticable
 
 Réagir à la trame entrante et émettre la requête de fin de tour par notre proxy
-— le mécanisme déjà validé du Replicate.
+— le mécanisme déjà validé du OMNI.
 
 Les deux autres voies sont écartées sur mesure, pas sur intuition :
 
@@ -169,7 +169,7 @@ Les deux autres voies sont écartées sur mesure, pas sur intuition :
 
 ## Architecture
 
-**Un module `src/passeur.js`**, jumeau de `src/replicateur.js` : une fabrique
+**Un module `src/passeur.js`**, jumeau de `src/duplicateur.js` : une fabrique
 qui reçoit le superviseur et un rappel de compte rendu, et rend une fonction
 `onTrame`. Ni Electron, ni Frida, ni système — testable seul.
 
@@ -197,7 +197,7 @@ minuteur en attente.** Un seul minuteur par compte à la fois ; en armer un
 second annule le premier.
 
 C'est la seule fonction du projet dont un échec coûte quelque chose en jeu.
-Le Replicate qui rate une action ne fait rien ; un passe-tour qui part au
+Le OMNI qui rate une action ne fait rien ; un passe-tour qui part au
 mauvais moment fait perdre un tour.
 
 ### Conditions d'émission
@@ -224,7 +224,7 @@ Chaque ligne de compte porte deux interrupteurs :
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  Replicate ●   Passe-tour ●   délai [0,0 s]     4 comptes en jeu │
+│  OMNI ●   Passe-tour ●   délai [0,0 s]     4 comptes en jeu │
 ├──────────────────────────────────────────────────────────────────┤
 │ ★  ◉✳  ◉⊘   BrokenLegs   Spoony — Pandawa       maître           │
 │ ★  ◉✳  ◯⊘   squeezie     Swaggman — Cra         suit             │
@@ -235,7 +235,7 @@ Chaque ligne de compte porte deux interrupteurs :
 ```
 
 - **Icônes** redessinées en SVG en ligne d'après le launcher de krm35 :
-  astérisque à six branches (Replicate), cercle barré (passe-tour). Aucun
+  astérisque à six branches (OMNI), cercle barré (passe-tour). Aucun
   fichier image, aucune dépendance ; la couleur suit le thème.
 - **Deux interrupteurs généraux** en en-tête, un par fonction. Un compte
   n'agit que si le général **et** son interrupteur de ligne sont actifs — un
@@ -247,7 +247,7 @@ Chaque ligne de compte porte deux interrupteurs :
   non intercepté, erreur). Une case qui ne peut rien faire est une promesse
   fausse.
 
-L'exclusion du Replicate, aujourd'hui portée par `EtatCompte.exclu`, devient
+L'exclusion du OMNI, aujourd'hui portée par `EtatCompte.exclu`, devient
 l'interrupteur ✳ de la ligne — même champ, nouvelle représentation. Le
 passe-tour reçoit son propre champ, symétrique.
 
@@ -276,7 +276,7 @@ Sans jeu ni interface, sur `src/passeur.js` :
 - la trame émise est exactement `jti { 1: 1, 2: 31 }`, encodée puis relue.
 
 Sur la composition : `src/cli/mm.js` et `desktop/main.js` appellent bien les
-deux fabriques, et le comportement du Replicate reste inchangé.
+deux fabriques, et le comportement du OMNI reste inchangé.
 
 Les 159 tests existants restent verts.
 
@@ -301,4 +301,4 @@ Les 159 tests existants restent verts.
   silencieusement : cela déclenche une autre action en combat. C'est une raison
   de plus de n'émettre que sur la condition vérifiée.
 - Le passe-tour agit sur un compte qui joue réellement : contrairement au
-  Replicate, une erreur a une conséquence en jeu.
+  OMNI, une erreur a une conséquence en jeu.

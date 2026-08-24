@@ -20,12 +20,12 @@ const SORTIE = path.join(RACINE, 'desktop', 'dist');
 async function main() {
   if (!fs.existsSync(path.join(ETAPE, 'package.json'))) {
     console.error("ERREUR: pas de dossier d'etape. Lancer d'abord, avec le binaire package:");
-    console.error('  ELECTRON_RUN_AS_NODE=1 Replicate.exe outils/faire-etape.js');
+    console.error('  ELECTRON_RUN_AS_NODE=1 OMNI.exe outils/faire-etape.js');
     process.exit(1);
   }
   const chemins = await packager({
     dir: ETAPE,
-    name: 'Replicate',
+    name: 'OMNI',
     platform: 'win32',
     arch: 'x64',
     out: SORTIE,

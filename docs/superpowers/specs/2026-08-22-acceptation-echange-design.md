@@ -10,7 +10,7 @@ que le maître valide pour valider à son tour. Aujourd'hui il faut cliquer deux
 fois sur la fenêtre de chaque esclave, ce qui annule l'intérêt du multicompte
 dès qu'on transfère quoi que ce soit à plus d'un personnage.
 
-Cinquième fonction de l'application, après le Replicate, le passe-tour,
+Cinquième fonction de l'application, après le OMNI, le passe-tour,
 l'acceptation d'invitation de groupe et le no-anim.
 
 ## Ce qu'on ne sait pas

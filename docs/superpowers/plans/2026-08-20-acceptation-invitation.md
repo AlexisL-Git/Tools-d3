@@ -4,7 +4,7 @@
 
 **Goal:** Qu'un compte piloté par l'application accepte seul l'invitation de groupe envoyée par un autre compte piloté par l'application.
 
-**Architecture:** Une politique de plus, `src/invitation.js`, jumelle de `src/passeur.js` : elle observe les trames entrantes, reconnaît une invitation, vérifie que l'invitant est l'un de nos clients, et émet l'acceptation par `superviseur.emettre`. Elle est branchée dans `superviseur.onTrame` via `composer()`, à côté du Replicate et du passe-tour. `src/passeur.js` n'est pas touché : il vient d'être validé en combat réel.
+**Architecture:** Une politique de plus, `src/invitation.js`, jumelle de `src/passeur.js` : elle observe les trames entrantes, reconnaît une invitation, vérifie que l'invitant est l'un de nos clients, et émet l'acceptation par `superviseur.emettre`. Elle est branchée dans `superviseur.onTrame` via `composer()`, à côté du OMNI et du passe-tour. `src/passeur.js` n'est pas touché : il vient d'être validé en combat réel.
 
 **Tech Stack:** Node ≥ 18 sans dépendance de test (`node --test`), Electron 43 pour l'application, protobuf sans schéma via `src/codec/rawProto.js`.
 

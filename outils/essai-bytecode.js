@@ -5,7 +5,7 @@
 //
 // A LANCER AVEC LE BINAIRE PACKAGE, qui porte le V8 d'Electron:
 //   $env:ELECTRON_RUN_AS_NODE='1'
-//   .\desktop\dist\Replicate-win32-x64\Replicate.exe outils\essai-bytecode.js
+//   .\desktop\dist\OMNI-win32-x64\OMNI.exe outils\essai-bytecode.js
 const vm = require('node:vm');
 const v8 = require('node:v8');
 const Module = require('node:module');

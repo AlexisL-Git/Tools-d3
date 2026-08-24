@@ -5,7 +5,7 @@
 // A LANCER AVEC LE BINAIRE PACKAGE, qui porte le V8 d'Electron — un cache
 // produit par node ne se recharge pas dans Electron:
 //   $env:ELECTRON_RUN_AS_NODE='1'
-//   .\desktop\dist\Replicate-win32-x64\Replicate.exe outils\faire-etape.js
+//   .\desktop\dist\OMNI-win32-x64\OMNI.exe outils\faire-etape.js
 //
 // Puis, avec node ordinaire: npm run pack
 const fs = require('node:fs');
@@ -93,13 +93,13 @@ function main() {
   // drapeaux font partie de ce que V8 valide. Compiler avec le binaire en mode
   // Node donne donc un paquet qui ouvre une fenetre « Error ». Tant qu'on ne
   // compile pas DEPUIS un processus graphique, le bytecode reste desactive.
-  if (process.env.REPLICATE_BYTECODE === 'oui') {
+  if (process.env.OMNI_BYTECODE === 'oui') {
     const laisses = [];
     const compiles = parcourir(ETAPE, laisses);
     console.log(`${compiles} fichiers compiles (V8 ${process.versions.v8})`);
     for (const l of laisses) console.log('  laisse en clair:', path.relative(ETAPE, l));
   } else {
-    console.log('bytecode DESACTIVE (REPLICATE_BYTECODE=oui pour l activer)');
+    console.log('bytecode DESACTIVE (OMNI_BYTECODE=oui pour l activer)');
   }
 
   // L'archive de la version initiale contient le MEME code compile que celui

@@ -12,7 +12,7 @@ test('chaque fonction recoit le meme evenement', () => {
   assert.deepStrictEqual(vus[1], [evenement]);
 });
 
-// Le Replicate et le passe-tour sont independants: si l'un jette, l'autre doit
+// Le OMNI et le passe-tour sont independants: si l'un jette, l'autre doit
 // quand meme voir la trame.
 test('une fonction qui jette n empeche pas les suivantes', () => {
   const vues = [];

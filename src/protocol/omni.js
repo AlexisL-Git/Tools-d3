@@ -9,7 +9,7 @@
 // n'a pas ete deduite, elle a ete lue.
 //
 // PERIMETRE. Huit types, et ce total n'a pas bouge de la 6e a la 20e minute.
-// Replicate ne duplique pas le combat, les metiers, l'inventaire ni les
+// OMNI ne duplique pas le combat, les metiers, l'inventaire ni les
 // echanges: il duplique les interactions. La banque elle-meme ne produit aucun
 // message propre — l'ouvrir revient a parler a un PNJ, donc au triplet
 // NpcGenericActionRequest / NpcDialogReplyRequest / DialogLeaveRequest.

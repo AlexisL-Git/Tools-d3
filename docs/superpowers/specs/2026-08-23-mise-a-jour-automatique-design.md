@@ -85,7 +85,7 @@ la clé, l'envoie à `/api/manifeste`, et selon la réponse :
 - clé absente de la base, ou `actif = false` → **404** : l'application refuse de
   démarrer, affiche un message clair, et redemande une clé (au cas où une
   nouvelle aurait été fournie) ;
-- clé valide → la clé est enregistrée dans `%APPDATA%\Replicate\cle.txt`,
+- clé valide → la clé est enregistrée dans `%APPDATA%\OMNI\cle.txt`,
   l'application démarre, `derniere_vue` est mise à jour.
 
 Aux lancements suivants, la clé est relue depuis le disque ; l'écran de saisie
@@ -125,7 +125,7 @@ dépend que de Node et d'Electron.
 ### Le code applicatif vit dehors
 
 ```
-%APPDATA%\Replicate\
+%APPDATA%\OMNI\
   versions\
     0.2.0\        code compilé de la version 0.2.0
     0.3.0\        code compilé de la version 0.3.0

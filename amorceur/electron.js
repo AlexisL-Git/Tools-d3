@@ -14,7 +14,7 @@ try {
   require('./principal');
 } catch (e) {
   try {
-    const racine = path.join(process.env.APPDATA || __dirname, 'Replicate');
+    const racine = path.join(process.env.APPDATA || __dirname, 'OMNI');
     fs.mkdirSync(racine, { recursive: true });
     const ligne = `${new Date().toISOString()} demarrage impossible: ${e && e.stack ? e.stack : e}`;
     fs.appendFileSync(path.join(racine, 'amorceur.log'), ligne + String.fromCharCode(10));

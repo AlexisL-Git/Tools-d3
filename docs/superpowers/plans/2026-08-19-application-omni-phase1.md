@@ -1,4 +1,4 @@
-# Application Replicate — plan d'implémentation de la phase 1
+# Application OMNI — plan d'implémentation de la phase 1
 
 > **Pour les agents :** SOUS-COMPÉTENCE REQUISE — utiliser
 > `superpowers:subagent-driven-development` (recommandé) ou
@@ -7,7 +7,7 @@
 
 **But :** une application Electron qui liste les comptes du launcher Ankama,
 indique lesquels sont en jeu, permet d'en marquer en favoris, et porte un
-interrupteur Replicate général plus une case par compte.
+interrupteur OMNI général plus une case par compte.
 
 **Architecture :** quatre modules de données purs sous `src/comptes/`, sans
 dépendance à Electron ni à Frida, plus une coquille Electron sous `desktop/`
@@ -273,7 +273,7 @@ test('un titre sans personnage ne fabrique pas de nom', () => {
 // Le titre reecrit par un launcher tiers ne doit pas passer pour un personnage.
 test('un titre de launcher tiers est ignoré', () => {
   assert.deepStrictEqual(
-    extrairePersonnage('Spoony Replicate:ON Follow:OFF'),
+    extrairePersonnage('Spoony OMNI:ON Follow:OFF'),
     { personnage: null, classe: null },
   );
 });
@@ -557,7 +557,7 @@ git commit -m "feat(comptes): favoris persistants, identifiants uniquement"
 
 ---
 
-### Tâche 4 : exclusion d'un compte du Replicate
+### Tâche 4 : exclusion d'un compte du OMNI
 
 **Fichiers :**
 - Modifier : `src/protocol/compte.js` (classe `EtatCompte`, classe `Comptes`)
@@ -641,7 +641,7 @@ Attendu : 0 échec. Le superviseur n'est pas modifié : `rejouer()` passe par
 
 ```bash
 git add src/protocol/compte.js test/compte.test.js
-git commit -m "feat(comptes): exclure un compte du Replicate sans cesser de l observer"
+git commit -m "feat(comptes): exclure un compte du OMNI sans cesser de l observer"
 ```
 
 ---
@@ -912,7 +912,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // un etat et emet trois ordres, rien d'autre.
 contextBridge.exposeInMainWorld('app', {
   surEtat: (rappel) => ipcRenderer.on('etat', (_e, etat) => rappel(etat)),
-  basculerReplicate: (actif) => ipcRenderer.invoke('basculerReplicate', actif),
+  basculerDuplication: (actif) => ipcRenderer.invoke('basculerDuplication', actif),
   exclureCompte: (idCompte, exclu) => ipcRenderer.invoke('exclureCompte', idCompte, exclu),
   marquerFavori: (idCompte, favori) => ipcRenderer.invoke('marquerFavori', idCompte, favori),
 });
@@ -980,7 +980,7 @@ async function envoyerEtat() {
     superviseur.comptes.tous.filter((e) => e.exclu).map((e) => pidVersCompte(e.pid, clients)),
   );
   fenetre.webContents.send('etat', {
-    replicate: superviseur.arme,
+    duplication: superviseur.arme,
     erreurComptes,
     lignes: construireVue({
       comptes,
@@ -1007,7 +1007,7 @@ function creerFenetre() {
   fenetre = new BrowserWindow({
     width: 720,
     height: 560,
-    title: 'Replicate',
+    title: 'OMNI',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -1034,7 +1034,7 @@ app.whenReady().then(async () => {
   await envoyerEtat();
 });
 
-ipcMain.handle('basculerReplicate', async (_e, actif) => {
+ipcMain.handle('basculerDuplication', async (_e, actif) => {
   superviseur.arme = Boolean(actif);
   await envoyerEtat();
 });
@@ -1065,7 +1065,7 @@ Créer `desktop/index.html` :
 ```html
 <!doctype html>
 <meta charset="utf-8">
-<title>Replicate</title>
+<title>OMNI</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; font: 14px system-ui, sans-serif; background: #16181d; color: #e6e8ec; }
@@ -1089,7 +1089,7 @@ Créer `desktop/index.html` :
   #erreur:empty { display: none; }
 </style>
 <header>
-  <h1>Replicate</h1>
+  <h1>OMNI</h1>
   <span id="resume"></span>
   <button id="bascule">INACTIF</button>
 </header>
@@ -1106,11 +1106,11 @@ Créer `desktop/index.html` :
 
   document.getElementById('bascule').addEventListener('click', () => {
     actif = !actif;
-    window.app.basculerReplicate(actif);
+    window.app.basculerDuplication(actif);
   });
 
   window.app.surEtat((etat) => {
-    actif = etat.replicate;
+    actif = etat.duplication;
     const b = document.getElementById('bascule');
     b.textContent = actif ? 'ACTIF' : 'INACTIF';
     b.classList.toggle('actif', actif);
@@ -1138,7 +1138,7 @@ Créer `desktop/index.html` :
       const suit = document.createElement('input');
       suit.type = 'checkbox';
       suit.checked = !l.exclu;
-      suit.title = 'participe au Replicate';
+      suit.title = 'participe au OMNI';
       suit.disabled = l.id === null || l.etat !== 'intercepte';
       suit.addEventListener('change', () => window.app.exclureCompte(l.id, !suit.checked));
 
@@ -1206,7 +1206,7 @@ git commit -m "feat(desktop): application Electron, liste des comptes et interru
 
 **Interfaces :**
 - Consomme : l'application de la tâche 6
-- Produit : `desktop/dist/Replicate-win32-x64/Replicate.exe`
+- Produit : `desktop/dist/OMNI-win32-x64/OMNI.exe`
 
 - [ ] **Étape 1 : installer l'empaqueteur**
 
@@ -1223,7 +1223,7 @@ ré-extrait à chaque essai — pré-extraire ne sert à rien.
 Dans `package.json`, ajouter à `scripts` :
 
 ```json
-    "pack": "electron-packager . Replicate --platform=win32 --arch=x64 --out=desktop/dist --overwrite --ignore=\"^/(docs|test)\""
+    "pack": "electron-packager . OMNI --platform=win32 --arch=x64 --out=desktop/dist --overwrite --ignore=\"^/(docs|test)\""
 ```
 
 - [ ] **Étape 3 : ignorer la sortie de build**
@@ -1238,11 +1238,11 @@ desktop/dist
 - [ ] **Étape 4 : empaqueter**
 
 Lancer : `npm run pack`
-Attendu : `desktop/dist/Replicate-win32-x64/Replicate.exe` existe.
+Attendu : `desktop/dist/OMNI-win32-x64/OMNI.exe` existe.
 
 - [ ] **Étape 5 : vérifier l'exécutable**
 
-Lancer `desktop/dist/Replicate-win32-x64/Replicate.exe` directement.
+Lancer `desktop/dist/OMNI-win32-x64/OMNI.exe` directement.
 Attendu : la même fenêtre qu'en développement, listant les comptes.
 
 - [ ] **Étape 6 : commiter**

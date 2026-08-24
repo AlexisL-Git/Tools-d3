@@ -1,11 +1,11 @@
 'use strict';
 const { Superviseur } = require('../superviseur');
 const { findDofusProcesses } = require('../injector');
-const { creerReplicateur, ETALEMENT_REJEU } = require('../replicateur');
+const { creerDuplicateur, ETALEMENT_REJEU } = require('../duplicateur');
 const { creerPasseur } = require('../passeur');
 const { composer } = require('../composer');
 
-// Le Replicate complet: 1 a 8 clients, le maitre est celui dont la fenetre a
+// Le OMNI complet: 1 a 8 clients, le maitre est celui dont la fenetre a
 // le focus, ses actions sont rejouees chez les autres.
 //
 //   node src/cli/mm.js               observe et affiche ce qui SERAIT rejoue
@@ -39,7 +39,7 @@ function aplatir(champs) {
 
 async function main() {
   const arme = process.argv.includes('--armer');
-  // Le passe-tour est independant du Replicate: son propre interrupteur, son
+  // Le passe-tour est independant du OMNI: son propre interrupteur, son
   // propre delai. Le CLI n'ayant pas d'interface, il est actif pour TOUS les
   // comptes pris en charge des qu'on le lance avec --passe-tour.
   const passeTour = process.argv.includes('--passe-tour');
@@ -99,11 +99,11 @@ async function main() {
     onJournal: (pid, texte) => console.log(`[${pid}] ${texte}`),
   });
 
-  // La decision de rejeu vit dans src/replicateur.js, partagee avec
+  // La decision de rejeu vit dans src/duplicateur.js, partagee avec
   // l'application: la recopier d'un cote a l'autre a deja produit une
   // application qui decodait tout et ne rejouait rien. Ici, elle n'ecrit que
   // le compte rendu console.
-  const rejouer = creerReplicateur({
+  const rejouer = creerDuplicateur({
     superviseur,
     onCompteRendu: ({ type, nom, arme: armeAlors, rendu }) => {
       const ok = rendu.filter((r) => r.ok);
@@ -122,7 +122,7 @@ async function main() {
     },
   });
 
-  // Le passe-tour est une politique independante du Replicate: son propre
+  // Le passe-tour est une politique independante du OMNI: son propre
   // reglage, relu a chaque trame et a chaque echeance de minuteur.
   const passer = creerPasseur({
     superviseur,
@@ -149,7 +149,7 @@ async function main() {
     traiter(trame);
   };
 
-  // Le message ne parle que du Replicate: annoncer « rien n'est envoyé » alors
+  // Le message ne parle que du OMNI: annoncer « rien n'est envoyé » alors
   // que --passe-tour emet de vraies trames serait le contraire de la verite.
   console.log(`mode ${arme ? 'ARMÉ : les actions seront dupliquées' : "observation : aucun rejeu n'est envoyé"}`);
   if (passeTour) {

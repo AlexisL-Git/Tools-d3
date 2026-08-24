@@ -10,7 +10,7 @@ function creerEcrans() {
   function demanderCle({ message } = {}) {
     return new Promise((resoudre) => {
       const f = new BrowserWindow({
-        width: 460, height: 260, title: 'Replicate', resizable: false,
+        width: 460, height: 260, title: 'OMNI', resizable: false,
         webPreferences: {
           preload: path.join(__dirname, 'ecran-preload.js'),
           contextIsolation: true, sandbox: true, nodeIntegration: false,
@@ -37,7 +37,7 @@ function creerEcrans() {
   // Un ami n'a pas de terminal: un arret doit se voir. Le dialogue natif
   // suffit ici — il n'y a plus rien a piloter derriere.
   async function afficherArret({ titre, message }) {
-    await dialog.showMessageBox({ type: 'warning', title: 'Replicate', message: titre, detail: message || '' });
+    await dialog.showMessageBox({ type: 'warning', title: 'OMNI', message: titre, detail: message || '' });
   }
 
   return { demanderCle, afficherArret };

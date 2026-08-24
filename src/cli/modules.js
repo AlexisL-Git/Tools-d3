@@ -5,7 +5,7 @@ const { findDofusProcesses } = require('../injector');
 // Releve des modules charges dans chaque client Dofus.
 //
 // Sert a repondre a une question precise: par quelle voie un injecteur tiers
-// (le Replicate de krm35) se greffe-t-il dans le jeu? Une DLL etrangere aux
+// (le OMNI de krm35) se greffe-t-il dans le jeu? Une DLL etrangere aux
 // dossiers du jeu et du systeme trahit une injection classique; son absence
 // oriente vers une voie externe, ou vers une injection sans module (shellcode,
 // thread distant).

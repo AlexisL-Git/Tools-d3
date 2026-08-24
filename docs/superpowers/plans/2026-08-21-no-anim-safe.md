@@ -994,7 +994,7 @@ Ajouter à `test/superviseur.test.js` :
 ```js
 // Le transformateur doit arriver jusqu'au proxy: sans ce fil, tout le reste
 // est ecrit pour rien. C'est exactement l'erreur trouvee en revue finale sur
-// le Replicate, ou onTrame n'etait pas branche et l'application ne dupliquait
+// le OMNI, ou onTrame n'etait pas branche et l'application ne dupliquait
 // rien tout en ayant l'air de marcher.
 test('le superviseur transmet son transformateur au proxy', () => {
   const t = () => null;
@@ -1290,7 +1290,7 @@ Attendu : aucun `node src/cli/mm.js`, et **surtout aucun `jklshdj.exe`** — le 
 
 Lancer l'application, **puis** deux clients Dofus. Ne toucher à aucun interrupteur de no-anim.
 
-Attendu : le Replicate duplique toujours (cliquer un zaap sur le maître le duplique sur l'esclave), le passe-tour passe toujours les tours, et le journal ne porte **aucune** ligne `no-anim`. C'est la garantie 1 vérifiée en conditions réelles : tant que personne n'allume, le proxy relaie comme avant.
+Attendu : le OMNI duplique toujours (cliquer un zaap sur le maître le duplique sur l'esclave), le passe-tour passe toujours les tours, et le journal ne porte **aucune** ligne `no-anim`. C'est la garantie 1 vérifiée en conditions réelles : tant que personne n'allume, le proxy relaie comme avant.
 
 - [ ] **Step 3 : Essayer le no-anim en jeu**
 

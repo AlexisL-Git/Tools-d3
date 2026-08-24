@@ -322,7 +322,7 @@ test('le clic du maître est rejoué avec le numéro propre à l esclave', () =>
 });
 
 // Le passe-tour vise UN client, pas tous les esclaves, et n'obeit pas au
-// drapeau `arme` qui appartient au Replicate: il lui faut son propre chemin.
+// drapeau `arme` qui appartient au OMNI: il lui faut son propre chemin.
 test('emettre ecrit la trame sur le client vise', () => {
   const s = superviseurAvecComptes([1, 2]);
   const ecritsUn = fauxClient(s, 1);
@@ -338,9 +338,9 @@ test('emettre ecrit la trame sur le client vise', () => {
   assert.strictEqual(res.octets, 4);
 });
 
-// `arme` gouverne le Replicate. Si emettre s'y soumettait, eteindre le
-// Replicate eteindrait le passe-tour avec lui.
-test('emettre ne depend pas du drapeau arme du Replicate', () => {
+// `arme` gouverne le OMNI. Si emettre s'y soumettait, eteindre le
+// OMNI eteindrait le passe-tour avec lui.
+test('emettre ne depend pas du drapeau arme du OMNI', () => {
   const s = superviseurAvecComptes([1]);
   s.arme = false;
   const ecrits = fauxClient(s, 1);
@@ -369,7 +369,7 @@ test('emettre refuse proprement un client inconnu ou sans socket', () => {
 
 // Le transformateur doit arriver jusqu'au proxy: sans ce fil, tout le reste
 // est ecrit pour rien. C'est exactement l'erreur trouvee en revue finale sur
-// le Replicate, ou onTrame n'etait pas branche et l'application ne dupliquait
+// le OMNI, ou onTrame n'etait pas branche et l'application ne dupliquait
 // rien tout en ayant l'air de marcher.
 test('le superviseur transmet son transformateur au proxy', () => {
   const t = () => null;

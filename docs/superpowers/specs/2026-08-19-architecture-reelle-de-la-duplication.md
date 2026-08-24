@@ -1,8 +1,8 @@
-# Architecture réelle du Replicate — relevée sur le produit en marche
+# Architecture réelle du OMNI — relevée sur le produit en marche
 
 **Date :** 2026-08-19
 **Statut :** établi par mesure directe, sur les deux clients lancés par le
-launcher de krm35, Replicate activé.
+launcher de krm35, OMNI activé.
 
 ## Comment on l'a su
 
@@ -204,7 +204,7 @@ Trois sortes de messages :
 ```json
 {"hb":1}                                                   // battement, toutes les 5 s
 {"type":"mouse","pid":32708,"pt":{"x":1751,"y":407},...}   // souris, avec le pid source
-{"payload":{...},"action":"replicate","type":"iov","realType":"NpcGenericActionRequest",
+{"payload":{...},"action":"omni","type":"iov","realType":"NpcGenericActionRequest",
  "hex":"3812360a29...","id":665809125670,"mapId":192937992,"cell":231,
  "interactiveElements":[...]}
 ```
@@ -304,7 +304,7 @@ maintenant sur le port de destination.
 
 Reste à écrire : la moitié « émission ». Le socle de lecture, lui, est complet.
 
-## Le Replicate fonctionne — validé sur deux comptes réels
+## Le OMNI fonctionne — validé sur deux comptes réels
 
 Le 19/08 au soir, sur deux clients passant par notre chaîne, l'utilisateur a
 vérifié en jeu : zaap, havre-sac, PNJ, dialogue. Tout suit.

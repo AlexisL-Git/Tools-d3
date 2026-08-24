@@ -1,5 +1,5 @@
 'use strict';
-const { lookup } = require('./protocol/replicate');
+const { lookup } = require('./protocol/omni');
 
 // La decision de rejeu, et elle seule.
 //
@@ -22,7 +22,7 @@ const { lookup } = require('./protocol/replicate');
 // meme titre que le choix des messages a rejouer: le superviseur se contente
 // de l'appliquer, et n'etale rien si on ne lui demande pas. Les deux appelants
 // reels — l'application et le CLI — importent cette constante, pour la meme
-// raison qu'ils partagent creerReplicateur: une regle recopiee finit par
+// raison qu'ils partagent creerDuplicateur: une regle recopiee finit par
 // diverger.
 //
 // LE PLANCHER N'EST PAS ARBITRAIRE. Le pas des minuteurs Windows est de
@@ -39,7 +39,7 @@ const ETALEMENT_REJEU = { minMs: MIN_TICK_WINDOWS, maxMs: 80 };
 // onCompteRendu — recoit ce qui a ete rejoue, ou refuse et pourquoi. C'est par
 //   la que passent les raisons rendues dans rendu[].raison, qu'un appelant
 //   affiche en console (le CLI) ou sur la ligne du compte (l'application).
-function creerReplicateur({ superviseur, onCompteRendu = () => {} }) {
+function creerDuplicateur({ superviseur, onCompteRendu = () => {} }) {
   return function onTrame({ pid, dir, frame, brute, estMaitre }) {
     // Seules les requetes SORTANTES du maitre se rejouent: ce que le serveur
     // renvoie est propre a chaque client et n'a rien a faire ailleurs.
@@ -62,4 +62,4 @@ function creerReplicateur({ superviseur, onCompteRendu = () => {} }) {
   };
 }
 
-module.exports = { creerReplicateur, ETALEMENT_REJEU, MIN_TICK_WINDOWS };
+module.exports = { creerDuplicateur, ETALEMENT_REJEU, MIN_TICK_WINDOWS };

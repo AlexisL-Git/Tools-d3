@@ -1,8 +1,8 @@
 {
-  "name": "replicate-serveur-maj",
+  "name": "omni-serveur-maj",
   "version": "0.1.0",
   "private": true,
-  "description": "Service de mise a jour et distribution de Replicate",
+  "description": "Service de mise a jour et distribution de OMNI",
   "scripts": {
     "test": "node --test",
     "publier": "node publier.js"

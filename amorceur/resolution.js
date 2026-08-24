@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Module = require('node:module');
 
-// Le code versionne vit hors du paquet (%APPDATA%\Replicate\versions\<v>\) et
+// Le code versionne vit hors du paquet (%APPDATA%\OMNI\versions\<v>\) et
 // doit pourtant trouver frida et protobufjs, restes dans le paquet.
 //
 // MESURE du 2026-08-25: patcher `Module._nodeModulePaths` ne suffit PLUS.

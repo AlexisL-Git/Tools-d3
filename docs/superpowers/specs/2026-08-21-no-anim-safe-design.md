@@ -5,7 +5,7 @@
 apparaissent à leur case d'arrivée sans marcher, le combat reste jouable de bout
 en bout, et le compte laissé décoché garde ses animations normales.
 
-Vérifié dans le même essai, avant d'allumer quoi que ce soit : le Replicate
+Vérifié dans le même essai, avant d'allumer quoi que ce soit : le OMNI
 duplique toujours, et le passe-tour a émis 38 fois. La garantie « inerte par
 défaut » tient donc en conditions réelles, pas seulement en test.
 
@@ -192,7 +192,7 @@ fonction elle-même.
 le chemin de relais est **identique octet pour octet** au code d'aujourd'hui :
 pas de réassemblage, pas de ré-encodage, `client.write(data)` inchangé. La
 transformation ne s'arme que lorsqu'au moins un compte l'active, et se désarme
-dès que le dernier l'éteint. Le Replicate, le passe-tour et l'acceptation des
+dès que le dernier l'éteint. Le OMNI, le passe-tour et l'acceptation des
 invitations ne peuvent donc pas être affectés par cette fonction tant que
 personne ne l'allume.
 
@@ -265,4 +265,4 @@ pas seulement au journal : c'est la leçon du passe-tour, où l'application
 affichait « suivi » des clients qu'elle ne pouvait pas atteindre.
 
 Et le critère de non-régression, qui compte autant : avec le no-anim éteint,
-les 224 tests passent et le Replicate duplique toujours.
+les 224 tests passent et le OMNI duplique toujours.

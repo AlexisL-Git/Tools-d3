@@ -1,12 +1,12 @@
 'use strict';
 
-const { needsRewrite, accountFields } = require('./replicate');
+const { needsRewrite, accountFields } = require('./omni');
 
 // Etat appris d'UN compte, a partir de son seul trafic.
 //
-// Le Replicate doit fonctionner avec 1 a 8 clients simultanes. Rejouer
+// Le OMNI doit fonctionner avec 1 a 8 clients simultanes. Rejouer
 // l'action du maitre chez les autres suppose de connaitre, pour chacun, les
-// valeurs qui lui sont propres — celles que src/protocol/replicate.js classe
+// valeurs qui lui sont propres — celles que src/protocol/omni.js classe
 // en nature 'compte'. Aucune ne peut etre devinee: chacune doit etre relevee
 // dans le flux du client concerne.
 //

@@ -56,10 +56,10 @@ actif, message) est **une ligne unique** en base, lue par `/api/manifeste`.
 
 ```json
 {
-  "name": "replicate-serveur-maj",
+  "name": "omni-serveur-maj",
   "version": "0.1.0",
   "private": true,
-  "description": "Service de mise a jour et distribution de Replicate",
+  "description": "Service de mise a jour et distribution de OMNI",
   "scripts": {
     "test": "node --test",
     "publier": "node publier.js"
@@ -753,7 +753,7 @@ demande le mot de passe une fois, le garde en mémoire (jamais sur disque), et
 l'envoie dans `x-admin`. Contenu minimal :
 
 ```html
-<!doctype html><meta charset="utf-8"><title>Replicate — amis</title>
+<!doctype html><meta charset="utf-8"><title>OMNI — amis</title>
 <style>
   body { font: 14px system-ui; background:#16181d; color:#e6e8ec; margin:0; padding:20px; }
   input,button { font:inherit; padding:6px 10px; border-radius:6px; border:1px solid #3a3f4b; background:#22252c; color:#e6e8ec; }

@@ -18,7 +18,7 @@ function fausseRacine() {
   ecrire('src/superviseur.js', '// superviseur');
   ecrire('src/comptes/vue.js', '// vue');
   ecrire('desktop/main.js', '// main');
-  ecrire('desktop/dist/Replicate-win32-x64/Replicate.exe', 'binaire');
+  ecrire('desktop/dist/OMNI-win32-x64/OMNI.exe', 'binaire');
   ecrire('amorceur/electron.js', '// amorceur');
   ecrire('test/x.test.js', '// test');
   ecrire('docs/note.md', '# note');

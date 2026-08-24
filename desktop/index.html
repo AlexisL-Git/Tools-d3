@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Replicate</title>
+<title>OMNI</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; font: 14px system-ui, sans-serif; background: #16181d; color: #e6e8ec; }
@@ -48,7 +48,7 @@
   #boff.confirme { background: #7a3b2e; color: #ffdcd2; }
 </style>
 <header>
-  <h1>Replicate</h1><span id="version"></span>
+  <h1>OMNI</h1><span id="version"></span>
   <button id="bascule">REPLI</button>
   <button id="bpt">PASSE-TOUR</button>
   <button id="binv">GROUPE</button>
@@ -71,7 +71,7 @@
   };
   // Icones redessinees d'apres le launcher de krm35: elles suivent la couleur
   // du texte, donc le theme, et n'ajoutent aucun fichier ni dependance.
-  const ICONE_REPLICATE =
+  const ICONE_DUPLICATION =
     '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
     '<line x1="12" y1="3" x2="12" y2="21"/><line x1="4.2" y1="7.5" x2="19.8" y2="16.5"/>' +
     '<line x1="4.2" y1="16.5" x2="19.8" y2="7.5"/></svg>';
@@ -116,7 +116,7 @@
 
   document.getElementById('bascule').addEventListener('click', () => {
     actif = !actif;
-    window.app.basculerReplicate(actif);
+    window.app.basculerDuplication(actif);
   });
 
   document.getElementById('bpt').addEventListener('click', () => {
@@ -167,7 +167,7 @@
   });
 
   window.app.surEtat((etat) => {
-    actif = etat.replicate;
+    actif = etat.duplication;
     // Le libelle ne change plus: c'est la couleur qui porte l'etat, comme pour
     // les trois autres interrupteurs (vert = arme, gris = au repos).
     document.getElementById('bascule').classList.toggle('actif', actif);
@@ -226,7 +226,7 @@
       // pendant la seconde d'attente d'un client qui vient d'etre attache, ses
       // quatre interrupteurs se seraient eteints sous le curseur.
       const utilisable = l.id !== null && l.pilotable;
-      const swRep = interrupteur(ICONE_REPLICATE, !l.exclu, !utilisable,
+      const swRep = interrupteur(ICONE_DUPLICATION, !l.exclu, !utilisable,
         (v) => window.app.exclureCompte(l.id, !v));
       const swPasse = interrupteur(ICONE_PASSE, l.passeTour, !utilisable,
         (v) => window.app.basculerPasseTourCompte(l.id, v));

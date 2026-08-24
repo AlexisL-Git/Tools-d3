@@ -3,7 +3,7 @@ const path = require('node:path');
 const { app, BrowserWindow, ipcMain } = require('electron');
 
 const { Superviseur } = require('../src/superviseur');
-const { creerReplicateur, ETALEMENT_REJEU } = require('../src/replicateur');
+const { creerDuplicateur, ETALEMENT_REJEU } = require('../src/duplicateur');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
@@ -66,9 +66,9 @@ const reglagesEchange = { actif: false };
 
 const DEPART = Date.now();
 // Ni trames brutes, ni etat interne chez un ami: le journal detaille ne
-// s'allume que sur demande explicite. Mettre REPLICATE_JOURNAL=complet pour
+// s'allume que sur demande explicite. Mettre OMNI_JOURNAL=complet pour
 // retrouver la sortie qui a servi a diagnostiquer le passe-tour et le no-anim.
-const JOURNAL_COMPLET = process.env.REPLICATE_JOURNAL === 'complet';
+const JOURNAL_COMPLET = process.env.OMNI_JOURNAL === 'complet';
 
 function journal(pid, texte) {
   if (!JOURNAL_COMPLET) return;
@@ -205,8 +205,8 @@ async function envoyerEtat() {
   fenetre.webContents.send('etat', {
     // Pose par l'amorceur avant de charger cette version. Quand un ami dit
     // « ca marche pas », le depannage ne commence pas par une devinette.
-    version: process.env.REPLICATE_VERSION || 'dev',
-    replicate: superviseur.arme,
+    version: process.env.OMNI_VERSION || 'dev',
+    duplication: superviseur.arme,
     erreurComptes,
     passeTourActif: reglagesPasseTour.actif,
     invitationActive: reglagesInvitation.actif,
@@ -246,7 +246,7 @@ function creerFenetre() {
   fenetre = new BrowserWindow({
     width: 820,
     height: 560,
-    title: 'Replicate',
+    title: 'OMNI',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -297,10 +297,10 @@ app.whenReady().then(async () => {
   // decision est celle du CLI, au mot pres, parce que c'est le meme module.
   //
   // Le superviseur n'accepte qu'un seul onTrame: le passe-tour, politique
-  // independante du Replicate, se compose ici plutot que d'ajouter un second
+  // independante du OMNI, se compose ici plutot que d'ajouter un second
   // point d'entree au superviseur.
   superviseur.onTrame = composer(
-    creerReplicateur({
+    creerDuplicateur({
       superviseur,
       onCompteRendu: ({ nom, rendu }) => {
         // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
@@ -352,7 +352,7 @@ app.whenReady().then(async () => {
   await envoyerEtat();
 });
 
-ipcMain.handle('basculerReplicate', async (_e, actif) => {
+ipcMain.handle('basculerDuplication', async (_e, actif) => {
   superviseur.arme = Boolean(actif);
   await envoyerEtat();
 });

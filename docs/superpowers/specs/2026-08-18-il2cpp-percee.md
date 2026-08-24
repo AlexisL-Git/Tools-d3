@@ -79,7 +79,7 @@ obfusquée**. `Core.Engine.Networking.Handlers.GameServerHandlers` contient
 exactement deux classes, aux noms parlants :
 
 - `GameMessage` — réception
-- `GameRequest` — **émission**, donc la moitié du Replicate qui manque
+- `GameRequest` — **émission**, donc la moitié du OMNI qui manque
 
 Leurs *méthodes* restent obfusquées (`bkmv`, `bkmx`…), sauf `ToString`,
 `GetHashCode`, `Equals` et `.ctor`. Les deux classes ont une forme identique
@@ -113,7 +113,7 @@ reprendre.
 2. Identifier parmi les méthodes obfusquées de `GameRequest` celle qui émet
 3. Vérifier qu'on peut **appeler** cette méthode : c'est le vrai mur, lire est
    simple, écrire exige signature correcte et instances valides
-4. Émettre un message forgé sur un second compte — le Replicate existe à
+4. Émettre un message forgé sur un second compte — le OMNI existe à
    partir de là
 
 ## Réserves
@@ -170,7 +170,7 @@ Sortant — une action du joueur :
 lqc → { "fcma": 24, "fcmc": "0" }
 ```
 
-**La moitié « lecture » du Replicate est acquise** : on connaît en temps réel,
+**La moitié « lecture » du OMNI est acquise** : on connaît en temps réel,
 avec le détail des champs, ce que le joueur émet et ce que le serveur répond.
 
 ## Découverte annexe : les .proto du cache sont périmés

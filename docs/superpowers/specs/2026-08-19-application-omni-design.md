@@ -1,4 +1,4 @@
-# Application de bureau pour piloter le Replicate
+# Application de bureau pour piloter le OMNI
 
 **Date :** 2026-08-19
 **Statut :** phase 1 conçue et validée, non implémentée. Phases 2 à 4 esquissées.
@@ -7,7 +7,7 @@
 
 Une application lancée par un raccourci, qui montre les comptes du launcher
 Ankama, permet d'en marquer certains en favoris et de lancer ceux-là, et porte
-un interrupteur Replicate — général, avec une case par compte pour en exclure.
+un interrupteur OMNI — général, avec une case par compte pour en exclure.
 De 1 à 8 clients simultanés.
 
 Le moteur existe déjà : `src/superviseur.js` et le CLI `src/cli/mm.js`,
@@ -23,7 +23,7 @@ chacune est utilisable seule.
 
 | phase | contenu | ce qu'elle apporte |
 |---|---|---|
-| **1** | app Electron, liste des comptes, favoris, boutons Replicate | utilisable immédiatement, lancement manuel depuis Zaap |
+| **1** | app Electron, liste des comptes, favoris, boutons OMNI | utilisable immédiatement, lancement manuel depuis Zaap |
 | **2** | service Thrift local (les cinq méthodes que le jeu appelle) | savoir répondre au jeu à la place de Zaap |
 | **3** | déchiffrement du `keydata`, authentification Ankama | obtenir un jeton de session par compte |
 | **4** | orchestration du lancement | le bouton « lancer mes favoris » |
@@ -137,7 +137,7 @@ Le renderer n'a **aucun** accès au réseau, aux process ni au système de
 fichiers. Il reçoit un état et émet deux ordres :
 
 ```
-basculerReplicate(actif)        arme ou désarme le superviseur
+basculerDuplication(actif)        arme ou désarme le superviseur
 exclureCompte(idCompte, exclu)  coche ou décoche une ligne
 marquerFavori(idCompte, favori) étoile ou retire l'étoile
 ```
@@ -150,7 +150,7 @@ Une fenêtre, une liste. Les dix comptes sont affichés, y compris hors ligne.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Replicate  [ ● ACTIF ]                    4 comptes en jeu  │
+│  OMNI  [ ● ACTIF ]                    4 comptes en jeu  │
 ├──────────────────────────────────────────────────────────────┤
 │ ★ ☑  BrokenLegs    Spoony — Pandawa        maître            │
 │ ★ ☑  squeezie      Swaggman — Cra          suit              │
@@ -165,7 +165,7 @@ Deux marques par ligne, qui ne servent pas à la même chose :
 - **★ favori** — le compte fait partie de ceux à lancer. Sans effet en phase 1,
   où le lancement reste manuel, mais la sélection est enregistrée dès
   maintenant : c'est elle que la phase 4 utilisera.
-- **☑ suit** — le compte participe au Replicate. Décoché, il reste en jeu sans
+- **☑ suit** — le compte participe au OMNI. Décoché, il reste en jeu sans
   reproduire les actions du maître.
 
 Le maître se met à jour seul, selon la fenêtre au premier plan — les agents le

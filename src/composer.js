@@ -5,7 +5,7 @@
 // les appelants composent leurs politiques ici.
 //
 // Une politique qui echoue ne doit pas priver les autres de la trame: le
-// Replicate et le passe-tour sont independants, et une exception dans l'un ne
+// OMNI et le passe-tour sont independants, et une exception dans l'un ne
 // regarde pas l'autre.
 //
 // Mais isoler n'est pas etouffer. Une premiere version avalait l'exception

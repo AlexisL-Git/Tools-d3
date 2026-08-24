@@ -2,9 +2,9 @@
 
 > **Pour les agents :** SOUS-SKILL REQUISE — `superpowers:subagent-driven-development` (recommandé) ou `superpowers:executing-plans`, tâche par tâche. Cases à cocher pour le suivi.
 
-**Objectif :** que l'application Replicate démarre sur un amorceur qui demande une clé au premier lancement, va chercher la dernière version publiée, la vérifie, l'installe hors du paquet, et sait revenir en arrière toute seule si elle plante.
+**Objectif :** que l'application OMNI démarre sur un amorceur qui demande une clé au premier lancement, va chercher la dernière version publiée, la vérifie, l'installe hors du paquet, et sait revenir en arrière toute seule si elle plante.
 
-**Architecture :** `resources/app.asar` ne contient plus que l'amorceur. Le code applicatif (`src/`, `desktop/`) vit dans `%APPDATA%\Replicate\versions\<version>\` et se remplace à distance. L'amorceur est la **seule pièce non actualisable** : toute erreur dedans se corrige en redistribuant 482 Mo. Il ne dépend que de Node et d'Electron — **aucune dépendance npm**, y compris pour lire une archive tar.
+**Architecture :** `resources/app.asar` ne contient plus que l'amorceur. Le code applicatif (`src/`, `desktop/`) vit dans `%APPDATA%\OMNI\versions\<version>\` et se remplace à distance. L'amorceur est la **seule pièce non actualisable** : toute erreur dedans se corrige en redistribuant 482 Mo. Il ne dépend que de Node et d'Electron — **aucune dépendance npm**, y compris pour lire une archive tar.
 
 **Pile :** Node ≥18 (modules natifs seuls : `node:zlib`, `node:crypto`, `node:fs`, `fetch`), Electron 43, `node:test`.
 
@@ -17,7 +17,7 @@ Elles s'appliquent à **toutes** les tâches.
 - **`npm test` à la racine du dépôt est le seul point d'entrée.** Vérifier que la suite **imprime son total** (`ℹ tests N`). Elle est à **351 tests** avant ce plan. Mesure faite : `node --test` à la racine descend AUSSI dans `serveur-maj/test/` (326 + 25). Les tests du serveur y passent donc deux fois, une par suite — sans dommage, mais si `serveur-maj/node_modules` manque, c'est la suite de la racine qui casse.
 - **L'amorceur n'a le droit à aucune dépendance npm.** `frida` et `protobufjs` restent au paquet et servent au code versionné, pas à lui. Un `require` d'un paquet npm dans `amorceur/` est un défaut à refuser en revue.
 - **Aucun échec ne laisse l'application morte.** Vercel injoignable, manifeste illisible, SHA-256 faux, extraction ratée : on démarre sur la version en place, sans bruit. Le seul cas qui refuse le démarrage est volontaire : clé invalide, ou coupe-circuit `actif:false`.
-- **La clé est stockée en clair** dans `%APPDATA%\Replicate\cle.txt`. La chiffrer serait du théâtre : l'application doit pouvoir la lire, donc l'ami aussi. Le levier de contrôle est la révocation côté serveur.
+- **La clé est stockée en clair** dans `%APPDATA%\OMNI\cle.txt`. La chiffrer serait du théâtre : l'application doit pouvoir la lire, donc l'ami aussi. Le levier de contrôle est la révocation côté serveur.
 - **Le paquet ne contient aucune clé** et aucun mot de passe admin.
 - **Aucune extraction hors du dossier de destination.** Un chemin absolu ou contenant `..` dans l'archive est un rejet, pas un avertissement.
 - **Windows / PowerShell** : ne pas chaîner git avec `if ($?)`. Commits en français, à l'impératif, sans accent dans le sujet.
@@ -1136,7 +1136,7 @@ contextBridge.exposeInMainWorld('ecran', {
 `amorceur/ecran.html` :
 
 ```html
-<!doctype html><meta charset="utf-8"><title>Replicate</title>
+<!doctype html><meta charset="utf-8"><title>OMNI</title>
 <style>
   body { font: 14px system-ui; background:#16181d; color:#e6e8ec; margin:0;
          padding:28px; display:flex; flex-direction:column; gap:14px; }
@@ -1149,7 +1149,7 @@ contextBridge.exposeInMainWorld('ecran', {
   .rangee { display:flex; gap:8px; }
   .rangee input { flex:1; }
 </style>
-<h1>Replicate</h1>
+<h1>OMNI</h1>
 <p id="invite">Colle la cle qui t'a ete transmise.</p>
 <p id="message"></p>
 <div class="rangee">
@@ -1184,7 +1184,7 @@ function creerEcrans() {
   function demanderCle({ message } = {}) {
     return new Promise((resoudre) => {
       const f = new BrowserWindow({
-        width: 460, height: 260, title: 'Replicate', resizable: false,
+        width: 460, height: 260, title: 'OMNI', resizable: false,
         webPreferences: {
           preload: path.join(__dirname, 'ecran-preload.js'),
           contextIsolation: true, sandbox: true, nodeIntegration: false,
@@ -1210,7 +1210,7 @@ function creerEcrans() {
   // Un ami n'a pas de terminal: un arret doit se voir. Le dialogue natif
   // suffit ici — il n'y a plus rien a piloter derriere.
   async function afficherArret({ titre, message }) {
-    await dialog.showMessageBox({ type: 'warning', title: 'Replicate', message: titre, detail: message || '' });
+    await dialog.showMessageBox({ type: 'warning', title: 'OMNI', message: titre, detail: message || '' });
   }
 
   return { demanderCle, afficherArret };
@@ -1245,7 +1245,7 @@ git commit -m "feat(maj): ecran de saisie de la cle et message d'arret"
 
 **Quatre pièges à ne pas payer :**
 
-1. **`app.getPath('userData')` ne vaut PAS `%APPDATA%\Replicate` en développement.** Il vaut `%APPDATA%\<nom du produit>`, donc `Electron` quand on lance `npm run app`. Le spec fixe `%APPDATA%\Replicate` : construire le chemin avec `path.join(app.getPath('appData'), 'Replicate')`, identique en développement et dans le paquet.
+1. **`app.getPath('userData')` ne vaut PAS `%APPDATA%\OMNI` en développement.** Il vaut `%APPDATA%\<nom du produit>`, donc `Electron` quand on lance `npm run app`. Le spec fixe `%APPDATA%\OMNI` : construire le chemin avec `path.join(app.getPath('appData'), 'OMNI')`, identique en développement et dans le paquet.
 2. **Le code versionné vit hors du paquet et doit quand même trouver `frida` et `protobufjs`.** Ses `require` remonteront depuis `%APPDATA%\...\versions\0.3.0\` et ne trouveront rien. On étend donc la résolution de modules vers le `node_modules` du paquet. **Un `.node` natif ne se charge pas depuis une archive asar** : c'est `app.asar.unpacked` qui les porte, et c'est ce chemin-là qu'il faut ajouter.
 3. **La version initiale est une archive embarquée**, pas une copie de dossier : `fs.cpSync` ne traverse pas l'asar de façon fiable, alors qu'un `readFileSync` d'un seul fichier oui. `amorceur/version-initiale.tgz` est fabriquée par la tâche 7.
 4. **Le témoin s'efface quand la fenêtre a fini de charger**, pas à la fin du `require`. Un `require` qui rend la main ne prouve rien : `desktop/main.js` fait son travail dans `app.whenReady().then(...)`, bien après.
@@ -1272,7 +1272,7 @@ const BASE = 'https://paquets-maj.vercel.app';
 // Fixe, en developpement comme dans le paquet: app.getPath('userData') vaut
 // %APPDATA%\Electron quand on lance npm run app, et le depot changerait de
 // place entre les deux.
-const RACINE = path.join(app.getPath('appData'), 'Replicate');
+const RACINE = path.join(app.getPath('appData'), 'OMNI');
 const VERSION_PAQUET = require('../package.json').version;
 
 // Le code versionne resout ses dependances vers le node_modules du PAQUET:
@@ -1317,11 +1317,11 @@ async function principal() {
     const titres = {
       'cle-refusee': "Cette cle n'est plus valide",
       'sans-cle': 'Aucune cle saisie',
-      'coupe-circuit': 'Replicate est momentanement arrete',
+      'coupe-circuit': 'OMNI est momentanement arrete',
       'aucune-version': 'Aucune version installee',
     };
     await ecrans.afficherArret({
-      titre: titres[resultat.raison] || 'Replicate ne peut pas demarrer',
+      titre: titres[resultat.raison] || 'OMNI ne peut pas demarrer',
       message: resultat.message || '',
     });
     app.quit();
@@ -1336,7 +1336,7 @@ async function principal() {
   });
 
   etendreResolution();
-  process.env.REPLICATE_VERSION = resultat.version;
+  process.env.OMNI_VERSION = resultat.version;
   require(path.join(resultat.dossier, 'desktop', 'main.js'));
 }
 
@@ -1352,7 +1352,7 @@ Dans `package.json` :
   "main": "amorceur/electron.js",
   "scripts": {
     "app": "electron amorceur/electron.js",
-    "pack": "electron-packager . Replicate --platform=win32 --arch=x64 --out=desktop/dist --overwrite --ignore=\"^/(docs|test|serveur-maj)\""
+    "pack": "electron-packager . OMNI --platform=win32 --arch=x64 --out=desktop/dist --overwrite --ignore=\"^/(docs|test|serveur-maj)\""
   },
 ```
 
@@ -1362,14 +1362,14 @@ Dans `package.json` :
 
 ```js
   fenetre.webContents.send('etat', {
-    version: process.env.REPLICATE_VERSION || 'dev',
-    replicate: superviseur.arme,
+    version: process.env.OMNI_VERSION || 'dev',
+    duplication: superviseur.arme,
 ```
 
 `desktop/index.html:50`, à côté du titre :
 
 ```html
-  <h1>Replicate</h1><span id="version"></span>
+  <h1>OMNI</h1><span id="version"></span>
 ```
 
 et dans la feuille de style, avec les autres règles de l'en-tête :
@@ -1390,7 +1390,7 @@ Run: `npm test`
 Attendu : la suite passe et **imprime son total**.
 
 Puis, en vrai : `npm run app`.
-Attendu, au premier lancement : la fenêtre de saisie de clé s'ouvre. Coller la clé de l'ami `test` (panneau : `https://paquets-maj.vercel.app/api/admin`). La fenêtre principale s'ouvre ensuite, l'en-tête affiche un numéro de version, et `%APPDATA%\Replicate\` contient `cle.txt` et `versions\<version>\`.
+Attendu, au premier lancement : la fenêtre de saisie de clé s'ouvre. Coller la clé de l'ami `test` (panneau : `https://paquets-maj.vercel.app/api/admin`). La fenêtre principale s'ouvre ensuite, l'en-tête affiche un numéro de version, et `%APPDATA%\OMNI\` contient `cle.txt` et `versions\<version>\`.
 
 Si la fenêtre principale ne s'ouvre pas, lire la sortie de la console : les lignes `[amorceur]` disent laquelle des étapes a refusé.
 
@@ -1466,7 +1466,7 @@ function faussRacine() {
   ecrire('src/superviseur.js', '// superviseur');
   ecrire('src/comptes/vue.js', '// vue');
   ecrire('desktop/main.js', '// main');
-  ecrire('desktop/dist/Replicate-win32-x64/Replicate.exe', 'binaire');
+  ecrire('desktop/dist/OMNI-win32-x64/OMNI.exe', 'binaire');
   ecrire('amorceur/electron.js', '// amorceur');
   ecrire('test/x.test.js', '// test');
   ecrire('docs/note.md', '# note');
@@ -1740,7 +1740,7 @@ Dans `desktop/main.js:236-248` et dans `amorceur/ecran.js`, ajouter à chaque `w
 ```js
 // Un ami ne doit pas pouvoir lire ce qui circule. Le journal detaille ne
 // s'allume que sur demande explicite, par variable d'environnement.
-const VERBEUX = process.env.REPLICATE_JOURNAL === 'complet';
+const VERBEUX = process.env.OMNI_JOURNAL === 'complet';
 
 function journal(pid, texte) {
   if (!VERBEUX) return;
@@ -1773,7 +1773,7 @@ Suivre l'enchaînement de la tâche 7 (incrémenter, fabriquer, publier, déploy
 
 | critère | comment le vérifier |
 |---|---|
-| 1. clé demandée, validée, enregistrée | supprimer `%APPDATA%\Replicate\cle.txt`, lancer, saisir la clé de `test` |
+| 1. clé demandée, validée, enregistrée | supprimer `%APPDATA%\OMNI\cle.txt`, lancer, saisir la clé de `test` |
 | 1 bis. clé invalide refusée | saisir n'importe quoi : message, et l'écran redemande |
 | 2. clé réutilisée | relancer : aucun écran de saisie |
 | 3. mise à jour automatique | publier une version, relancer, lire le numéro dans l'en-tête |
@@ -1783,7 +1783,7 @@ Suivre l'enchaînement de la tâche 7 (incrémenter, fabriquer, publier, déploy
 | 7. version qui plante | publier volontairement une version dont `desktop/main.js` lève à la première ligne, relancer deux fois : le second lancement repart sur la précédente |
 | 8. coupe-circuit | `service {actif:false, message}` depuis le panneau, relancer : refus avec le message |
 | 9. 404 sans clé | déjà mesuré à la tâche 8 du plan A, à re-vérifier une fois |
-| 10. aucun `.js` lisible | `dir /s desktop\dist\Replicate-win32-x64\resources` après `npm run pack` |
+| 10. aucun `.js` lisible | `dir /s desktop\dist\OMNI-win32-x64\resources` après `npm run pack` |
 | 11. `npm test` | la suite passe et imprime son total |
 
 - [ ] **Étape 3 : consigner**

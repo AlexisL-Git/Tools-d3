@@ -8,7 +8,7 @@
 **But :** passer automatiquement le tour d'un compte en combat, avec un
 interrupteur par compte et un interrupteur général dans l'application.
 
-**Architecture :** un module `src/passeur.js`, jumeau de `src/replicateur.js` :
+**Architecture :** un module `src/passeur.js`, jumeau de `src/duplicateur.js` :
 une fabrique qui reçoit le superviseur et rend une fonction `onTrame`. Le
 superviseur gagne une méthode `emettre(pid, octets)` pour écrire une trame sur
 un client précis. Les appelants composent les deux fabriques.
@@ -29,8 +29,8 @@ un client précis. Les appelants composent les deux fabriques.
   dessus — un combat à deux l'a démentie.
 - **La requête est constante** : `{ 1: 1, 2: 12 }`, sans identifiant ni numéro
   de tour.
-- **Le passe-tour est indépendant du Replicate.** Il ne doit PAS être gouverné
-  par `superviseur.arme`, qui appartient au Replicate. Il a son propre drapeau.
+- **Le passe-tour est indépendant du OMNI.** Il ne doit PAS être gouverné
+  par `superviseur.arme`, qui appartient au OMNI. Il a son propre drapeau.
 - Toute nouvelle annonce `jxh` **annule** le minuteur en attente du même
   compte, y compris celle qui concerne un autre personnage : elle signifie que
   notre tour est terminé.
@@ -60,7 +60,7 @@ Ajouter à `test/superviseur.test.js`, avant le dernier test du fichier :
 
 ```js
 // Le passe-tour vise UN client, pas tous les esclaves, et n'obeit pas au
-// drapeau `arme` qui appartient au Replicate: il lui faut son propre chemin.
+// drapeau `arme` qui appartient au OMNI: il lui faut son propre chemin.
 test('emettre ecrit la trame sur le client vise', () => {
   const s = superviseurAvecComptes([1, 2]);
   const ecritsUn = fauxClient(s, 1);
@@ -76,9 +76,9 @@ test('emettre ecrit la trame sur le client vise', () => {
   assert.strictEqual(res.octets, 4);
 });
 
-// `arme` gouverne le Replicate. Si emettre s'y soumettait, eteindre le
-// Replicate eteindrait le passe-tour avec lui.
-test('emettre ne depend pas du drapeau arme du Replicate', () => {
+// `arme` gouverne le OMNI. Si emettre s'y soumettait, eteindre le
+// OMNI eteindrait le passe-tour avec lui.
+test('emettre ne depend pas du drapeau arme du OMNI', () => {
   const s = superviseurAvecComptes([1]);
   s.arme = false;
   const ecrits = fauxClient(s, 1);
@@ -105,9 +105,9 @@ juste avant `async retirer(pid)` :
 
 ```js
   // Ecrit une trame sur UN client. Contrairement a rejouer(), qui vise tous
-  // les esclaves et obeit au drapeau `arme` du Replicate, emettre ne juge
+  // les esclaves et obeit au drapeau `arme` du OMNI, emettre ne juge
   // rien: l'appelant a deja decide. C'est ce qui permet au passe-tour d'avoir
-  // son propre interrupteur sans dependre de celui du Replicate.
+  // son propre interrupteur sans dependre de celui du OMNI.
   emettre(pid, octets) {
     const client = this.clients.get(pid);
     if (!client) return { ok: false, raison: 'client inconnu' };
@@ -148,14 +148,14 @@ git commit -m "feat(superviseur): emettre une trame vers un client precis"
 - Consomme : `EtatCompte` existant
 - Produit : `etat.passeTour` (booléen, faux par défaut)
 
-Symétrique du champ `exclu` qui gouverne le Replicate.
+Symétrique du champ `exclu` qui gouverne le OMNI.
 
 - [ ] **Étape 1 : écrire les tests qui échouent**
 
 Ajouter à `test/compte.test.js`, avant le dernier test du fichier :
 
 ```js
-// Le passe-tour et le Replicate sont deux fonctions independantes: eteindre
+// Le passe-tour et le OMNI sont deux fonctions independantes: eteindre
 // l'une ne doit rien faire a l'autre.
 test('le passe-tour est eteint par defaut et independant de l exclusion', () => {
   const c = new Comptes();
@@ -164,10 +164,10 @@ test('le passe-tour est eteint par defaut et independant de l exclusion', () => 
   assert.strictEqual(e.passeTour, false);
 
   e.passeTour = true;
-  assert.strictEqual(e.exclu, false, 'activer le passe-tour ne touche pas au Replicate');
+  assert.strictEqual(e.exclu, false, 'activer le passe-tour ne touche pas au OMNI');
 
   e.exclu = true;
-  assert.strictEqual(e.passeTour, true, 'exclure du Replicate ne coupe pas le passe-tour');
+  assert.strictEqual(e.passeTour, true, 'exclure du OMNI ne coupe pas le passe-tour');
 });
 ```
 
@@ -527,7 +527,7 @@ git commit -m "feat(passeur): passe-tour automatique, jxh du bon personnage decl
 - Modifier : `desktop/main.js`
 
 **Interfaces :**
-- Consomme : `creerReplicateur` de `src/replicateur.js`, `creerPasseur` de
+- Consomme : `creerDuplicateur` de `src/duplicateur.js`, `creerPasseur` de
   `src/passeur.js` (tâche 3)
 - Produit : `composer(...fonctions) -> onTrame` qui appelle chaque fonction
   avec le même événement.
@@ -555,7 +555,7 @@ test('chaque fonction recoit le meme evenement', () => {
   assert.deepStrictEqual(vus[1], [evenement]);
 });
 
-// Le Replicate et le passe-tour sont independants: si l'un jette, l'autre doit
+// Le OMNI et le passe-tour sont independants: si l'un jette, l'autre doit
 // quand meme voir la trame.
 test('une fonction qui jette n empeche pas les suivantes', () => {
   const vues = [];
@@ -586,7 +586,7 @@ Créer `src/composer.js` :
 // les appelants composent leurs politiques ici.
 //
 // Une politique qui echoue ne doit pas priver les autres de la trame: le
-// Replicate et le passe-tour sont independants, et une exception dans l'un ne
+// OMNI et le passe-tour sont independants, et une exception dans l'un ne
 // regarde pas l'autre.
 function composer(...fonctions) {
   return function onTrame(evenement) {
@@ -625,7 +625,7 @@ Puis, là où `onTrame` est affecté au superviseur, composer les deux :
 
 ```js
   superviseur.onTrame = composer(
-    creerReplicateur({ superviseur, onCompteRendu: /* le rappel existant, inchange */ }),
+    creerDuplicateur({ superviseur, onCompteRendu: /* le rappel existant, inchange */ }),
     creerPasseur({
       superviseur,
       reglages: { actif: passeTour, delaiMs },
@@ -674,7 +674,7 @@ Et remplacer l'affectation de `superviseur.onTrame` par :
 
 ```js
   superviseur.onTrame = composer(
-    creerReplicateur({ superviseur, onCompteRendu: /* le rappel existant, inchange */ }),
+    creerDuplicateur({ superviseur, onCompteRendu: /* le rappel existant, inchange */ }),
     creerPasseur({
       superviseur,
       reglages: reglagesPasseTour,
@@ -694,7 +694,7 @@ Attendu : 177 tests, 0 échec.
 
 ```bash
 git add src/composer.js test/composer.test.js src/cli/mm.js desktop/main.js
-git commit -m "feat: composer replicateur et passeur, le superviseur reste intact"
+git commit -m "feat: composer duplicateur et passeur, le superviseur reste intact"
 ```
 
 ---
@@ -951,7 +951,7 @@ Dans `envoyerEtat()`, passer l'ensemble à la vue et ajouter les deux réglages
       passeTour: new Set(favoris.tousPasseTour()),
 ```
 
-et, dans l'objet envoyé au renderer, à côté de `replicate: superviseur.arme` :
+et, dans l'objet envoyé au renderer, à côté de `duplication: superviseur.arme` :
 
 ```js
     passeTourActif: reglagesPasseTour.actif,
@@ -997,7 +997,7 @@ Remplacer l'en-tête par :
 
 ```html
 <header>
-  <h1>Replicate</h1>
+  <h1>OMNI</h1>
   <button id="bascule">INACTIF</button>
   <button id="bpt">PASSE-TOUR</button>
   <label style="color:#8b93a3">délai <input id="delai" type="number" min="0" step="0.1" value="0"></label>
@@ -1006,13 +1006,13 @@ Remplacer l'en-tête par :
 ```
 
 Ajouter les deux icônes en SVG, reprises du launcher de krm35 — astérisque à
-six branches pour le Replicate, cercle barré pour le passe-tour. Les insérer
+six branches pour le OMNI, cercle barré pour le passe-tour. Les insérer
 dans le script, avant la construction des lignes :
 
 ```js
   // Icones redessinees d'apres le launcher de krm35: elles suivent la couleur
   // du texte, donc le theme, et n'ajoutent aucun fichier ni dependance.
-  const ICONE_REPLICATE =
+  const ICONE_DUPLICATION =
     '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
     '<line x1="12" y1="3" x2="12" y2="21"/><line x1="4.2" y1="7.5" x2="19.8" y2="16.5"/>' +
     '<line x1="4.2" y1="16.5" x2="19.8" y2="7.5"/></svg>';
@@ -1040,7 +1040,7 @@ par les deux interrupteurs :
 
 ```js
       const utilisable = l.id !== null && l.etat === 'intercepte';
-      const swRep = interrupteur(ICONE_REPLICATE, !l.exclu, !utilisable,
+      const swRep = interrupteur(ICONE_DUPLICATION, !l.exclu, !utilisable,
         (v) => window.app.exclureCompte(l.id, !v));
       const swPasse = interrupteur(ICONE_PASSE, l.passeTour, !utilisable,
         (v) => window.app.basculerPasseTourCompte(l.id, v));

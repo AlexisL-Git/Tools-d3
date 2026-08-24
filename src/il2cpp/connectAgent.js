@@ -4,7 +4,7 @@
 // passer plusieurs clients pour une seule machine.
 //
 // Reproduit les trois mecanismes releves sur le produit de krm35
-// (voir docs/superpowers/specs/2026-08-19-architecture-reelle-du-replicate.md),
+// (voir docs/superpowers/specs/2026-08-19-architecture-reelle-du-omni.md),
 // avec une difference sur le troisieme.
 //
 //   1. connect() est detourne vers 127.0.0.1:<proxyPort>. Seul, cela ne peut
