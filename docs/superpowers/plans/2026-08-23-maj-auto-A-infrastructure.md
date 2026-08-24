@@ -944,7 +944,7 @@ crée pas de compte ni de base.
 L'utilisateur crée une base Neon (ou réutilise une instance) et fournit son
 `DATABASE_URL`. Le schéma s'applique tout seul au premier appel de fonction.
 
-- [ ] **Étape 2 : le projet Vercel**
+- [x] **Étape 2 : le projet Vercel** — fait le 2026-08-24 : projet `exode1/paquets-maj`, production sur **https://paquets-maj.vercel.app**. `ADMIN_MDP` reste à définir.
 
 Depuis `serveur-maj/`, l'utilisateur lance `npx vercel` et règle **Root
 Directory = serveur-maj** si le dépôt entier est lié. Variables
@@ -952,7 +952,7 @@ d'environnement à définir dans le tableau de bord Vercel :
 - `DATABASE_URL` (la base Neon)
 - `ADMIN_MDP` (le mot de passe admin, choisi par l'utilisateur)
 
-- [ ] **Étape 3 : désactiver la protection de déploiement**
+- [x] **Étape 3 : désactiver la protection de déploiement** — rien à faire : l'alias de production répond 200 sans page de connexion (seules les URL de déploiement `-<hash>-exode1` rendent 302, comportement normal).
 
 Tableau de bord Vercel → Settings → Deployment Protection → désactiver. Sinon
 chaque requête reçoit une page de connexion de ~480 Ko au lieu de la réponse.
