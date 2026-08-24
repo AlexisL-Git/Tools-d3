@@ -15,10 +15,10 @@
   <input id="mdp" type="password" placeholder="mot de passe admin">
   <button id="b-entrer">entrer</button>
 </div>
+<div id="avis"></div>
 <div id="panneau" hidden>
   <input id="nom" placeholder="nom du nouvel ami">
   <button id="b-creer">nouvel ami</button>
-  <div id="avis"></div>
   <table id="liste"></table>
 </div>
 <script>
@@ -35,12 +35,17 @@
     }
   }
   async function api(action, corps) {
-    const r = await fetch('/api/admin?action=' + action, {
-      method: 'POST',
-      headers: { 'x-admin': mdp, 'content-type': 'application/json' },
-      body: JSON.stringify(corps || {}),
-    });
+    avis('...');
+    let r;
+    try {
+      r = await fetch('/api/admin?action=' + action, {
+        method: 'POST',
+        headers: { 'x-admin': mdp, 'content-type': 'application/json' },
+        body: JSON.stringify(corps || {}),
+      });
+    } catch (e) { avis('requete impossible: ' + e.message); throw e; }
     if (r.status === 404) { avis('mot de passe refuse'); throw new Error('404'); }
+    if (!r.ok) { avis('le serveur a repondu ' + r.status + ' — reessaie'); throw new Error(String(r.status)); }
     return r.json();
   }
   async function entrer() {
@@ -59,6 +64,7 @@
   }
   async function rafraichir() {
     const amis = await api('lister');
+    avis('');
     const t = document.getElementById('liste');
     t.textContent = '';
     const entete = document.createElement('tr');
