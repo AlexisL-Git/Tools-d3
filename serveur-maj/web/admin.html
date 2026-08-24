@@ -1,0 +1,94 @@
+<!doctype html><meta charset="utf-8"><title>Replicate — amis</title>
+<style>
+  body { font: 14px system-ui; background:#16181d; color:#e6e8ec; margin:0; padding:20px; }
+  input,button { font:inherit; padding:6px 10px; border-radius:6px; border:1px solid #3a3f4b; background:#22252c; color:#e6e8ec; }
+  button { cursor:pointer; background:#2e5d8a; border:0; }
+  table { border-collapse:collapse; width:100%; margin-top:16px; }
+  td,th { text-align:left; padding:8px; border-bottom:1px solid #22252c; }
+  .off { opacity:.5; }
+  .cle { font-family:monospace; font-size:12px; color:#8b93a3; }
+  #avis { margin-top:12px; color:#8b93a3; min-height:1.2em; }
+  #avis input { width:34em; }
+</style>
+<h1>Amis</h1>
+<div id="connexion">
+  <input id="mdp" type="password" placeholder="mot de passe admin">
+  <button id="b-entrer">entrer</button>
+</div>
+<div id="panneau" hidden>
+  <input id="nom" placeholder="nom du nouvel ami">
+  <button id="b-creer">nouvel ami</button>
+  <div id="avis"></div>
+  <table id="liste"></table>
+</div>
+<script>
+  // Aucun dialogue natif (alert/prompt): ils bloquent la page et toute
+  // automatisation du navigateur. Les messages passent par #avis.
+  let mdp = '';
+  function avis(texte, valeur) {
+    const d = document.getElementById('avis');
+    d.textContent = texte;
+    if (valeur !== undefined) {
+      const i = document.createElement('input');
+      i.value = valeur; i.readOnly = true; i.className = 'cle';
+      d.append(' ', i); i.select();
+    }
+  }
+  async function api(action, corps) {
+    const r = await fetch('/api/admin?action=' + action, {
+      method: 'POST',
+      headers: { 'x-admin': mdp, 'content-type': 'application/json' },
+      body: JSON.stringify(corps || {}),
+    });
+    if (r.status === 404) { avis('mot de passe refuse'); throw new Error('404'); }
+    return r.json();
+  }
+  async function entrer() {
+    mdp = document.getElementById('mdp').value;
+    try {
+      await rafraichir();
+      document.getElementById('connexion').hidden = true;
+      document.getElementById('panneau').hidden = false;
+    } catch (e) {}
+  }
+  function cellule(texte, classe) {
+    const td = document.createElement('td');
+    td.textContent = texte;            // jamais innerHTML: le nom vient de la base
+    if (classe) td.className = classe;
+    return td;
+  }
+  async function rafraichir() {
+    const amis = await api('lister');
+    const t = document.getElementById('liste');
+    t.textContent = '';
+    const entete = document.createElement('tr');
+    for (const titre of ['nom', 'cle', 'derniere vue', '']) {
+      const th = document.createElement('th');
+      th.textContent = titre;
+      entete.append(th);
+    }
+    t.append(entete);
+    for (const a of amis) {
+      const tr = document.createElement('tr');
+      if (!a.actif) tr.className = 'off';
+      tr.append(cellule(a.nom), cellule(a.cle, 'cle'), cellule(a.derniere_vue || '—'));
+      const td = document.createElement('td');
+      const b = document.createElement('button');
+      b.textContent = a.actif ? 'desactiver' : 'activer';
+      b.onclick = async () => { await api('basculer', { cle: a.cle, actif: !a.actif }); rafraichir(); };
+      td.append(b); tr.append(td); t.append(tr);
+    }
+  }
+  async function creer() {
+    const nom = document.getElementById('nom').value.trim();
+    if (!nom) return;
+    const r = await api('creer', { nom });
+    avis('cle de ' + nom + ' — a lui transmettre :', r.cle);
+    document.getElementById('nom').value = '';
+    rafraichir();
+  }
+  document.getElementById('b-entrer').onclick = entrer;
+  document.getElementById('b-creer').onclick = creer;
+  document.getElementById('mdp').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrer(); });
+  document.getElementById('nom').addEventListener('keydown', (e) => { if (e.key === 'Enter') creer(); });
+</script>
