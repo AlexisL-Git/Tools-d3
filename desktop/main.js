@@ -65,7 +65,13 @@ const reglagesNoAnim = { actif: false };
 const reglagesEchange = { actif: false };
 
 const DEPART = Date.now();
+// Ni trames brutes, ni etat interne chez un ami: le journal detaille ne
+// s'allume que sur demande explicite. Mettre REPLICATE_JOURNAL=complet pour
+// retrouver la sortie qui a servi a diagnostiquer le passe-tour et le no-anim.
+const JOURNAL_COMPLET = process.env.REPLICATE_JOURNAL === 'complet';
+
 function journal(pid, texte) {
+  if (!JOURNAL_COMPLET) return;
   const t = String(Date.now() - DEPART).padStart(7);
   console.log(`${t}ms [${pid}] ${texte}`);
 }
@@ -197,6 +203,9 @@ async function envoyerEtat() {
   );
 
   fenetre.webContents.send('etat', {
+    // Pose par l'amorceur avant de charger cette version. Quand un ami dit
+    // « ca marche pas », le depannage ne commence pas par une devinette.
+    version: process.env.REPLICATE_VERSION || 'dev',
     replicate: superviseur.arme,
     erreurComptes,
     passeTourActif: reglagesPasseTour.actif,
@@ -243,6 +252,8 @@ function creerFenetre() {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      // Un ami ne doit pas pouvoir ouvrir un inspecteur et lire ce qui circule.
+      devTools: false,
     },
   });
   fenetre.removeMenu();

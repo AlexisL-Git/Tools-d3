@@ -1,16 +1,17 @@
 {
   "name": "mm",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Launcher multi-compte Dofus 3",
-  "main": "desktop/main.js",
+  "main": "amorceur/electron.js",
   "scripts": {
     "test": "node --test",
     "sniff": "node src/cli/sniff.js",
     "dump": "node src/cli/dump.js",
     "analyze": "node src/cli/analyze.js",
-    "app": "electron desktop/main.js",
-    "pack": "electron-packager . Replicate --platform=win32 --arch=x64 --out=desktop/dist --overwrite --ignore=\"^/(docs|test)\""
+    "paquet-code": "node outils/faire-paquet-code.js",
+    "app": "electron amorceur/electron.js",
+    "pack": "electron-packager . Replicate --platform=win32 --arch=x64 --out=desktop/dist --overwrite --ignore=\"^/(docs|test|serveur-maj)\""
   },
   "engines": {
     "node": ">=18"

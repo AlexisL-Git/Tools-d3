@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>Replicate</title>
+<style>
+  body { font: 14px system-ui; background:#16181d; color:#e6e8ec; margin:0;
+         padding:28px; display:flex; flex-direction:column; gap:14px; }
+  h1 { font-size:18px; margin:0; }
+  p { margin:0; color:#8b93a3; line-height:1.5; }
+  #message { color:#e8a598; }
+  input, button { font:inherit; padding:8px 12px; border-radius:6px;
+                  border:1px solid #3a3f4b; background:#22252c; color:#e6e8ec; }
+  button { cursor:pointer; background:#2e5d8a; border:0; }
+  .rangee { display:flex; gap:8px; }
+  .rangee input { flex:1; }
+</style>
+<h1>Replicate</h1>
+<p id="invite">Colle la cle qui t'a ete transmise.</p>
+<p id="message"></p>
+<div class="rangee">
+  <input id="cle" placeholder="cle" autofocus>
+  <button id="ok">valider</button>
+</div>
+<script>
+  // Aucun dialogue natif: alert() et prompt() gelent la fenetre.
+  const params = new URLSearchParams(location.search);
+  if (params.get('message')) document.getElementById('message').textContent = params.get('message');
+  function envoyer() {
+    const v = document.getElementById('cle').value.trim();
+    if (v) window.ecran.envoyer(v);
+  }
+  document.getElementById('ok').onclick = envoyer;
+  document.getElementById('cle').addEventListener('keydown', (e) => { if (e.key === 'Enter') envoyer(); });
+</script>

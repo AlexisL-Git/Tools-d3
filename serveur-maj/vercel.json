@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/manifeste.js": { "maxDuration": 10 },
+    "api/paquet.js": { "maxDuration": 10, "includeFiles": "paquets/**" },
+    "api/admin.js": { "maxDuration": 10, "includeFiles": "web/**" }
+  }
+}
