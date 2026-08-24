@@ -46,6 +46,7 @@ function installerInitiale(depot) {
     extraire(fs.readFileSync(archive), depot.dossierDe(VERSION_PAQUET));
   } catch (e) {
     console.error('[amorceur] version initiale non installable:', e.message);
+    try { fs.appendFileSync(path.join(RACINE, 'amorceur.log'), `version initiale non installable: ${e.message}` + String.fromCharCode(10)); } catch (e2) { /* rien */ }
   }
 }
 
@@ -56,7 +57,29 @@ const TITRES = {
   'aucune-version': 'Aucune version installee',
 };
 
+// Un ami n'a pas de terminal, et un executable package n'a pas de console:
+// sans ce fichier, toute panne de l'amorceur est muette. Il est court et
+// borne — pas de trames, pas d'etat interne, juste les decisions.
+function journal(texte) {
+  const ligne = `${new Date().toISOString()} ${texte}`;
+  console.log('[amorceur]', texte);
+  try {
+    fs.mkdirSync(RACINE, { recursive: true });
+    fs.appendFileSync(path.join(RACINE, 'amorceur.log'), ligne + '\n');
+  } catch (e) {
+    // Journaliser ne doit jamais empecher de demarrer.
+  }
+}
+
 async function principal() {
+  // CRITIQUE: sans ce gestionnaire, Electron quitte l'application des que la
+  // derniere fenetre se ferme — donc AU MOMENT ou l'ecran de saisie est
+  // detruit, avant meme l'appel au service. Celui de desktop/main.js ne compte
+  // pas: il n'est enregistre qu'une fois la version chargee, bien trop tard.
+  // Mesure du 2026-08-25: la cle etait saisie, l'application mourait dans la
+  // seconde, sans une ligne de journal ni cle.txt ecrit.
+  app.on('window-all-closed', () => {});
+
   const depot = creerDepot(RACINE);
   const ecrans = creerEcrans();
   const resultat = await demarrer({
@@ -66,10 +89,11 @@ async function principal() {
     ecrans,
     installerInitiale: () => installerInitiale(depot),
     versionPaquet: VERSION_PAQUET,
-    journal: (m) => console.log('[amorceur]', m),
+    journal,
   });
 
   if (resultat.action === 'arreter') {
+    journal(`arret: ${resultat.raison}`);
     await ecrans.afficherArret({
       titre: TITRES[resultat.raison] || 'Replicate ne peut pas demarrer',
       message: resultat.message || '',
@@ -96,9 +120,17 @@ async function principal() {
     app.quit();
     return;
   }
-  console.log('[amorceur] chargement de la version', resultat.version);
+  journal(`chargement de la version ${resultat.version}`);
   require(entree);
 }
 
 // L'ecran de saisie est une fenetre: il faut qu'Electron soit pret avant.
-app.whenReady().then(principal);
+// Toute exception ici laisserait l'application morte et muette: elle est
+// journalisee et montree, jamais avalee.
+app.whenReady().then(principal).catch(async (e) => {
+  journal(`panne de l'amorceur: ${e && e.stack ? e.stack : e}`);
+  try {
+    await creerEcrans().afficherArret({ titre: "Replicate n'a pas pu demarrer", message: String(e && e.message ? e.message : e) });
+  } catch (e2) { /* meme le dialogue a echoue */ }
+  app.quit();
+});
