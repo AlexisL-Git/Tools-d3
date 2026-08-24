@@ -10,6 +10,7 @@ const { creerCanal } = require('./canal');
 const { creerEcrans } = require('./ecran');
 const { demarrer } = require('./demarrage');
 const { extraire } = require('./archive');
+const { rendreResolvable } = require('./resolution');
 
 const BASE = 'https://paquets-maj.vercel.app';
 // Fixe, en developpement comme dans le paquet: app.getPath('userData') vaut
@@ -18,22 +19,15 @@ const BASE = 'https://paquets-maj.vercel.app';
 const RACINE = path.join(app.getPath('appData'), 'Replicate');
 const VERSION_PAQUET = require('../package.json').version;
 
-// Le code versionne vit hors du paquet et doit quand meme trouver frida et
-// protobufjs: ses require remontent depuis %APPDATA%\...\versions\<v>\ et n'y
-// trouveraient rien. On etend donc la resolution vers le node_modules du
-// PAQUET. Un .node natif ne se charge pas depuis une archive asar — d'ou
-// app.asar.unpacked, ajoute lui aussi.
-function etendreResolution() {
+// Les dependances du code versionne restent dans le paquet: frida et
+// protobufjs ne se mettent pas a jour. Un .node natif ne se charge pas depuis
+// une archive asar — d'ou app.asar.unpacked, propose lui aussi.
+function dossiersDeDependances() {
   const racineApp = app.getAppPath();
-  const supplements = [
+  return [
     path.join(racineApp, 'node_modules'),
     path.join(racineApp + '.unpacked', 'node_modules'),
-  ].filter((p) => fs.existsSync(p));
-  const origine = Module._nodeModulePaths;
-  Module._nodeModulePaths = function (depuis) {
-    return origine.call(this, depuis).concat(supplements);
-  };
-  return supplements;
+  ];
 }
 
 // La version embarquee est une ARCHIVE, pas une copie de dossier: fs.cpSync ne
@@ -109,7 +103,11 @@ async function principal() {
     fenetre.webContents.once('did-finish-load', () => depot.effacerTemoin());
   });
 
-  etendreResolution();
+  const resolution = rendreResolvable({
+    dossierVersion: resultat.dossier,
+    dossiers: dossiersDeDependances(),
+  });
+  journal(`dependances resolues par ${resolution.methode}`);
   process.env.REPLICATE_VERSION = resultat.version;
   const entree = path.join(resultat.dossier, 'desktop', 'main.js');
   if (!fs.existsSync(entree)) {
