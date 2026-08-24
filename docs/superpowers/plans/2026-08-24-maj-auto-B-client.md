@@ -14,7 +14,7 @@
 
 Elles s'appliquent à **toutes** les tâches.
 
-- **`npm test` à la racine du dépôt est le seul point d'entrée.** Vérifier que la suite **imprime son total** (`ℹ tests N`). Elle est à 326 tests avant ce plan (25 de plus dans `serveur-maj/`, suite séparée).
+- **`npm test` à la racine du dépôt est le seul point d'entrée.** Vérifier que la suite **imprime son total** (`ℹ tests N`). Elle est à **351 tests** avant ce plan. Mesure faite : `node --test` à la racine descend AUSSI dans `serveur-maj/test/` (326 + 25). Les tests du serveur y passent donc deux fois, une par suite — sans dommage, mais si `serveur-maj/node_modules` manque, c'est la suite de la racine qui casse.
 - **L'amorceur n'a le droit à aucune dépendance npm.** `frida` et `protobufjs` restent au paquet et servent au code versionné, pas à lui. Un `require` d'un paquet npm dans `amorceur/` est un défaut à refuser en revue.
 - **Aucun échec ne laisse l'application morte.** Vercel injoignable, manifeste illisible, SHA-256 faux, extraction ratée : on démarre sur la version en place, sans bruit. Le seul cas qui refuse le démarrage est volontaire : clé invalide, ou coupe-circuit `actif:false`.
 - **La clé est stockée en clair** dans `%APPDATA%\Replicate\cle.txt`. La chiffrer serait du théâtre : l'application doit pouvoir la lire, donc l'ami aussi. Le levier de contrôle est la révocation côté serveur.
