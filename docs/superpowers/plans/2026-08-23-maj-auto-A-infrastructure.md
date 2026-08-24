@@ -52,7 +52,7 @@ actif, message) est **une ligne unique** en base, lue par `/api/manifeste`.
 **Interfaces :**
 - Produit : `creerClient()` → un client `sql` Neon ; `appliquerSchema(sql)` → crée les tables si absentes.
 
-- [ ] **Étape 1 : package.json**
+- [x] **Étape 1 : package.json**
 
 ```json
 {
@@ -69,7 +69,7 @@ actif, message) est **une ligne unique** en base, lue par `/api/manifeste`.
 }
 ```
 
-- [ ] **Étape 2 : vercel.json et .gitignore**
+- [x] **Étape 2 : vercel.json et .gitignore**
 
 `serveur-maj/vercel.json` :
 
@@ -90,7 +90,7 @@ node_modules/
 Les archives publiées `paquets/*.tar.gz` **sont** commitées — elles font
 partie du déploiement. Ne pas les ignorer.
 
-- [ ] **Étape 3 : la couche base**
+- [x] **Étape 3 : la couche base**
 
 `serveur-maj/lib/db.js` :
 
@@ -130,7 +130,7 @@ async function appliquerSchema(sql) {
 module.exports = { creerClient, appliquerSchema };
 ```
 
-- [ ] **Étape 4 : vérifier que le module se charge**
+- [x] **Étape 4 : vérifier que le module se charge**
 
 Run: `cd serveur-maj && node -e "require('./lib/db')" && npm install`
 Attendu : aucune erreur ; `node_modules` créé.
@@ -139,7 +139,7 @@ Attendu : aucune erreur ; `node_modules` créé.
 `@neondatabase/serverless` est du JS pur, sans étape native — rien à
 reconstruire.
 
-- [ ] **Étape 5 : commiter**
+- [x] **Étape 5 : commiter**
 
 ```bash
 git add serveur-maj/package.json serveur-maj/vercel.json serveur-maj/.gitignore serveur-maj/lib/db.js
@@ -166,7 +166,7 @@ rend une réponse programmée. Les fonctions ci-dessous n'utilisent que des
 requêtes paramétrées via l'interpolation tag de Neon — **jamais** de
 concaténation de chaîne, sinon injection SQL.
 
-- [ ] **Étape 1 : écrire les tests**
+- [x] **Étape 1 : écrire les tests**
 
 ```js
 'use strict';
@@ -230,14 +230,14 @@ test('basculerAmi passe le booleen et la cle', async () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
 cd serveur-maj && npm test
 ```
 Attendu : `Cannot find module '../lib/amis'`.
 
-- [ ] **Étape 3 : implémenter**
+- [x] **Étape 3 : implémenter**
 
 ```js
 'use strict';
@@ -269,7 +269,7 @@ async function basculerAmi(sql, cle, actif) {
 module.exports = { verifierCle, listerAmis, creerAmi, basculerAmi };
 ```
 
-- [ ] **Étape 4 : lancer, vérifier le passage, commiter**
+- [x] **Étape 4 : lancer, vérifier le passage, commiter**
 
 ```bash
 npm test
@@ -291,7 +291,7 @@ git commit -m "feat(maj): couche amis, verification et gestion des cles"
   - `ecrireManifeste(sql, { version, sha256 })` → met à jour version et sha256 de la ligne unique, sans toucher `actif`/`message`.
   - `basculerService(sql, actif, message)` → met à jour `actif` et `message` (le coupe-circuit global).
 
-- [ ] **Étape 1 : écrire les tests**
+- [x] **Étape 1 : écrire les tests**
 
 ```js
 'use strict';
@@ -335,13 +335,13 @@ test('basculerService ecrit actif et message', async () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
 npm test
 ```
 
-- [ ] **Étape 3 : implémenter**
+- [x] **Étape 3 : implémenter**
 
 ```js
 'use strict';
@@ -363,7 +363,7 @@ async function basculerService(sql, actif, message) {
 module.exports = { lireManifeste, ecrireManifeste, basculerService };
 ```
 
-- [ ] **Étape 4 : lancer, vérifier le passage, commiter**
+- [x] **Étape 4 : lancer, vérifier le passage, commiter**
 
 ```bash
 npm test
@@ -386,7 +386,7 @@ git commit -m "feat(maj): couche manifeste et coupe-circuit global"
 La clé arrive dans l'en-tête `x-cle`. La logique testable est séparée du
 transport HTTP : `traiterManifeste` ne connaît ni `req` ni `res`.
 
-- [ ] **Étape 1 : écrire les tests**
+- [x] **Étape 1 : écrire les tests**
 
 ```js
 'use strict';
@@ -419,13 +419,13 @@ test('cle valide, 200 et le manifeste', async () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
 npm test
 ```
 
-- [ ] **Étape 3 : implémenter**
+- [x] **Étape 3 : implémenter**
 
 ```js
 'use strict';
@@ -460,7 +460,7 @@ module.exports = async (req, res) => {
 module.exports.traiterManifeste = traiterManifeste;
 ```
 
-- [ ] **Étape 4 : lancer, vérifier le passage, commiter**
+- [x] **Étape 4 : lancer, vérifier le passage, commiter**
 
 ```bash
 npm test
@@ -484,7 +484,7 @@ L'archive vit dans `serveur-maj/paquets/<version>.tar.gz`. La fonction lit la
 version courante dans le manifeste, puis sert le fichier correspondant. En
 production, `lireFichier` lit depuis le disque bundlé ; les tests l'injectent.
 
-- [ ] **Étape 1 : écrire les tests**
+- [x] **Étape 1 : écrire les tests**
 
 ```js
 'use strict';
@@ -521,13 +521,13 @@ test('archive absente, 404', async () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
 npm test
 ```
 
-- [ ] **Étape 3 : implémenter**
+- [x] **Étape 3 : implémenter**
 
 ```js
 'use strict';
@@ -586,7 +586,7 @@ avec la fonction :
 }
 ```
 
-- [ ] **Étape 4 : lancer, vérifier le passage, commiter**
+- [x] **Étape 4 : lancer, vérifier le passage, commiter**
 
 ```bash
 npm test
@@ -615,7 +615,7 @@ message }`). Une requête `GET` sans action sert le HTML du panneau.
 `crypto.timingSafeEqual` — pour ne pas fuir sa longueur ni ses préfixes par le
 temps de réponse. Une comparaison `===` est un défaut de sécurité ici.
 
-- [ ] **Étape 1 : écrire les tests**
+- [x] **Étape 1 : écrire les tests**
 
 ```js
 'use strict';
@@ -666,13 +666,13 @@ test('action inconnue, 400', async () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
 npm test
 ```
 
-- [ ] **Étape 3 : implémenter la fonction**
+- [x] **Étape 3 : implémenter la fonction**
 
 ```js
 'use strict';
@@ -746,7 +746,7 @@ module.exports = async (req, res) => {
 module.exports.traiterAdmin = traiterAdmin;
 ```
 
-- [ ] **Étape 4 : écrire le panneau**
+- [x] **Étape 4 : écrire le panneau**
 
 `serveur-maj/web/admin.html` — page autonome, sans dépendance externe. Elle
 demande le mot de passe une fois, le garde en mémoire (jamais sur disque), et
@@ -815,7 +815,7 @@ l'envoie dans `x-admin`. Contenu minimal :
 </script>
 ```
 
-- [ ] **Étape 5 : lancer les tests, commiter**
+- [x] **Étape 5 : lancer les tests, commiter**
 
 ```bash
 npm test
@@ -842,7 +842,7 @@ compilation en bytecode et l'assemblage de l'archive viennent du sous-projet B
 `publier.js` prend une archive déjà fabriquée en argument. La partie testable
 est le calcul du SHA et l'écriture au bon endroit.
 
-- [ ] **Étape 1 : écrire le test**
+- [x] **Étape 1 : écrire le test**
 
 ```js
 'use strict';
@@ -866,13 +866,13 @@ test('preparerPublication ecrit l archive et rend son sha256', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
 npm test
 ```
 
-- [ ] **Étape 3 : implémenter**
+- [x] **Étape 3 : implémenter**
 
 ```js
 'use strict';
@@ -923,7 +923,7 @@ if (require.main === module) main();
 module.exports = { preparerPublication };
 ```
 
-- [ ] **Étape 4 : lancer, vérifier le passage, commiter**
+- [x] **Étape 4 : lancer, vérifier le passage, commiter**
 
 ```bash
 npm test
