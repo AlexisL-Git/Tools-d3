@@ -19,6 +19,19 @@ test('sans mot de passe, 404', async () => {
   assert.strictEqual(r.statut, 404);
 });
 
+// Le champ Value de Vercel est multiligne: un retour a la ligne colle avec la
+// valeur ne doit pas fermer la porte. Mesure prise sur le vrai service.
+test('un secret entoure de blancs reste accepte', async () => {
+  const amis = [];
+  const r = await traiterAdmin({ motDePasse: SECRET, action: 'lister', sql: fauxSql([amis]), motDePasseAttendu: SECRET + String.fromCharCode(10) });
+  assert.strictEqual(r.statut, 200);
+});
+
+test('un mot de passe faux reste refuse, blancs ou pas', async () => {
+  const r = await traiterAdmin({ motDePasse: '  ' + SECRET + 'x ', action: 'lister', sql: fauxSql([]), motDePasseAttendu: SECRET });
+  assert.strictEqual(r.statut, 404);
+});
+
 test('lister rend les amis', async () => {
   const amis = [{ cle: 'a', nom: 'A', actif: true }];
   const r = await traiterAdmin({ motDePasse: SECRET, action: 'lister', sql: fauxSql([amis]), motDePasseAttendu: SECRET });

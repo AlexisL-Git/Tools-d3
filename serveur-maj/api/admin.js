@@ -15,8 +15,17 @@ function memeSecret(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
+// Le champ Value du tableau de bord Vercel est une zone de texte multiligne:
+// une valeur collee y arrive facilement avec un retour a la ligne ou une
+// espace en trop, et la comparaison echouait alors sans rien dire. On coupe
+// les blancs de bordure des deux cotes; un mot de passe qui commence ou finit
+// par une espace n'est de toute facon pas saisissable de facon fiable.
+function normaliser(x) {
+  return typeof x === 'string' ? x.trim() : x;
+}
+
 async function traiterAdmin({ motDePasse, action, corps = {}, sql, genererCle, motDePasseAttendu }) {
-  if (!memeSecret(motDePasse, motDePasseAttendu)) return { statut: 404, corps: null };
+  if (!memeSecret(normaliser(motDePasse), normaliser(motDePasseAttendu))) return { statut: 404, corps: null };
   const gen = genererCle || (() => crypto.randomBytes(24).toString('hex'));
   switch (action) {
     case 'lister':
