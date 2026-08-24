@@ -1,0 +1,12 @@
+{
+  "name": "replicate-serveur-maj",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Service de mise a jour et distribution de Replicate",
+  "scripts": {
+    "test": "node --test",
+    "publier": "node publier.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": { "@neondatabase/serverless": "^0.10.4" }
+}
