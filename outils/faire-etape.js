@@ -22,6 +22,16 @@ const DOSSIERS = ['amorceur', 'src'];
 const FICHIERS_DESKTOP = ['main.js', 'preload.js', 'index.html'];
 
 function copier() {
+  // GARDE: une suppression recursive TRAVERSE une jonction Windows et efface
+  // ce qu'elle vise. Une jonction node_modules laissee par une version
+  // precedente de ce script a vide le node_modules du depot. On la detache
+  // avant toute suppression, toujours.
+  const lien = path.join(ETAPE, 'node_modules');
+  try {
+    if (fs.lstatSync(lien).isSymbolicLink()) fs.unlinkSync(lien);
+  } catch (e) {
+    // Pas de lien: rien a detacher.
+  }
   fs.rmSync(ETAPE, { recursive: true, force: true });
   fs.mkdirSync(ETAPE, { recursive: true });
   for (const d of DOSSIERS) {
@@ -37,6 +47,39 @@ function copier() {
   fs.rmSync(path.join(ETAPE, 'amorceur', 'version-initiale.tgz'), { force: true });
 }
 
+// Les dependances de production, et elles seules, sont COPIEES dans l'etape.
+//
+// Une jonction vers le node_modules du depot avait paru plus economique. Elle
+// a coute cher: l'elagage du packager l'a traversee et a vide le node_modules
+// DU DEPOT. Une copie ne peut pas faire ca.
+function dependancesProduction() {
+  const vus = new Set();
+  const file = Object.keys(JSON.parse(fs.readFileSync(path.join(RACINE, 'package.json'), 'utf8')).dependencies || {});
+  while (file.length) {
+    const nom = file.shift();
+    if (vus.has(nom)) continue;
+    const dossier = path.join(RACINE, 'node_modules', nom);
+    if (!fs.existsSync(dossier)) continue;
+    vus.add(nom);
+    try {
+      const pj = JSON.parse(fs.readFileSync(path.join(dossier, 'package.json'), 'utf8'));
+      file.push(...Object.keys(pj.dependencies || {}));
+    } catch (e) {
+      // Un module sans package.json lisible n'a pas de dependances a suivre.
+    }
+  }
+  return [...vus];
+}
+
+function copierDependances() {
+  const noms = dependancesProduction();
+  for (const nom of noms) {
+    fs.cpSync(path.join(RACINE, 'node_modules', nom), path.join(ETAPE, 'node_modules', nom),
+      { recursive: true, dereference: true });
+  }
+  return noms;
+}
+
 function main() {
   if (typeof process.versions.electron !== 'string') {
     console.error('ERREUR: a lancer avec le binaire package (ELECTRON_RUN_AS_NODE=1).');
@@ -45,10 +88,19 @@ function main() {
   }
   copier();
 
-  const laisses = [];
-  const compiles = parcourir(ETAPE, laisses);
-  console.log(`${compiles} fichiers compiles (V8 ${process.versions.v8})`);
-  for (const l of laisses) console.log('  laisse en clair:', path.relative(ETAPE, l));
+  // MESURE du 2026-08-25: le processus GRAPHIQUE d'Electron refuse un cache
+  // produit ailleurs — ses drapeaux V8 ne sont pas ceux du mode Node, et les
+  // drapeaux font partie de ce que V8 valide. Compiler avec le binaire en mode
+  // Node donne donc un paquet qui ouvre une fenetre « Error ». Tant qu'on ne
+  // compile pas DEPUIS un processus graphique, le bytecode reste desactive.
+  if (process.env.REPLICATE_BYTECODE === 'oui') {
+    const laisses = [];
+    const compiles = parcourir(ETAPE, laisses);
+    console.log(`${compiles} fichiers compiles (V8 ${process.versions.v8})`);
+    for (const l of laisses) console.log('  laisse en clair:', path.relative(ETAPE, l));
+  } else {
+    console.log('bytecode DESACTIVE (REPLICATE_BYTECODE=oui pour l activer)');
+  }
 
   // L'archive de la version initiale contient le MEME code compile que celui
   // qu'un ami recevra par une mise a jour: un seul chemin de code, pas deux.
@@ -63,13 +115,8 @@ function main() {
   console.log(`archive   : ${r.nombreFichiers} fichiers, ${r.archive.length} octets`);
   console.log(`sha256    : ${r.sha256}`);
   console.log(`a publier : ${publiable}`);
-  // Les dependances restent celles du depot: une jonction suffit, le
-  // packager la traverse et n'emporte que les dependances de production.
-  // Elle est posee APRES la compilation, qui ne doit jamais toucher a
-  // node_modules — un module y declare son point d'entree en .js.
-  const lien = path.join(ETAPE, 'node_modules');
-  if (!fs.existsSync(lien)) fs.symlinkSync(path.join(RACINE, 'node_modules'), lien, 'junction');
-  console.log(`node_modules: jonction vers ${path.join(RACINE, 'node_modules')}`);
+  const noms = copierDependances();
+  console.log(`node_modules: ${noms.length} dependances de production copiees`);
 
   console.log('');
   console.log('etape prete. Fabriquer le paquet: npm run pack');

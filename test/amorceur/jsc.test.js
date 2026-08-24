@@ -70,3 +70,19 @@ test('aucun .js lisible ne subsiste apres compilation d un dossier', () => {
   const jsc = fs.readFileSync(path.join(d, 'secret.jsc'));
   assert.strictEqual(jsc.includes('commentaire revelateur'), false);
 });
+
+// MESURE du 2026-08-25: les tests ci-dessus compilent et rechargent dans le
+// MEME processus, et passaient tous alors que l'application packagee ouvrait
+// une fenetre « Error ». V8 refuse un cache produit sous d'autres drapeaux que
+// ceux du processus qui le recharge. Ce test-ci charge donc AILLEURS.
+test('un module compile ici se recharge dans un autre processus', () => {
+  const { spawnSync } = require('node:child_process');
+  const d = tmp();
+  const chemin = path.join(d, 'ailleurs.jsc');
+  fs.writeFileSync(chemin, compilerSource('module.exports = 40 + 2;'));
+  const chargeur = path.join(__dirname, '..', '..', 'amorceur', 'jsc.js');
+  const script = `require(${JSON.stringify(chargeur)}); console.log(require(${JSON.stringify(chemin)}));`;
+  const r = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, 'sortie: ' + r.stderr);
+  assert.strictEqual(r.stdout.trim(), '42');
+});

@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
+const v8 = require('node:v8');
 const Module = require('node:module');
 
 // Format d'un .jsc:
@@ -20,6 +21,14 @@ const Module = require('node:module');
 // qui l'a produit. D'ou la compilation avec l'Electron du paquet
 // (outils/compiler-bytecode.js), et jamais avec node.
 const TAILLE_ENTETE = 4 + 32;
+
+// MESURE du 2026-08-25: V8 refuse un cache produit sous d'autres DRAPEAUX que
+// ceux du processus qui le recharge. La compilation pose `--no-lazy` (sans
+// quoi les fonctions internes ne sont pas dans le cache et V8 irait chercher
+// une source qui n'existe plus); le chargement doit donc poser le meme.
+// Sans cette ligne, tout marchait dans le processus qui compilait et rien ne
+// se rechargeait ailleurs — l'application ouvrait une fenetre « Error ».
+v8.setFlagsFromString('--no-lazy');
 
 function installer(extensions = Module._extensions) {
   extensions['.jsc'] = function (module, chemin) {

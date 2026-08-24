@@ -30,7 +30,10 @@ async function main() {
     arch: 'x64',
     out: SORTIE,
     overwrite: true,
-    prune: true,
+    // JAMAIS d'elagage ici: faire-etape.js a deja copie exactement les
+    // dependances de production. L'elagage du packager avait suivi une
+    // jonction et vide le node_modules du depot.
+    prune: false,
     // Tout binaire natif sort de l'archive: un .node ne se charge pas depuis
     // un asar. C'est exactement a quoi sert app.asar.unpacked.
     asar: { unpack: '**/*.node' },
