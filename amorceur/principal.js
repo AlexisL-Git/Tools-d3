@@ -65,6 +65,25 @@ function journal(texte) {
   }
 }
 
+// Mode developpement: on charge le code du depot tel quel, sans passer par le
+// service ni par le depot de versions. Sans lui, modifier un fichier du depot
+// ne change rien a l'ecran — l'application charge ce qui est installe dans
+// %APPDATA%, pas ce qu'on vient d'ecrire.
+//
+//   $env:OMNI_DEV='C:\Users\Utilisateur\mm'
+//   .\desktop\dist\OMNI-win32-x64\OMNI.exe
+//
+// Ni cle ni mise a jour ici: c'est une variable d'environnement posee sur sa
+// propre machine par qui a deja le code sous les yeux.
+function chargerDepotLocal(chemin) {
+  const entree = path.join(chemin, 'desktop', 'main.js');
+  if (!fs.existsSync(entree)) {
+    throw new Error(`OMNI_DEV=${chemin}: pas de desktop/main.js a cet endroit`);
+  }
+  process.env.OMNI_VERSION = 'dev';
+  require(entree);
+}
+
 async function principal() {
   // CRITIQUE: sans ce gestionnaire, Electron quitte l'application des que la
   // derniere fenetre se ferme — donc AU MOMENT ou l'ecran de saisie est
@@ -73,6 +92,12 @@ async function principal() {
   // Mesure du 2026-08-25: la cle etait saisie, l'application mourait dans la
   // seconde, sans une ligne de journal ni cle.txt ecrit.
   app.on('window-all-closed', () => {});
+
+  if (process.env.OMNI_DEV) {
+    journal(`mode developpement: ${process.env.OMNI_DEV}`);
+    chargerDepotLocal(process.env.OMNI_DEV);
+    return;
+  }
 
   const depot = creerDepot(RACINE);
   const ecrans = creerEcrans();
