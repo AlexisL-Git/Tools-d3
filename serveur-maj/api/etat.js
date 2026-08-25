@@ -5,13 +5,16 @@ const { enregistrerEtat } = require('../lib/etat');
 const { prevenir } = require('../lib/discord');
 
 // Logique pure, sans HTTP: c'est elle qu'on teste.
-async function traiterEtat({ cle, corps = {}, sql, prevenirFn = prevenir }) {
+async function traiterEtat({ cle, corps, sql, prevenirFn = prevenir }) {
+  // Normalise corps: les defauts de parametre ne remplacent que undefined, pas null.
+  // JSON.parse('null') rend null, et corps.version aurait leve. Explicite.
+  const c = corps && typeof corps === 'object' ? corps : {};
   if (!cle) return { statut: 404, corps: null };
   // verifierCle AVANT toute ecriture: une cle revoquee ne doit laisser
   // aucune trace, ni lancement, ni refus.
   const v = await verifierCle(sql, cle);
   if (!v.ok) return { statut: 404, corps: null };
-  const r = await enregistrerEtat(sql, { cle, version: corps.version, refus: corps.refus });
+  const r = await enregistrerEtat(sql, { cle, version: c.version, refus: c.refus });
   for (const version of r.nouveaux) {
     // prevenir n'est pas cense lever; on s'en assure ici quand meme, parce
     // qu'un ping rate ne doit jamais devenir un 500 chez l'ami.

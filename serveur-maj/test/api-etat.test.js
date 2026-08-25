@@ -75,3 +75,17 @@ test('un ping qui echoue ne fait pas echouer la requete de l ami', async () => {
   });
   assert.strictEqual(r.statut, 200);
 });
+
+test('corps null (JSON.parse("null")): normalise et rend 200', async () => {
+  const sql = fauxSql([[{ nom: 'Jibb' }], [], [], []]);
+  const r = await traiterEtat({ cle: 'CLE', corps: null, sql, prevenirFn: fauxPrevenir() });
+  assert.strictEqual(r.statut, 200);
+  assert.deepStrictEqual(r.corps, { ok: true });
+});
+
+test('corps absent: normalise et rend 200', async () => {
+  const sql = fauxSql([[{ nom: 'Jibb' }], [], [], []]);
+  const r = await traiterEtat({ cle: 'CLE', sql, prevenirFn: fauxPrevenir() });
+  assert.strictEqual(r.statut, 200);
+  assert.deepStrictEqual(r.corps, { ok: true });
+});
