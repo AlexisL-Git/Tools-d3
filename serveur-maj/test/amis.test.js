@@ -51,6 +51,12 @@ test('listerAmis rend les lignes telles quelles', async () => {
   assert.deepStrictEqual(await listerAmis(fauxSql([lignes])), lignes);
 });
 
+test('listerAmis selectionne version_vue: le panneau en depend pour afficher le retard', async () => {
+  const sql = fauxSql([[]]);
+  await listerAmis(sql);
+  assert.match(sql.appels[0].texte, /version_vue/);
+});
+
 test('basculerAmi passe le booleen et la cle', async () => {
   const sql = fauxSql([[]]);
   await basculerAmi(sql, 'a', false);
