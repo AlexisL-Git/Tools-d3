@@ -9,6 +9,7 @@ const { creerCle } = require('./cle');
 const { creerCanal } = require('./canal');
 const { creerEcrans } = require('./ecran');
 const { demarrer } = require('./demarrage');
+const { creerSignalement } = require('./signalement');
 const { extraire } = require('./archive');
 const { rendreResolvable } = require('./resolution');
 
@@ -65,6 +66,14 @@ function journal(texte) {
   }
 }
 
+// Les dernieres lignes du journal, jointes a un refus. Prises a l'envoi, elles
+// couvrent le lancement qui a plante et celui qui le signale — c'est ce qu'on
+// veut lire. Le fichier est court par construction: une ligne par decision.
+function dernieresLignes(n) {
+  const lignes = fs.readFileSync(path.join(RACINE, 'amorceur.log'), 'utf8').split('\n');
+  return lignes.slice(-n).join('\n');
+}
+
 // Mode developpement: on charge le code du depot tel quel, sans passer par le
 // service ni par le depot de versions. Sans lui, modifier un fichier du depot
 // ne change rien a l'ecran — l'application charge ce qui est installe dans
@@ -100,16 +109,29 @@ async function principal() {
   }
 
   const depot = creerDepot(RACINE);
+  const canal = creerCanal({ base: BASE });
+  const cle = creerCle(RACINE);
   const ecrans = creerEcrans();
   const resultat = await demarrer({
-    depot,
-    canal: creerCanal({ base: BASE }),
-    cle: creerCle(RACINE),
-    ecrans,
+    depot, canal, cle, ecrans,
     installerInitiale: () => installerInitiale(depot),
     versionPaquet: VERSION_PAQUET,
     journal,
   });
+
+  // Envoye ici, sur le chemin 'charger' COMME sur le chemin 'arreter': un
+  // ami bloque par le coupe-circuit ne doit pas faire perdre un refus. Rien
+  // ici ne doit empecher la suite: signalement.envoyer n'est pas cense
+  // lever, mais on se protege quand meme.
+  const signalement = creerSignalement({ depot, canal, lireJournal: dernieresLignes });
+  try {
+    const envoi = await signalement.envoyer(cle.lire(), resultat.version || null);
+    if (envoi.etat !== 'ok' && envoi.etat !== 'sans-cle') {
+      journal(`remontee d etat non aboutie: ${envoi.etat}`);
+    }
+  } catch (e) {
+    journal(`remontee d etat impossible: ${e && e.message ? e.message : e}`);
+  }
 
   if (resultat.action === 'arreter') {
     journal(`arret: ${resultat.raison}`);

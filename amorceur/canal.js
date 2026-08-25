@@ -2,6 +2,11 @@
 const { empreinte } = require('./archive');
 
 const DELAI_MS = 5000;
+// Delai du signalement: beaucoup plus court que manifeste et paquet car signaler
+// n'est un prerequis de rien (la fenetre s'ouvre avec ou sans). Attendre 5 s pour
+// une information dont l'ami n'a aucun usage coute l'attente ; la file locale
+// rattrape un envoi manque au lancement suivant.
+const DELAI_SIGNALEMENT_MS = 2000;
 
 // Trois etats qui ne se confondent jamais:
 //   'refuse'      le serveur a dit non (cle inconnue ou revoquee) -> on arrete
@@ -55,7 +60,27 @@ function creerCanal({ base, chercher = globalThis.fetch }) {
     return { etat: 'ok', archive };
   }
 
-  return { manifeste, paquet };
+  // Remontee d'etat. Les memes trois etats que le reste du canal, pour la
+  // meme raison. Elle ne leve jamais: l'appelant la lance juste avant de
+  // charger la fenetre, et rien ici ne doit empecher ce chargement.
+  async function signaler(cle, corps) {
+    let r;
+    try {
+      r = await chercher(base + '/api/etat', {
+        method: 'POST',
+        headers: { 'x-cle': cle, 'content-type': 'application/json' },
+        body: JSON.stringify(corps || {}),
+        signal: AbortSignal.timeout(DELAI_SIGNALEMENT_MS),
+      });
+    } catch (e) {
+      return { etat: 'injoignable', raison: String(e && e.message ? e.message : e) };
+    }
+    if (r.status === 404) return { etat: 'refuse' };
+    if (!r.ok) return { etat: 'injoignable', raison: 'statut ' + r.status };
+    return { etat: 'ok' };
+  }
+
+  return { manifeste, paquet, signaler };
 }
 
-module.exports = { creerCanal, DELAI_MS };
+module.exports = { creerCanal, DELAI_MS, DELAI_SIGNALEMENT_MS };

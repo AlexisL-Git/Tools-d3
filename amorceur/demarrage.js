@@ -26,7 +26,12 @@ async function demarrer({ depot, canal, cle, ecrans, installerInitiale, versionP
   //    chargee au lancement precedent n'a jamais atteint son etat pret, elle
   //    est ecartee ici, definitivement.
   let choix = depot.choisirVersion();
-  if (choix.refusee) journal(`version ${choix.refusee} abandonnee: elle n'a pas demarre`);
+  if (choix.refusee) {
+    journal(`version ${choix.refusee} abandonnee: elle n'a pas demarre`);
+    // Range ici et pas ailleurs: c'est le seul instant ou l'information
+    // existe. L'envoi, lui, appartient a principal.js.
+    depot.filerSignalement(choix.refusee);
+  }
 
   // 2. Depot vierge: le paquet pose sa propre version. Un ami sans reseau
   //    demarre quand meme.

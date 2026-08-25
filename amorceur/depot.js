@@ -28,9 +28,12 @@ function creerDepot(racine) {
         version: typeof brut.version === 'string' ? brut.version : null,
         essai: typeof brut.essai === 'string' ? brut.essai : null,
         refusees: Array.isArray(brut.refusees) ? brut.refusees.filter((x) => typeof x === 'string') : [],
+        // Ajoutee apres coup: un courante.json ecrit par une version
+        // anterieure n'a pas ce champ, et ne doit pas faire lever ici.
+        aSignaler: Array.isArray(brut.aSignaler) ? brut.aSignaler.filter((x) => typeof x === 'string') : [],
       };
     } catch (e) {
-      return { version: null, essai: null, refusees: [] };
+      return { version: null, essai: null, refusees: [], aSignaler: [] };
     }
   }
 
@@ -73,6 +76,23 @@ function creerDepot(racine) {
     ecrire(etat);
   }
 
+  // Un refus n'existe qu'une fois: au lancement qui suit le plantage. Si le
+  // service est injoignable a cet instant precis, l'information disparait
+  // pour toujours. Elle attend donc ici jusqu'a ce qu'un 200 la libere.
+  function filerSignalement(version) {
+    const etat = lire();
+    if (!etat.aSignaler.includes(version)) etat.aSignaler.push(version);
+    ecrire(etat);
+  }
+
+  function signalementsEnAttente() {
+    return lire().aSignaler;
+  }
+
+  function viderSignalements() {
+    ecrire({ ...lire(), aSignaler: [] });
+  }
+
   // Applique la regle du temoin et rend la version a charger.
   function choisirVersion() {
     const etat = lire();
@@ -91,7 +111,11 @@ function creerDepot(racine) {
     return { version, refusee };
   }
 
-  return { lire, ecrire, dossierDe, versionsInstallees, choisirVersion, poserTemoin, effacerTemoin, refuser };
+  return {
+    lire, ecrire, dossierDe, versionsInstallees, choisirVersion,
+    poserTemoin, effacerTemoin, refuser,
+    filerSignalement, signalementsEnAttente, viderSignalements,
+  };
 }
 
 module.exports = { creerDepot, comparerVersions };

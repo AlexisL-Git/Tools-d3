@@ -10,7 +10,7 @@ async function verifierCle(sql, cle) {
 }
 
 async function listerAmis(sql) {
-  return sql`SELECT cle, nom, actif, cree_le, derniere_vue FROM amis ORDER BY cree_le`;
+  return sql`SELECT cle, nom, actif, cree_le, derniere_vue, version_vue FROM amis ORDER BY cree_le`;
 }
 
 async function creerAmi(sql, nom, genererCle) {

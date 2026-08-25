@@ -6,6 +6,7 @@ const { creerClient, appliquerSchema } = require('../lib/db');
 const { listerAmis, creerAmi, basculerAmi } = require('../lib/amis');
 const { basculerService, ecrireUrlPaquet, lireUrlPaquet, lireManifeste } = require('../lib/manifeste');
 const { enregistrerVersion, listerVersions, activerVersion } = require('../lib/versions');
+const { listerRefus, compterLancements, lancementsDe, purgerLancements } = require('../lib/etat');
 
 // Comparaison a temps constant: une comparaison ordinaire revele la longueur
 // et les prefixes du secret par le temps de reponse.
@@ -63,6 +64,15 @@ async function traiterAdmin({ motDePasse, action, corps = {}, sql, genererCle, m
     case 'activer': {
       const r = await activerVersion(sql, String(corps.version || ''));
       return r.erreur ? { statut: 400, corps: { erreur: r.erreur } } : { statut: 200, corps: r };
+    }
+    case 'refus':
+      return { statut: 200, corps: await listerRefus(sql) };
+    case 'lancements': {
+      if (corps.cle) return { statut: 200, corps: await lancementsDe(sql, String(corps.cle)) };
+      // La purge est portee par la consultation admin, jamais par le
+      // lancement d'un ami: personne ne doit attendre un DELETE pour demarrer.
+      await purgerLancements(sql);
+      return { statut: 200, corps: await compterLancements(sql, {}) };
     }
     case 'lister-manifeste':
       return { statut: 200, corps: await lireManifeste(sql) };

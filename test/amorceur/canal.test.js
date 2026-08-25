@@ -1,17 +1,25 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { creerCanal } = require('../../amorceur/canal');
+const { creerCanal, DELAI_SIGNALEMENT_MS } = require('../../amorceur/canal');
 const { ecrireArchive, empreinte } = require('../../amorceur/archive');
 
 const BASE = 'https://exemple.invalid';
+
+test('DELAI_SIGNALEMENT_MS est 2000', () => {
+  assert.strictEqual(DELAI_SIGNALEMENT_MS, 2000);
+});
 
 // Faux fetch: rend la reponse programmee et enregistre l'appel. Aucun test
 // n'ouvre de socket.
 function fauxFetch(reponses) {
   const appels = [];
   const f = async (url, options) => {
-    appels.push({ url, entetes: (options && options.headers) || {} });
+    appels.push({
+      url,
+      entetes: (options && options.headers) || {},
+      corps: options && options.body ? JSON.parse(options.body) : null,
+    });
     const r = reponses.shift();
     if (r instanceof Error) throw r;
     return {
@@ -72,4 +80,33 @@ test('un sha256 qui ne correspond pas rend corrompu, et l archive n est pas rend
   const r = await c.paquet('CLE', '0'.repeat(64));
   assert.strictEqual(r.etat, 'corrompu');
   assert.strictEqual(r.archive, undefined);
+});
+
+test('signaler poste sur /api/etat avec la cle et le corps', async () => {
+  const chercher = fauxFetch([{ statut: 200, corps: { ok: true } }]);
+  const c = creerCanal({ base: BASE, chercher });
+  const r = await c.signaler('CLE', { version: '0.2.4', refus: [] });
+  assert.strictEqual(r.etat, 'ok');
+  assert.strictEqual(chercher.appels[0].url, BASE + '/api/etat');
+  assert.strictEqual(chercher.appels[0].entetes['x-cle'], 'CLE');
+});
+
+test('signaler: 404 vaut refuse, pas injoignable', async () => {
+  const chercher = fauxFetch([{ statut: 404 }]);
+  const c = creerCanal({ base: BASE, chercher });
+  assert.strictEqual((await c.signaler('CLE', {})).etat, 'refuse');
+});
+
+test('signaler: 500 vaut injoignable', async () => {
+  const chercher = fauxFetch([{ statut: 500 }]);
+  const c = creerCanal({ base: BASE, chercher });
+  assert.strictEqual((await c.signaler('CLE', {})).etat, 'injoignable');
+});
+
+test('signaler ne leve jamais, meme si fetch explose', async () => {
+  const chercher = fauxFetch([new Error('reseau mort')]);
+  const c = creerCanal({ base: BASE, chercher });
+  const r = await c.signaler('CLE', {});
+  assert.strictEqual(r.etat, 'injoignable');
+  assert.match(r.raison, /reseau mort/);
 });

@@ -218,3 +218,19 @@ test('aucune version et service injoignable: on arrete en le disant', async () =
   assert.strictEqual(res.action, 'arreter');
   assert.strictEqual(res.raison, 'aucune-version');
 });
+
+test('une version abandonnee par le temoin est rangee dans la file de signalement', async () => {
+  const r = racine();
+  creerCle(r).ecrire('MA-CLE');
+  installer(r, '0.2.0');
+  installer(r, '0.3.0');
+  // Le temoin est reste sur 0.3.0: elle n'a pas atteint son etat pret au
+  // lancement precedent. choisirVersion() va l'ecarter — et desormais la filer.
+  creerDepot(r).ecrire({ version: '0.3.0', essai: '0.3.0', refusees: [] });
+  const res = await demarrer(contexte(r, {
+    ecrans: fauxEcrans(),
+    canal: fauxCanal({ manifestes: [{ etat: 'injoignable', raison: 'essai' }] }),
+  }));
+  assert.strictEqual(res.version, '0.2.0');
+  assert.deepStrictEqual(creerDepot(r).signalementsEnAttente(), ['0.3.0']);
+});
