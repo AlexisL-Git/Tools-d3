@@ -435,3 +435,77 @@ test('huit comptes en jeu sont tous rendus', () => {
   assert.strictEqual(lignes.filter((l) => l.etat === 'intercepte').length, 8);
   assert.strictEqual(lignes.filter((l) => l.estMaitre).length, 1);
 });
+
+// --- eligibilite au role de maitre -----------------------------------------
+
+// Un maitre doit EMETTRE des trames, sinon il n'y a rien a repliquer. La
+// preuve de trafic est donc exigee, la ou les interrupteurs se contentent de
+// `pilotable` — eux ne font que se preparer.
+test('un compte intercepté est éligible au rôle de maître', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set([100]),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.eligibleMaitre, true);
+});
+
+test('un compte hors ligne n est pas éligible', () => {
+  const l = vue({}).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'hors-ligne');
+  assert.strictEqual(l.eligibleMaitre, false);
+});
+
+// La fenetre d'attente suffit a piloter, pas a commander: avant la premiere
+// trame il n'y a par construction aucune action a dupliquer.
+test('un compte en attente de trafic n est pas encore éligible', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set(),
+    enAttente: new Set([100]),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'en-attente');
+  assert.strictEqual(l.pilotable, true);
+  assert.strictEqual(l.eligibleMaitre, false);
+});
+
+test('un compte non intercepté n est pas éligible', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set(),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.etat, 'non-intercepte');
+  assert.strictEqual(l.eligibleMaitre, false);
+});
+
+// L'erreur prime sur tout le reste, y compris sur une preuve de trafic.
+test('un compte en erreur n est pas éligible même avec du trafic', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 2, personnage: 'Swaggman', classe: 'Cra' }],
+    intercepte: new Set([100]),
+    erreurs: new Map([[100, 'agent en échec']]),
+  }).find((x) => x.id === 2);
+  assert.strictEqual(l.eligibleMaitre, false);
+});
+
+// Le choix est memorise PAR IDENTIFIANT DE COMPTE: un client sans identifiant
+// ne survivrait pas au redemarrage, donc on ne lui propose pas le geste.
+test('un client sans identifiant de compte n est pas éligible', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: null, personnage: null, classe: null }],
+    intercepte: new Set([100]),
+  }).find((x) => x.pid === 100);
+  assert.strictEqual(l.id, null);
+  assert.strictEqual(l.suivi, true);
+  assert.strictEqual(l.eligibleMaitre, false);
+});
+
+// Un client qui passe par le proxy mais dont le compte est absent de la liste
+// Zaap reste parfaitement pilotable, et commandable: il a un identifiant.
+test('un compte inconnu de Zaap reste éligible', () => {
+  const l = vue({
+    clients: [{ pid: 100, idCompte: 4242, personnage: 'Ombre', classe: 'Sram' }],
+    intercepte: new Set([100]),
+  }).find((x) => x.pid === 100);
+  assert.strictEqual(l.etat, 'inconnu');
+  assert.strictEqual(l.eligibleMaitre, true);
+});

@@ -1,6 +1,6 @@
 'use strict';
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require('electron');
 
 const { Superviseur } = require('../src/superviseur');
 const { creerDuplicateur, ETALEMENT_REJEU } = require('../src/duplicateur');
@@ -12,6 +12,10 @@ const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients, fermerClients } = require('../src/comptes/clients');
 const { construireVue } = require('../src/comptes/vue');
+const { resoudreMaitre } = require('../src/comptes/maitre');
+const { creerEmblemes } = require('../src/comptes/emblemes');
+const { ordonner, suivant, precedent } = require('../src/comptes/navigation');
+const { COLONNES, parNom, cibleBascule } = require('../src/comptes/colonnes');
 const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
 
@@ -25,10 +29,15 @@ const PERIODE_VUE = 2000;       // rafraichissement de la liste affichee
 // coute un mauvais conseil (« relance ce client ») a un client parfaitement
 // sain.
 const DELAI_PREUVE_TRAFIC = 10000;
+// Duree pendant laquelle la liste des clients est reutilisee sans redemander a
+// Windows. Un client ne va pas apparaitre ni disparaitre en moins d'une
+// seconde, et le balayage des process tourne de toute facon toutes les 500 ms.
+const FRAICHEUR_CLIENTS = 1000;
 
 let fenetre = null;
 let superviseur = null;
 let favoris = null;
+let emblemes = null;
 let comptes = [];
 let erreurComptes = null;
 // Cinq ensembles distincts, et les confondre coute cher: `vus` evite de
@@ -51,18 +60,212 @@ const avecTrafic = new Set();   // pid -> au moins une trame decodee a traverse
 const attacheA = new Map();     // pid -> instant de l'attache reussie
 const erreurs = new Map();      // pid -> message d'echec d'attache
 const messages = new Map();     // pid -> dernier refus de rejeu, pour l'affichage
+// LE COUT CACHE DE listerClients(): un lancement de powershell.exe, entre 150
+// et 400 ms. Il etait paye a CHAQUE envoi d'etat, donc a chaque clic, et
+// l'interface ne repondait qu'au retour du process — c'est tout le « delai
+// desagreable » ressenti au clic.
+//
+// Deux problemes en un, d'ailleurs: l'envoi d'etat revient toutes les 2 s sans
+// aucune garde, donc deux appels pouvaient se chevaucher et empiler des
+// process. Une seule requete est desormais en vol a la fois.
+let clientsCache = { instant: 0, valeur: [], enVol: null };
+
+// LE DERNIER REFUS DE BASCULE, pour l'afficher.
+//
+// naviguer() et basculerVersCompte() abandonnaient EN SILENCE dans trois cas:
+// aucun client pilote, compte sans client, agent pas encore en place. Vu de
+// l'utilisateur, la touche « ne faisait rien », et c'est le mode d'echec le
+// plus couteux de ce projet — celui qu'aucune trace ne relie a sa cause.
+//
+// Il s'efface tout seul: un refus vieux de dix secondes ne decrit plus rien.
+const DUREE_AVIS = 10000;
+let avisBascule = { texte: null, instant: 0 };
+
+// LA CARTE DES PIDS, TENUE A JOUR PAR L'ENVOI D'ETAT.
+//
+// basculerVersCompte() refaisait un listerClients() pour retrouver le pid d'un
+// compte, donc relancait powershell.exe des que le cache avait plus d'une
+// seconde: 150 a 400 ms entre le clic et la bascule. Sur un selecteur de
+// fenetre, ce delai est tout ce qu'on ressent.
+//
+// L'etat envoye a l'interface porte deja le pid de chaque ligne, et il est
+// reconstruit toutes les 2 s. On le garde ici, et la bascule devient
+// instantanee: aucun process a lancer, aucune attente.
+let carteComptes = new Map();   // idCompte -> pid
+let ordreNavigation = [];       // pids, dans l'ordre affiche
+
+// LE CURSEUR DU CYCLE, et rien d'autre.
+//
+// « Suivant » partait du client au premier plan, ce qui obligeait a le
+// SURVEILLER: chaque agent sondait GetForegroundWindow toutes les 250 ms a
+// l'interieur du jeu. Et le resultat surprenait — depuis le navigateur ou
+// depuis OMNI, le premier plan est inconnu et « suivant » revenait au premier
+// de la liste au lieu d'avancer d'un cran.
+//
+// C'est desormais un cycle franc: on retient le dernier client vise, et on
+// avance a partir de la. Le pid est retenu plutot que l'indice, parce qu'un
+// client qui se ferme decale toute la liste et rendrait un indice faux.
+let curseurNav = null;
+
+// LA FERMETURE EMPORTE LES CLIENTS, MAIS ON DEMANDE.
+//
+// LES CLIENTS SONT DEJA CONDAMNES QUAND OMNI S'ARRETE, et c'est structurel:
+// chaque client se connecte au serveur de jeu A TRAVERS un proxy local
+// qu'heberge OMNI (voir src/proxy/server.js). OMNI meurt, les sockets tombent,
+// et le jeu perd sa session — « la connexion a ete perdue ».
+//
+// Les fermer n'est donc pas une decision agressive: c'est ranger des fenetres
+// qui viennent d'etre deconnectees et qu'il faudrait relancer de toute facon.
+//
+// On demande quand meme. La croix est juste a cote du bouton reduire, et le
+// bouton « fermer les clients » exige deja deux clics pour cette raison exacte.
+let fermetureAutorisee = false;
+// Vrai des que l'utilisateur a repondu a la question de fermeture. Il a peut
+// etre choisi de GARDER ses clients: la coupure brutale ci-dessous ne doit pas
+// revenir sur sa decision.
+let sortieDecidee = false;
+
+async function demanderFermeture() {
+  const clients = await clientsRecents();
+  if (clients.length === 0) {
+    fermetureAutorisee = true;
+    if (fenetre && !fenetre.isDestroyed()) fenetre.close();
+    return;
+  }
+
+  const combien = clients.length;
+  const choix = await dialog.showMessageBox(fenetre, {
+    type: 'question',
+    noLink: true,
+    title: 'Fermer OMNI',
+    message: combien > 1
+      ? `${combien} clients Dofus sont ouverts.`
+      : 'Un client Dofus est ouvert.',
+    detail: 'Leur connexion au serveur passe par OMNI : ils seront déconnectés '
+      + 'de toute façon en le fermant. Les fermer aussi évite de laisser des '
+      + 'fenêtres inutilisables.',
+    buttons: [
+      combien > 1 ? `Fermer OMNI et les ${combien} clients` : 'Fermer OMNI et le client',
+      'Laisser les fenêtres ouvertes',
+      'Annuler',
+    ],
+    defaultId: 0,
+    cancelId: 2,
+  });
+
+  if (choix.response === 2) return;   // annule: la fenetre reste ouverte
+
+  if (choix.response === 0) {
+    const rendu = fermerClients(clients.map((c) => c.pid));
+    for (const r of rendu) {
+      journal(r.pid, r.ok ? 'client ferme a la fermeture d OMNI' : `fermeture impossible : ${r.raison}`);
+    }
+  }
+
+  sortieDecidee = true;
+  fermetureAutorisee = true;
+  if (fenetre && !fenetre.isDestroyed()) fenetre.close();
+}
+
+// QUAND OMNI SE COUPE SANS PREVENIR.
+//
+// Plus rien ne peut etre demande, et surtout rien d'asynchrone ne s'executera:
+// au moment de mourir, il ne reste que du code synchrone. `fermerClients`
+// convient, il repose sur process.kill.
+//
+// Les pids viennent de la DERNIERE VUE envoyee, jamais de listerClients: celui
+// la lance un powershell.exe, et un process qui meurt n'a pas le temps de
+// l'attendre.
+//
+// CE QUI ECHAPPE A TOUT CA: un arret force (taskkill /F, plantage du process
+// entier, coupure de courant). Aucun code ne tourne, et les clients survivent.
+// Il n'existe pas de moyen d'y remedier depuis l'application elle-meme.
+function fermerClientsConnus() {
+  if (ordreNavigation.length === 0) return;
+  try {
+    fermerClients(ordreNavigation);
+  } catch (e) {
+    // On est deja en train de mourir: il n'y a personne a qui rendre l'echec.
+  }
+}
+
+process.on('exit', () => {
+  if (sortieDecidee) return;   // l'utilisateur a deja tranche
+  fermerClientsConnus();
+});
+
+// Un signal ne declenche pas 'exit' tout seul: on le provoque, pour passer par
+// le meme chemin que le reste.
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => process.exit(0));
+}
+
+// Une exception non capturee tue le process sans passer par la fermeture
+// normale. Elle est journalisee — sinon l'ami n'a aucune trace — puis on sort
+// par le chemin habituel, qui emportera les clients.
+process.on('uncaughtException', (e) => {
+  journal('panne', `exception non capturee : ${e && e.stack ? e.stack : e}`);
+  process.exit(1);
+});
+
+// Le clic sur une identite deplace le curseur, sinon le raccourci suivant
+// repartirait d'ou on etait avant le clic.
+function poserCurseur(pid) {
+  curseurNav = pid;
+}
+
+function noterAvis(texte) {
+  avisBascule = { texte, instant: Date.now() };
+}
+
+function avisCourant() {
+  if (avisBascule.texte === null) return null;
+  if (Date.now() - avisBascule.instant > DUREE_AVIS) return null;
+  return avisBascule.texte;
+}
+
+async function clientsRecents() {
+  if (Date.now() - clientsCache.instant < FRAICHEUR_CLIENTS) return clientsCache.valeur;
+  if (clientsCache.enVol !== null) return clientsCache.enVol;
+  clientsCache.enVol = listerClients()
+    .then((v) => {
+      clientsCache = { instant: Date.now(), valeur: v, enVol: null };
+      return v;
+    })
+    .catch(() => {
+      // listerClients rend deja [] sur erreur; ce filet ne sert qu'a ne pas
+      // laisser une promesse rejetee coincee dans le cache.
+      clientsCache.enVol = null;
+      return clientsCache.valeur;
+    });
+  return clientsCache.enVol;
+}
+
 let minuteurProcess = null;
 let minuteurVue = null;
-// Lus a chaque trame par le passeur: modifier ces champs suffit, sans
-// reconstruire quoi que ce soit.
+// Ces quatre objets sont relus a chaque trame par les politiques: modifier le
+// champ suffit, sans rien reconstruire.
+//
+// LEUR `actif` NE SE REGLE PLUS UN PAR UN. Les cinq interrupteurs generaux ont
+// disparu: ils formaient un second niveau que rien ne reliait aux cases par
+// compte, et une case cochee sous un general eteint ne faisait rien sans que ca
+// se voie. Un interrupteur UNIQUE les pilote maintenant tous les cinq, plus
+// `superviseur.arme`. Ce sont les cases par compte qui decident du reste.
 const reglagesPasseTour = { actif: false, delaiMs: 0 };
-// Lu a chaque trame par l'accepteur: modifier ce champ suffit.
 const reglagesInvitation = { actif: false };
-// Lu a chaque chunk par le transformateur: modifier ce champ suffit. Faux =
-// le proxy relaie le flux descendant octet pour octet, comme avant.
 const reglagesNoAnim = { actif: false };
-// Lu a chaque trame par l'accepteur d'echange: modifier ce champ suffit.
 const reglagesEchange = { actif: false };
+
+// Suspendre n'efface rien: les cases par compte restent ou elles sont, et on
+// reprend exactement dans l'etat d'avant.
+function appliquerActif(actif) {
+  const v = Boolean(actif);
+  superviseur.arme = v;
+  reglagesPasseTour.actif = v;
+  reglagesInvitation.actif = v;
+  reglagesNoAnim.actif = v;
+  reglagesEchange.actif = v;
+}
 
 const DEPART = Date.now();
 // Ni trames brutes, ni etat interne chez un ami: le journal detaille ne
@@ -124,7 +327,7 @@ async function balayerProcess() {
       attacheA.set(p.pid, Date.now());
       // Un compte relance doit retrouver son interrupteur enregistre plutot
       // que de repartir a faux a chaque redemarrage de client.
-      const clients = await listerClients();
+      const clients = await clientsRecents();
       const idCompte = pidVersCompte(p.pid, clients);
       const etat = superviseur.comptes.get(p.pid);
       if (etat && idCompte !== null) {
@@ -145,7 +348,7 @@ async function balayerProcess() {
 
 async function envoyerEtat() {
   if (fenetre === null || fenetre.isDestroyed()) return;
-  const clients = await listerClients();
+  const clients = await clientsRecents();
 
   // Resynchronisation de l'etat vivant depuis le fichier de reglages. Basculer
   // un interrupteur ecrit d'abord dans favoris, puis cherche le pid via
@@ -163,28 +366,43 @@ async function envoyerEtat() {
     etat.accepteEchange = favoris.echangeActif(idCompte);
   }
 
+  // Le maitre n est plus subi. Il etait decerne par l agent au client dont la
+  // fenetre passait au premier plan; il est desormais le compte epingle dans
+  // favoris.json, a condition qu il soit lance ET que son trafic soit prouve.
+  //
+  // Recalcule ici plutot que dans balayerProcess: c est ce tick qui dispose
+  // deja de listerClients(), et rien ne justifie un second appel a PowerShell.
+  // Le prix est une fenetre de 2 s au plus entre la premiere trame du maitre et
+  // sa prise de role, pendant laquelle rien ne se replique. Meme delai que la
+  // resynchronisation des interrupteurs juste au-dessus.
+  superviseur.maitre = resoudreMaitre({
+    epingle: favoris.maitre(),
+    clients,
+    intercepte: avecTrafic,
+  });
+
   const exclus = new Set(
     superviseur.comptes.tous.filter((e) => e.exclu).map((e) => pidVersCompte(e.pid, clients)),
   );
   // La case affichee vient de l'etat vivant, celui que le passeur consulte a
   // chaque trame — par symetrie avec `exclus`. Une case rendue depuis le seul
   // fichier pourrait montrer eteint ce qui emet encore.
-  const passeTour = new Set(
-    superviseur.comptes.tous.filter((e) => e.passeTour).map((e) => pidVersCompte(e.pid, clients)),
-  );
-  // Comme `passeTour`: la case affichee vient de l'etat vivant, celui que
-  // l'accepteur consulte a chaque trame, pas du seul fichier.
-  const invitation = new Set(
-    superviseur.comptes.tous.filter((e) => e.accepteInvitation).map((e) => pidVersCompte(e.pid, clients)),
-  );
-  // Comme les trois autres: la case affichee vient de l'etat vivant.
-  const noAnim = new Set(
-    superviseur.comptes.tous.filter((e) => e.noAnim).map((e) => pidVersCompte(e.pid, clients)),
-  );
-  // Comme les quatre autres: la case affichee vient de l'etat vivant.
-  const echange = new Set(
-    superviseur.comptes.tous.filter((e) => e.accepteEchange).map((e) => pidVersCompte(e.pid, clients)),
-  );
+  // LES CASES AFFICHEES VIENNENT DU FICHIER DE REGLAGES, pas de l'etat vivant.
+  //
+  // Elles en venaient, et c'etait faux des qu'aucun client ne tournait: l'etat
+  // vivant ne contient que les comptes ATTACHES, donc les quatre ensembles
+  // etaient vides en permanence. Cliquer une case ecrivait bien dans
+  // favoris.json et la case ne se cochait jamais — le reglage etait pris,
+  // l'interface mentait.
+  //
+  // Les deux ne divergent pas: l'etat vivant est resynchronise depuis ce meme
+  // fichier a chaque tick, quelques lignes plus haut. Le fichier est
+  // simplement celui des deux qui existe aussi pour un compte hors ligne.
+  const passeTour = new Set(favoris.tousPasseTour());
+  const invitation = new Set(favoris.tousInvitation());
+  const noAnim = new Set(favoris.tousNoAnim());
+  const echange = new Set(favoris.tousEchange());
+
   // IMPORTANT de revue finale: reglagesNoAnim.actif etait recalcule ICI a
   // chaque tick (noAnim.size > 0), donc basculerNoAnim() n'avait aucun effet
   // propre -- le bouton ANIM se rallumait ou se rallumait jamais selon les
@@ -202,33 +420,68 @@ async function envoyerEtat() {
     ),
   );
 
+  const lignes = construireVue({
+    comptes,
+    clients,
+    // `avecTrafic`, PAS `prisEnCharge`: voir le commentaire de ces ensembles.
+    intercepte: avecTrafic,
+    enAttente,
+    maitre: superviseur.maitre,
+    exclus,
+    favoris: new Set(favoris.tous()),
+    passeTour,
+    invitation,
+    noAnim,
+    echange,
+    erreurs,
+    messages,
+  });
+
+  // L'ordre voulu par l'utilisateur. Il ne sert pas qu'a l'affichage: c'est
+  // lui que « personnage suivant » parcourt, donc c'est de la memoire
+  // musculaire. L'ordre de Zaap n'a aucune raison d'etre celui de l'equipe.
+  const rangees = ordonner(lignes, favoris.ordre());
+  lignes.length = 0;
+  lignes.push(...rangees);
+
+  // La carte des pids et l'ordre de navigation, tenus a jour ici: c'est le
+  // seul endroit qui connaisse a la fois les comptes, les clients et l'ordre
+  // voulu. Les deux touches de navigation et le clic sur une identite s'en
+  // servent sans rien redemander a Windows.
+  carteComptes = new Map();
+  ordreNavigation = [];
+  for (const l of lignes) {
+    if (l.pid === null || l.pid === undefined) continue;
+    if (l.id !== null && l.id !== undefined) carteComptes.set(l.id, l.pid);
+    ordreNavigation.push(l.pid);
+  }
+
+  // La touche assignee a chaque compte, pour l'afficher sur sa ligne.
+  const touches = favoris.touches();
+  for (const l of lignes) l.touche = l.id === null ? null : (touches[l.id] || null);
+
+  // L'embleme de chaque classe vue, s'il est deja en cache. Les absents sont
+  // demandes SANS ATTENDRE: le tick suivant les affichera, et d'ici la
+  // l'abreviation de classe tient la place. Un envoi d'etat ne doit jamais
+  // dependre du reseau.
+  for (const l of lignes) {
+    l.embleme = emblemes.pour(l.classe);
+    if (l.embleme === null && l.classe) emblemes.assurer(l.classe);
+  }
+
   fenetre.webContents.send('etat', {
     // Pose par l'amorceur avant de charger cette version. Quand un ami dit
     // « ca marche pas », le depannage ne commence pas par une devinette.
     version: process.env.OMNI_VERSION || 'dev',
-    duplication: superviseur.arme,
+    actif: favoris.actif(),
+    // Sans maitre, rien ne se replique. L absence de duplication et une panne
+    // produisent le meme silence: l en-tete doit dire lequel des deux.
+    sansMaitre: superviseur.maitre === null,
     erreurComptes,
-    passeTourActif: reglagesPasseTour.actif,
-    invitationActive: reglagesInvitation.actif,
-    noAnimActif: reglagesNoAnim.actif,
-    echangeActif: reglagesEchange.actif,
     delai: favoris.delai(),
-    lignes: construireVue({
-      comptes,
-      clients,
-      // `avecTrafic`, PAS `prisEnCharge`: voir le commentaire de ces ensembles.
-      intercepte: avecTrafic,
-      enAttente,
-      maitre: superviseur.maitre,
-      exclus,
-      favoris: new Set(favoris.tous()),
-      passeTour,
-      invitation,
-      noAnim,
-      echange,
-      erreurs,
-      messages,
-    }),
+    nav: favoris.touchesNav(),
+    avisBascule: avisCourant(),
+    lignes,
   });
 }
 
@@ -244,9 +497,27 @@ function compteVersPid(idCompte, clients) {
 
 function creerFenetre() {
   fenetre = new BrowserWindow({
-    width: 820,
-    height: 560,
+    // Taille FIXE, et les deux nombres sont mesurés sur la page réelle, pas
+    // estimés. Hauteur: 38 de barre de titre, 42 d'en-tete de colonnes, 50 de
+    // barre du bas et 61 par rang, soit 618 px pour huit comptes; les 102 de
+    // marge absorbent les deux bandeaux d'avertissement sans faire defiler.
+    // Largeur: les titres de colonne portent desormais leur losange d'etat, et
+    // « GROUPE » debordait de 9 px dans 44; les colonnes passent a 58.
+    width: 1097,
+    height: 720,
+    resizable: false,
+    maximizable: false,
     title: 'OMNI',
+    // Sans cadre systeme: la barre de titre est dessinee par index.html, avec
+    // ses propres reduire / agrandir / fermer. Un seul bandeau au lieu de deux.
+    //
+    // La fenetre n'etant pas redimensionnable, l'absence de cadre ne coute
+    // rien: il n'y a aucune poignee de bord a viser.
+    frame: false,
+    backgroundColor: '#161512',
+    // La fenetre ne s'affiche qu'une fois peinte: sans cela, un cadre blanc
+    // clignote au lancement, tres visible sur un fond aussi sombre.
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -256,7 +527,16 @@ function creerFenetre() {
       devTools: false,
     },
   });
+  // On intercepte la fermeture pour poser la question. Sans cette garde, la
+  // fenetre part avant qu'on ait pu demander quoi que ce soit.
+  fenetre.on('close', (e) => {
+    if (fermetureAutorisee) return;
+    e.preventDefault();
+    demanderFermeture();
+  });
+
   fenetre.removeMenu();
+  fenetre.once('ready-to-show', () => fenetre.show());
   fenetre.loadFile(path.join(__dirname, 'index.html'));
 }
 
@@ -266,10 +546,20 @@ app.whenReady().then(async () => {
   erreurComptes = lecture.erreur;
 
   favoris = new Favoris(path.join(app.getPath('userData'), 'favoris.json')).charger();
+  // Un fichier PNG par classe, telecharge une fois puis relu du disque. Rien
+  // n'est embarque dans le paquet: voir src/comptes/emblemes.js.
+  emblemes = creerEmblemes({
+    racine: path.join(app.getPath('userData'), 'emblemes'),
+    journal: (texte) => journal('emblemes', texte),
+  });
   // Le delai enregistre doit survivre au redemarrage de l'application, pas
   // seulement a celui d'un client.
   reglagesPasseTour.delaiMs = Math.round(favoris.delai() * 1000);
+
   superviseur = new Superviseur({
+    // L'interrupteur unique est relu du fichier juste apres la construction,
+    // par appliquerActif(). On part au repos: la valeur reelle arrive une
+    // ligne plus bas, et un etat arme transitoire n'existe pas.
     arme: false,
     // Les esclaves ne partent plus sur la meme milliseconde: 16 a 80 ms
     // d'ecart tire au hasard entre chacun, cumule. Le plancher tient au pas
@@ -345,15 +635,235 @@ app.whenReady().then(async () => {
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
   );
 
+  // L'etat enregistre de l'interrupteur unique, applique aux cinq politiques
+  // d'un coup.
+  appliquerActif(favoris.actif());
+
   creerFenetre();
+  poserRaccourcis();
   minuteurProcess = setInterval(balayerProcess, PERIODE_PROCESS);
   minuteurVue = setInterval(envoyerEtat, PERIODE_VUE);
   await balayerProcess();
   await envoyerEtat();
 });
 
-ipcMain.handle('basculerDuplication', async (_e, actif) => {
-  superviseur.arme = Boolean(actif);
+// Les trois commandes de fenetre. Elles vivent ici et pas dans le renderer:
+// celui-ci est sandboxe et n'a aucun acces a BrowserWindow.
+// Les raccourcis GLOBAUX. Global veut dire que Dofus ne recoit plus la touche
+// tant qu'OMNI tourne: c'est le prix a payer pour qu'ils marchent pendant qu'on
+// joue, et c'est pour cela que l'interface avertit sur une touche nue.
+//
+// On repose tout a chaque changement plutot que de tenir un differentiel: il y
+// a au plus dix raccourcis, et un differentiel faux laisse une touche fantome
+// enregistree jusqu'a la fermeture.
+function poserRaccourcis() {
+  globalShortcut.unregisterAll();
+  if (favoris === null) return;
+
+  const poser = (accelerateur, action) => {
+    if (!accelerateur) return;
+    try {
+      // register rend faux quand la touche est deja prise par une AUTRE
+      // application: on le dit plutot que de laisser croire que ca marche.
+      if (!globalShortcut.register(accelerateur, action)) {
+        journal('raccourcis', `${accelerateur} refuse (deja pris par une autre application ?)`);
+      }
+    } catch (e) {
+      journal('raccourcis', `${accelerateur} invalide : ${e.message}`);
+    }
+  };
+
+  for (const [idTexte, accelerateur] of Object.entries(favoris.touches())) {
+    const idCompte = Number(idTexte);
+    poser(accelerateur, () => basculerVersCompte(idCompte));
+  }
+
+  const nav = favoris.touchesNav();
+  poser(nav.suivant, () => naviguer(1));
+  poser(nav.precedent, () => naviguer(-1));
+}
+
+// Met au premier plan la fenetre du compte demande. Rend un compte rendu
+// plutot que de lever: l'appelant peut etre un raccourci global, ou une
+// exception non capturee tuerait le process principal en silence.
+async function basculerVersCompte(idCompte) {
+  // Pas d'attente: le pid vient de la derniere vue envoyee.
+  const pid = carteComptes.has(idCompte) ? carteComptes.get(idCompte) : null;
+  if (pid === null) {
+    journal('bascule', `compte ${idCompte} : aucun client`);
+    noterAvis('aucun client lancé pour ce compte');
+    await envoyerEtat();
+    return;
+  }
+  poserCurseur(pid);
+  const r = superviseur.basculerVers(pid);
+  if (!r.ok) {
+    journal(pid, `bascule refusee : ${r.raison}`);
+    noterAvis(`bascule impossible : ${r.raison}`);
+    envoyerEtat();
+  }
+}
+
+// Le pas suivant ou precedent, dans l'ORDRE AFFICHE. Le point de depart est le
+// client au premier plan; s'il est inconnu (navigateur, Zaap, client non pris
+// en charge), on entre par le bout correspondant au sens demande.
+function naviguer(pas) {
+  // Meme raison que ci-dessus: l'ordre affiche est deja connu, et une touche de
+  // navigation doit repondre a l'instant.
+  //
+  // Seuls les clients qu'OMNI pilote: basculer vers un client sans agent
+  // echouerait sans rien dire d'utile.
+  const navigables = ordreNavigation.filter((p) => superviseur.clients.has(p));
+  if (navigables.length === 0) {
+    noterAvis(ordreNavigation.length === 0
+      ? 'aucun client Dofus détecté'
+      : 'aucun client piloté par OMNI — lance-les APRÈS OMNI');
+    envoyerEtat();
+    return;
+  }
+
+  // Le curseur peut designer un client ferme entre-temps: suivant() et
+  // precedent() entrent alors par le bout correspondant au sens demande.
+  const cible = pas > 0 ? suivant(navigables, curseurNav) : precedent(navigables, curseurNav);
+  if (cible === null) return;
+  poserCurseur(cible);
+  const r = superviseur.basculerVers(cible);
+  if (!r.ok) {
+    journal(cible, `navigation refusee : ${r.raison}`);
+    noterAvis(`navigation impossible : ${r.raison}`);
+    envoyerEtat();
+  }
+}
+
+ipcMain.handle('basculerVersCompte', async (_e, idCompte) => {
+  if (!Number.isInteger(idCompte)) return;
+  await basculerVersCompte(idCompte);
+});
+
+ipcMain.handle('reglerTouche', async (_e, idCompte, accelerateur) => {
+  if (!Number.isInteger(idCompte)) return;
+  if (accelerateur !== null && typeof accelerateur !== 'string') return;
+  favoris.reglerTouche(idCompte, accelerateur);
+  poserRaccourcis();
+  await envoyerEtat();
+});
+
+ipcMain.handle('reglerToucheNav', async (_e, nom, accelerateur) => {
+  if (typeof nom !== 'string' || typeof accelerateur !== 'string') return;
+  favoris.reglerToucheNav(nom, accelerateur);
+  poserRaccourcis();
+  await envoyerEtat();
+});
+
+ipcMain.handle('reglerOrdre', async (_e, ids) => {
+  if (!Array.isArray(ids) || !ids.every((n) => Number.isInteger(n))) return;
+  favoris.reglerOrdre(ids);
+  await envoyerEtat();
+});
+
+ipcMain.handle('fenetreReduire', () => {
+  if (fenetre && !fenetre.isDestroyed()) fenetre.minimize();
+});
+
+ipcMain.handle('fenetreFermer', () => {
+  // close() et non destroy(): le gestionnaire window-all-closed doit tourner,
+  // c'est lui qui arrete les minuteurs et demonte le superviseur, donc qui
+  // decharge les agents Frida des clients Dofus.
+  if (fenetre && !fenetre.isDestroyed()) fenetre.close();
+});
+
+ipcMain.handle('basculerActif', async (_e, actif) => {
+  favoris.reglerActif(actif);
+  appliquerActif(favoris.actif());
+  await envoyerEtat();
+});
+
+// L'ACTION GROUPEE d'un titre de colonne: elle pose la meme valeur pour tous
+// les comptes de la liste. Ce n'est pas un second etat cache, c'est un geste
+// qui ecrit dans les memes cases que les clics individuels.
+//
+// La cible est calculee cote principal et non cote renderer: le fichier de
+// reglages fait foi, et deux clics rapides ne doivent pas partir de deux
+// lectures differentes de l'affichage.
+ipcMain.handle('basculerColonne', async (_e, nom, ids) => {
+  if (!parNom.has(nom)) return;
+  if (!Array.isArray(ids) || !ids.every((n) => Number.isInteger(n))) return;
+
+  const clients = await clientsRecents();
+  const etatDe = (id) => {
+    const pid = compteVersPid(id, clients);
+    return pid === null ? null : superviseur.comptes.get(pid);
+  };
+
+  // L'etat de la colonne est recalcule ICI, depuis le fichier de reglages et
+  // l'etat vivant, jamais depuis ce que le renderer croit afficher: deux clics
+  // rapides partiraient sinon de deux lectures differentes.
+  const vue = ids.map((id) => {
+    const etat = etatDe(id);
+    return {
+      id,
+      exclu: etat === null ? false : Boolean(etat.exclu),
+      passeTour: favoris.passeTourActif(id),
+      invitation: favoris.invitationActive(id),
+      noAnim: favoris.noAnimActif(id),
+      echange: favoris.echangeActif(id),
+    };
+  });
+  const cible = cibleBascule(vue, nom);
+  if (cible === null) return;
+
+  for (const id of ids) {
+    const etat = etatDe(id);
+    if (nom === 'repl') {
+      // La colonne inversee: cochee veut dire « suit le meneur », donc `exclu`
+      // vaut le contraire de la cible.
+      if (etat) etat.exclu = !cible;
+    } else if (nom === 'tour') {
+      favoris.marquerPasseTour(id, cible);
+      if (etat) etat.passeTour = cible;
+    } else if (nom === 'groupe') {
+      favoris.marquerInvitation(id, cible);
+      if (etat) etat.accepteInvitation = cible;
+    } else if (nom === 'anim') {
+      favoris.marquerNoAnim(id, cible);
+      if (etat) etat.noAnim = cible;
+    } else if (nom === 'echange') {
+      favoris.marquerEchange(id, cible);
+      if (etat) etat.accepteEchange = cible;
+    }
+  }
+  await envoyerEtat();
+});
+
+ipcMain.handle('fermerUnClient', async (_e, idCompte) => {
+  if (!Number.isInteger(idCompte)) return;
+  // Le pid vient de la derniere vue, comme pour la bascule: aucune raison de
+  // relancer powershell pour fermer une fenetre.
+  const pid = carteComptes.has(idCompte) ? carteComptes.get(idCompte) : null;
+  if (pid === null) {
+    noterAvis('aucun client lancé pour ce compte');
+    await envoyerEtat();
+    return;
+  }
+  const [r] = fermerClients([pid]);
+  journal(pid, r && r.ok ? 'client ferme depuis sa ligne' : `fermeture impossible : ${r && r.raison}`);
+  if (r && !r.ok) noterAvis(`fermeture impossible : ${r.raison}`);
+  // Le balayage retire le client mort et purge son etat tout seul, sous 500 ms.
+  // On rafraichit quand meme pour que la ligne ne mente pas d'ici la.
+  await envoyerEtat();
+});
+
+ipcMain.handle('definirMaitre', async (_e, idCompte) => {
+  // Frontiere de confiance, comme ses voisins: le renderer est sandboxe mais
+  // reste hors de notre controle.
+  //
+  // null est une valeur ATTENDUE ici, pas une erreur: c'est ainsi qu'on
+  // desepingle. Sans elle, revenir a « aucun maitre » serait impossible une
+  // fois un compte choisi.
+  if (idCompte !== null && !Number.isInteger(idCompte)) return;
+  favoris.reglerMaitre(idCompte);
+  // Le pid du maitre se deduit du compte epingle a chaque envoi d'etat; on
+  // rafraichit tout de suite pour que le bouton ne mette pas 2 s a basculer.
   await envoyerEtat();
 });
 
@@ -362,7 +872,7 @@ ipcMain.handle('exclureCompte', async (_e, idCompte, exclu) => {
   // notre controle. Un idCompte non entier ne doit ni chercher de pid ni
   // atteindre l'etat du superviseur.
   if (!Number.isInteger(idCompte)) return;
-  const clients = await listerClients();
+  const clients = await clientsRecents();
   const pid = compteVersPid(idCompte, clients);
   const etat = pid === null ? null : superviseur.comptes.get(pid);
   if (etat) etat.exclu = Boolean(exclu);
@@ -378,25 +888,15 @@ ipcMain.handle('marquerFavori', async (_e, idCompte, favori) => {
   await envoyerEtat();
 });
 
-ipcMain.handle('basculerPasseTour', async (_e, actif) => {
-  reglagesPasseTour.actif = Boolean(actif);
-  await envoyerEtat();
-});
-
 ipcMain.handle('basculerPasseTourCompte', async (_e, idCompte, actif) => {
   // La frontiere IPC est la frontiere de confiance: on ne laisse pas une
   // valeur non numerique atteindre le fichier de reglages.
   if (!Number.isInteger(idCompte)) return;
   favoris.marquerPasseTour(idCompte, Boolean(actif));
-  const clients = await listerClients();
+  const clients = await clientsRecents();
   const pid = compteVersPid(idCompte, clients);
   const etat = pid === null ? null : superviseur.comptes.get(pid);
   if (etat) etat.passeTour = Boolean(actif);
-  await envoyerEtat();
-});
-
-ipcMain.handle('basculerInvitation', async (_e, actif) => {
-  reglagesInvitation.actif = Boolean(actif);
   await envoyerEtat();
 });
 
@@ -405,21 +905,10 @@ ipcMain.handle('basculerInvitationCompte', async (_e, idCompte, actif) => {
   // valeur non numerique atteindre le fichier de reglages.
   if (!Number.isInteger(idCompte)) return;
   favoris.marquerInvitation(idCompte, Boolean(actif));
-  const clients = await listerClients();
+  const clients = await clientsRecents();
   const pid = compteVersPid(idCompte, clients);
   const etat = pid === null ? null : superviseur.comptes.get(pid);
   if (etat) etat.accepteInvitation = Boolean(actif);
-  await envoyerEtat();
-});
-
-ipcMain.handle('basculerNoAnim', async (_e, actif) => {
-  // IMPORTANT de revue finale: aligne sur ses jumeaux basculerPasseTour et
-  // basculerInvitation (lignes 293 et 310). L'ancien code n'ecrivait jamais
-  // reglagesNoAnim.actif (envoyerEtat() l'ecrasait a chaque tick), et
-  // effacait en plus les cases par compte de favoris.json a l'extinction --
-  // un interrupteur general ne doit couper que la fonction, pas la memoire
-  // des comptes que l'utilisateur a cochee.
-  reglagesNoAnim.actif = Boolean(actif);
   await envoyerEtat();
 });
 
@@ -428,18 +917,10 @@ ipcMain.handle('basculerNoAnimCompte', async (_e, idCompte, actif) => {
   // valeur non numerique atteindre le fichier de reglages.
   if (!Number.isInteger(idCompte)) return;
   favoris.marquerNoAnim(idCompte, Boolean(actif));
-  const clients = await listerClients();
+  const clients = await clientsRecents();
   const pid = compteVersPid(idCompte, clients);
   const etat = pid === null ? null : superviseur.comptes.get(pid);
   if (etat) etat.noAnim = Boolean(actif);
-  await envoyerEtat();
-});
-
-ipcMain.handle('basculerEchange', async (_e, actif) => {
-  // Interrupteur general independant, mis a jour par l'IPC SEUL: le recalculer
-  // dans envoyerEtat() depuis les cases par compte est ce qui a fait que le
-  // bouton ANIM ne commandait rien.
-  reglagesEchange.actif = Boolean(actif);
   await envoyerEtat();
 });
 
@@ -449,7 +930,7 @@ ipcMain.handle('basculerEchangeCompte', async (_e, idCompte, actif) => {
   // l'etat du superviseur.
   if (!Number.isInteger(idCompte)) return;
   favoris.marquerEchange(idCompte, Boolean(actif));
-  const clients = await listerClients();
+  const clients = await clientsRecents();
   const pid = compteVersPid(idCompte, clients);
   const etat = pid === null ? null : superviseur.comptes.get(pid);
   if (etat) etat.accepteEchange = Boolean(actif);
@@ -465,7 +946,7 @@ ipcMain.handle('reglerDelai', async (_e, secondes) => {
 });
 
 ipcMain.handle('fermerTousLesClients', async () => {
-  const clients = await listerClients();
+  const clients = await clientsRecents();
   const rendu = fermerClients(clients.map((c) => c.pid));
   for (const r of rendu) {
     journal(r.pid, r.ok ? 'client ferme par le bouton OFF' : `fermeture impossible : ${r.raison}`);
@@ -476,6 +957,9 @@ ipcMain.handle('fermerTousLesClients', async () => {
 });
 
 app.on('window-all-closed', async () => {
+  // Un raccourci global survit au process s'il n'est pas rendu: Windows le
+  // garderait confisque pour Dofus jusqu'a la deconnexion de la session.
+  globalShortcut.unregisterAll();
   // On arrete d'abord de produire du travail (plus aucun tick ne peut
   // rattacher un agent Frida ou renvoyer un etat), ensuite seulement on
   // demonte le superviseur.
@@ -483,6 +967,30 @@ app.on('window-all-closed', async () => {
   if (minuteurVue !== null) clearInterval(minuteurVue);
   minuteurProcess = null;
   minuteurVue = null;
-  if (superviseur) await superviseur.arreter();
+
+  // LA FERMETURE EST BORNEE. `arreter()` decharge les scripts Frida et detache
+  // les sessions: ce sont des allers-retours avec des process Dofus qui
+  // peuvent etre occupes, en train de mourir, ou deja partis. Une seule de ces
+  // attentes qui ne rend jamais la main, et OMNI reste en memoire, fenetre
+  // fermee, invisible dans la barre des taches — il faut alors le tuer au
+  // gestionnaire, et le lancer a nouveau donne deux instances.
+  //
+  // On laisse donc trois secondes au demontage propre, puis on quitte de toute
+  // facon. Un agent non decharge disparait avec le process a la fin, et le
+  // client Dofus n'en garde rien.
+  const demontage = superviseur
+    ? superviseur.arreter().catch((e) => journal('arret', `demontage: ${e.message}`))
+    : Promise.resolve();
+  let horsDelai = null;
+  await Promise.race([
+    demontage,
+    new Promise((r) => { horsDelai = setTimeout(r, 3000); }),
+  ]);
+  if (horsDelai !== null) clearTimeout(horsDelai);
+
   app.quit();
+  // Filet de dernier recours: si une poignee native retenait encore la boucle
+  // d'evenements, app.quit() ne suffirait pas. Personne ne doit avoir a tuer
+  // OMNI a la main.
+  setTimeout(() => app.exit(0), 1500).unref();
 });

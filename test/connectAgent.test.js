@@ -111,3 +111,65 @@ test("l'adresse n'est réécrite qu'après la décision de détourner", () => {
   assert.ok(filtre > 0 && ecriture > 0, 'les deux repères doivent exister');
   assert.ok(ecriture > filtre, "l'écriture de 127.0.0.1 doit suivre le filtre");
 });
+
+// --- commande de fenetre ---------------------------------------------------
+
+// Le clic sur une ligne, et les raccourcis, doivent mettre la fenetre Dofus au
+// premier plan. C'est l'agent qui le fait, depuis l'interieur du process:
+// SetForegroundWindow est bride, et le contournement documente par Microsoft
+// (AttachThreadInput sur le fil du premier plan) demande d'etre dans la place.
+//
+// Ces trois fonctions user32, l'agent les appelait deja avant qu'on retire la
+// surveillance du focus. On ne prend donc aucun risque nouveau.
+test('l agent expose une commande de mise au premier plan', () => {
+  const src = connectAgentSource({ proxyPort: 8000 });
+  assert.match(src, /recv\(/, 'un canal de commande depuis l hote');
+  assert.match(src, /SetForegroundWindow/);
+  assert.match(src, /AttachThreadInput/);
+  assert.match(src, /EnumWindows|GetTopWindow|FindWindow/, 'il faut trouver sa propre fenetre');
+});
+
+// Sans cette annonce, l'hote ne peut pas savoir si la bascule a eu lieu, et le
+// journal d'un ami ne dirait rien d'exploitable.
+test('l agent rend compte de la bascule', () => {
+  const src = connectAgentSource({ proxyPort: 8000 });
+  assert.match(src, /premierPlanFait/);
+});
+
+// La surveillance du focus revient, mais pour un AUTRE usage: elle ne decerne
+// plus le role de maitre, elle dit seulement d'ou part « personnage suivant ».
+test('la surveillance du premier plan est de nouveau disponible, en option', () => {
+  const avec = connectAgentSource({ proxyPort: 8000, reportFocus: true });
+  const sans = connectAgentSource({ proxyPort: 8000 });
+  assert.match(avec, /GetForegroundWindow/);
+  assert.match(avec, /premierPlan:/);
+  assert.doesNotMatch(sans, /premierPlan:/, 'muette si on ne la demande pas');
+});
+
+// SetForegroundWindow seul reussissait environ une fois sur deux: Windows
+// protege deliberement le premier plan, et la regle depend de qui a recu la
+// derniere entree, du verrou de premier plan, et de l'etat du bureau a
+// l'instant de l'appel. L'agent enchaine donc trois recours, du plus propre au
+// plus intrusif, et s'arrete au premier qui marche.
+test('la mise au premier plan enchaîne trois recours', () => {
+  const src = connectAgentSource({ proxyPort: 8000 });
+  assert.match(src, /AttachThreadInput/, '1. le contournement documenté');
+  assert.match(src, /SwitchToThisWindow/, '2. la voie d Alt+Tab');
+  assert.match(src, /SPI_SETFOREGROUNDLOCKTIMEOUT/, '3. le verrou de premier plan');
+});
+
+// Un verrou de premier plan laisse a zero rendrait TOUTE application capable de
+// voler le focus, bien apres qu'OMNI se soit ferme.
+test('le verrou de premier plan est toujours restauré', () => {
+  const src = connectAgentSource({ proxyPort: 8000 });
+  assert.match(src, /SPI_GETFOREGROUNDLOCKTIMEOUT/, 'l ancienne valeur doit être lue');
+  assert.match(src, /finally\s*\{[\s\S]{0,400}SPI_SETFOREGROUNDLOCKTIMEOUT/,
+    'la restauration doit être dans un finally');
+});
+
+// Deux fils dont les entrees restent liees se bloquent mutuellement au premier
+// incident: le detachement ne peut pas dependre du succes de l'appel.
+test('le rattachement de fil est toujours défait', () => {
+  const src = connectAgentSource({ proxyPort: 8000 });
+  assert.match(src, /finally\s*\{[\s\S]{0,200}AttachThreadInput\([^)]*, 0\)/);
+});

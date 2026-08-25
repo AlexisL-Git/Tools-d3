@@ -9,13 +9,24 @@ const { execFile } = require('node:child_process');
 // Relier une fenetre a un compte ne demande donc ni heuristique ni saisie.
 
 const ID_JOURNAL = /dofus\.(\d+)\.log/i;
-// Titre en jeu: "Personnage - Classe - 3.6.10.10 - Release". Avant l'entree en
+// Titre en jeu: "Personnage - Classe - 3.6.10.11 - Release". Avant l'entree en
 // partie, il n'y a que la version, et un launcher tiers peut le reecrire.
-// Hypothese: ni le nom du personnage ni celui de la classe ne contiennent de
-// tiret ([^-]+? les exclut). Si elle est fausse, le titre n'est simplement pas
-// reconnu: personnage/classe restent null, le compte apparait sans nom de
-// personnage, rien ne plante.
-const TITRE_EN_JEU = /^([^-]+?)\s+-\s+([^-]+?)\s+-\s+\d+\.\d+\.\d+\.\d+\s+-\s+/;
+//
+// ON LIT PAR LA FIN, ET C'EST TOUT LE POINT. La version precedente lisait de
+// gauche a droite en excluant le tiret du nom ([^-]+?), sur l'hypothese ecrite
+// ici meme qu'aucun nom de personnage n'en contenait. MESURE du 2026-08-25, sur
+// un client reel: "Lance-poule-ultime - Pandawa - 3.6.10.11 - Release" n'etait
+// pas reconnu, et toute une equipe nommee ainsi restait sans nom ni classe.
+//
+// Le cout n'etait pas une erreur mais un SILENCE: colonne personnage vide, et
+// aucun embleme de classe possible puisque la classe reste inconnue.
+//
+// Les deux derniers champs sont fiables (une version numerique, puis le canal),
+// et aucune des 19 classes ne porte de tiret. On s'ancre donc dessus, et le nom
+// prend tout ce qui reste, tirets compris. Le nombre de composants de la version
+// n'est pas fige non plus: elle est passee de 3.6.10.10 a 3.6.10.11 pendant ce
+// travail.
+const TITRE_EN_JEU = /^(.*)\s+-\s+([^-]+?)\s+-\s+\d+(?:\.\d+)+\s+-\s+[^-]+$/;
 
 function extraireIdCompte(ligne) {
   if (typeof ligne !== 'string') return null;

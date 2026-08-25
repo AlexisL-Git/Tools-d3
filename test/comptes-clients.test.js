@@ -127,3 +127,38 @@ test('un echec n interrompt pas les suivants', () => {
 test('une liste vide ne fait rien et ne leve pas', () => {
   assert.deepStrictEqual(fermerClients([], () => { throw new Error('jamais'); }), []);
 });
+
+// --- noms de personnage contenant des tirets ------------------------------
+
+// MESURE du 2026-08-25, titre releve sur un client reel:
+//   "Lance-poule-ultime - Pandawa - 3.6.10.11 - Release"
+//
+// L'analyse lisait de gauche a droite avec [^-]+?, ce qui EXCLUAIT le tiret
+// du nom. L'hypothese etait ecrite dans le module: « ni le nom du personnage
+// ni celui de la classe ne contiennent de tiret ». Elle tombe sur toute une
+// equipe nommee ainsi, et la consequence n'etait pas une erreur mais un
+// SILENCE: colonne personnage vide, classe inconnue, donc aucun embleme de
+// classe possible.
+test('un nom de personnage à tirets est reconnu', () => {
+  assert.deepStrictEqual(
+    extrairePersonnage('Lance-poule-ultime - Pandawa - 3.6.10.11 - Release'),
+    { personnage: 'Lance-poule-ultime', classe: 'Pandawa' },
+  );
+});
+
+test('toute une équipe nommée avec des tirets est reconnue', () => {
+  for (const [titre, attendu] of [
+    ['Lance-moineau-ultime - Crâ - 3.6.10.11 - Release', 'Lance-moineau-ultime'],
+    ['Lance-toucan-ultime - Iop - 3.6.10.11 - Release', 'Lance-toucan-ultime'],
+    ['Lance-manchot-ultime - Sram - 3.6.10.11 - Release', 'Lance-manchot-ultime'],
+  ]) {
+    assert.strictEqual(extrairePersonnage(titre).personnage, attendu, titre);
+  }
+});
+
+// La version a change de forme en cours de route (3.6.10.10 puis 3.6.10.11).
+// L'analyse ne doit pas dependre du nombre de composants.
+test('la reconnaissance ne dépend pas du nombre de composants de version', () => {
+  assert.strictEqual(extrairePersonnage('Spoony - Iop - 3.6.10 - Release').classe, 'Iop');
+  assert.strictEqual(extrairePersonnage('Spoony - Iop - 3.6.10.11 - Release').classe, 'Iop');
+});

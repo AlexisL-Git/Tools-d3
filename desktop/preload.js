@@ -2,27 +2,47 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Le renderer n'a acces ni au reseau, ni aux process, ni au disque. Il recoit
-// un etat et emet treize ordres, rien d'autre: armer le OMNI, exclure un
-// compte, le mettre en favori, l'interrupteur general du passe-tour, celui
-// d'un compte, le delai, l'interrupteur general de l'acceptation des
-// invitations de groupe et celui d'un compte, l'interrupteur general du
-// no-anim et celui d'un compte, l'interrupteur general de l'acceptation des
-// echanges et celui d'un compte, et la fermeture de tous les clients. Chacun
-// est valide cote main.js — c'est ici que passe la frontiere de confiance, et
-// elle ne s'elargit pas sans raison.
+// un etat et emet quinze ordres, rien d'autre. Chacun est valide cote
+// main.js: c'est ici que passe la frontiere de confiance, et elle ne s'elargit
+// pas sans raison.
+//
+// LA LISTE EST EXHAUSTIVE ET LE RESTE. Un canal retire par megarde ne casse
+// rien au demarrage: il ne se voit qu'au moment ou l'utilisateur clique, sous
+// la forme d'un bouton qui « ne fait rien ». C'est arrive le 2026-08-25, en
+// retirant les cinq interrupteurs generaux: cinq canaux voisins sont partis
+// avec eux, et quatre des cinq cases par compte sont devenues inertes.
+// Verification: chaque nom ci-dessous doit avoir son ipcMain.handle dans
+// desktop/main.js, et reciproquement pour tout ce que l'interface appelle.
 contextBridge.exposeInMainWorld('app', {
   surEtat: (rappel) => ipcRenderer.on('etat', (_e, etat) => rappel(etat)),
-  basculerDuplication: (actif) => ipcRenderer.invoke('basculerDuplication', actif),
+
+  // La fenetre sans cadre. Pas d'agrandir: elle n'est pas redimensionnable.
+  fenetreReduire: () => ipcRenderer.invoke('fenetreReduire'),
+  fenetreFermer: () => ipcRenderer.invoke('fenetreFermer'),
+
+  // L'interrupteur unique, et l'action groupee d'un titre de colonne.
+  basculerActif: (actif) => ipcRenderer.invoke('basculerActif', actif),
+  basculerColonne: (nom, ids) => ipcRenderer.invoke('basculerColonne', nom, ids),
+
+  // Les cinq cases d'une ligne. `exclureCompte` est l'inversee des cinq:
+  // cochee veut dire « suit le meneur », donc exclu vaut le contraire.
   exclureCompte: (idCompte, exclu) => ipcRenderer.invoke('exclureCompte', idCompte, exclu),
-  marquerFavori: (idCompte, favori) => ipcRenderer.invoke('marquerFavori', idCompte, favori),
-  basculerPasseTour: (actif) => ipcRenderer.invoke('basculerPasseTour', actif),
   basculerPasseTourCompte: (idCompte, actif) => ipcRenderer.invoke('basculerPasseTourCompte', idCompte, actif),
-  reglerDelai: (secondes) => ipcRenderer.invoke('reglerDelai', secondes),
-  basculerInvitation: (actif) => ipcRenderer.invoke('basculerInvitation', actif),
   basculerInvitationCompte: (idCompte, actif) => ipcRenderer.invoke('basculerInvitationCompte', idCompte, actif),
-  basculerNoAnim: (actif) => ipcRenderer.invoke('basculerNoAnim', actif),
   basculerNoAnimCompte: (idCompte, actif) => ipcRenderer.invoke('basculerNoAnimCompte', idCompte, actif),
-  basculerEchange: (actif) => ipcRenderer.invoke('basculerEchange', actif),
   basculerEchangeCompte: (idCompte, actif) => ipcRenderer.invoke('basculerEchangeCompte', idCompte, actif),
+
+  // Qui commande, et la bascule vers la fenetre d'un compte.
+  definirMaitre: (idCompte) => ipcRenderer.invoke('definirMaitre', idCompte),
+  basculerVersCompte: (idCompte) => ipcRenderer.invoke('basculerVersCompte', idCompte),
+
+  // Les raccourcis. `reglerOrdre` existe cote main.js mais n'est PAS expose:
+  // la poignee de reordonnancement n'est pas encore faite, et la frontiere de
+  // confiance ne s'elargit pas par anticipation.
+  reglerTouche: (idCompte, accelerateur) => ipcRenderer.invoke('reglerTouche', idCompte, accelerateur),
+  reglerToucheNav: (nom, accelerateur) => ipcRenderer.invoke('reglerToucheNav', nom, accelerateur),
+
+  reglerDelai: (secondes) => ipcRenderer.invoke('reglerDelai', secondes),
+  fermerUnClient: (idCompte) => ipcRenderer.invoke('fermerUnClient', idCompte),
   fermerTousLesClients: () => ipcRenderer.invoke('fermerTousLesClients'),
 });
