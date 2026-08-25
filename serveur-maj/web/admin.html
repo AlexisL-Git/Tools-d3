@@ -41,10 +41,11 @@
   </div>
   <div class="bloc">
     <h2>Publier une version</h2>
-    <input id="pubversion" placeholder="version (ex: 0.2.0)">
-    <input id="pubsha" placeholder="sha256 de l'archive" size="70">
-    <button id="b-publier">publier</button>
-    <div id="manifeste"></div>
+    <p class="aide">Depose l'archive de code produite par la fabrication (code-x.y.z.tar.gz). L'empreinte est calculee par le serveur — tu n'as rien a recopier. Televerser ne change rien pour les amis : c'est <em>activer</em> qui bascule le manifeste.</p>
+    <input id="pubfichier" type="file" accept=".gz,.tgz,application/gzip">
+    <input id="pubversion" placeholder="version (ex: 0.2.3)" size="12">
+    <button id="b-televerser">televerser</button>
+    <table id="versions"></table>
   </div>
   <table id="liste"></table>
 </div>
@@ -115,6 +116,7 @@
       b.onclick = async () => { await api('basculer', { cle: a.cle, actif: !a.actif }); rafraichir(); };
       td.append(b); tr.append(td); t.append(tr);
     }
+    await rafraichirVersions();
   }
   async function creer() {
     const nom = document.getElementById('nom').value.trim();
@@ -124,12 +126,80 @@
     document.getElementById('nom').value = '';
     rafraichir();
   }
-  async function publier() {
+  // Le nom de fichier porte deja le numero: on le pre-remplit, sans l'imposer.
+  function versionDepuisNom(nom) {
+    const m = /(\d+\.\d+\.\d+)/.exec(nom || '');
+    return m ? m[1] : '';
+  }
+
+  function lireEnBase64(fichier) {
+    return new Promise((resolve, reject) => {
+      const l = new FileReader();
+      // readAsDataURL rend "data:<type>;base64,XXXX": on ne garde que la charge.
+      l.onload = () => resolve(String(l.result).split(',')[1] || '');
+      l.onerror = () => reject(new Error('lecture du fichier impossible'));
+      l.readAsDataURL(fichier);
+    });
+  }
+
+  function taille(octets) {
+    return octets >= 1024 * 1024
+      ? (octets / (1024 * 1024)).toFixed(1) + ' Mo'
+      : Math.round(octets / 1024) + ' Ko';
+  }
+
+  async function televerser() {
+    const f = document.getElementById('pubfichier').files[0];
     const version = document.getElementById('pubversion').value.trim();
-    const sha256 = document.getElementById('pubsha').value.trim();
-    if (!version || !sha256) { avis('version et sha256 requis'); return; }
-    const r = await api('publier', { version, sha256 });
-    avis(r.ok ? ('manifeste bascule sur ' + r.version) : ('refuse: ' + (r.erreur || '')));
+    if (!f) { avis('choisis une archive'); return; }
+    if (!version) { avis('mets un numero de version'); return; }
+    let archive;
+    try { archive = await lireEnBase64(f); }
+    catch (e) { avis(e.message); return; }
+    const r = await api('televerser', { version, archive });
+    avis(r.deja
+      ? (version + ' etait deja en base, octets identiques')
+      : (version + ' televersee — empreinte ' + r.sha256.slice(0, 8) + '…, ' + taille(r.taille)));
+    rafraichirVersions();
+  }
+
+  async function activer(version) {
+    const r = await api('activer', { version });
+    avis('manifeste bascule sur ' + r.version);
+    rafraichirVersions();
+  }
+
+  async function rafraichirVersions() {
+    const [liste, manifeste] = [await api('versions'), await api('lister-manifeste')];
+    const t = document.getElementById('versions');
+    t.textContent = '';
+    const entete = document.createElement('tr');
+    for (const titre of ['version', 'taille', 'publiee le', 'empreinte', '']) {
+      const th = document.createElement('th');
+      th.textContent = titre;
+      entete.append(th);
+    }
+    t.append(entete);
+    for (const v of liste) {
+      const tr = document.createElement('tr');
+      tr.append(
+        cellule(v.version),
+        cellule(taille(v.taille)),
+        cellule(String(v.publiee_le).replace('T', ' ').slice(0, 16)),
+        cellule(v.sha256.slice(0, 8) + '…', 'cle'),
+      );
+      const td = document.createElement('td');
+      if (v.version === manifeste.version) {
+        td.textContent = '● courante';
+      } else {
+        const b = document.createElement('button');
+        b.textContent = 'activer';
+        b.onclick = () => activer(v.version);
+        td.append(b);
+      }
+      tr.append(td);
+      t.append(tr);
+    }
   }
   async function service(actif) {
     const message = document.getElementById('msgservice').value.trim();
@@ -149,7 +219,11 @@
   document.getElementById('b-url').onclick = enregistrerUrl;
   document.getElementById('b-couper').onclick = () => service(false);
   document.getElementById('b-rouvrir').onclick = () => service(true);
-  document.getElementById('b-publier').onclick = publier;
+  document.getElementById('b-televerser').onclick = televerser;
+  document.getElementById('pubfichier').addEventListener('change', (e) => {
+    const champ = document.getElementById('pubversion');
+    if (!champ.value) champ.value = versionDepuisNom(e.target.files[0] && e.target.files[0].name);
+  });
   document.getElementById('b-entrer').onclick = entrer;
   document.getElementById('b-creer').onclick = creer;
   document.getElementById('mdp').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrer(); });

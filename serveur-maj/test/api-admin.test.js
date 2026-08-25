@@ -166,3 +166,12 @@ test('activer une version inconnue, 400', async () => {
   });
   assert.strictEqual(r.statut, 400);
 });
+
+test('lister-manifeste rend le manifeste courant, et 404 sans mot de passe', async () => {
+  const m = { version: '0.2.3', sha256: 'c'.repeat(64), actif: true, message: null };
+  const ok = await traiterAdmin({ motDePasse: SECRET, action: 'lister-manifeste', sql: fauxSql([[m]]), motDePasseAttendu: SECRET });
+  assert.strictEqual(ok.statut, 200);
+  assert.deepStrictEqual(ok.corps, m);
+  const ko = await traiterAdmin({ motDePasse: undefined, action: 'lister-manifeste', sql: fauxSql([]), motDePasseAttendu: SECRET });
+  assert.strictEqual(ko.statut, 404);
+});

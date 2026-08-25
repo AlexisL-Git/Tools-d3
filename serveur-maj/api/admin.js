@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { creerClient, appliquerSchema } = require('../lib/db');
 const { listerAmis, creerAmi, basculerAmi } = require('../lib/amis');
-const { basculerService, ecrireManifeste, ecrireUrlPaquet, lireUrlPaquet } = require('../lib/manifeste');
+const { basculerService, ecrireManifeste, ecrireUrlPaquet, lireUrlPaquet, lireManifeste } = require('../lib/manifeste');
 const { enregistrerVersion, listerVersions, activerVersion } = require('../lib/versions');
 
 // Comparaison a temps constant: une comparaison ordinaire revele la longueur
@@ -78,6 +78,8 @@ async function traiterAdmin({ motDePasse, action, corps = {}, sql, genererCle, m
       const r = await activerVersion(sql, String(corps.version || ''));
       return r.erreur ? { statut: 400, corps: { erreur: r.erreur } } : { statut: 200, corps: r };
     }
+    case 'lister-manifeste':
+      return { statut: 200, corps: await lireManifeste(sql) };
     default:
       return { statut: 400, corps: { erreur: 'action inconnue' } };
   }
