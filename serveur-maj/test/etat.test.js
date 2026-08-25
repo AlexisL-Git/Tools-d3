@@ -23,12 +23,25 @@ test('un lancement sans refus: version_vue ecrite, une ligne de lancement', asyn
   assert.deepStrictEqual(sql.appels[1], ['CLE', '0.2.4']);   // INSERT lancements
 });
 
-test('version invalide: n ecrase pas version_vue, le lancement est quand meme compte', async () => {
-  const sql = fauxSql([[], []]);
+test('version invalide: n ecrase pas version_vue, et aucun lancement n est enregistre', async () => {
+  const sql = fauxSql([[]]);
   const r = await enregistrerEtat(sql, { cle: 'CLE', version: 'dev; DROP TABLE amis', refus: [] });
   assert.deepStrictEqual(r, { ok: true, nouveaux: [] });
+  assert.strictEqual(sql.appels.length, 1);            // UPDATE amis seulement, pas d'INSERT lancements
   assert.deepStrictEqual(sql.appels[0], [null, 'CLE']);
-  assert.deepStrictEqual(sql.appels[1], ['CLE', null]);
+});
+
+test('un signalement sans version (chemin arreter) enregistre quand meme ses refus', async () => {
+  // UPDATE amis, puis INSERT refus ... RETURNING: pas d'INSERT lancements
+  // puisque version est nulle — mais le refus, lui, ne doit pas se perdre.
+  const sql = fauxSql([[], [{ version: '0.2.3' }]]);
+  const r = await enregistrerEtat(sql, {
+    cle: 'CLE', version: null, refus: [{ version: '0.2.3', journal: 'boum' }],
+  });
+  assert.deepStrictEqual(r.nouveaux, ['0.2.3']);
+  assert.strictEqual(sql.appels.length, 2);
+  assert.deepStrictEqual(sql.appels[0], [null, 'CLE']);
+  assert.deepStrictEqual(sql.appels[1], ['CLE', '0.2.3', 'boum']);
 });
 
 test('un refus insere pour la premiere fois figure dans nouveaux', async () => {

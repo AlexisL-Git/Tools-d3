@@ -16,7 +16,14 @@ async function enregistrerEtat(sql, { cle, version, refus }) {
   // COALESCE: une version illisible ne doit pas EFFACER la derniere version
   // connue. Ne rien savoir vaut mieux que remplacer un fait par un blanc.
   await sql`UPDATE amis SET version_vue = COALESCE(${v}, version_vue) WHERE cle = ${cle}`;
-  await sql`INSERT INTO lancements (cle, version) VALUES (${cle}, ${v})`;
+  // Une ligne de lancements ne compte que si une version a ete chargee. Le
+  // chemin 'arreter' (coupe-circuit, aucune version) signale quand meme,
+  // pour ne pas perdre un refus en attente, mais ce n'est pas un lancement:
+  // sans ce garde-fou, chaque relance pendant un coupe-circuit gonflerait
+  // la colonne "30 j" avec des arrets.
+  if (v !== null) {
+    await sql`INSERT INTO lancements (cle, version) VALUES (${cle}, ${v})`;
+  }
 
   const nouveaux = [];
   const liste = Array.isArray(refus) ? refus.slice(0, MAX_REFUS) : [];

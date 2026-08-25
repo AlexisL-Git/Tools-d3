@@ -338,8 +338,12 @@
         // appels depuis televerser()/activer() n'en disposent pas: on garde
         // alors l'affichage simple plutot que de refaire un appel lister().
         if (amis) {
-          const aJour = amis.filter((a) => a.version_vue === v.version).length;
-          td.textContent = '● courante — ' + aJour + '/' + amis.length + ' amis';
+          // Un ami desactive ne peut pas recevoir la version: il ne compte
+          // ni au numerateur ni au denominateur, sinon le ratio n'atteint
+          // plus jamais n/n des qu'un ami est revoque.
+          const actifs = amis.filter((a) => a.actif);
+          const aJour = actifs.filter((a) => a.version_vue === v.version).length;
+          td.textContent = '● courante — ' + aJour + '/' + actifs.length + ' amis';
         } else {
           td.textContent = '● courante';
         }

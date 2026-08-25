@@ -1,7 +1,11 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { prevenir } = require('../lib/discord');
+const { prevenir, DELAI_MS } = require('../lib/discord');
+
+test('DELAI_MS est 700: plus court que le budget client de /api/etat (2000 ms)', () => {
+  assert.strictEqual(DELAI_MS, 700);
+});
 
 function fauxFetch(reponses) {
   const appels = [];
