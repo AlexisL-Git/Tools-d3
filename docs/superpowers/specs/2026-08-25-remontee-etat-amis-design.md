@@ -74,8 +74,18 @@ d'avant la mise a jour. `refus` est vide dans le cas courant.
 
 Dans `amorceur/principal.js`, **pas** dans `demarrage.js`. `demarrer()` reste
 une machine a etats testable sans reseau ; y coudre un appel HTTP melerait
-deux responsabilites. `demarrer()` ajoute seulement `refusee` a ce qu'il
-retourne ; `principal.js`, qui possede la cle et le fichier journal, envoie.
+deux responsabilites.
+
+Le partage est net :
+
+- `demarrer()` **detecte** le refus (etape 1, `choix.refusee`) et le **range
+  dans la file** via `depot.filerSignalement(version)`. Il continue par
+  ailleurs de le retourner, pour la ligne de journal qu'il ecrit deja.
+- `principal.js` **envoie** : il lit la file, y attache l'extrait de journal,
+  appelle `canal.signaler`, et vide la file sur un 200.
+
+Aucun appel reseau dans `demarrage.js`, aucune decision d'etat dans
+`principal.js`.
 
 L'appel a lieu **avant** le chargement de la fenetre, sur le chemin `charger`
 comme sur le chemin `arreter`, des lors qu'une cle validee existe. Un arret
@@ -92,22 +102,27 @@ toujours — exactement le silence qu'on cherche a supprimer.
 
 ```json
 { "version": "0.2.3", "essai": null, "refusees": ["0.2.4"],
-  "aSignaler": [ { "version": "0.2.4", "journal": "…" } ] }
+  "aSignaler": ["0.2.4"] }
 ```
 
-Ecrite au moment ou le refus est detecte, videe **seulement** sur un 200. Tant
-que le service ne repond pas, elle repart au lancement suivant. Le
-dedoublonnage cote serveur (cle primaire `(cle, version)`) rend ce renvoi sans
-consequence.
+Elle ne porte que des **numeros de version** : le journal n'y est pas recopie,
+il est lu a l'envoi. Ecrite au moment ou le refus est detecte, videe
+**seulement** sur un 200. Tant que le service ne repond pas, elle repart au
+lancement suivant. Le dedoublonnage cote serveur (cle primaire
+`(cle, version)`) rend ce renvoi sans consequence.
 
-Le journal joint est un extrait des **30 dernieres lignes** de
-`%APPDATA%\OMNI\amorceur.log`, lu au moment de la detection. Il ne contient ni
-cle, ni identifiant Ankama — l'amorceur n'en journalise aucun.
+Le journal joint a l'envoi est un extrait des **30 dernieres lignes** de
+`%APPDATA%\OMNI\amorceur.log`. Prises a ce moment-la, elles couvrent le
+lancement qui a plante et celui qui le signale — c'est ce qu'on veut lire. Le
+meme extrait est joint a chaque entree de la file : elles proviennent du meme
+fichier, le distinguer par version n'apporterait rien. Il ne contient ni cle,
+ni identifiant Ankama — l'amorceur n'en journalise aucun.
 
 ### `amorceur/depot.js`
 
-Trois fonctions de plus, dans le style des existantes : `filerSignalement(v,
-journal)`, `signalementsEnAttente()`, `viderSignalements()`. `lire()` tolere un
+Trois fonctions de plus, dans le style des existantes :
+`filerSignalement(version)`, `signalementsEnAttente()`,
+`viderSignalements()`. `lire()` tolere un
 `courante.json` ancien, sans `aSignaler` — un ami qui met a jour depuis une
 version anterieure ne doit pas planter sur un champ absent.
 
