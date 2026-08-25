@@ -1,10 +1,14 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { creerCanal } = require('../../amorceur/canal');
+const { creerCanal, DELAI_SIGNALEMENT_MS } = require('../../amorceur/canal');
 const { ecrireArchive, empreinte } = require('../../amorceur/archive');
 
 const BASE = 'https://exemple.invalid';
+
+test('DELAI_SIGNALEMENT_MS est 2000', () => {
+  assert.strictEqual(DELAI_SIGNALEMENT_MS, 2000);
+});
 
 // Faux fetch: rend la reponse programmee et enregistre l'appel. Aucun test
 // n'ouvre de socket.
