@@ -13,7 +13,6 @@
   .bloc h2 { font-size:14px; margin:0 0 10px; color:#8b93a3; font-weight:600; }
   .aide { color:#8b93a3; font-size:12px; margin:0 0 10px; max-width:60em; }
   #etatservice { margin-top:10px; color:#8b93a3; font-size:12px; }
-  #manifeste { margin-top:10px; color:#8b93a3; font-family:monospace; font-size:12px; }
 </style>
 <h1>Amis</h1>
 <div id="connexion">
@@ -90,6 +89,18 @@
     }
     return r.json();
   }
+  // Ce qui s'affiche doit refleter le sort de l'ACTION, pas celui du
+  // rafraichissement qui la suit: on attend le rafraichissement, mais son
+  // echec ne doit jamais faire disparaitre ni passer pour un echec de
+  // l'action deja reussie — il est signale a la suite, jamais a la place.
+  async function apresAction(rafraichirFn, texte, valeur) {
+    try {
+      await rafraichirFn();
+      avis(texte, valeur);
+    } catch (e) {
+      avis(texte + ' (rafraichissement du tableau echoue: ' + e.message + ')', valeur);
+    }
+  }
   async function entrer() {
     mdp = document.getElementById('mdp').value;
     try {
@@ -136,9 +147,8 @@
     const nom = document.getElementById('nom').value.trim();
     if (!nom) return;
     const r = await api('creer', { nom });
-    avis('cle de ' + nom + ' — a lui transmettre :', r.cle);
     document.getElementById('nom').value = '';
-    rafraichir();
+    await apresAction(rafraichir, 'cle de ' + nom + ' — a lui transmettre :', r.cle);
   }
   // Le nom de fichier porte deja le numero: on le pre-remplit, sans l'imposer.
   function versionDepuisNom(nom) {
@@ -174,17 +184,12 @@
     const message = r.deja
       ? (version + ' etait deja en base, octets identiques')
       : (version + ' televersee — empreinte ' + r.sha256.slice(0, 8) + '…, ' + taille(r.taille));
-    // rafraichirVersions() appelle api() qui pose '...' dans #avis: on
-    // attend la fin du rafraichissement avant d'afficher le message, sinon
-    // il est efface avant meme d'etre vu.
-    await rafraichirVersions();
-    avis(message);
+    await apresAction(rafraichirVersions, message);
   }
 
   async function activer(version) {
     const r = await api('activer', { version });
-    await rafraichirVersions();
-    avis('manifeste bascule sur ' + r.version);
+    await apresAction(rafraichirVersions, 'manifeste bascule sur ' + r.version);
   }
 
   async function rafraichirVersions() {
