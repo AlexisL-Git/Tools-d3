@@ -56,6 +56,11 @@ ancienne du meme tableau.
 
 ## Refabriquer le paquet a donner (480 Mo)
 
+Necessaire aussi apres tout changement de l'amorceur — par exemple la remontee
+d'etat ajoutee le 2026-08-25 : tant qu'un ami n'a pas le nouveau paquet, il
+fonctionne normalement mais ne remonte rien, et sa ligne du panneau reste a
+`—`.
+
 Necessaire seulement quand l'amorceur, Electron ou une dependance changent —
 le code applicatif, lui, se met a jour tout seul.
 
