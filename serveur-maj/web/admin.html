@@ -7,13 +7,13 @@
   td,th { text-align:left; padding:8px; border-bottom:1px solid #22252c; }
   .off { opacity:.5; }
   .cle { font-family:monospace; font-size:12px; color:#8b93a3; }
+  .alerte-version { color:#ff6b6b; font-weight:600; background:#3a1e1e; }
   #avis { margin-top:12px; color:#8b93a3; min-height:1.2em; }
   #avis input { width:34em; }
   .bloc { margin-top:22px; padding-top:16px; border-top:1px solid #22252c; }
   .bloc h2 { font-size:14px; margin:0 0 10px; color:#8b93a3; font-weight:600; }
   .aide { color:#8b93a3; font-size:12px; margin:0 0 10px; max-width:60em; }
   #etatservice { margin-top:10px; color:#8b93a3; font-size:12px; }
-  #manifeste { margin-top:10px; color:#8b93a3; font-family:monospace; font-size:12px; }
 </style>
 <h1>Amis</h1>
 <div id="connexion">
@@ -41,10 +41,11 @@
   </div>
   <div class="bloc">
     <h2>Publier une version</h2>
-    <input id="pubversion" placeholder="version (ex: 0.2.0)">
-    <input id="pubsha" placeholder="sha256 de l'archive" size="70">
-    <button id="b-publier">publier</button>
-    <div id="manifeste"></div>
+    <p class="aide">Depose l'archive de code produite par la fabrication (code-x.y.z.tar.gz). L'empreinte est calculee par le serveur — tu n'as rien a recopier. Televerser ne change rien pour les amis : c'est <em>activer</em> qui bascule le manifeste.</p>
+    <input id="pubfichier" type="file" accept=".gz,.tgz,application/gzip">
+    <input id="pubversion" placeholder="version (ex: 0.2.3)" size="12">
+    <button id="b-televerser">televerser</button>
+    <table id="versions"></table>
   </div>
   <table id="liste"></table>
 </div>
@@ -72,8 +73,34 @@
       });
     } catch (e) { avis('requete impossible: ' + e.message); throw e; }
     if (r.status === 404) { avis('mot de passe refuse'); throw new Error('404'); }
-    if (!r.ok) { avis('le serveur a repondu ' + r.status + ' — reessaie'); throw new Error(String(r.status)); }
+    if (!r.ok) {
+      // Sur un 400, le serveur explique le refus dans { erreur }: on le
+      // montre a la place du message generique. Corps absent, non-JSON, ou
+      // sans champ erreur: on retombe sur le message generique, sans lever
+      // une seconde exception depuis le gestionnaire d'erreur.
+      let message = 'le serveur a repondu ' + r.status + ' — reessaie';
+      if (r.status === 400) {
+        try {
+          const corpsErreur = await r.json();
+          if (corpsErreur && corpsErreur.erreur) message = corpsErreur.erreur;
+        } catch (e) { /* corps non JSON: message generique conserve */ }
+      }
+      avis(message);
+      throw new Error(String(r.status));
+    }
     return r.json();
+  }
+  // Ce qui s'affiche doit refleter le sort de l'ACTION, pas celui du
+  // rafraichissement qui la suit: on attend le rafraichissement, mais son
+  // echec ne doit jamais faire disparaitre ni passer pour un echec de
+  // l'action deja reussie — il est signale a la suite, jamais a la place.
+  async function apresAction(rafraichirFn, texte, valeur) {
+    try {
+      await rafraichirFn();
+      avis(texte, valeur);
+    } catch (e) {
+      avis(texte + ' (rafraichissement du tableau echoue: ' + e.message + ')', valeur);
+    }
   }
   async function entrer() {
     mdp = document.getElementById('mdp').value;
@@ -115,21 +142,110 @@
       b.onclick = async () => { await api('basculer', { cle: a.cle, actif: !a.actif }); rafraichir(); };
       td.append(b); tr.append(td); t.append(tr);
     }
+    // Le coupe-circuit (dans #panneau) est le seul moyen d'arreter tout le
+    // parc: son accessibilite ne doit jamais dependre du tableau des
+    // versions. Un echec ici reste visible dans #avis, mais ne remonte
+    // jamais jusqu'a entrer(), qui garderait sinon le panneau cache.
+    try {
+      await rafraichirVersions();
+      avis('');
+    } catch (e) {
+      avis('tableau des versions: rafraichissement echoue (' + e.message + ')');
+    }
   }
   async function creer() {
     const nom = document.getElementById('nom').value.trim();
     if (!nom) return;
     const r = await api('creer', { nom });
-    avis('cle de ' + nom + ' — a lui transmettre :', r.cle);
     document.getElementById('nom').value = '';
-    rafraichir();
+    await apresAction(rafraichir, 'cle de ' + nom + ' — a lui transmettre :', r.cle);
   }
-  async function publier() {
+  // Le nom de fichier porte deja le numero: on le pre-remplit, sans l'imposer.
+  function versionDepuisNom(nom) {
+    const m = /(\d+\.\d+\.\d+)/.exec(nom || '');
+    return m ? m[1] : '';
+  }
+
+  function lireEnBase64(fichier) {
+    return new Promise((resolve, reject) => {
+      const l = new FileReader();
+      // readAsDataURL rend "data:<type>;base64,XXXX": on ne garde que la charge.
+      l.onload = () => resolve(String(l.result).split(',')[1] || '');
+      l.onerror = () => reject(new Error('lecture du fichier impossible'));
+      l.readAsDataURL(fichier);
+    });
+  }
+
+  function taille(octets) {
+    return octets >= 1024 * 1024
+      ? (octets / (1024 * 1024)).toFixed(1) + ' Mo'
+      : Math.round(octets / 1024) + ' Ko';
+  }
+
+  async function televerser() {
+    const f = document.getElementById('pubfichier').files[0];
     const version = document.getElementById('pubversion').value.trim();
-    const sha256 = document.getElementById('pubsha').value.trim();
-    if (!version || !sha256) { avis('version et sha256 requis'); return; }
-    const r = await api('publier', { version, sha256 });
-    avis(r.ok ? ('manifeste bascule sur ' + r.version) : ('refuse: ' + (r.erreur || '')));
+    if (!f) { avis('choisis une archive'); return; }
+    if (!version) { avis('mets un numero de version'); return; }
+    let archive;
+    try { archive = await lireEnBase64(f); }
+    catch (e) { avis(e.message); return; }
+    const r = await api('televerser', { version, archive });
+    const message = r.deja
+      ? (version + ' etait deja en base, octets identiques')
+      : (version + ' televersee — empreinte ' + r.sha256.slice(0, 8) + '…, ' + taille(r.taille));
+    await apresAction(rafraichirVersions, message);
+  }
+
+  async function activer(version) {
+    const r = await api('activer', { version });
+    await apresAction(rafraichirVersions, 'manifeste bascule sur ' + r.version);
+  }
+
+  async function rafraichirVersions() {
+    const [liste, manifeste] = [await api('versions'), await api('lister-manifeste')];
+    const t = document.getElementById('versions');
+    t.textContent = '';
+    const entete = document.createElement('tr');
+    for (const titre of ['version', 'taille', 'publiee le', 'empreinte', '']) {
+      const th = document.createElement('th');
+      th.textContent = titre;
+      entete.append(th);
+    }
+    t.append(entete);
+    // La version vivante (manifeste.version) doit toujours correspondre a une
+    // ligne de ce tableau. Si aucune ne correspond, /api/paquet.js rendra 404
+    // pour cette version — plus aucun client ne pourra se mettre a jour, et
+    // sans cet avertissement, en silence.
+    if (manifeste.version && !liste.some((v) => v.version === manifeste.version)) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.className = 'alerte-version';
+      td.textContent = 'attention: la version servie (' + manifeste.version + ') n est pas en base';
+      tr.append(td);
+      t.append(tr);
+    }
+    for (const v of liste) {
+      const tr = document.createElement('tr');
+      tr.append(
+        cellule(v.version),
+        cellule(taille(v.taille)),
+        cellule(String(v.publiee_le).replace('T', ' ').slice(0, 16)),
+        cellule(v.sha256.slice(0, 8) + '…', 'cle'),
+      );
+      const td = document.createElement('td');
+      if (v.version === manifeste.version) {
+        td.textContent = '● courante';
+      } else {
+        const b = document.createElement('button');
+        b.textContent = 'activer';
+        b.onclick = () => activer(v.version);
+        td.append(b);
+      }
+      tr.append(td);
+      t.append(tr);
+    }
   }
   async function service(actif) {
     const message = document.getElementById('msgservice').value.trim();
@@ -149,7 +265,11 @@
   document.getElementById('b-url').onclick = enregistrerUrl;
   document.getElementById('b-couper').onclick = () => service(false);
   document.getElementById('b-rouvrir').onclick = () => service(true);
-  document.getElementById('b-publier').onclick = publier;
+  document.getElementById('b-televerser').onclick = televerser;
+  document.getElementById('pubfichier').addEventListener('change', (e) => {
+    const champ = document.getElementById('pubversion');
+    if (!champ.value) champ.value = versionDepuisNom(e.target.files[0] && e.target.files[0].name);
+  });
   document.getElementById('b-entrer').onclick = entrer;
   document.getElementById('b-creer').onclick = creer;
   document.getElementById('mdp').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrer(); });

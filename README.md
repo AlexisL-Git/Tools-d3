@@ -37,20 +37,22 @@ npm version patch --no-git-tag-version     # 0.2.3 -> 0.2.4
 $env:ELECTRON_RUN_AS_NODE = '1'
 .\desktop\dist\OMNI-win32-x64\OMNI.exe outils\faire-etape.js
 $env:ELECTRON_RUN_AS_NODE = ''
-# note le sha256 affiche
-
-cd serveur-maj
-node publier.js ..\desktop\dist\code-0.2.4.tar.gz 0.2.4
-npx vercel deploy --prod --yes             # l'archive part EN LIGNE d'abord
+# produit desktop\dist\code-0.2.4.tar.gz
 ```
 
 Puis, dans le panneau <https://paquets-maj.vercel.app/api/admin>, bloc
-**Publier une version** : coller la version et le sha256, valider. C'est ce
-clic, et lui seul, qui bascule les amis sur la nouvelle version a leur
-prochain lancement.
+**Publier une version** : deposer cette archive avec le bouton **televerser**.
+Le serveur calcule lui-meme l'empreinte — rien a recopier a la main. Ce
+televersement seul ne change encore rien pour les amis : c'est le clic sur
+**activer**, en face de la ligne de version dans le tableau, qui bascule le
+manifeste et fait passer les amis sur cette version a leur prochain
+lancement.
 
-L'ordre n'est pas negociable : deployer l'archive AVANT de basculer le
-manifeste. L'inverse ferait pointer les amis sur une archive absente.
+Aucun redeploiement Vercel n'est necessaire pour publier : l'archive est
+stockee en base par le televersement, et `/api/paquet` la sert de la.
+
+Revenir en arriere consiste a cliquer **activer** sur une ligne plus
+ancienne du meme tableau.
 
 ## Refabriquer le paquet a donner (480 Mo)
 
