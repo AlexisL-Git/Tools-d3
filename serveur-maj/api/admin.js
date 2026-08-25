@@ -5,6 +5,7 @@ const path = require('node:path');
 const { creerClient, appliquerSchema } = require('../lib/db');
 const { listerAmis, creerAmi, basculerAmi } = require('../lib/amis');
 const { basculerService, ecrireManifeste, ecrireUrlPaquet, lireUrlPaquet } = require('../lib/manifeste');
+const { enregistrerVersion, listerVersions, activerVersion } = require('../lib/versions');
 
 // Comparaison a temps constant: une comparaison ordinaire revele la longueur
 // et les prefixes du secret par le temps de reponse.
@@ -64,6 +65,19 @@ async function traiterAdmin({ motDePasse, action, corps = {}, sql, genererCle, m
     case 'service':
       await basculerService(sql, Boolean(corps.actif), corps.message || null);
       return { statut: 200, corps: { ok: true } };
+    case 'versions':
+      return { statut: 200, corps: await listerVersions(sql) };
+    case 'televerser': {
+      // Les octets arrivent en base64 dans le JSON: un seul chemin de requete
+      // dans le panneau, et 82 Ko qui en font 110 — negligeable.
+      const archive = corps.archive ? Buffer.from(String(corps.archive), 'base64') : null;
+      const r = await enregistrerVersion(sql, { version: corps.version, archive });
+      return r.erreur ? { statut: 400, corps: { erreur: r.erreur } } : { statut: 200, corps: r };
+    }
+    case 'activer': {
+      const r = await activerVersion(sql, String(corps.version || ''));
+      return r.erreur ? { statut: 400, corps: { erreur: r.erreur } } : { statut: 200, corps: r };
+    }
     default:
       return { statut: 400, corps: { erreur: 'action inconnue' } };
   }

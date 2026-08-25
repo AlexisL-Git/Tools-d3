@@ -1,6 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
+const crypto = require('node:crypto');
 const { traiterAdmin } = require('../api/admin');
 
 function fauxSql(reponses = []) {
@@ -99,5 +100,69 @@ test('paquet sans url rend l adresse en place', async () => {
 
 test('action inconnue, 400', async () => {
   const r = await traiterAdmin({ motDePasse: SECRET, action: 'xyz', sql: fauxSql([]), motDePasseAttendu: SECRET });
+  assert.strictEqual(r.statut, 400);
+});
+
+function gzB64(charge = 'x') {
+  return Buffer.concat([Buffer.from([0x1f, 0x8b]), Buffer.from(charge)]).toString('base64');
+}
+
+// La garde: chaque action ajoutee doit rendre 404 sans mot de passe, sinon on
+// a ouvert une porte derriere celle qu'on croyait fermer.
+test('les actions de version sont refusees sans mot de passe', async () => {
+  for (const action of ['versions', 'televerser', 'activer']) {
+    const r = await traiterAdmin({
+      motDePasse: undefined, action, corps: { version: '0.2.3', archive: gzB64() },
+      sql: fauxSql([]), motDePasseAttendu: SECRET,
+    });
+    assert.strictEqual(r.statut, 404, action + ' doit rendre 404');
+  }
+});
+
+test('versions rend la liste', async () => {
+  const lignes = [{ version: '0.2.3', sha256: 'a', taille: 82, publiee_le: 'hier' }];
+  const r = await traiterAdmin({
+    motDePasse: SECRET, action: 'versions', sql: fauxSql([lignes]), motDePasseAttendu: SECRET,
+  });
+  assert.strictEqual(r.statut, 200);
+  assert.deepStrictEqual(r.corps, lignes);
+});
+
+test('televerser decode le base64 et rend l empreinte calculee', async () => {
+  const archive = Buffer.concat([Buffer.from([0x1f, 0x8b]), Buffer.from('contenu')]);
+  const attendu = crypto.createHash('sha256').update(archive).digest('hex');
+  const r = await traiterAdmin({
+    motDePasse: SECRET, action: 'televerser',
+    corps: { version: '0.2.3', archive: archive.toString('base64') },
+    sql: fauxSql([[]]), motDePasseAttendu: SECRET,
+  });
+  assert.strictEqual(r.statut, 200);
+  assert.strictEqual(r.corps.sha256, attendu);
+});
+
+test('televerser sans archive, 400 avec le message', async () => {
+  const r = await traiterAdmin({
+    motDePasse: SECRET, action: 'televerser', corps: { version: '0.2.3' },
+    sql: fauxSql([]), motDePasseAttendu: SECRET,
+  });
+  assert.strictEqual(r.statut, 400);
+  assert.strictEqual(r.corps.erreur, 'archive vide');
+});
+
+test('activer une version connue bascule le manifeste', async () => {
+  const sql = fauxSql([[{ version: '0.2.3', sha256: 'b'.repeat(64) }], []]);
+  const r = await traiterAdmin({
+    motDePasse: SECRET, action: 'activer', corps: { version: '0.2.3' },
+    sql, motDePasseAttendu: SECRET,
+  });
+  assert.strictEqual(r.statut, 200);
+  assert.strictEqual(r.corps.sha256, 'b'.repeat(64));
+});
+
+test('activer une version inconnue, 400', async () => {
+  const r = await traiterAdmin({
+    motDePasse: SECRET, action: 'activer', corps: { version: '9.9.9' },
+    sql: fauxSql([[]]), motDePasseAttendu: SECRET,
+  });
   assert.strictEqual(r.statut, 400);
 });
