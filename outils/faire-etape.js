@@ -20,6 +20,11 @@ const ETAPE = path.join(RACINE, 'desktop', 'etape-paquet');
 // reste ici: captures de trames, notes de conception, outils de fabrication.
 const DOSSIERS = ['amorceur', 'src'];
 const FICHIERS_DESKTOP = ['main.js', 'preload.js', 'index.html'];
+// Les sous-dossiers de desktop/ a emporter. Sans cette liste, index.html
+// partait chez les amis SANS SES POLICES: elles sont embarquees dans le depot
+// justement pour qu OMNI demarre sans reseau, et l interface retombait sur la
+// police systeme apres une mise a jour.
+const DOSSIERS_DESKTOP = ['polices'];
 
 function copier() {
   // GARDE: une suppression recursive TRAVERSE une jonction Windows et efface
@@ -40,6 +45,10 @@ function copier() {
   fs.mkdirSync(path.join(ETAPE, 'desktop'), { recursive: true });
   for (const f of FICHIERS_DESKTOP) {
     fs.copyFileSync(path.join(RACINE, 'desktop', f), path.join(ETAPE, 'desktop', f));
+  }
+  for (const d of DOSSIERS_DESKTOP) {
+    const source = path.join(RACINE, 'desktop', d);
+    if (fs.existsSync(source)) fs.cpSync(source, path.join(ETAPE, 'desktop', d), { recursive: true });
   }
   fs.copyFileSync(path.join(RACINE, 'package.json'), path.join(ETAPE, 'package.json'));
   // L'archive embarquee est refabriquee plus bas, a partir du code COMPILE:
