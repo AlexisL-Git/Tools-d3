@@ -7,6 +7,7 @@
   td,th { text-align:left; padding:8px; border-bottom:1px solid #22252c; }
   .off { opacity:.5; }
   .cle { font-family:monospace; font-size:12px; color:#8b93a3; }
+  .alerte-version { color:#ff6b6b; font-weight:600; background:#3a1e1e; }
   #avis { margin-top:12px; color:#8b93a3; min-height:1.2em; }
   #avis input { width:34em; }
   .bloc { margin-top:22px; padding-top:16px; border-top:1px solid #22252c; }
@@ -141,7 +142,16 @@
       b.onclick = async () => { await api('basculer', { cle: a.cle, actif: !a.actif }); rafraichir(); };
       td.append(b); tr.append(td); t.append(tr);
     }
-    await rafraichirVersions();
+    // Le coupe-circuit (dans #panneau) est le seul moyen d'arreter tout le
+    // parc: son accessibilite ne doit jamais dependre du tableau des
+    // versions. Un echec ici reste visible dans #avis, mais ne remonte
+    // jamais jusqu'a entrer(), qui garderait sinon le panneau cache.
+    try {
+      await rafraichirVersions();
+      avis('');
+    } catch (e) {
+      avis('tableau des versions: rafraichissement echoue (' + e.message + ')');
+    }
   }
   async function creer() {
     const nom = document.getElementById('nom').value.trim();
@@ -203,6 +213,19 @@
       entete.append(th);
     }
     t.append(entete);
+    // La version vivante (manifeste.version) doit toujours correspondre a une
+    // ligne de ce tableau. Si aucune ne correspond, elle est servie par le
+    // repli disque de /api/paquet.js, pas par la base — c'est precisement
+    // l'etat que le retrait de ce repli rendrait dangereux en silence.
+    if (manifeste.version && !liste.some((v) => v.version === manifeste.version)) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.className = 'alerte-version';
+      td.textContent = 'attention: la version servie (' + manifeste.version + ') n est pas en base';
+      tr.append(td);
+      t.append(tr);
+    }
     for (const v of liste) {
       const tr = document.createElement('tr');
       tr.append(

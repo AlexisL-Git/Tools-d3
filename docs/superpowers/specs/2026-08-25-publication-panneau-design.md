@@ -32,7 +32,7 @@ l'archive finalement retenue). À 82 Ko, **stocker les octets en base est
 raisonnable** — ce qui n'aurait pas été le cas à 12 Mo.
 
 Cette mesure est l'hypothèse porteuse de tout le document. Si l'archive
-grossissait un jour au-delà de ~4 Mo, le téléversement direct cesserait de
+grossissait un jour au-delà de ~3 Mo, le téléversement direct cesserait de
 fonctionner (plafond de corps de requête chez Vercel) et il faudrait basculer
 sur un stockage objet. Voir « Limite assumée ».
 
@@ -109,7 +109,7 @@ où recliquer ne doit pas être une faute.
 |---|---|
 | Version absente ou mal formée | `version attendue au format x.y.z` |
 | Archive absente ou vide | `archive vide` |
-| Plus de 4 Mo | `archive trop grosse (N Mo, plafond 4)` |
+| Plus de 3 Mo | `archive trop grosse (N Mo, plafond 3)` |
 | Deux premiers octets ≠ `1f 8b` | `ce fichier n'est pas un .tar.gz` |
 | Version déjà en base, octets **différents** | `<v> existe deja avec une autre empreinte` |
 | Version déjà en base, octets **identiques** | accepté, sans insertion (idempotent) |
@@ -192,9 +192,12 @@ une saisie manuelle de l'empreinte, c'est ce test qui tombe.
 
 ## Limite assumée
 
-Vercel plafonne le corps d'une requête à ~4,5 Mo. À 82 Ko on est à 2 % du
-plafond, mais **le téléversement direct cesse de fonctionner si l'archive
-franchit ce seuil** — il faudrait alors un stockage objet (Vercel Blob ou
-équivalent) et une URL signée. Le refus explicite au-delà de 4 Mo existe pour
-que ce jour-là le panneau le dise, au lieu de laisser Vercel couper la requête
-sans explication.
+Vercel plafonne le corps d'une requête à ~4,5 Mo — et ce corps, c'est le
+base64 envoyé par le panneau, environ 33 % plus gros que l'archive qu'il
+encode. Le plafond utile porte donc sur l'archive décodée, pas sur les 4,5 Mo
+eux-mêmes : environ 4,5 / 1,33 = 3,28 Mio. Le serveur refuse au-delà de 3 Mio
+(marge gardée sous ce seuil), pour que ce jour-là le panneau le dise, au lieu
+de laisser Vercel couper la requête en silence avant que le serveur ne la
+voie. À 82 Ko on est à moins de 3 % de ce plafond, mais **le téléversement
+direct cesse de fonctionner si l'archive le franchit** — il faudrait alors un
+stockage objet (Vercel Blob ou équivalent) et une URL signée.

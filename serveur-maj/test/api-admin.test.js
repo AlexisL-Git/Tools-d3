@@ -134,7 +134,9 @@ test('televerser decode le base64 et rend l empreinte calculee', async () => {
   const r = await traiterAdmin({
     motDePasse: SECRET, action: 'televerser',
     corps: { version: '0.2.3', archive: archive.toString('base64') },
-    sql: fauxSql([[]]), motDePasseAttendu: SECRET,
+    // L'INSERT (ON CONFLICT DO NOTHING RETURNING version) rend une ligne:
+    // rien n'existait, l'insertion a eu lieu.
+    sql: fauxSql([[{ version: '0.2.3' }]]), motDePasseAttendu: SECRET,
   });
   assert.strictEqual(r.statut, 200);
   assert.strictEqual(r.corps.sha256, attendu);

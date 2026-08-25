@@ -44,7 +44,7 @@ test('au-dela du plafond, refus qui dit la taille', async () => {
   const trop = Buffer.alloc(PLAFOND + 1);
   trop[0] = 0x1f; trop[1] = 0x8b;
   const r = await enregistrerVersion(fauxSql(), { version: '0.2.3', archive: trop });
-  assert.match(r.erreur, /^archive trop grosse \(4\.0 Mo, plafond 4\)$/);
+  assert.match(r.erreur, /^archive trop grosse \(3\.0 Mo, plafond 3\)$/);
 });
 
 test('ce n est pas un gzip, refus', async () => {
@@ -55,30 +55,51 @@ test('ce n est pas un gzip, refus', async () => {
 test('archive valide: le sha256 est calcule par nous, jamais recu', async () => {
   const archive = gz('contenu');
   const attendu = crypto.createHash('sha256').update(archive).digest('hex');
-  const sql = fauxSql([[]]);            // aucune ligne existante
+  // L'INSERT (ON CONFLICT DO NOTHING RETURNING version) rend une ligne: rien
+  // n'existait, l'insertion a eu lieu. Un seul aller-retour.
+  const sql = fauxSql([[{ version: '0.2.3' }]]);
   const r = await enregistrerVersion(sql, { version: '0.2.3', archive });
   assert.strictEqual(r.sha256, attendu);
   assert.strictEqual(r.version, '0.2.3');
   assert.strictEqual(r.taille, archive.length);
   assert.strictEqual(r.deja, false);
+  assert.strictEqual(sql.appels.length, 1, 'aucun SELECT ne doit suivre un INSERT reussi');
 });
 
-test('meme version, memes octets: accepte sans reinserer', async () => {
+// Deux onglets sur la meme version: le second decouvre le conflit via
+// l'INSERT lui-meme (ON CONFLICT DO NOTHING, tableau vide en retour — jamais
+// une exception de cle primaire non attrapee) et retombe sur la comparaison
+// normale, exactement comme un televersement sequentiel du meme contenu.
+test('meme version, memes octets (ou course concurrente gagnee par un autre): accepte sans reinserer', async () => {
   const archive = gz('contenu');
   const sha = crypto.createHash('sha256').update(archive).digest('hex');
-  const sql = fauxSql([[{ sha256: sha }]]);
+  const sql = fauxSql([[], [{ sha256: sha }]]); // INSERT: conflit ; SELECT: ligne existante
   const r = await enregistrerVersion(sql, { version: '0.2.3', archive });
   assert.strictEqual(r.deja, true);
   assert.strictEqual(r.sha256, sha);
-  assert.strictEqual(sql.appels.length, 1, 'aucune insertion ne doit suivre le SELECT');
+  assert.strictEqual(sql.appels.length, 2, 'le SELECT ne suit que l INSERT en conflit');
 });
 
 // Republier un contenu different sous un numero deja distribue est ce qui
 // casse un parc en silence: les clients qui l'ont deja ne retelechargent pas.
 test('meme version, octets differents: refus', async () => {
-  const sql = fauxSql([[{ sha256: 'a'.repeat(64) }]]);
+  const sql = fauxSql([[], [{ sha256: 'a'.repeat(64) }]]); // INSERT: conflit ; SELECT: autre empreinte
   const r = await enregistrerVersion(sql, { version: '0.2.3', archive: gz('autre') });
   assert.strictEqual(r.erreur, '0.2.3 existe deja avec une autre empreinte');
+});
+
+// Corps forge: {"version":["0.2.3"], ...}. String(['0.2.3']) rend "0.2.3" et
+// passe la garde de format, mais un tableau brut envoye comme parametre SQL
+// deviendrait une ligne inatteignable par la suite (activer, etc). La
+// coercion doit se faire une seule fois, tot, et servir partout ensuite.
+test('version recue en tableau a un element: coercee une seule fois, meme valeur partout', async () => {
+  const archive = gz('contenu');
+  const sql = fauxSql([[{ version: '0.2.3' }]]);
+  const r = await enregistrerVersion(sql, { version: ['0.2.3'], archive });
+  assert.strictEqual(r.version, '0.2.3');
+  // Premier parametre du premier appel (l'INSERT): doit etre la chaine
+  // coercee, jamais le tableau brut recu dans le corps JSON.
+  assert.strictEqual(sql.appels[0][0], '0.2.3');
 });
 
 test('listerVersions rend les lignes de la base', async () => {
