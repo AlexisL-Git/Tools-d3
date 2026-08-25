@@ -5,7 +5,11 @@ const crypto = require('node:crypto');
 const { traiterAdmin } = require('../api/admin');
 
 function fauxSql(reponses = []) {
-  const sql = (c, ...v) => Promise.resolve(reponses.length ? reponses.shift() : []);
+  const sql = (c, ...v) => {
+    sql.appels.push([...v]);
+    return Promise.resolve(reponses.length ? reponses.shift() : []);
+  };
+  sql.appels = [];
   return sql;
 }
 const SECRET = 'motdepasse-admin';
@@ -161,4 +165,54 @@ test('lister-manifeste rend le manifeste courant, et 404 sans mot de passe', asy
   assert.deepStrictEqual(ok.corps, m);
   const ko = await traiterAdmin({ motDePasse: undefined, action: 'lister-manifeste', sql: fauxSql([]), motDePasseAttendu: SECRET });
   assert.strictEqual(ko.statut, 404);
+});
+
+test('action refus: la liste, derriere le mot de passe', async () => {
+  const ligne = { cle: 'CLE', nom: 'Jibb', version: '0.2.3', journal: 'boum', signale_le: 'hier' };
+  const sql = fauxSql([[ligne]]);
+  const r = await traiterAdmin({
+    motDePasse: SECRET, motDePasseAttendu: SECRET, action: 'refus', corps: {}, sql,
+  });
+  assert.strictEqual(r.statut, 200);
+  assert.deepStrictEqual(r.corps, [ligne]);
+});
+
+test('action refus: 404 sur mauvais mot de passe', async () => {
+  const sql = fauxSql();
+  const r = await traiterAdmin({
+    motDePasse: 'faux', motDePasseAttendu: SECRET, action: 'refus', corps: {}, sql,
+  });
+  assert.strictEqual(r.statut, 404);
+  assert.strictEqual(sql.appels.length, 0);
+});
+
+test('action lancements sans cle: purge puis compteurs', async () => {
+  // 1er appel = DELETE ... RETURNING, 2e = SELECT COUNT GROUP BY
+  const sql = fauxSql([[{ id: 1 }], [{ cle: 'CLE', n: 4 }]]);
+  const r = await traiterAdmin({
+    motDePasse: SECRET, motDePasseAttendu: SECRET, action: 'lancements', corps: {}, sql,
+  });
+  assert.strictEqual(r.statut, 200);
+  assert.deepStrictEqual(r.corps, [{ cle: 'CLE', n: 4 }]);
+  assert.strictEqual(sql.appels.length, 2);
+});
+
+test('action lancements avec cle: le detail, sans purge', async () => {
+  const sql = fauxSql([[{ version: '0.2.4', au: 'hier' }]]);
+  const r = await traiterAdmin({
+    motDePasse: SECRET, motDePasseAttendu: SECRET, action: 'lancements', corps: { cle: 'CLE' }, sql,
+  });
+  assert.strictEqual(r.statut, 200);
+  assert.deepStrictEqual(r.corps, [{ version: '0.2.4', au: 'hier' }]);
+  assert.strictEqual(sql.appels.length, 1);
+  assert.deepStrictEqual(sql.appels[0], ['CLE', 20]);
+});
+
+test('action lancements: 404 sur mauvais mot de passe', async () => {
+  const sql = fauxSql();
+  const r = await traiterAdmin({
+    motDePasse: 'faux', motDePasseAttendu: SECRET, action: 'lancements', corps: {}, sql,
+  });
+  assert.strictEqual(r.statut, 404);
+  assert.strictEqual(sql.appels.length, 0);
 });
