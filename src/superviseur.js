@@ -15,8 +15,15 @@ const { lookup, needsRewrite } = require('./protocol/omni');
 // regle que suit le produit de krm35, dont les proxies occupaient 8102, 8105
 // et 8106 pour deux clients.
 //
-// Le maitre est le client dont la fenetre a le focus; les autres rejouent.
-// Chaque agent signale lui-meme son passage au premier plan.
+// Le maitre est CHOISI, et les autres rejouent. Il l a longtemps ete par le
+// focus: chaque agent sondait GetForegroundWindow() toutes les 250 ms et
+// signalait son passage au premier plan. Cliquer sur un alt pour une vente a
+// l HDV en faisait le maitre, et c etaient SES actions qui partaient chez tous
+// les autres, leader compris.
+//
+// Le superviseur n ecrit donc plus jamais this.maitre de lui-meme: le champ est
+// pose par desktop/main.js a partir du compte epingle dans favoris.json. Sans
+// maitre, this.maitre vaut null et rien ne se replique.
 
 const PORT_JEU = 5555;
 
@@ -51,6 +58,13 @@ class Superviseur {
     this.comptes = new Comptes();
     this.clients = new Map();
     this.maitre = null;
+    // Le dernier client qu'on a REELLEMENT mis au premier plan, confirme par
+    // son agent. Ce n'est pas « qui est devant »: personne ne le surveille
+    // plus, et le curseur du cycle vit dans desktop/main.js.
+    //
+    // IL NE DECERNE RIEN. Le maitre est epingle: confondre le focus et le
+    // commandement est exactement ce qu'on a retire.
+    this.enAvant = null;
     this.arme = arme;
     this.onTrame = onTrame;
     this.onJournal = onJournal;
@@ -138,16 +152,19 @@ class Superviseur {
       proxyPort: client.port,
       onlyPorts: [],           // tout sauf les exclusions
       excludePorts: [26116],   // le launcher Ankama: le detourner coupe la session
-      reportFocus: true,
+      // La surveillance du premier plan est DE NOUVEAU eteinte, et cette fois
+      // plus rien n'en depend. Elle etait revenue pour dire d'ou partait
+      // « personnage suivant »; la navigation est devenue un cycle franc, qui
+      // retient le dernier client vise au lieu de chercher lequel est devant.
+      //
+      // Ce que ca economise n'est pas symbolique: une boucle setInterval de
+      // 250 ms tournait A L'INTERIEUR de chaque client Dofus, uniquement pour
+      // repondre a une question qu'on ne pose plus.
+      reportFocus: false,
     }));
     client.script.message.connect((m) => {
       if (m.type === 'error') return this.journal(pid, `agent: ${m.description}`);
-      const p = m.payload || {};
-      if (p.premierPlan !== undefined) {
-        if (p.premierPlan) { this.maitre = pid; this.journal(pid, 'devient MAÎTRE'); }
-      } else if (p.ready) {
-        this.journal(pid, `agent en place sur le port ${client.port} — ${p.ready.join(' | ')}`);
-      }
+      this._recevoirMessageAgent(pid, m.payload || {}, client.port);
     });
     await client.script.load();
     return etat;
@@ -292,6 +309,53 @@ class Superviseur {
     }, retardMs);
   }
 
+  // Ce que l'agent nous annonce. Extrait de ajouter() pour etre atteignable
+  // sans un vrai process Dofus derriere: c'est ici que se joue la distinction
+  // entre « ou je suis » et « qui commande ».
+  //
+  // `premierPlan` alimente enAvant, JAMAIS maitre. Le focus a decerne le role
+  // de maitre pendant tout un temps, et cliquer sur un alt envoyait ses actions
+  // a toute l'equipe. Il ne sert plus qu'a savoir d'ou part la navigation.
+  _recevoirMessageAgent(pid, p, port) {
+    if (p.premierPlan !== undefined) {
+      if (p.premierPlan) this.enAvant = pid;
+      else if (this.enAvant === pid) this.enAvant = null;
+      return;
+    }
+    if (p.premierPlanFait !== undefined) {
+      if (p.premierPlanFait) this.enAvant = pid;
+      else this.journal(pid, 'bascule de fenetre sans effet');
+      return;
+    }
+    if (p.ready) {
+      this.journal(pid, `agent en place sur le port ${port} — ${p.ready.join(' | ')}`);
+    }
+  }
+
+  // Demande a un client de mettre sa fenetre au premier plan.
+  //
+  // C'est l'AGENT qui agit, depuis l'interieur du process: SetForegroundWindow
+  // n'autorise que le processus ayant recu le dernier evenement d'entree, et
+  // le contournement documente (AttachThreadInput) demande d'etre dans la
+  // place. Voir src/il2cpp/connectAgent.js.
+  //
+  // Ne leve JAMAIS: cette methode est appelee depuis un gestionnaire de
+  // raccourci global, ou une exception non capturee tuerait le process
+  // principal sans laisser de trace.
+  basculerVers(pid) {
+    const client = this.clients.get(pid);
+    if (!client) return { ok: false, raison: 'client inconnu' };
+    if (!client.script || typeof client.script.post !== 'function') {
+      return { ok: false, raison: 'agent pas encore en place' };
+    }
+    try {
+      client.script.post({ type: 'premierPlan' });
+    } catch (e) {
+      return { ok: false, raison: e.message };
+    }
+    return { ok: true };
+  }
+
   // Ecrit une trame sur UN client. Contrairement a rejouer(), qui vise tous
   // les esclaves et obeit au drapeau `arme` du OMNI, emettre ne juge
   // rien: l'appelant a deja decide. C'est ce qui permet au passe-tour d'avoir
@@ -320,6 +384,7 @@ class Superviseur {
     this.clients.delete(pid);
     this.comptes.retirer(pid);
     if (this.maitre === pid) this.maitre = null;
+    if (this.enAvant === pid) this.enAvant = null;
     await (c.script ? c.script.unload().catch(() => {}) : Promise.resolve());
     await (c.session ? c.session.detach().catch(() => {}) : Promise.resolve());
     await (c.proxy ? c.proxy.close().catch(() => {}) : Promise.resolve());

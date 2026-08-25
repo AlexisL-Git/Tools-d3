@@ -2,150 +2,578 @@
 <meta charset="utf-8">
 <title>OMNI</title>
 <style>
-  :root { color-scheme: dark; }
-  body { margin: 0; font: 14px system-ui, sans-serif; background: #16181d; color: #e6e8ec; }
-  header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #2a2e37; }
-  h1 { font-size: 15px; margin: 0; font-weight: 600; }
-  #bascule { padding: 7px 16px; border: 0; border-radius: 6px;
-             background: #3a3f4b; color: #e6e8ec; cursor: pointer; font: inherit; }
-  #bascule.actif { background: #2e7d4f; }
-  #resume { color: #8b93a3; font-size: 13px; }
-  #version { color: #8b93a3; font-size: 12px; margin-left: -6px; }
-  ul { list-style: none; margin: 0; padding: 0; }
-  li { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid #22252c; }
-  li.hors-ligne { opacity: .45; }
-  /* Le message occupe toute la largeur d'une seconde ligne: les raisons de
-     refus rendues par rejouer() sont longues et ne doivent pas etre tronquees. */
-  .message { flex-basis: 100%; margin: -2px 0 0 42px; color: #d9a48f; font-size: 12px; }
-  .etoile { cursor: pointer; font-size: 16px; color: #6b7280; user-select: none; }
-  .etoile.on { color: #e0b040; }
-  .nom { width: 130px; font-weight: 600; }
-  .perso { flex: 1; color: #b9c0cc; }
-  .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #2a2e37; color: #9aa3b2; }
-  .badge.maitre { background: #2e5d8a; color: #dbeafe; }
-  .badge.alerte { background: #7a3b2e; color: #ffdcd2; }
-  #erreur { padding: 10px 18px; background: #7a3b2e; color: #ffdcd2; }
-  #erreur:empty { display: none; }
-  .icone { width: 15px; height: 15px; flex: none; color: #8b93a3; }
-  .sw { display: inline-flex; align-items: center; gap: 5px; }
-  .sw input { accent-color: #2e7d4f; }
-  #delai { width: 58px; background: #22252c; color: #e6e8ec; border: 1px solid #3a3f4b;
-           border-radius: 5px; padding: 4px 6px; font: inherit; }
-  #bpt { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
-         color: #e6e8ec; cursor: pointer; font: inherit; }
-  #bpt.actif { background: #2e7d4f; }
-  #binv { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
-          color: #e6e8ec; cursor: pointer; font: inherit; }
-  #binv.actif { background: #2e7d4f; }
-  #banim { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
-           color: #e6e8ec; cursor: pointer; font: inherit; }
-  #banim.actif { background: #2e7d4f; }
-  #bech { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
-          color: #e6e8ec; cursor: pointer; font: inherit; }
-  #bech.actif { background: #2e7d4f; }
-  #boff { padding: 7px 14px; border: 0; border-radius: 6px; background: #3a3f4b;
-          color: #e6e8ec; cursor: pointer; font: inherit; margin-left: auto; }
-  #boff.confirme { background: #7a3b2e; color: #ffdcd2; }
-</style>
-<header>
-  <h1>OMNI</h1><span id="version"></span>
-  <button id="bascule">REPLI</button>
-  <button id="bpt">PASSE-TOUR</button>
-  <button id="binv">GROUPE</button>
-  <button id="banim">ANIM</button>
-  <button id="bech">ÉCHANGE</button>
-  <label style="color:#8b93a3">délai <input id="delai" type="number" min="0" step="0.1" value="0"></label>
-  <button id="boff" title="fermer tous les clients Dofus">OFF</button>
-  <span id="resume"></span>
-</header>
-<div id="erreur"></div>
-<ul id="liste"></ul>
-<script>
-  const LIBELLES = {
-    'hors-ligne': 'hors ligne',
-    'intercepte': 'suit',
-    'en-attente': 'attente du trafic…',
-    'non-intercepte': 'non intercepté — relance ce client',
-    'erreur': 'erreur',
-    'inconnu': 'compte inconnu',
-  };
-  // Icones redessinees d'apres le launcher de krm35: elles suivent la couleur
-  // du texte, donc le theme, et n'ajoutent aucun fichier ni dependance.
-  const ICONE_DUPLICATION =
-    '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
-    '<line x1="12" y1="3" x2="12" y2="21"/><line x1="4.2" y1="7.5" x2="19.8" y2="16.5"/>' +
-    '<line x1="4.2" y1="16.5" x2="19.8" y2="7.5"/></svg>';
-  const ICONE_PASSE =
-    '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
-    '<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="18.4" x2="18.4" y2="5.6"/></svg>';
-  const ICONE_GROUPE =
-    '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round">' +
-    '<circle cx="9" cy="8" r="3.2"/><path d="M3.2 19.5c0-3.2 2.6-5.2 5.8-5.2s5.8 2 5.8 5.2"/>' +
-    '<path d="M16.4 5.2a3.2 3.2 0 0 1 0 5.9"/><path d="M17.6 14.6c2.1.5 3.6 2.3 3.6 4.9"/></svg>';
-  const ICONE_ANIM =
-    '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round">' +
-    '<circle cx="12" cy="4.6" r="2.2"/><path d="M9 21l2.2-5.2 2.4 2.2 1 3"/>' +
-    '<path d="M7.4 12.2l3.4-2.6 2.6 1.4 2.6 2.4"/><line x1="4" y1="20" x2="20" y2="4"/></svg>';
-  const ICONE_ECHANGE =
-    '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M4 8h13"/><path d="M13 4l4 4-4 4"/>' +
-    '<path d="M20 16H7"/><path d="M11 12l-4 4 4 4"/></svg>';
-
-  function interrupteur(icone, coche, desactive, surChangement) {
-    const l = document.createElement('label');
-    l.className = 'sw';
-    const c = document.createElement('input');
-    c.type = 'checkbox';
-    c.checked = coche;
-    c.disabled = desactive;
-    c.addEventListener('change', () => surChangement(c.checked));
-    const i = document.createElement('span');
-    i.innerHTML = icone;
-    l.append(c, i);
-    return l;
+  /* Polices EMBARQUEES, jamais appelees en ligne: OMNI doit demarrer sans
+     reseau. Voir desktop/polices/LISEZMOI.md pour les licences. */
+  @font-face {
+    font-family: 'Cal Sans';
+    src: url('polices/cal-sans.woff2') format('woff2');
+    font-weight: 400; font-style: normal; font-display: block;
+  }
+  @font-face {
+    font-family: 'Karla';
+    src: url('polices/karla.woff2') format('woff2');
+    font-weight: 200 800; font-style: normal; font-display: swap;
   }
 
-  let actif = false;
-  let passeTourActif = false;
-  let invitationActive = false;
-  let noAnimActif = false;
-  let echangeActif = false;
+  /* ============================================================
+     ENCRE ET CYAN. Trois couleurs, trois roles, aucun recouvrement.
 
-  document.getElementById('bascule').addEventListener('click', () => {
-    actif = !actif;
-    window.app.basculerDuplication(actif);
+       cyan     #2FD4C4   ce qui est arme
+       orange   #FF9F1C   qui commande
+       rouge    #F2545B   anomalie et danger
+
+     Aucune ne fait deux metiers, et c est la seule regle a tenir
+     si la palette rebouge.
+
+     Mesures sur le fond #0F1418, toutes au-dessus de leur seuil:
+
+       texte              15,83:1   (seuil 7)
+       texte attenue       7,00:1   (seuil 4,5)
+       qui commande        9,02:1   (seuil 4,5)
+       arme contre repos   4,83:1   (seuil 3)
+       alerte              5,46:1   (seuil 3)
+       filet                1,52:1   (seuil 1,5)
+
+     L ECART ARME / AU REPOS EST CE QUI COMPTE LE PLUS ICI, parce
+     que c est lui qui separe une case cochee d une case vide. Il
+     vaut 4,83, la ou une palette rouge essayee avant tombait a
+     3,10 — juste au-dessus du seuil, sans marge. Toute teinte plus
+     sombre pour « arme » repasserait dessous.
+
+     Orange et cyan sont a 1,11:1 l un de l autre, donc presque
+     identiques en niveaux de gris. Ce qui les separe est leur
+     TEINTE, a 140 degres d ecart — le plus grand qu on ait eu — et
+     le fait qu ils ne se cotoient jamais sur un meme element.
+
+     Rien ici ne repose de toute facon sur la seule couleur: la case
+     est un losange PLEIN quand elle est armee et CREUX sinon, le
+     commandement porte en plus un lisere, un cerclage et un
+     degrade, et chaque anomalie est ecrite en toutes lettres.
+     ============================================================ */
+  :root {
+    color-scheme: dark;
+    --fond: #0F1418;
+    --releve: #171E24;
+    --filet: #2C3740;
+    --bord: #3E4B56;
+    --texte: #E8EEF2;
+    --attenue: #93A1AC;
+    --arme: #2FD4C4;
+    --arme-encre: #061C19;
+    --commande: #FF9F1C;
+    --commande-encre: #211504;
+    --alerte: #F2545B;
+    --ui: Karla, "Segoe UI", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  /* L attribut hidden doit gagner, TOUJOURS. Le navigateur le rend par
+     display:none, mais une regle d auteur qui pose un display le bat: c est
+     exactement ce qui affichait le bouton « designer » ET le verdict sur la
+     meme ligne, le second gardant en prime un texte perime. */
+  [hidden] { display: none !important; }
+  /* Colonne en hauteur pleine: la liste prend ce qui reste, quels que soient
+     les bandeaux d'avertissement au-dessus. Une hauteur calculee a la main
+     faisait couper le bas des qu'un avis apparaissait. */
+  body {
+    margin: 0; background: var(--fond); color: var(--texte);
+    font-family: var(--ui); font-size: 14px; line-height: 1.45;
+    user-select: none; overflow: hidden;
+    height: 100vh; display: flex; flex-direction: column;
+  }
+  .barre-titre, .bandeau, .avis { flex: none; }
+  button { font: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--commande); outline-offset: 2px; }
+
+  /* ---------------- barre de titre ----------------
+     La fenetre est sans cadre systeme: cette bande le remplace. Elle porte le
+     nom, l'etat, les trois boutons, et sert de zone de deplacement. */
+  .barre-titre {
+    display: flex; align-items: center; gap: 10px;
+    padding-left: 15px; height: 38px;
+    border-bottom: 1px solid var(--filet);
+    -webkit-app-region: drag;
+  }
+  .titre-nom {
+    /* Cal Sans n'a qu'une graisse: jamais de gras, il serait synthetique. */
+    font-family: "Cal Sans", "Segoe UI", system-ui, sans-serif;
+    font-weight: 400; font-size: 19px; line-height: 1; letter-spacing: .005em;
+  }
+  .titre-nom .o { color: var(--commande); }
+  .titre-etat {
+    font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--attenue); font-weight: 600;
+  }
+  .fenetre-boutons { margin-left: auto; display: flex; -webkit-app-region: no-drag; }
+  .fenetre-boutons button {
+    width: 44px; height: 38px; display: grid; place-items: center;
+    background: transparent; border: 0; color: var(--attenue);
+  }
+  .fenetre-boutons button:hover { background: rgba(255,255,255,.07); color: var(--texte); }
+  .fenetre-boutons button.fermer:hover { background: var(--alerte); color: #fff; }
+  .fenetre-boutons svg { width: 11px; height: 11px; }
+
+  /* ---------------- l interrupteur unique ----------------
+     Il a remplace cinq interrupteurs generaux, un par fonction. Ce modele
+     avait deux niveaux que rien ne reliait a l ecran, et une case cochee sous
+     un general eteint ne faisait rien sans que ca se voie.
+     Celui-ci SUSPEND tout sans rien effacer. */
+  .maitre-inter {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--bord); background: var(--fond); color: var(--attenue);
+    font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    -webkit-app-region: no-drag;
+  }
+  .maitre-inter .temoin {
+    width: 9px; height: 9px; flex: none; transform: rotate(45deg); border-radius: 5px;
+    border: 1.5px solid var(--bord); background: transparent;
+  }
+  .maitre-inter.on { color: var(--arme); border-color: var(--arme); }
+  .maitre-inter.on .temoin {
+    background: var(--arme); border-color: var(--arme);
+    box-shadow: 0 0 8px rgba(47,212,196,.65);
+  }
+  .maitre-inter:hover { color: var(--texte); border-color: var(--attenue); }
+  .maitre-inter.on:hover { color: var(--arme); filter: brightness(1.15); }
+
+  .champ-delai {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--attenue); font-weight: 700;
+  }
+  .champ-delai input {
+    width: 52px; padding: 4px 6px; font: inherit; font-size: 13px;
+    background: var(--fond); color: var(--texte);
+    border: 1px solid var(--bord); border-radius: 8px;
+    font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0;
+  }
+  .coupe {
+    padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--alerte); background: transparent; color: var(--alerte);
+    font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  }
+  .coupe.confirme { background: var(--alerte); color: #1F0B0C; }
+
+  .avis { padding: 9px 15px; font-size: 13px; border-bottom: 1px solid var(--filet); }
+  .avis:empty { display: none; }
+  #erreur { background: rgba(242,84,91,.14); color: var(--alerte); }
+  #sansmaitre { background: rgba(255,159,28,.10); color: var(--commande); }
+
+  /* Un raccourci se lit comme une touche de clavier: inscription creusee et
+     relief. Le meme dessin sert aux deux touches de navigation, en pied. */
+  .cabochon {
+    display: block; width: 100%; padding: 5px 6px; border-radius: 8px;
+    border: 1px solid var(--bord); background: var(--releve); color: var(--texte);
+    font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-align: center;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.45); white-space: nowrap;
+  }
+  .cabochon:hover { border-color: var(--commande); color: var(--commande); }
+  .cabochon.sans-touche { color: var(--filet); border-style: dashed; box-shadow: none; background: transparent; }
+  .cabochon.ecoute { border-color: var(--commande); color: var(--commande); border-style: solid; background: rgba(255,159,28,.12); }
+  /* Une touche NUE est signalee: elle sera confisquee a Dofus tant qu'OMNI
+     tourne. Signalee, pas interdite — c'est l'utilisateur qui sait ce qu'il
+     utilise en combat. */
+  .cabochon.risque { border-color: var(--alerte); color: var(--alerte); }
+
+  .barre-nav {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 9px 15px; border-top: 1px solid var(--filet); background: var(--releve);
+    font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--attenue); font-weight: 700;
+  }
+  /* La cellule Touche: le cabochon prend la place, la corbeille se glisse a
+     cote et ne parait que si une touche est assignee. */
+  .cellule-touche { display: flex; align-items: center; gap: 4px; }
+  .cellule-touche .cabochon { flex: 1; min-width: 0; }
+  .oter {
+    flex: none; width: 22px; height: 26px; padding: 0;
+    display: grid; place-items: center;
+    background: transparent; border: 0; color: var(--filet);
+    border-radius: 6px;
+  }
+  /* Fermer CE client. Deux clics, comme le bouton qui les ferme tous: la
+     colonne est etroite, la souris passe dessus en visant la commande, et un
+     clic de travers couterait une session — potentiellement en plein combat. */
+  .fermer-un {
+    width: 100%; height: 30px; padding: 0; display: grid; place-items: center;
+    background: transparent; border: 0; color: var(--filet); border-radius: 8px;
+  }
+  .fermer-un:hover { color: var(--alerte); background: rgba(242,84,91,.12); }
+  .fermer-un:disabled { opacity: .25; cursor: not-allowed; }
+  .fermer-un.confirme {
+    color: var(--alerte); background: rgba(242,84,91,.2);
+    box-shadow: inset 0 0 0 1px var(--alerte);
+  }
+  .fermer-un svg { width: 13px; height: 13px; }
+
+  .oter:hover { color: var(--alerte); background: rgba(242,84,91,.12); }
+  .oter svg { width: 12px; height: 12px; }
+
+  .barre-nav .cabochon { width: auto; min-width: 62px; display: inline-block; text-transform: none; letter-spacing: .04em; }
+  .barre-nav .separateur { width: 1px; align-self: stretch; background: var(--filet); margin: 0 4px; }
+  .paire { display: inline-flex; align-items: center; gap: 7px; }
+  /* Le refus de la derniere bascule. Il s efface seul au bout de dix
+     secondes: passe ce delai il ne decrit plus rien. */
+  .avis-nav {
+    text-transform: none; letter-spacing: 0; font-weight: 400;
+    font-size: 12.5px; color: var(--alerte);
+  }
+  .avis-nav:empty { display: none; }
+
+  /* ---------------- la liste ---------------- */
+  .defile { flex: 1; min-height: 0; overflow-y: auto; }
+  .entete, .rang {
+    display: grid; align-items: center;
+    grid-template-columns: 50px minmax(150px, 1.6fr) 92px repeat(5, 58px) 122px 38px;
+    gap: 9px; padding: 0 15px;
+  }
+  .entete {
+    padding-top: 10px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--filet);
+    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--attenue); font-weight: 700;
+    position: sticky; top: 0; background: var(--fond); z-index: 1;
+  }
+  .entete .c { text-align: center; }
+  /* Le titre de colonne est une ACTION GROUPEE: il coche ou decoche la fonction
+     pour tout le monde. Le losange dit ou en est la colonne — plein, creux, ou
+     a moitie quand seuls certains comptes l ont. */
+  .tete-colonne {
+    display: inline-flex; align-items: center; gap: 5px; justify-content: center;
+    width: 100%; padding: 7px 2px; border: 0; background: transparent;
+    color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit;
+    border-radius: 6px;
+  }
+  .tete-colonne:hover { background: rgba(255,255,255,.06); color: var(--texte); }
+  .jauge {
+    width: 8px; height: 8px; flex: none; transform: rotate(45deg); border-radius: 4px;
+    border: 1.5px solid var(--bord); background: transparent;
+  }
+  .jauge.tous { background: var(--arme); border-color: var(--arme); }
+  /* A moitie: la diagonale du losange une fois redresse, donc une moitie
+     franche et lisible meme a 8 px. */
+  .jauge.partiel {
+    border-color: var(--arme);
+    background: linear-gradient(to right, var(--arme) 50%, transparent 50%);
+  }
+  .rang {
+    padding-top: 11px; padding-bottom: 11px;
+    border-bottom: 1px solid var(--filet); position: relative;
+  }
+  .rang.hors-ligne { opacity: .4; }
+  /* Le rang qui commande porte un lisere d'or: on marque sans repeindre. */
+  .rang.commande { background: linear-gradient(90deg, rgba(255,159,28,.09), transparent 55%); }
+  .rang.commande::before {
+    content: ""; position: absolute; left: 0; top: 5px; bottom: 5px; width: 3px;
+    border-radius: 0 3px 3px 0; background: var(--commande);
+  }
+
+  /* La plaque en losange accueillera l'embleme de classe. En attendant elle
+     porte l'abreviation, pour que l'information ne soit pas perdue avec la
+     colonne « Classe » qui la doublait. */
+  .plaque {
+    width: 30px; height: 30px; margin: 0 auto;
+    display: grid; place-items: center;
+    background: var(--releve); border: 1px solid var(--bord);
+    transform: rotate(45deg); border-radius: 10px;
+  }
+  .plaque > * {
+    transform: rotate(-45deg); font-size: 10px; font-weight: 700;
+    letter-spacing: .02em; color: var(--attenue);
+  }
+  .plaque img { width: 22px; height: 22px; object-fit: contain; display: block; }
+  .rang.hors-ligne .plaque img { filter: grayscale(1); }
+  .rang.commande .plaque { border-color: var(--commande); box-shadow: 0 0 10px rgba(255,159,28,.28); }
+  .rang.alerte .plaque { border-color: var(--alerte); }
+
+  .identite {
+    display: contents;
+  }
+  .zone-clic { cursor: pointer; }
+  .zone-clic:hover .nom { color: var(--commande); }
+  .zone-clic:hover .plaque { border-color: var(--commande); }
+  .nom {
+    font-weight: 700; font-size: 14.5px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sous-nom {
+    font-size: 12px; color: var(--attenue);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sous-nom.absent { color: var(--filet); font-style: italic; }
+
+  /* LA CIBLE EST LA CELLULE ENTIERE, le losange n est qu un dessin dedans.
+     Un element tourne a 45 degres n est sensible que sur la moitie de sa
+     boite: viser un coin ne declenche rien, et c est exactement ce qui faisait
+     rater des clics. Le bouton fait donc 58 x 30, le losange 17. */
+  .case {
+    display: grid; place-items: center;
+    width: 100%; height: 30px; padding: 0;
+    background: transparent; border: 0;
+  }
+  .case .los {
+    width: 17px; height: 17px; transform: rotate(45deg); border-radius: 6px;
+    border: 1.5px solid var(--bord); background: transparent;
+    transition: background .1s, border-color .1s;
+  }
+  .case.on .los { background: var(--arme); border-color: var(--arme); }
+  .case:disabled { opacity: .25; cursor: not-allowed; }
+  .case:not(:disabled):hover .los { border-color: var(--attenue); }
+  .case:not(:disabled):hover { background: rgba(255,255,255,.05); border-radius: 8px; }
+
+  .bouton-commande {
+    width: 100%; min-height: 28px; padding: 6px 9px; border-radius: 999px;
+    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
+    font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .bouton-commande:hover { border-color: var(--commande); color: var(--commande); }
+  .bouton-commande.on {
+    background: var(--commande); border-color: var(--commande);
+    color: var(--commande-encre);
+  }
+  .verdict {
+    display: inline-flex; align-items: center; gap: 7px; justify-content: center;
+    width: 100%; font-size: 11px; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .verdict .los { width: 11px; height: 11px; flex: none; transform: rotate(45deg); border-radius: 4px; }
+  .verdict.alerte { color: var(--alerte); }
+  .verdict.alerte .los { background: var(--alerte); }
+  .verdict.attente { color: var(--attenue); }
+  .verdict.attente .los { border: 1.5px solid var(--attenue); }
+  .verdict.calme { color: var(--filet); }
+  .verdict.calme .los { border: 1.5px solid var(--filet); }
+
+  .motif {
+    grid-column: 2 / -1; font-size: 12px; color: var(--alerte);
+    margin-top: -2px; padding-bottom: 2px;
+  }
+
+  /* Zero client detecte donnait une page blanche sous l'en-tete.
+     LE NOM EST PREFIXE A DESSEIN. Cette regle s'appelait `.vide`, et le
+     bouton de touche non assignee portait la meme classe: son padding de
+     44 px gagnait, le bouton passait de 27 a 110 px de haut, et le rang
+     entier a 133 px au lieu de 60. Une classe aussi generique finit
+     toujours par en attraper une autre. */
+  .liste-vide { padding: 44px 20px; text-align: center; color: var(--attenue); font-size: 13.5px; }
+  .liste-vide b { display: block; color: var(--texte); font-size: 15px; margin-bottom: 6px; font-weight: 700; }
+</style>
+
+<div class="barre-titre">
+  <span class="titre-nom"><span class="o">O</span>MNI</span>
+  <button class="maitre-inter" id="interActif"><span class="temoin"></span><span id="libelleActif">au repos</span></button>
+  <span class="titre-etat" id="titreEtat"></span>
+  <span class="fenetre-boutons">
+    <button id="reduire" title="Réduire"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
+    <button id="fermer" class="fermer" title="Fermer"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
+  </span>
+</div>
+
+<div class="avis" id="erreur"></div>
+<div class="avis" id="sansmaitre"></div>
+
+<div class="defile">
+  <div class="entete" id="entete">
+    <div></div>
+    <div>Personnage / compte</div>
+    <div class="c">Touche</div>
+    <div class="c"><button class="tete-colonne" data-colonne="repl"><span class="jauge"></span>Répl.</button></div>
+    <div class="c"><button class="tete-colonne" data-colonne="tour"><span class="jauge"></span>Tour</button></div>
+    <div class="c"><button class="tete-colonne" data-colonne="groupe"><span class="jauge"></span>Groupe</button></div>
+    <div class="c"><button class="tete-colonne" data-colonne="anim"><span class="jauge"></span>Anim</button></div>
+    <div class="c"><button class="tete-colonne" data-colonne="echange"><span class="jauge"></span>Éch.</button></div>
+    <div class="c">Commande</div>
+    <div></div>
+  </div>
+  <div id="liste"></div>
+  <div class="liste-vide" id="listeVide" hidden>
+    <b>Aucun client Dofus détecté</b>
+    Lance tes clients maintenant : OMNI doit tourner AVANT eux pour pouvoir les suivre.
+  </div>
+</div>
+
+<div class="barre-nav">
+  <span class="paire">Précédent <button class="cabochon" id="navPrec" data-nav="precedent">—</button></span>
+  <span class="paire">Suivant <button class="cabochon" id="navSuiv" data-nav="suivant">—</button></span>
+  <span class="avis-nav" id="avisNav"></span>
+  <span class="separateur"></span>
+  <label class="champ-delai">Délai <input id="delai" type="number" min="0" step="0.1" value="0"> s</label>
+  <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;color:var(--alerte)"></span>
+  <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
+</div>
+
+<script>
+  const LIBELLE = {
+    'hors-ligne': 'hors ligne',
+    'intercepte': '',
+    'en-attente': 'attente',
+    'non-intercepte': 'non intercepté',
+    'erreur': 'erreur',
+    'inconnu': '',
+  };
+  // Trois familles d'anomalie, trois formes. La couleur ne fait que renforcer:
+  // huit a dix pour cent des hommes sont daltoniens, et l'ancien panneau
+  // encodait « arme » en vert et « alerte » en rouge-brun, sans second signal.
+  const FORME = {
+    'non-intercepte': 'alerte',
+    'erreur': 'alerte',
+    'en-attente': 'attente',
+    'hors-ligne': 'calme',
+  };
+
+  // Les memes regles que src/comptes/raccourcis.js, cote affichage. Le module
+  // n'est pas importable ici: le renderer est sandboxe et n'a pas de require.
+  // Il reste la reference, et main.js valide de son cote.
+  const NOMS = {
+    ArrowLeft: 'Left', ArrowRight: 'Right', ArrowUp: 'Up', ArrowDown: 'Down',
+    ' ': 'Space', Enter: 'Return', Tab: 'Tab', Backspace: 'Backspace',
+    Delete: 'Delete', Insert: 'Insert', Home: 'Home', End: 'End',
+    PageUp: 'PageUp', PageDown: 'PageDown',
+  };
+  const AFFICHAGE = {
+    CommandOrControl: 'Ctrl', Shift: 'Maj', Left: '←', Right: '→', Up: '↑',
+    Down: '↓', Space: 'Espace', Return: 'Entrée', Backspace: 'Retour', Delete: 'Suppr',
+  };
+  const MODIF = new Set(['Control', 'Alt', 'Shift', 'Meta', 'AltGraph']);
+
+  function accelerateurDe(e) {
+    const k = e.key;
+    if (typeof k !== 'string' || !k.length) return null;
+    // Échap ANNULE la saisie: l'assigner rendrait l'annulation impossible.
+    if (MODIF.has(k) || k === 'Escape') return null;
+    const parties = [];
+    if (e.ctrlKey) parties.push('CommandOrControl');
+    if (e.altKey) parties.push('Alt');
+    if (e.shiftKey) parties.push('Shift');
+    parties.push(NOMS[k] || (k.length === 1 ? k.toUpperCase() : k));
+    return parties.join('+');
+  }
+
+  const libelleTouche = (a) => (!a ? '' : a.split('+').map((p) => AFFICHAGE[p] || p).join('+'));
+
+  // Une touche NUE, hors touches de fonction, sera confisquee a Dofus.
+  function estRisquee(a) {
+    if (!a) return false;
+    const parties = a.split('+');
+    return parties.length === 1 && !/^F([1-9]|1[0-9]|2[0-4])$/.test(parties[0]);
+  }
+
+  // Une seule saisie a la fois. Échap annule sans rien changer.
+  let ecoute = null;
+  window.addEventListener('keydown', (e) => {
+    if (ecoute === null) return;
+    e.preventDefault();
+    const cible = ecoute;
+    if (e.key === 'Escape') { ecoute = null; cible.annuler(); return; }
+    const a = accelerateurDe(e);
+    if (a === null) return;   // modificateur seul: on attend la vraie touche
+    ecoute = null;
+    cible.poser(a);
   });
 
-  document.getElementById('bpt').addEventListener('click', () => {
-    passeTourActif = !passeTourActif;
-    window.app.basculerPasseTour(passeTourActif);
+  // LE RETOUR A L'ETAT NORMAL EST FAIT ICI, pour les deux issues.
+  //
+  // Il etait a la charge de l'appelant, qui ne le faisait que dans le chemin
+  // d'annulation: apres une frappe, la classe `ecoute` restait posee. Or la
+  // mise a jour d'un rang saute volontairement le cabochon tant qu'elle est la,
+  // pour ne pas effacer le « frappe… » sous les doigts de l'utilisateur. Le
+  // bouton restait donc fige sur « frappe… » pour toujours, et n'affichait
+  // jamais la touche — pourtant bien enregistree.
+  //
+  // L'appelant ne fournit plus que `poser`. Le libelle definitif viendra de
+  // l'etat suivant, comme pour tout le reste du panneau.
+  function armerSaisie(bouton, poser) {
+    const avant = bouton.textContent;
+    bouton.classList.add('ecoute');
+    bouton.textContent = 'frappe…';
+    const rendre = () => {
+      bouton.classList.remove('ecoute');
+      bouton.textContent = avant;
+    };
+    ecoute = {
+      poser: (a) => { rendre(); poser(a); },
+      annuler: rendre,
+    };
+  }
+
+  // --- les deux touches de navigation, en pied ----------------------------
+  for (const b of document.querySelectorAll('[data-nav]')) {
+    b.addEventListener('click', () => {
+      armerSaisie(b, (a) => window.app.reglerToucheNav(b.dataset.nav, a));
+    });
+  }
+
+  // On ne propose la bascule que pour un client reellement pilote: l'agent est
+  // ce qui met la fenetre au premier plan, et sans lui le clic ne ferait rien.
+  const utilisableBascule = (l) => l.id !== null && l.pilotable;
+
+  // L'embleme s'il est deja en cache, l'abreviation de la classe sinon. Jamais
+  // d'image cassee: un ami hors ligne garde une interface lisible, et
+  // l'embleme apparaitra au premier lancement connecte.
+  function dansLaPlaque(ligne) {
+    if (ligne.embleme) {
+      return '<img src="' + ligne.embleme + '" alt="' + (ligne.classe || '') + '">';
+    }
+    if (!ligne.classe) return '<span></span>';
+    const court = ligne.classe.length <= 4 ? ligne.classe : ligne.classe.slice(0, 3);
+    return '<span>' + court + '</span>';
+  }
+
+  document.getElementById('reduire').addEventListener('click', () => window.app.fenetreReduire());
+  document.getElementById('fermer').addEventListener('click', () => window.app.fenetreFermer());
+
+  // L'interrupteur unique. Il n'ecrit rien lui-meme: il demande, et l'etat
+  // suivant fait foi — comme toutes les commandes de ce panneau.
+  const interActif = document.getElementById('interActif');
+  interActif.addEventListener('click', () => {
+    window.app.basculerActif(!interActif.classList.contains('on'));
   });
 
-  document.getElementById('binv').addEventListener('click', () => {
-    invitationActive = !invitationActive;
-    window.app.basculerInvitation(invitationActive);
-  });
+  // Les memes regles que src/comptes/colonnes.js, cote affichage. Le module
+  // n'est pas importable ici (le renderer est sandboxe), il reste la reference,
+  // et main.js recalcule la cible de son cote avant d'ecrire.
+  const COLONNES = {
+    repl: { champ: 'exclu', inverse: true },
+    tour: { champ: 'passeTour', inverse: false },
+    groupe: { champ: 'invitation', inverse: false },
+    anim: { champ: 'noAnim', inverse: false },
+    echange: { champ: 'echange', inverse: false },
+  };
 
-  document.getElementById('banim').addEventListener('click', () => {
-    noAnimActif = !noAnimActif;
-    window.app.basculerNoAnim(noAnimActif);
-  });
+  const valeurDe = (l, nom) => {
+    const c = COLONNES[nom];
+    return c.inverse ? !l[c.champ] : Boolean(l[c.champ]);
+  };
 
-  document.getElementById('bech').addEventListener('click', () => {
-    echangeActif = !echangeActif;
-    window.app.basculerEchange(echangeActif);
-  });
+  // Seules les lignes portant un identifiant comptent: sans lui rien ne
+  // s'enregistre, donc la ligne ne participe ni a l'etat ni a l'action.
+  const pertinentes = (lignes) => lignes.filter((l) => l.id !== null && l.id !== undefined);
+
+  function etatColonne(lignes, nom) {
+    const utiles = pertinentes(lignes);
+    if (utiles.length === 0) return 'aucun';
+    const coches = utiles.filter((l) => valeurDe(l, nom)).length;
+    if (coches === 0) return 'aucun';
+    return coches === utiles.length ? 'tous' : 'partiel';
+  }
+
+  let dernieresLignes = [];
+  for (const b of document.querySelectorAll('[data-colonne]')) {
+    b.addEventListener('click', () => {
+      const ids = pertinentes(dernieresLignes).map((l) => l.id);
+      if (ids.length) window.app.basculerColonne(b.dataset.colonne, ids);
+    });
+  }
 
   document.getElementById('delai').addEventListener('change', (e) => {
     window.app.reglerDelai(e.target.value);
   });
 
   // Confirmation en place plutot qu'une fenetre modale: un clic de travers
-  // parmi six boutons fermerait tous les clients, potentiellement en plein
-  // combat. Le premier clic arme, le second ferme, et l'armement retombe seul.
+  // fermerait tous les clients, potentiellement en plein combat. Le premier
+  // clic arme, le second ferme, et l'armement retombe seul.
   let offArme = null;
   document.getElementById('boff').addEventListener('click', () => {
     const b = document.getElementById('boff');
@@ -153,122 +581,304 @@
       clearTimeout(offArme);
       offArme = null;
       b.classList.remove('confirme');
-      b.textContent = 'OFF';
+      b.textContent = 'Fermer les clients';
       window.app.fermerTousLesClients();
       return;
     }
     b.classList.add('confirme');
-    b.textContent = 'CONFIRMER ?';
+    b.textContent = 'Confirmer ?';
     offArme = setTimeout(() => {
       offArme = null;
       b.classList.remove('confirme');
-      b.textContent = 'OFF';
+      b.textContent = 'Fermer les clients';
     }, 3000);
   });
 
+  // ==========================================================================
+  // LE RENDU NE DETRUIT PLUS RIEN.
+  //
+  // La liste etait videe puis recreee a chaque etat, soit toutes les deux
+  // secondes. Un bouton detruit entre l'enfoncement et le relachement de la
+  // souris ne produit AUCUN clic: le geste se perdait au hasard du tick, et
+  // c'est ce qui donnait l'impression que les boutons « ne validaient pas ».
+  //
+  // Chaque rang est donc cree UNE FOIS puis mis a jour sur place. Ses ecouteurs
+  // sont poses a la creation et ne bougent plus: ils lisent r.ligne, que la
+  // mise a jour reecrit. Aucun noeud interactif n'est jamais remplace.
+  // ==========================================================================
+
+  const rangs = new Map();   // cle stable -> le rang et ses parties
+
+  // L'identifiant de compte quand il existe, le pid sinon: un client dont la
+  // ligne de commande ne porte pas de -logFile n'a que lui.
+  const cleDe = (l) => (l.id === null || l.id === undefined ? 'pid:' + l.pid : 'id:' + l.id);
+
+  const CASES = [
+    { champ: 'exclu', inverse: true, envoyer: (l, v) => window.app.exclureCompte(l.id, !v) },
+    { champ: 'passeTour', inverse: false, envoyer: (l, v) => window.app.basculerPasseTourCompte(l.id, v) },
+    { champ: 'invitation', inverse: false, envoyer: (l, v) => window.app.basculerInvitationCompte(l.id, v) },
+    { champ: 'noAnim', inverse: false, envoyer: (l, v) => window.app.basculerNoAnimCompte(l.id, v) },
+    { champ: 'echange', inverse: false, envoyer: (l, v) => window.app.basculerEchangeCompte(l.id, v) },
+  ];
+
+  const valeurCase = (l, c) => (c.inverse ? !l[c.champ] : Boolean(l[c.champ]));
+
+  function creerRang() {
+    const r = { ligne: null };
+
+    r.el = document.createElement('div');
+    r.el.className = 'rang';
+
+    r.portrait = document.createElement('div');
+    r.nom = document.createElement('div');
+
+    // L'identite bascule sur la fenetre du personnage: c'est le geste le plus
+    // frequent en multicompte, il merite la plus grande cible du rang.
+    const aller = () => {
+      const l = r.ligne;
+      if (l && l.id !== null && l.pilotable) window.app.basculerVersCompte(l.id);
+    };
+    r.portrait.addEventListener('click', aller);
+    r.nom.addEventListener('click', aller);
+
+    r.el.append(r.portrait, r.nom);
+
+    r.celluleTouche = document.createElement('div');
+    r.celluleTouche.className = 'cellule-touche';
+    r.cabochon = document.createElement('button');
+    r.cabochon.className = 'cabochon';
+    r.cabochon.addEventListener('click', () => {
+      const l = r.ligne;
+      if (!l || l.id === null) return;
+      armerSaisie(r.cabochon, (a) => window.app.reglerTouche(l.id, a));
+    });
+    // La corbeille retire le raccourci. Elle ne parait que s il y en a un:
+    // un bouton qui n aurait rien a supprimer serait une promesse vide.
+    r.oter = document.createElement('button');
+    r.oter.className = 'oter';
+    r.oter.title = 'retirer ce raccourci';
+    r.oter.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" '
+      + 'stroke-width="1.5" stroke-linecap="round"><path d="M2.5 3.5h9"/>'
+      + '<path d="M5.5 3.5V2.2h3v1.3"/><path d="M3.6 3.5l.6 8.3h5.6l.6-8.3"/>'
+      + '<path d="M5.9 5.8v3.7M8.1 5.8v3.7"/></svg>';
+    r.oter.addEventListener('click', () => {
+      const l = r.ligne;
+      if (!l || l.id === null) return;
+      window.app.reglerTouche(l.id, null);
+    });
+
+    r.celluleTouche.append(r.cabochon, r.oter);
+    r.el.append(r.celluleTouche);
+
+    r.cases = CASES.map((c) => {
+      const b = document.createElement('button');
+      b.className = 'case';
+      b.innerHTML = '<span class="los"></span>';
+      b.addEventListener('click', () => {
+        const l = r.ligne;
+        if (!l || l.id === null) return;
+        c.envoyer(l, !valeurCase(l, c));
+      });
+      r.el.append(b);
+      return b;
+    });
+
+    // Une seule cellule a droite, dont le CONTENU change: bouton ou verdict.
+    // Les montrer a tour de role en detruisant celui qui ne sert pas
+    // ramenerait exactement le probleme qu'on vient de supprimer.
+    r.droite = document.createElement('div');
+    r.boutonCommande = document.createElement('button');
+    r.boutonCommande.className = 'bouton-commande';
+    r.boutonCommande.addEventListener('click', () => {
+      const l = r.ligne;
+      if (!l || !l.eligibleMaitre) return;
+      window.app.definirMaitre(l.estMaitre ? null : l.id);
+    });
+    r.verdict = document.createElement('span');
+    r.verdict.className = 'verdict';
+    r.droite.append(r.boutonCommande, r.verdict);
+    r.el.append(r.droite);
+
+    // Le pouvoir de coupure de CE client. Premier clic arme, second ferme, et
+    // l armement retombe seul: meme regle que le bouton qui les ferme tous.
+    r.fermerUn = document.createElement('button');
+    r.fermerUn.className = 'fermer-un';
+    r.fermerUn.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" '
+      + 'stroke-width="1.6" stroke-linecap="round"><path d="M7 2.4v4.4"/>'
+      + '<path d="M10.5 3.9a4.6 4.6 0 1 1-7 0"/></svg>';
+    let armeFermeture = null;
+    const desarmer = () => {
+      if (armeFermeture !== null) clearTimeout(armeFermeture);
+      armeFermeture = null;
+      r.fermerUn.classList.remove('confirme');
+      r.fermerUn.title = 'fermer ce client';
+    };
+    r.fermerUn.addEventListener('click', () => {
+      const l = r.ligne;
+      if (!l || l.id === null) return;
+      if (armeFermeture !== null) {
+        desarmer();
+        window.app.fermerUnClient(l.id);
+        return;
+      }
+      r.fermerUn.classList.add('confirme');
+      r.fermerUn.title = 'cliquer à nouveau pour fermer';
+      armeFermeture = setTimeout(desarmer, 3000);
+    });
+    r.el.append(r.fermerUn);
+
+    r.motif = document.createElement('div');
+    r.motif.className = 'motif';
+    r.el.append(r.motif);
+
+    return r;
+  }
+
+  function majRang(r, l) {
+    r.ligne = l;
+
+    const alerte = l.etat === 'non-intercepte' || l.etat === 'erreur';
+    r.el.className = 'rang'
+      + (l.etat === 'hors-ligne' ? ' hors-ligne' : '')
+      + (alerte ? ' alerte' : '')
+      + (l.estMaitre ? ' commande' : '');
+
+    const pilotable = l.id !== null && l.pilotable;
+    r.portrait.className = pilotable ? 'zone-clic' : '';
+    r.portrait.innerHTML = '<span class="plaque" title="'
+      + (l.classe || 'classe inconnue, personnage pas encore en jeu')
+      + '">' + dansLaPlaque(l) + '</span>';
+
+    const principal = l.personnage || l.nickname;
+    const second = l.personnage ? l.nickname : 'pas encore en jeu';
+    r.nom.className = pilotable ? 'zone-clic' : '';
+    r.nom.innerHTML = '<div class="nom">' + principal + '</div>'
+      + '<div class="sous-nom' + (l.personnage ? '' : ' absent') + '">' + second + '</div>';
+    r.nom.title = (l.personnage ? l.personnage + ' · ' + l.nickname : l.nickname)
+      + (pilotable ? ' (cliquer pour passer sur cette fenêtre)' : '');
+
+    // Le cabochon ne se reecrit pas pendant une saisie de touche, sinon le
+    // « frappe… » disparaitrait sous les doigts de l'utilisateur.
+    if (!r.cabochon.classList.contains('ecoute')) {
+      r.cabochon.className = 'cabochon'
+        + (l.touche ? '' : ' sans-touche')
+        + (estRisquee(l.touche) ? ' risque' : '');
+      r.cabochon.textContent = l.touche ? libelleTouche(l.touche) : 'aucune';
+      r.cabochon.disabled = l.id === null;
+      r.cabochon.title = estRisquee(l.touche)
+        ? 'Dofus ne recevra plus cette touche tant qu OMNI tourne'
+        : 'Cliquer puis frapper une touche. Échap annule.';
+    }
+    r.oter.hidden = !l.touche;
+
+    r.cases.forEach((b, i) => {
+      const actif = valeurCase(l, CASES[i]);
+      b.classList.toggle('on', actif);
+      b.disabled = !pilotable;
+      b.setAttribute('aria-pressed', String(actif));
+    });
+
+    // A DROITE: le bouton OU le verdict, jamais les deux. Un compte non
+    // eligible ne peut pas commander, et lui proposer le geste serait la
+    // promesse d'un role qu'il ne peut pas tenir.
+    if (l.eligibleMaitre) {
+      r.boutonCommande.hidden = false;
+      r.verdict.hidden = true;
+      r.boutonCommande.classList.toggle('on', l.estMaitre);
+      r.boutonCommande.textContent = l.estMaitre ? 'Commande' : 'Désigner';
+      r.boutonCommande.title = l.estMaitre
+        ? 'ce compte commande — cliquer pour ne plus avoir de meneur'
+        : 'faire commander ce compte';
+    } else {
+      r.boutonCommande.hidden = true;
+      r.verdict.hidden = false;
+      r.verdict.className = 'verdict ' + (FORME[l.etat] || 'calme');
+      r.verdict.innerHTML = '<span class="los"></span>' + (LIBELLE[l.etat] || l.etat);
+    }
+
+    // Un compte hors ligne n a pas de fenetre a fermer: le bouton serait la
+    // promesse d un geste sans effet.
+    const aUneFenetre = l.id !== null && l.pid !== null && l.pid !== undefined && l.etat !== 'hors-ligne';
+    r.fermerUn.disabled = !aUneFenetre;
+    if (!aUneFenetre) r.fermerUn.classList.remove('confirme');
+    if (!r.fermerUn.title) r.fermerUn.title = 'fermer ce client';
+
+    r.motif.hidden = !l.message;
+    r.motif.textContent = l.message || '';
+  }
+
   window.app.surEtat((etat) => {
-    actif = etat.duplication;
-    // Le libelle ne change plus: c'est la couleur qui porte l'etat, comme pour
-    // les trois autres interrupteurs (vert = arme, gris = au repos).
-    document.getElementById('bascule').classList.toggle('actif', actif);
+    dernieresLignes = etat.lignes;
 
-    passeTourActif = etat.passeTourActif;
-    const bpt = document.getElementById('bpt');
-    bpt.classList.toggle('actif', passeTourActif);
+    interActif.classList.toggle('on', etat.actif);
+    document.getElementById('libelleActif').textContent = etat.actif ? 'actif' : 'au repos';
+    interActif.title = etat.actif
+      ? 'OMNI agit. Cliquer pour tout suspendre sans rien effacer.'
+      : 'OMNI est suspendu. Les réglages par compte sont conservés.';
 
-    invitationActive = etat.invitationActive;
-    document.getElementById('binv').classList.toggle('actif', invitationActive);
+    // Le losange de chaque titre de colonne: plein, creux, ou a moitie.
+    for (const b of document.querySelectorAll('[data-colonne]')) {
+      const e = etatColonne(etat.lignes, b.dataset.colonne);
+      const j = b.querySelector('.jauge');
+      j.classList.toggle('tous', e === 'tous');
+      j.classList.toggle('partiel', e === 'partiel');
+      b.title = e === 'tous' ? 'Actif pour tous — cliquer pour couper tout le monde'
+        : e === 'aucun' ? 'Éteint partout — cliquer pour activer tout le monde'
+        : 'Actif pour certains — cliquer pour activer tout le monde';
+    }
 
-    noAnimActif = etat.noAnimActif;
-    document.getElementById('banim').classList.toggle('actif', noAnimActif);
+    // Les deux touches de navigation viennent du fichier de reglages, comme
+    // tout le reste: le clic ne fait que demander, l'etat fait foi.
+    for (const b of document.querySelectorAll('[data-nav]')) {
+      if (b.classList.contains('ecoute')) continue;
+      const a = (etat.nav || {})[b.dataset.nav];
+      b.textContent = libelleTouche(a) || 'aucune';
+      b.classList.toggle('sans-touche', !a);
+      b.classList.toggle('risque', estRisquee(a));
+    }
 
-    echangeActif = etat.echangeActif;
-    document.getElementById('bech').classList.toggle('actif', echangeActif);
+    const enDouble = [...new Set(
+      etat.lignes.map((l) => l.touche).filter(Boolean)
+        .filter((t, i, tous) => tous.indexOf(t) !== i)
+    )];
+    document.getElementById('avertTouches').textContent = enDouble.length
+      ? '⚠ ' + enDouble.map(libelleTouche).join(', ') + ' en double'
+      : '';
+
+    document.getElementById('avisNav').textContent = etat.avisBascule || '';
 
     const champDelai = document.getElementById('delai');
     if (document.activeElement !== champDelai) champDelai.value = etat.delai;
 
     document.getElementById('erreur').textContent = etat.erreurComptes || '';
-
-    // « en jeu » = derriere notre proxy, y compris un client dont le compte
-    // n'est pas dans la liste du launcher.
-    document.getElementById('version').textContent = etat.version || '';
+    document.getElementById('sansmaitre').textContent = etat.sansMaitre
+      ? 'Aucun compte ne commande : rien ne se réplique. Désigne-en un ci-dessous.'
+      : '';
 
     const enJeu = etat.lignes.filter((l) => l.suivi).length;
-    document.getElementById('resume').textContent =
-      `${enJeu} compte${enJeu > 1 ? 's' : ''} en jeu`;
+    document.getElementById('titreEtat').textContent =
+      (etat.version || 'dev') + ' · ' + enJeu + ' compte' + (enJeu > 1 ? 's' : '') + ' en jeu';
 
     const liste = document.getElementById('liste');
-    liste.textContent = '';
+    document.getElementById('listeVide').hidden = etat.lignes.length > 0;
+
+    // Les rangs disparus s'en vont, les autres restent en place.
+    const presentes = new Set(etat.lignes.map(cleDe));
+    for (const [cle, r] of [...rangs]) {
+      if (!presentes.has(cle)) { r.el.remove(); rangs.delete(cle); }
+    }
+
+    let precedent = null;
     for (const l of etat.lignes) {
-      const li = document.createElement('li');
-      li.className = l.etat;
-
-      const etoile = document.createElement('span');
-      etoile.className = 'etoile' + (l.favori ? ' on' : '');
-      etoile.textContent = l.favori ? '★' : '☆';
-      etoile.title = 'à lancer';
-      if (l.id !== null) {
-        etoile.addEventListener('click', () => window.app.marquerFavori(l.id, !l.favori));
-      }
-
-      // Un interrupteur desactive quand le compte n'est pas intercepte serait
-      // une promesse fausse: hors ligne, non intercepte ou en erreur, aucun
-      // des quatre ne peut agir sur ce client.
-      //
-      // C'est `pilotable` qui en decide, PAS le libelle `etat`: un client passe
-      // par notre proxy mais dont le compte est absent de la liste Zaap
-      // s'affiche « compte inconnu » tout en etant parfaitement pilotable.
-      // Tester l'etat le rendait indebrayable — c'est precisement pour cela que
-      // ce champ existe.
-      //
-      // Et pas `suivi` non plus, qui ne vaut vrai que sur preuve de trafic:
-      // pendant la seconde d'attente d'un client qui vient d'etre attache, ses
-      // quatre interrupteurs se seraient eteints sous le curseur.
-      const utilisable = l.id !== null && l.pilotable;
-      const swRep = interrupteur(ICONE_DUPLICATION, !l.exclu, !utilisable,
-        (v) => window.app.exclureCompte(l.id, !v));
-      const swPasse = interrupteur(ICONE_PASSE, l.passeTour, !utilisable,
-        (v) => window.app.basculerPasseTourCompte(l.id, v));
-      const swInv = interrupteur(ICONE_GROUPE, l.invitation, !utilisable,
-        (v) => window.app.basculerInvitationCompte(l.id, v));
-      const swAnim = interrupteur(ICONE_ANIM, l.noAnim, !utilisable,
-        (v) => window.app.basculerNoAnimCompte(l.id, v));
-      const swEch = interrupteur(ICONE_ECHANGE, l.echange, !utilisable,
-        (v) => window.app.basculerEchangeCompte(l.id, v));
-
-      const nom = document.createElement('span');
-      nom.className = 'nom';
-      nom.textContent = l.nickname;
-
-      const perso = document.createElement('span');
-      perso.className = 'perso';
-      perso.textContent = l.personnage ? `${l.personnage} — ${l.classe}` : '—';
-
-      // Le titre de maitre ne masque plus l'etat: le superviseur le decerne au
-      // premier client attache, trafic ou pas. Un client irrattrapable
-      // s'affichait donc « maître » — l'etiquette la plus rassurante possible
-      // sur la seule ligne qui demandait une action. L'alerte passe devant.
-      const alerte = l.etat === 'non-intercepte' || l.etat === 'erreur';
-      const maitreEffectif = l.estMaitre && l.etat === 'intercepte';
-      const badge = document.createElement('span');
-      badge.className = 'badge'
-        + (maitreEffectif ? ' maitre' : '')
-        + (alerte ? ' alerte' : '');
-      badge.textContent = maitreEffectif ? 'maître' : LIBELLES[l.etat];
-
-      li.append(etoile, swRep, swPasse, swInv, swAnim, swEch, nom, perso, badge);
-
-      // Echec d'attache, ou raison pour laquelle la derniere action n'a pas pu
-      // etre rejouee chez ce compte.
-      if (l.message) {
-        const message = document.createElement('span');
-        message.className = 'message';
-        message.textContent = l.message;
-        li.append(message);
-      }
-
-      liste.append(li);
+      const cle = cleDe(l);
+      let r = rangs.get(cle);
+      if (r === undefined) { r = creerRang(); rangs.set(cle, r); }
+      majRang(r, l);
+      // Ne deplacer QUE si l'ordre a change: deplacer un noeud pendant un clic
+      // peut l'annuler, et l'ordre ne bouge presque jamais.
+      const attendu = precedent === null ? liste.firstChild : precedent.nextSibling;
+      if (attendu !== r.el) liste.insertBefore(r.el, attendu);
+      precedent = r.el;
     }
   });
 </script>

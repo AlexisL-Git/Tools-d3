@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const net = require('node:net');
 const { Superviseur, PORT_JEU } = require('../src/superviseur');
 const { createProxy } = require('../src/proxy/server');
+const { creerDuplicateur } = require('../src/duplicateur');
 
 // Les sept types dont l'utilisateur a besoin — zaap, havre-sac, PNJ, quetes,
 // dialogue, donjon, et le deplacement associe. InteractiveUseRequest, seul
@@ -445,4 +446,135 @@ test('le proxy expose la socket amont une fois établie', async (t) => {
   assert.ok(vues.length > 0);
   assert.ok(vues[0].amont !== null, 'la socket amont doit être exposée');
   assert.strictEqual(typeof vues[0].amont.write, 'function');
+});
+
+// --- absence de maitre -----------------------------------------------------
+
+// PIEGE VERIFIE, PAS SUPPOSE. Sans maitre choisi, this.maitre vaut null et
+// esclaves(null) rend TOUS les comptes, puisque aucun pid n'est egal a null.
+// La liste d'esclaves n'est donc PAS ce qui protege: ce test fige le piege
+// pour que personne ne se repose dessus.
+test('esclaves(null) rend tous les comptes, sans exception', () => {
+  const s = superviseurAvecComptes([1, 2, 3]);
+  assert.strictEqual(s.comptes.esclaves(null).length, 3);
+});
+
+// Ce qui protege reellement, c'est estMaitre: le duplicateur teste ce drapeau
+// avant d'appeler rejouer(), et `client.pid === null` est toujours faux. La
+// surete traverse donc deux fichiers, et rien ne la signale a la lecture de
+// l'un ou de l'autre.
+test('sans maître, aucune trame n est marquée comme venant du maître', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  const vues = [];
+  s.onTrame = (e) => vues.push(e);
+  s.maitre = null;
+
+  const client = { pid: 1, reassembleurs: new Map() };
+  const conn = { id: 1, port: PORT_JEU, amont: { write: () => {} } };
+  s._recevoir(client, 'out', Buffer.concat([Buffer.from([HJC.length]), HJC]), conn);
+
+  assert.ok(vues.length > 0, 'la trame doit bien être décodée et transmise');
+  assert.ok(vues.every((v) => v.estMaitre === false));
+});
+
+// Le duplicateur reel, branche sur un superviseur sans maitre: rien ne part.
+test('sans maître, le duplicateur ne rejoue chez personne', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  const ecrits = fauxClient(s, 2);
+  s.arme = true;
+  s.maitre = null;
+  const comptesRendus = [];
+  s.onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+
+  const client = { pid: 1, reassembleurs: new Map() };
+  const conn = { id: 1, port: PORT_JEU, amont: { write: () => {} } };
+  s._recevoir(client, 'out', Buffer.concat([Buffer.from([HJC.length]), HJC]), conn);
+
+  assert.deepStrictEqual(ecrits, [], 'aucun octet ne doit partir sans maître désigné');
+  assert.strictEqual(comptesRendus.length, 0);
+});
+
+// LE MAITRE N'EST PLUS SUBI, et c'est la seule chose qui compte ici.
+//
+// Le message `premierPlan` alimente `enAvant`, jamais `maitre`: confondre les
+// deux est exactement ce qui faisait partir les actions d'un alt chez toute
+// l'equipe des qu'on cliquait sa fenetre.
+//
+// Le superviseur ne DEMANDE plus cette surveillance (reportFocus est eteint,
+// la navigation est un cycle franc), mais le gestionnaire reste: l'option
+// existe toujours, et si elle est rallumee un jour elle ne doit surtout pas
+// se remettre a decerner le commandement.
+//
+// L'assertion porte desormais sur le COMPORTEMENT et non sur le source: elle
+// couvre le chemin reel, et survivra a une reecriture du module.
+test('le premier plan renseigne la navigation, jamais le rôle de maître', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  s.maitre = 2;
+
+  s._recevoirMessageAgent(1, { premierPlan: true });
+
+  assert.strictEqual(s.enAvant, 1, 'le premier plan doit être noté');
+  assert.strictEqual(s.maitre, 2, 'le maître épinglé ne doit pas bouger');
+});
+
+test('quitter le premier plan efface le point de départ, sans toucher au maître', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  s.maitre = 2;
+  s._recevoirMessageAgent(1, { premierPlan: true });
+  s._recevoirMessageAgent(1, { premierPlan: false });
+
+  assert.strictEqual(s.enAvant, null);
+  assert.strictEqual(s.maitre, 2);
+});
+
+// --- bascule de fenetre ----------------------------------------------------
+
+function fauxScript(s, pid) {
+  const postes = [];
+  s.clients.set(pid, { pid, amont: null, script: { post: (m) => postes.push(m) } });
+  return postes;
+}
+
+test('basculerVers poste la commande à l agent du bon client', () => {
+  const s = superviseurAvecComptes([1, 2]);
+  const un = fauxScript(s, 1);
+  const deux = fauxScript(s, 2);
+
+  assert.strictEqual(s.basculerVers(2).ok, true);
+
+  assert.deepStrictEqual(deux, [{ type: 'premierPlan' }]);
+  assert.deepStrictEqual(un, [], 'le client non vise ne doit rien recevoir');
+});
+
+test('basculerVers refuse un client inconnu, sans lever', () => {
+  const s = superviseurAvecComptes([1]);
+  const r = s.basculerVers(999);
+  assert.strictEqual(r.ok, false);
+  assert.match(r.raison, /inconnu/);
+});
+
+// Un client attache dont le script n'a pas fini de charger n'a pas encore de
+// post: le dire plutot que de lever dans un gestionnaire de raccourci global.
+test('basculerVers refuse un client sans agent en place', () => {
+  const s = superviseurAvecComptes([1]);
+  s.clients.set(1, { pid: 1, amont: null, script: null });
+  const r = s.basculerVers(1);
+  assert.strictEqual(r.ok, false);
+  assert.match(r.raison, /agent/);
+});
+
+// Une exception de Frida ne doit pas remonter jusqu'au raccourci: elle se rend
+// comme un refus ordinaire.
+test('un post qui lève se rend comme un refus', () => {
+  const s = superviseurAvecComptes([1]);
+  s.clients.set(1, { pid: 1, amont: null, script: { post: () => { throw new Error('script detruit'); } } });
+  const r = s.basculerVers(1);
+  assert.strictEqual(r.ok, false);
+  assert.match(r.raison, /script detruit/);
+});
+
+// `enAvant` sert de point de depart a « personnage suivant ». Il ne decerne
+// PAS le role de maitre: celui-la est epingle, et le focus ne le decide plus.
+test('le superviseur ne connaît aucun premier plan au départ', () => {
+  assert.strictEqual(new Superviseur().enAvant, null);
 });

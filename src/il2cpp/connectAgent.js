@@ -232,6 +232,165 @@ function connectAgentSource({
       report.push('premier plan surveille');
     }` : ''}
 
+
+    // MISE AU PREMIER PLAN, sur commande de l'hote.
+    //
+    // POURQUOI DEPUIS L'AGENT. SetForegroundWindow est bride: Windows n'y
+    // autorise qu'un processus qui a recu le dernier evenement d'entree, ou
+    // qui est deja au premier plan. Le contournement documente par Microsoft
+    // est AttachThreadInput: on rattache le fil de NOTRE fenetre a celui du
+    // premier plan courant, le temps de l'appel. Cela demande d'etre dans la
+    // place, donc dans le process du jeu — l'agent y est deja.
+    //
+    // Ces fonctions user32, l'agent les appelait deja pour surveiller le
+    // premier plan: aucune surface nouvelle.
+    {
+      const u32b = Process.getModuleByName('user32.dll');
+      const exb = (n) => u32b.findExportByName ? u32b.findExportByName(n) : u32b.getExportByName(n);
+      const k32 = Process.getModuleByName('kernel32.dll');
+      const exk = (n) => k32.findExportByName ? k32.findExportByName(n) : k32.getExportByName(n);
+
+      const EnumWindows = new NativeFunction(exb('EnumWindows'), 'int', ['pointer', 'pointer']);
+      const IsWindowVisible = new NativeFunction(exb('IsWindowVisible'), 'int', ['pointer']);
+      const GetWindowThreadProcessId2 = new NativeFunction(exb('GetWindowThreadProcessId'), 'uint32', ['pointer', 'pointer']);
+      const SetForegroundWindow = new NativeFunction(exb('SetForegroundWindow'), 'int', ['pointer']);
+      const AttachThreadInput = new NativeFunction(exb('AttachThreadInput'), 'int', ['uint32', 'uint32', 'int']);
+      const GetForegroundWindow2 = new NativeFunction(exb('GetForegroundWindow'), 'pointer', []);
+      const BringWindowToTop = new NativeFunction(exb('BringWindowToTop'), 'int', ['pointer']);
+      const ShowWindow = new NativeFunction(exb('ShowWindow'), 'int', ['pointer', 'int']);
+      const IsIconic = new NativeFunction(exb('IsIconic'), 'int', ['pointer']);
+      const GetCurrentThreadId = new NativeFunction(exk('GetCurrentThreadId'), 'uint32', []);
+      const SW_RESTORE = 9;
+
+      // Ces deux-la peuvent manquer selon la version de Windows: on les rend
+      // facultatives plutot que de faire echouer tout l'agent au chargement.
+      const opt = (nom, retour, args) => {
+        try {
+          const p = exb(nom);
+          return p === null ? null : new NativeFunction(p, retour, args);
+        } catch (e) { return null; }
+      };
+      const SwitchToThisWindow = opt('SwitchToThisWindow', 'void', ['pointer', 'int']);
+      const SystemParametersInfoW = opt('SystemParametersInfoW', 'int', ['uint32', 'uint32', 'pointer', 'uint32']);
+      const SPI_GETFOREGROUNDLOCKTIMEOUT = 0x2000;
+      const SPI_SETFOREGROUNDLOCKTIMEOUT = 0x2001;
+      const SPIF_SENDCHANGE = 0x02;
+
+      const casier = Memory.alloc(4);
+      const filDe = (hwnd) => {
+        casier.writeU32(0);
+        return GetWindowThreadProcessId2(hwnd, casier);
+      };
+
+      // La premiere fenetre VISIBLE de haut niveau qui nous appartienne. Le
+      // jeu en cree d'autres, invisibles, dont la mise au premier plan ne
+      // ferait rien de visible pour l'utilisateur.
+      const rappel = new NativeCallback(function (hwnd, _lp) {
+        if (trouvee !== null) return 0;
+        if (IsWindowVisible(hwnd) === 0) return 1;
+        casier.writeU32(0);
+        GetWindowThreadProcessId2(hwnd, casier);
+        if (casier.readU32() === Process.id) { trouvee = hwnd; return 0; }
+        return 1;
+      }, 'int', ['pointer', 'pointer']);
+      let trouvee = null;
+      function maFenetre() {
+        trouvee = null;
+        EnumWindows(rappel, NULL);
+        return trouvee;
+      }
+
+      // TROIS RECOURS, DANS L'ORDRE, ET ON S'ARRETE DES QUE CA MARCHE.
+      //
+      // SetForegroundWindow seul reussissait environ une fois sur deux. Windows
+      // protege deliberement le premier plan, et un seul appel ne suffit pas:
+      // la regle depend de qui a recu la derniere entree, du verrou de premier
+      // plan, et de l'etat du bureau au moment precis de l'appel.
+      //
+      //   1. AttachThreadInput + SetForegroundWindow — le contournement
+      //      documente par Microsoft, qui marche la plupart du temps.
+      //   2. SwitchToThisWindow — non documente mais stable depuis vingt ans,
+      //      c'est ce qu'utilise Alt+Tab, et il ignore le verrou.
+      //   3. Verrou de premier plan mis a zero, nouvel essai, verrou remis.
+      //      Le plus intrusif, donc le dernier, et l'ancienne valeur est
+      //      TOUJOURS restauree.
+      //
+      // Chaque etape est verifiee: on rend compte de ce qui s'est passe, pas de
+      // ce qu'on a tente.
+      function estDevant(h) {
+        const a = GetForegroundWindow2();
+        return !a.isNull() && a.equals(h);
+      }
+
+      function auPremierPlan() {
+        const moi = maFenetre();
+        if (moi === null || moi.isNull()) return false;
+        // Une fenetre reduite ne peut pas passer devant: on la restaure
+        // d'abord, sans quoi la bascule est silencieusement sans effet.
+        if (IsIconic(moi) !== 0) ShowWindow(moi, SW_RESTORE);
+        if (estDevant(moi)) return true;
+
+        // --- 1. le contournement documente ---
+        const devant = GetForegroundWindow2();
+        const filDevant = devant.isNull() ? 0 : filDe(devant);
+        const filMoi = filDe(moi);
+        const rattache = filDevant !== 0 && filDevant !== filMoi
+          && AttachThreadInput(filMoi, filDevant, 1) !== 0;
+        try {
+          SetForegroundWindow(moi);
+          BringWindowToTop(moi);
+        } finally {
+          // Le detachement est OBLIGATOIRE: deux fils dont les entrees restent
+          // liees se bloquent mutuellement au premier incident.
+          if (rattache) AttachThreadInput(filMoi, filDevant, 0);
+        }
+        if (estDevant(moi)) return true;
+
+        // --- 2. la voie d'Alt+Tab ---
+        if (SwitchToThisWindow !== null) {
+          try { SwitchToThisWindow(moi, 1); } catch (e) {}
+          if (estDevant(moi)) return true;
+        }
+
+        // --- 3. le verrou de premier plan, rendu ensuite ---
+        if (SystemParametersInfoW !== null) {
+          const ancien = Memory.alloc(8);
+          ancien.writeU64(0);
+          let lu = false;
+          try {
+            lu = SystemParametersInfoW(SPI_GETFOREGROUNDLOCKTIMEOUT, 0, ancien, 0) !== 0;
+            SystemParametersInfoW(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, NULL, SPIF_SENDCHANGE);
+            SetForegroundWindow(moi);
+            BringWindowToTop(moi);
+          } catch (e) {
+          } finally {
+            if (lu) {
+              try {
+                SystemParametersInfoW(SPI_SETFOREGROUNDLOCKTIMEOUT, 0,
+                  ptr(ancien.readU32()), SPIF_SENDCHANGE);
+              } catch (e) {}
+            }
+          }
+          if (estDevant(moi)) return true;
+        }
+
+        return false;
+      }
+
+      // recv n'ecoute qu'UNE fois: on se replace apres chaque message, sinon
+      // la premiere bascule serait aussi la derniere.
+      function ecouter() {
+        recv('premierPlan', function () {
+          let fait = false;
+          try { fait = auPremierPlan(); } catch (e) { fait = false; }
+          send({ premierPlanFait: fait });
+          ecouter();
+        });
+      }
+      ecouter();
+      report.push('commande de fenetre');
+    }
+
     send({ ready: report });
   `;
 }

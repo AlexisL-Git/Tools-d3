@@ -60,6 +60,7 @@ function ligneBase(compte, favoris, exclus, passeTour, invitation, noAnim, echan
     estMaitre: false,
     suivi: false,
     pilotable: false,
+    eligibleMaitre: false,
     message: null,
   };
 }
@@ -91,6 +92,21 @@ function construireVue({
   const pilotableDe = (pid) =>
     !erreurs.has(pid) && (intercepte.has(pid) || enAttente.has(pid));
 
+  // Qui a le droit de COMMANDER, ce qui n est pas qui a le droit d etre
+  // pilote. Deux differences avec pilotableDe, chacune payee d une raison.
+  //
+  // La preuve de trafic est exigee, pas la fenetre d attente: un maitre doit
+  // EMETTRE des trames, sinon il n y a rien a repliquer. Avant la premiere
+  // trame il n y a par construction aucune action a dupliquer, donc exclure
+  // l attente ne coute rien.
+  //
+  // Un identifiant de compte est exige: le choix est memorise PAR IDENTIFIANT
+  // dans favoris.json, et un client dont la ligne de commande n en porte pas
+  // ne survivrait pas au redemarrage. Un maitre qui s oublie a chaque
+  // lancement est le contraire de ce qui est demande.
+  const eligibleMaitreDe = (pid, id) =>
+    id !== null && !erreurs.has(pid) && intercepte.has(pid);
+
   // Les clients repris a la fin sont ceux qu'aucune ligne de compte n'a
   // absorbes: on les suit ici plutot que de tester a nouveau leur idCompte.
   const absorbes = new Set();
@@ -108,6 +124,7 @@ function construireVue({
     ligne.pilotable = pilotableDe(client.pid);
     ligne.etat = etatClient(client.pid, 'intercepte');
     ligne.estMaitre = client.pid === maitre;
+    ligne.eligibleMaitre = eligibleMaitreDe(client.pid, compte.id);
     ligne.message = messageDe(client.pid);
     return ligne;
   });
@@ -147,6 +164,7 @@ function construireVue({
       // un champ code en dur ici rendrait la ligne indebrayable. Toutes les
       // lignes passent par ce repli si lireComptes() echoue.
       pilotable: pilotableDe(c.pid),
+      eligibleMaitre: eligibleMaitreDe(c.pid, c.idCompte),
       message: messageDe(c.pid),
     });
   }
