@@ -73,7 +73,21 @@
       });
     } catch (e) { avis('requete impossible: ' + e.message); throw e; }
     if (r.status === 404) { avis('mot de passe refuse'); throw new Error('404'); }
-    if (!r.ok) { avis('le serveur a repondu ' + r.status + ' — reessaie'); throw new Error(String(r.status)); }
+    if (!r.ok) {
+      // Sur un 400, le serveur explique le refus dans { erreur }: on le
+      // montre a la place du message generique. Corps absent, non-JSON, ou
+      // sans champ erreur: on retombe sur le message generique, sans lever
+      // une seconde exception depuis le gestionnaire d'erreur.
+      let message = 'le serveur a repondu ' + r.status + ' — reessaie';
+      if (r.status === 400) {
+        try {
+          const corpsErreur = await r.json();
+          if (corpsErreur && corpsErreur.erreur) message = corpsErreur.erreur;
+        } catch (e) { /* corps non JSON: message generique conserve */ }
+      }
+      avis(message);
+      throw new Error(String(r.status));
+    }
     return r.json();
   }
   async function entrer() {
@@ -157,16 +171,20 @@
     try { archive = await lireEnBase64(f); }
     catch (e) { avis(e.message); return; }
     const r = await api('televerser', { version, archive });
-    avis(r.deja
+    const message = r.deja
       ? (version + ' etait deja en base, octets identiques')
-      : (version + ' televersee — empreinte ' + r.sha256.slice(0, 8) + '…, ' + taille(r.taille)));
-    rafraichirVersions();
+      : (version + ' televersee — empreinte ' + r.sha256.slice(0, 8) + '…, ' + taille(r.taille));
+    // rafraichirVersions() appelle api() qui pose '...' dans #avis: on
+    // attend la fin du rafraichissement avant d'afficher le message, sinon
+    // il est efface avant meme d'etre vu.
+    await rafraichirVersions();
+    avis(message);
   }
 
   async function activer(version) {
     const r = await api('activer', { version });
+    await rafraichirVersions();
     avis('manifeste bascule sur ' + r.version);
-    rafraichirVersions();
   }
 
   async function rafraichirVersions() {
