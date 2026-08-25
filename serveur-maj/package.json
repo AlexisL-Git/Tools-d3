@@ -4,8 +4,7 @@
   "private": true,
   "description": "Service de mise a jour et distribution de OMNI",
   "scripts": {
-    "test": "node --test",
-    "publier": "node publier.js"
+    "test": "node --test"
   },
   "engines": { "node": ">=18" },
   "dependencies": { "@neondatabase/serverless": "^0.10.4" }

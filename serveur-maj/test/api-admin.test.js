@@ -54,28 +54,13 @@ test('creer sans nom, 400', async () => {
   assert.strictEqual(r.statut, 400);
 });
 
-test('publier ecrit version et sha256 dans le manifeste', async () => {
-  const sql = fauxSql([[]]);
+test('publier n existe plus: action inconnue', async () => {
   const r = await traiterAdmin({
-    motDePasse: SECRET, action: 'publier', corps: { version: '0.2.0', sha256: 'a'.repeat(64) },
-    sql, motDePasseAttendu: SECRET,
+    motDePasse: SECRET, action: 'publier', corps: { version: '0.2.4', sha256: 'a'.repeat(64) },
+    sql: fauxSql([]), motDePasseAttendu: SECRET,
   });
-  assert.strictEqual(r.statut, 200);
-  assert.deepStrictEqual(r.corps, { ok: true, version: '0.2.0' });
-});
-
-test('publier sans version ou sans sha256 est refuse', async () => {
-  const sansVersion = await traiterAdmin({ motDePasse: SECRET, action: 'publier', corps: { sha256: 'a'.repeat(64) }, sql: fauxSql([]), motDePasseAttendu: SECRET });
-  assert.strictEqual(sansVersion.statut, 400);
-  const sansSha = await traiterAdmin({ motDePasse: SECRET, action: 'publier', corps: { version: '0.2.0' }, sql: fauxSql([]), motDePasseAttendu: SECRET });
-  assert.strictEqual(sansSha.statut, 400);
-});
-
-// Une empreinte mal collee (tronquee, avec une espace) publierait une version
-// que plus aucun client n'accepterait: 64 caracteres hexadecimaux, ou rien.
-test('publier refuse une empreinte qui n est pas un sha256', async () => {
-  const r = await traiterAdmin({ motDePasse: SECRET, action: 'publier', corps: { version: '0.2.0', sha256: 'trop-court' }, sql: fauxSql([]), motDePasseAttendu: SECRET });
   assert.strictEqual(r.statut, 400);
+  assert.strictEqual(r.corps.erreur, 'action inconnue');
 });
 
 test('paquet enregistre une adresse https', async () => {

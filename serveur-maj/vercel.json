@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/manifeste.js": { "maxDuration": 10 },
-    "api/paquet.js": { "maxDuration": 10, "includeFiles": "paquets/**" },
+    "api/paquet.js": { "maxDuration": 10 },
     "api/admin.js": { "maxDuration": 10, "includeFiles": "web/**" },
     "api/telecharger.js": { "maxDuration": 10, "includeFiles": "web/**" }
   }

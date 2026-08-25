@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { creerClient, appliquerSchema } = require('../lib/db');
 const { listerAmis, creerAmi, basculerAmi } = require('../lib/amis');
-const { basculerService, ecrireManifeste, ecrireUrlPaquet, lireUrlPaquet, lireManifeste } = require('../lib/manifeste');
+const { basculerService, ecrireUrlPaquet, lireUrlPaquet, lireManifeste } = require('../lib/manifeste');
 const { enregistrerVersion, listerVersions, activerVersion } = require('../lib/versions');
 
 // Comparaison a temps constant: une comparaison ordinaire revele la longueur
@@ -38,20 +38,6 @@ async function traiterAdmin({ motDePasse, action, corps = {}, sql, genererCle, m
       if (!corps.cle) return { statut: 400, corps: { erreur: 'cle requise' } };
       await basculerAmi(sql, corps.cle, Boolean(corps.actif));
       return { statut: 200, corps: { ok: true } };
-    case 'publier': {
-      // Publier depuis le panneau plutot que depuis un poste: DATABASE_URL est
-      // une variable sensible, non recuperable en local. Le secret ne quitte
-      // jamais le serveur.
-      const { version, sha256 } = corps;
-      if (!version || !sha256) return { statut: 400, corps: { erreur: 'version et sha256 requis' } };
-      // Une empreinte mal collee publierait une version que plus aucun client
-      // n'accepterait: 64 caracteres hexadecimaux, ou rien.
-      if (!/^[0-9a-f]{64}$/i.test(String(sha256))) {
-        return { statut: 400, corps: { erreur: 'sha256 invalide' } };
-      }
-      await ecrireManifeste(sql, { version: String(version), sha256: String(sha256).toLowerCase() });
-      return { statut: 200, corps: { ok: true, version: String(version) } };
-    }
     case 'paquet': {
       // L'adresse du paquet complet, chez l'hebergeur de fichiers choisi.
       if (corps.url === undefined) return { statut: 200, corps: { url: await lireUrlPaquet(sql) } };

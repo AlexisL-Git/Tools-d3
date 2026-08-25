@@ -1,6 +1,4 @@
 'use strict';
-const path = require('node:path');
-const fs = require('node:fs');
 const { creerClient, appliquerSchema } = require('../lib/db');
 const { verifierCle } = require('../lib/amis');
 const { lireManifeste } = require('../lib/manifeste');
@@ -26,13 +24,7 @@ module.exports = async (req, res) => {
     const sql = creerClient();
     await appliquerSchema(sql);
     const cle = req.headers['x-cle'];
-    const lireArchive = async (version) => {
-      const octets = await lireArchiveEnBase(sql, version);
-      if (octets) return octets;
-      // REPLI TEMPORAIRE — le temps que 0.2.2 et 0.2.3 soient televersees.
-      // Retire par la tache 6 du plan, avec includeFiles et le dossier paquets/.
-      return fs.readFileSync(path.join(__dirname, '..', 'paquets', `${version}.tar.gz`));
-    };
+    const lireArchive = (version) => lireArchiveEnBase(sql, version);
     const { statut, corps, type } = await traiterPaquet({ cle, sql, lireArchive });
     res.statusCode = statut;
     if (corps === null) return res.end('');
