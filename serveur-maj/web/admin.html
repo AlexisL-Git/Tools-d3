@@ -214,9 +214,9 @@
     }
     t.append(entete);
     // La version vivante (manifeste.version) doit toujours correspondre a une
-    // ligne de ce tableau. Si aucune ne correspond, elle est servie par le
-    // repli disque de /api/paquet.js, pas par la base — c'est precisement
-    // l'etat que le retrait de ce repli rendrait dangereux en silence.
+    // ligne de ce tableau. Si aucune ne correspond, /api/paquet.js rendra 404
+    // pour cette version — plus aucun client ne pourra se mettre a jour, et
+    // sans cet avertissement, en silence.
     if (manifeste.version && !liste.some((v) => v.version === manifeste.version)) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
