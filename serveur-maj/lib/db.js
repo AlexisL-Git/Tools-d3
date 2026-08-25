@@ -39,6 +39,26 @@ async function appliquerSchema(sql) {
     taille     INTEGER NOT NULL,
     publiee_le TIMESTAMPTZ NOT NULL DEFAULT now()
   )`;
+  // La derniere version vue par chaque ami. Denormalisation volontaire: le
+  // tableau du panneau doit rester une seule requete, sans DISTINCT ON.
+  await sql`ALTER TABLE amis ADD COLUMN IF NOT EXISTS version_vue TEXT`;
+  // Un refus = une version qu'un ami a ecartee parce qu'elle n'a pas demarre
+  // chez lui. La cle primaire (cle, version) fait le dedoublonnage: la file
+  // du client renvoie le meme refus tant qu'elle n'a pas eu son 200.
+  await sql`CREATE TABLE IF NOT EXISTS refus (
+    cle        TEXT NOT NULL,
+    version    TEXT,
+    journal    TEXT,
+    signale_le TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (cle, version)
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS lancements (
+    id      BIGSERIAL PRIMARY KEY,
+    cle     TEXT NOT NULL,
+    version TEXT,
+    au      TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
+  await sql`CREATE INDEX IF NOT EXISTS lancements_cle_au ON lancements (cle, au DESC)`;
   await sql`INSERT INTO config (id) VALUES (1) ON CONFLICT (id) DO NOTHING`;
 }
 
