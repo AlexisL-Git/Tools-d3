@@ -44,3 +44,32 @@ test('aucune version publiee, 404', async () => {
   const r = await traiterPaquet({ cle: 'ok', sql, lireArchive: async () => Buffer.from('x') });
   assert.strictEqual(r.statut, 404);
 });
+
+// Verifier que la cle est validee AVANT le manifeste.
+// Si l'ordre etait inverse, lireManifeste consommerait réponse 1 (version valide),
+// verifierCle consommerait réponses 2 et 3 (clé acceptée), et lireArchive serait appelée.
+// Donc l'ordre inverse ferait échouer ce test (lu == true).
+test('verifierCle avant lireManifeste: archive jamais lue meme avec version', async () => {
+  let lu = false;
+  // Reponses configurees pour l'ordre:
+  // Bon ordre (verifierCle d'abord):
+  //   1: verifierCle SELECT (accepte car réponse non-vide)
+  //   2: lireManifeste (pas de 'version', donc version null) -> 404
+  // Mauvais ordre (lireManifeste d'abord):
+  //   1: lireManifeste (version: '0.2.0') -> continue
+  //   2: verifierCle SELECT (accepte car réponse non-vide) -> continue
+  //   3: verifierCle UPDATE -> continue
+  //   4: lireArchive appelée -> lu = true -> TEST ÉCHOUE
+  const sql = fauxSql([
+    [{ version: '0.2.0', sha256: 'abc', actif: true, message: null }],
+    [{ nom: 'K' }],
+    []
+  ]);
+  const r = await traiterPaquet({
+    cle: 'ok',
+    sql,
+    lireArchive: async () => { lu = true; return Buffer.from('x'); }
+  });
+  assert.strictEqual(r.statut, 404);
+  assert.strictEqual(lu, false);
+});
