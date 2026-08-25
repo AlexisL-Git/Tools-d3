@@ -8,6 +8,8 @@
   .off { opacity:.5; }
   .cle { font-family:monospace; font-size:12px; color:#8b93a3; }
   .alerte-version { color:#ff6b6b; font-weight:600; background:#3a1e1e; }
+  .retard { color:#e0a030; }
+  .rouge  { color:#e05555; }
   #avis { margin-top:12px; color:#8b93a3; min-height:1.2em; }
   #avis input { width:34em; }
   .bloc { margin-top:22px; padding-top:16px; border-top:1px solid #22252c; }
@@ -46,6 +48,12 @@
     <input id="pubversion" placeholder="version (ex: 0.2.3)" size="12">
     <button id="b-televerser">televerser</button>
     <table id="versions"></table>
+  </div>
+  <div class="bloc">
+    <h2 id="titre-refus" style="cursor:pointer" title="revenir a la liste des refus">Refus</h2>
+    <p class="aide">Une version qu'un ami a ecartee parce qu'elle n'a pas demarre chez lui.
+      En rouge quand elle porte sur la version actuellement active.</p>
+    <table id="refus"></table>
   </div>
   <table id="liste"></table>
 </div>
@@ -123,10 +131,21 @@
       const p = await api('paquet', {});
       if (p && p.url) document.getElementById('urlpaquet').value = p.url;
     } catch (e) { /* le lien n'est pas essentiel a l'affichage */ }
+    // Les compteurs et le manifeste ne sont pas essentiels a l'affichage des
+    // amis: leur echec ne doit pas vider le tableau.
+    let compteurs = {};
+    try {
+      for (const c of await api('lancements', {})) compteurs[c.cle] = c.n;
+    } catch (e) { /* tableau affiche sans la colonne 30 j */ }
+    let versionActive = null;
+    try {
+      const m = await api('lister-manifeste', {});
+      versionActive = m && m.version ? m.version : null;
+    } catch (e) { /* pas de mise en evidence du retard */ }
     const t = document.getElementById('liste');
     t.textContent = '';
     const entete = document.createElement('tr');
-    for (const titre of ['nom', 'cle', 'derniere vue', '']) {
+    for (const titre of ['nom', 'cle', 'version', '30 j', 'derniere vue', '']) {
       const th = document.createElement('th');
       th.textContent = titre;
       entete.append(th);
@@ -135,7 +154,17 @@
     for (const a of amis) {
       const tr = document.createElement('tr');
       if (!a.actif) tr.className = 'off';
-      tr.append(cellule(a.nom), cellule(a.cle, 'cle'), cellule(a.derniere_vue || '—'));
+      const nom = cellule(a.nom);
+      nom.style.cursor = 'pointer';
+      nom.onclick = () => montrerLancements(a);
+      const enRetard = a.version_vue && versionActive && a.version_vue !== versionActive;
+      tr.append(
+        nom,
+        cellule(a.cle, 'cle'),
+        cellule(a.version_vue || '—', enRetard ? 'retard' : null),
+        cellule(compteurs[a.cle] === undefined ? '—' : String(compteurs[a.cle])),
+        cellule(a.derniere_vue || '—'),
+      );
       const td = document.createElement('td');
       const b = document.createElement('button');
       b.textContent = a.actif ? 'desactiver' : 'activer';
@@ -147,10 +176,79 @@
     // versions. Un echec ici reste visible dans #avis, mais ne remonte
     // jamais jusqu'a entrer(), qui garderait sinon le panneau cache.
     try {
-      await rafraichirVersions();
+      await rafraichirVersions(amis);
       avis('');
     } catch (e) {
       avis('tableau des versions: rafraichissement echoue (' + e.message + ')');
+    }
+    // Meme logique que pour le tableau des versions: le bloc Refus est une
+    // vue secondaire, son echec ne doit jamais rendre le reste du panneau
+    // inutilisable.
+    try { await rafraichirRefus(); } catch (e) { /* le reste du panneau reste utilisable */ }
+  }
+
+  async function montrerLancements(a) {
+    const lignes = await api('lancements', { cle: a.cle });
+    const t = document.getElementById('refus');
+    t.textContent = '';
+    const titre = document.createElement('tr');
+    const th = document.createElement('th');
+    th.colSpan = 2;
+    th.textContent = 'derniers lancements de ' + a.nom;
+    titre.append(th); t.append(titre);
+    for (const l of lignes) {
+      const tr = document.createElement('tr');
+      tr.append(cellule(l.au), cellule(l.version || '—'));
+      t.append(tr);
+    }
+    if (!lignes.length) {
+      const tr = document.createElement('tr');
+      tr.append(cellule('aucun lancement enregistre'));
+      t.append(tr);
+    }
+    avis('clique « Refus » pour revenir a la liste des refus');
+  }
+
+  async function rafraichirRefus() {
+    const lignes = await api('refus', {});
+    let versionActive = null;
+    try {
+      const m = await api('lister-manifeste', {});
+      versionActive = m && m.version ? m.version : null;
+    } catch (e) { /* pas de mise en evidence */ }
+    const t = document.getElementById('refus');
+    t.textContent = '';
+    const entete = document.createElement('tr');
+    for (const titre of ['ami', 'version', 'signale le', '']) {
+      const th = document.createElement('th');
+      th.textContent = titre;
+      entete.append(th);
+    }
+    t.append(entete);
+    for (const l of lignes) {
+      const tr = document.createElement('tr');
+      // Rouge seulement si le refus porte sur la version SERVIE aujourd'hui:
+      // l'alerte s'eteint d'elle-meme des qu'un correctif est active.
+      const classe = l.version === versionActive ? 'rouge' : null;
+      tr.append(cellule(l.nom || l.cle, classe), cellule(l.version, classe), cellule(l.signale_le));
+      const td = document.createElement('td');
+      if (l.journal) {
+        const b = document.createElement('button');
+        b.textContent = 'journal';
+        b.onclick = () => {
+          const pre = document.createElement('pre');
+          pre.textContent = l.journal;      // jamais innerHTML
+          td.textContent = '';
+          td.append(pre);
+        };
+        td.append(b);
+      }
+      tr.append(td); t.append(tr);
+    }
+    if (!lignes.length) {
+      const tr = document.createElement('tr');
+      tr.append(cellule('aucun refus — c est la bonne nouvelle'));
+      t.append(tr);
     }
   }
   async function creer() {
@@ -202,7 +300,7 @@
     await apresAction(rafraichirVersions, 'manifeste bascule sur ' + r.version);
   }
 
-  async function rafraichirVersions() {
+  async function rafraichirVersions(amis) {
     const [liste, manifeste] = [await api('versions'), await api('lister-manifeste')];
     const t = document.getElementById('versions');
     t.textContent = '';
@@ -236,7 +334,15 @@
       );
       const td = document.createElement('td');
       if (v.version === manifeste.version) {
-        td.textContent = '● courante';
+        // amis n'est fourni que par rafraichir() (qui l'a deja charge). Les
+        // appels depuis televerser()/activer() n'en disposent pas: on garde
+        // alors l'affichage simple plutot que de refaire un appel lister().
+        if (amis) {
+          const aJour = amis.filter((a) => a.version_vue === v.version).length;
+          td.textContent = '● courante — ' + aJour + '/' + amis.length + ' amis';
+        } else {
+          td.textContent = '● courante';
+        }
       } else {
         const b = document.createElement('button');
         b.textContent = 'activer';
@@ -272,6 +378,9 @@
   });
   document.getElementById('b-entrer').onclick = entrer;
   document.getElementById('b-creer').onclick = creer;
+  // Le clic sur un nom d'ami remplace #refus par son detail de lancements;
+  // cliquer le titre du bloc y ramene, sans recharger la page.
+  document.getElementById('titre-refus').onclick = rafraichirRefus;
   document.getElementById('mdp').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrer(); });
   document.getElementById('nom').addEventListener('keydown', (e) => { if (e.key === 'Enter') creer(); });
 </script>
