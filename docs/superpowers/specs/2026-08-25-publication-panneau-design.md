@@ -112,14 +112,14 @@ où recliquer ne doit pas être une faute.
 | Plus de 4 Mo | `archive trop grosse (N Mo, plafond 4)` |
 | Deux premiers octets ≠ `1f 8b` | `ce fichier n'est pas un .tar.gz` |
 | Version déjà en base, octets **différents** | `<v> existe deja avec une autre empreinte` |
-| Version déjà en base, octets **identiques** | accepté, sans écriture (idempotent) |
+| Version déjà en base, octets **identiques** | accepté, sans insertion (idempotent) |
 
 **`activer` :**
 
 | Cas | Réponse |
 |---|---|
 | Version inconnue en base | `version inconnue — televerse-la d'abord` |
-| Version déjà courante | accepté, sans écriture |
+| Version déjà courante | accepté — réécriture des mêmes valeurs, donc sans effet |
 
 Le contrôle des deux octets de gzip ne prouve pas que l'archive est bonne,
 seulement qu'elle est plausible. La vraie preuve reste le sha256 vérifié par
