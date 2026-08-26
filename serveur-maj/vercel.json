@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["fra1"],
   "functions": {
     "api/manifeste.js": { "maxDuration": 10 },
     "api/paquet.js": { "maxDuration": 10 },

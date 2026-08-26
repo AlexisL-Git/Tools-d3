@@ -8,10 +8,33 @@ function creerClient() {
   return neon(process.env.DATABASE_URL);
 }
 
+// Le schema ne change qu'entre deux deploiements, jamais entre deux requetes.
+// Le rejouer a chaque appel coutait NEUF allers-retours vers la base avant tout
+// travail utile. Mesure du 2026-08-26, fonction a Washington et base a
+// Francfort: 1,44 a 1,92 s par requete, alors que l'amorceur abandonne sa
+// remontee d'etat a 2 s — la fonctionnalite ne marchait chez personne.
+//
+// Une fois par processus suffit: un conteneur neuf le pose, les requetes
+// suivantes n'y touchent plus. On memorise la PROMESSE, pas un booleen, pour
+// que deux requetes concurrentes dans le meme processus n'en lancent qu'un.
+let schemaPose = null;
+
+async function appliquerSchema(sql) {
+  if (schemaPose) return schemaPose;
+  // Un echec ne doit PAS rester memorise: le processus partirait sinon sur une
+  // base sans tables jusqu'a sa mort, sans jamais retenter.
+  schemaPose = ecrireSchema(sql).catch((e) => { schemaPose = null; throw e; });
+  return schemaPose;
+}
+
+// Oublie ce qui a ete pose. Reservee aux tests: chacun doit partir d'un
+// processus vierge, sinon le premier masquerait tous les suivants.
+function oublierSchema() { schemaPose = null; }
+
 // Idempotent: sur pour etre appele a chaque demarrage. Deux tables:
 //   amis      une ligne par ami, la cle est l'identifiant
 //   config    UNE seule ligne (id=1) portant le manifeste courant
-async function appliquerSchema(sql) {
+async function ecrireSchema(sql) {
   await sql`CREATE TABLE IF NOT EXISTS amis (
     cle TEXT PRIMARY KEY,
     nom TEXT NOT NULL,
@@ -62,4 +85,4 @@ async function appliquerSchema(sql) {
   await sql`INSERT INTO config (id) VALUES (1) ON CONFLICT (id) DO NOTHING`;
 }
 
-module.exports = { creerClient, appliquerSchema };
+module.exports = { creerClient, appliquerSchema, oublierSchema };
