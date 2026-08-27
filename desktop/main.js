@@ -799,12 +799,16 @@ function poserRaccourcis() {
 
 // Derive un message affichable de n'importe quoi: un throw ou un reject
 // peuvent porter autre chose qu'une Error (throw null, Promise.reject() sans
-// argument...). Lire .message dessus leverait a son tour, DANS le catch qui
-// est cense arreter la casse — String() ne leve jamais sur ces formes.
+// argument, un objet dont .message ou toString() ne rend pas une chaine...).
+// Toutes les branches passent par la meme conversion protegee: .message n'est
+// pas fiable a lui seul (il peut valoir un Symbol, un nombre...), et un Symbol
+// renvoye tel quel leverait plus tard a l'interpolation dans le gabarit, DANS
+// le catch qui est cense arreter la casse. String() sous try/catch ne leve
+// jamais et rend toujours une chaine.
 function messageErreur(e) {
-  if (e instanceof Error) return e.message;
-  if (typeof e === 'string') return e;
-  try { return String(e); } catch { return 'erreur inconnue'; }
+  const brut = e instanceof Error ? e.message : e;
+  if (typeof brut === 'string') return brut;
+  try { return String(brut); } catch { return 'erreur inconnue'; }
 }
 
 // Un appui de bouton, d'ou qu'il vienne: de l'agent quand Dofus est devant, de
