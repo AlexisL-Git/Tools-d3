@@ -1,4 +1,5 @@
 'use strict';
+const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require('electron');
 
@@ -274,10 +275,95 @@ const DEPART = Date.now();
 // retrouver la sortie qui a servi a diagnostiquer le passe-tour et le no-anim.
 const JOURNAL_COMPLET = process.env.OMNI_JOURNAL === 'complet';
 
+// Le journal doit atterrir dans un FICHIER, pas seulement dans la console.
+// Lance par outils/lancer-dev.vbs, OMNI tourne sans console attachee: tout ce
+// que console.log ecrit est perdu, et un diagnostic muet ressemble trait pour
+// trait a un diagnostic qui n'a rien vu. Le meme piege a deja coute une soiree
+// sur faire-etape.js.
+let cheminJournal = null;
+function fichierJournal() {
+  if (cheminJournal === null) {
+    cheminJournal = process.env.OMNI_JOURNAL_FICHIER
+      || path.join(process.env.OMNI_DEV || app.getPath('userData'), 'journal-dev.log');
+    try { fs.writeFileSync(cheminJournal, `--- OMNI ${new Date().toISOString()} ---\n`); }
+    catch { /* un journal qui ne s'ouvre pas ne doit pas empecher l'app de tourner */ }
+  }
+  return cheminJournal;
+}
+
 function journal(pid, texte) {
   if (!JOURNAL_COMPLET) return;
   const t = String(Date.now() - DEPART).padStart(7);
-  console.log(`${t}ms [${pid}] ${texte}`);
+  const ligne = `${t}ms [${pid}] ${texte}`;
+  console.log(ligne);
+  try { fs.appendFileSync(fichierJournal(), ligne + '\n'); } catch { /* idem */ }
+}
+
+// LA CAPTURE COMPLETE, sur son propre interrupteur: OMNI_CAPTURE=1.
+//
+// Elle journalise TOUTE trame, dans LES DEUX SENS, avec ses champs de premier
+// niveau. C'est elle qui a identifie jyj le 27/08, apres deux diagnostics faux
+// tires de correlations. Deux raisons de la garder plutot que de la retirer
+// comme la precedente:
+//
+// - LE SENS SORTANT est la seule mesure de reference qui existe. Notre propre
+//   jxy ne s'y voit pas — il est ecrit directement sur la socket amont et ne
+//   repasse pas par le reassembleur — donc tout jxy sortant journalise vient
+//   de la MAIN de l'utilisateur, et date un instant ou le serveur a
+//   effectivement accepte de passer le tour. Aucune correlation ne vaut ca.
+// - REGARDER TOUS LES TYPES, et pas seulement ceux qu'on croit utiles. jyj
+//   traversait le flux depuis le debut; il figurait meme dans les tests, comme
+//   exemple de type SANS interet.
+//
+// Elle reste couteuse — plusieurs milliers de lignes par combat — d'ou son
+// interrupteur separe: OMNI_JOURNAL=complet donne les lignes utiles sans le
+// deluge, OMNI_CAPTURE=1 y ajoute le deluge quand il faut mesurer.
+const CAPTURE = process.env.OMNI_CAPTURE === '1';
+
+// Les champs de premier niveau, en une ligne courte. Un champ imbrique ou
+// binaire est resume: sa taille suffit a le reconnaitre, son contenu noierait
+// le journal.
+function champsCourts(payload) {
+  const out = [];
+  for (const f of payload || []) {
+    if (f.kind === 'message') out.push(`${f.no}={…}`);
+    else if (f.kind === 'bytes') out.push(`${f.no}=<${(f.raw || f.value || '').length}o>`);
+    else out.push(`${f.no}=${f.value}`);
+    if (out.join(' ').length > 140) { out.push('…'); break; }
+  }
+  return out.join(' ');
+}
+
+function diagnostic(sup) {
+  const idsVus = new Map();   // pid -> characterId deja journalise
+  return function onTrame({ pid, dir, frame, estMaitre }) {
+    if (frame === null) return;
+
+    // Une ligne par changement, hors capture: le characterId et les deux
+    // interrupteurs expliquent a eux seuls la plupart des « ca ne fait rien ».
+    const etat = sup.comptes.get(pid);
+    const id = etat === null ? null : etat.characterId;
+    if (idsVus.get(pid) !== id) {
+      idsVus.set(pid, id);
+      journal(pid, `characterId=${id} passeTour=${etat && etat.passeTour} maitre=${Boolean(estMaitre)}`);
+    }
+
+    if (!CAPTURE) return;
+
+    if (dir !== 'in') {
+      journal(pid, `cap : --> ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
+        + (frame.type === 'jxy' ? '   <<<<< PASSE A LA MAIN' : ''));
+      return;
+    }
+
+    // Les trois messages de tour sont marques: jzc l'ouvre, jyj dit qu'il est
+    // a nous, jxh le termine.
+    const moi = id !== null && id !== undefined
+      && (frame.payload || []).some((f) => (f.no === 1 || f.no === 2) && f.value === id);
+    const tour = ['jzc', 'jyj', 'jxh'].includes(frame.type) ? ' *' : '  ';
+    journal(pid, `cap :${tour}<-- ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
+      + `${moi ? '  <-- MOI' : ''}`);
+  };
 }
 
 // Une trame decodee prouve que le trafic traverse le proxy. Un client attache
@@ -631,6 +717,8 @@ app.whenReady().then(async () => {
       },
     }),
     noterTrafic(),
+    // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
+    diagnostic(superviseur),
     // Une politique qui leve doit se voir. C'est ce qui manquait: le passeur
     // pouvait echouer sur une trame sans laisser la moindre trace.
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },

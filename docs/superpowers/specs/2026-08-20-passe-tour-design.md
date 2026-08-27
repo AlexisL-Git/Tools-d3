@@ -4,6 +4,39 @@
 **Statut :** conception validée, non implémentée. Deux messages du protocole
 restent à identifier par mesure.
 
+## Correction du 2026-08-27 — le déclencheur est `jyj`, pas `jxh`
+
+**Tout ce qui suit à propos du déclencheur est faux.** Mesuré sur un combat de
+groupe à deux clients, journal entrant ET sortant :
+
+| message | sens | rôle réel |
+|---|---|---|
+| `jzc { 1: characterId, 7: rang, 8: manche }` | entrant | **début** du tour de ce combattant |
+| **`jyj { }`** (vide) | entrant | **c'est NOTRE tour** — personnel |
+| `jxh { 2: characterId }` | entrant | **fin** du tour de ce combattant |
+
+`jyj` est envoyé au seul client concerné : sur 9 occurrences, chacune suit de
+2 à 39 ms un `jzc` portant le characterId de ce client, et les 49 `jzc`
+portant l'identifiant d'un autre combattant n'en ont produit aucun. Aucun
+orphelin dans un sens ni dans l'autre.
+
+`jxh` est bien une **fin** de tour, et cette fois par causalité et non par
+corrélation : un clic réel sur « Passer » à 72526 ms a produit le `jxh` portant
+notre characterId à 72560 ms, 34 ms plus tard.
+
+**Le tour ne s'ouvre pas à l'instant du `jxh` précédent** : le serveur l'ouvre
+environ 400 ms plus tard. Tous les `jxy` partis à l'instant du `jxh` ont été
+ignorés, sans exception. C'est ce décalage, et lui seul, qui a fait échouer le
+passe-tour pendant une semaine — visible seulement sur les personnages qui ne
+jouent pas en premier, d'où le faux diagnostic « ça marche en solo, pas en
+groupe ».
+
+**La leçon de méthode :** `jxh` a été lu tour à tour comme un début et comme
+une fin, et les deux lectures expliquaient aussi bien les intervalles observés.
+Un journal fait uniquement de trames **entrantes** ne peut pas trancher. Ce qui
+tranche est un geste dont on connaît l'effet — un clic manuel — parce que le
+serveur, lui, ne se trompe pas sur ce qu'il accepte.
+
 ## Le besoin
 
 Sur un compte mené en combat sans devoir agir — une mule — passer le tour

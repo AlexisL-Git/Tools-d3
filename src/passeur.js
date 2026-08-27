@@ -8,62 +8,62 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 //
 //   request { content: Any{ type_url: "type.ankama.com/jxy" }, uid: -1 }
 //
-// Les deux fois, le tour s'est termine 30 ms plus tard, a 1,5 s puis a 21,7 s
-// du debut du tour. Aucun autre tour de la capture ne portait de jxy: tous ont
-// dure les 36,0 s du chronometre complet. jxy ne porte AUCUN champ.
+// jxy ne porte AUCUN champ. La trame ne designe donc personne: le serveur ne
+// peut l'appliquer qu'a l'emetteur, et seulement pendant SON tour. Passer le
+// tour d'un autre est impossible par construction, et un jxy hors tour est
+// simplement ignore.
 //
-// Consequence importante: la trame ne designe personne. Le serveur ne peut
-// l'appliquer qu'a l'emetteur. Passer le tour d'un autre combattant est donc
-// impossible par construction — c'est ce qui autorise le declencheur large
-// ci-dessous.
+// LE DECLENCHEUR: jyj, un evenement ENTRANT et VIDE.
 //
-// LE DECLENCHEUR. Le message qui annonce « ton tour commence » n'est pas
-// identifie. Deux jalons encadrent le debut d'un tour:
+// Mesure le 27/08 sur un combat de groupe, les deux clients journalises. Sur
+// 9 jyj recus, chacun suit de 2 a 39 ms un `jzc { 1: characterId }` portant
+// l'identifiant de CE client — et les 49 jzc portant l'identifiant d'un autre
+// combattant n'en ont produit aucun. Aucun orphelin dans un sens ni dans
+// l'autre. jyj est donc personnel, et il ne porte aucun champ parce qu'il n'a
+// rien a dire de plus que « c'est ton tour ».
 //
-//   jxh { 2: characterId }   FIN du tour de ce personnage (-1 pour un monstre)
-//   jxz { 2: numero }        compteur de tours, dernier message avant le notre
-//                            dans les combats mesures
+// Il faut les deux messages pour comprendre le combat, mais un seul pour agir:
 //
-// jxh a longtemps ete lu comme un DEBUT de tour. Les durees mesurees l'ont
-// dementi: les tours du joueur duraient 36 s et se terminaient sur ce message.
-// S'en servir comme declencheur revenait a passer un tour deja fini.
+//   jzc { 1: id, 7: rang, 8: manche }   debut du tour de ce combattant
+//   jyj { }                             c'est NOTRE tour  <- declencheur
+//   jxh { 2: id }                       FIN du tour de ce combattant
 //
-// On emet donc sur TOUS les jalons qui precedent un debut de tour possible:
-// chaque fin de tour d'un autre combattant, et le compteur. Un jxy hors tour
-// etant ignore, un declencheur imprecis coute des trames inutiles, pas une
-// erreur de jeu. Le seul cas ecarte est la fin de NOTRE tour: la, notre tour
-// vient de finir, il n'y a rien a passer.
+// CE QUI NE MARCHAIT PAS, ET POURQUOI. Le passeur tirait sur jxh, la fin du
+// tour du combattant precedent, en la prenant pour le debut du notre. Le
+// serveur ouvre en realite notre tour ~400 ms plus tard: sur le combat mesure,
+// TOUS les envois partis a l'instant du jxh ont ete ignores, sans exception.
 //
-// N'essayer QU'UNE FOIS par manche serait tentant pour economiser des trames.
-// C'est ce que faisait une version precedente, et elle echouait en
-// multicompte: la tentative unique partait des la fin du premier tour de la
-// manche, donc bien avant le notre si le personnage jouait en cinquieme
-// position, et la manche se terminait sans autre essai. Le nombre de jalons
-// est borne par le nombre de combattants, pas par le temps: huit comptes
-// coutent huit trames par manche. La borne est acceptable, le limiteur non.
+// Le defaut se voyait a peine sur le maitre et pas du tout sur une mule, et
+// c'est ce qui l'a rendu si difficile a cerner. Le maitre jouait en premier:
+// les relances armees sur le compteur de manche finissaient par tomber dans la
+// fenetre utile, et son tour passait — tard, mais il passait. Une mule qui
+// joue en deuxieme ou en cinquieme n'avait plus une seule trame dans la
+// fenetre. « En solo ca marche, en groupe non » decrivait en fait « sur le
+// premier a jouer ca marche, sur les autres non ».
+//
+// jxh a ete lu tour a tour comme une fin de tour et comme un debut, chaque
+// lecture expliquant aussi bien les intervalles observes. Ce qui a tranche
+// n'est pas une correlation de plus mais une CAUSALITE: un vrai clic sur
+// « Passer » a 72526 ms a produit le jxh portant notre characterId a 72560 ms,
+// 34 ms plus tard. jxh est bien une fin de tour — celle que notre propre clic
+// venait de provoquer.
 //
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur.
 
+const TYPE_MON_TOUR = 'jyj';
 const TYPE_FIN_TOUR = 'jxh';
-const TYPE_COMPTEUR = 'jxz';
 const CHAMP_PERSONNAGE = 2;
 const URL_PASSE = 'type.ankama.com/jxy';
-// Relances echelonnees apres le compteur de manche.
+
+// Relances, au cas ou le premier jxy se perde ou arrive trop tot.
 //
-// L'ouverture d'un combat n'accepte pas tout de suite le passe-tour: les
-// durees mesurees donnent 383 ms par manche en regime etabli, mais 2754 ms
-// pour la premiere — et les trois jxy emis dans la premiere seconde y sont
-// tous restes sans effet, alors que la meme trame passe le tour des que le
-// combat tourne. Une relance unique a 700 ms ne couvrait donc pas la fenetre.
-//
-// Elles ne sont armees qu'a l'OUVERTURE, c'est-a-dire sur le compteur a 1: le
-// champ 2 de jxz est le numero de manche, deux combats mesures le montrent
-// (1..12 pour le premier, puis retour a 1 pour le second). Les armer a chaque
-// manche coutait cinq trames pour rien — c'est ce cout qui avait fait ajouter
-// une annulation, et l'annulation tuait la seule chose qui servait.
-const RELANCES_MS = [700, 1400, 2100, 2800, 3500];
-const PREMIERE_MANCHE = 1n;
+// ELLES NE COUTENT RIEN QUAND LA PREMIERE TRAME SUFFIT: le tour se termine
+// ~40 ms plus tard, la fin de notre tour les annule, et aucune n'atteint son
+// echeance. Une trame part en plus seulement si le tour dure encore, c'est-a-
+// dire si le premier essai a echoue. C'est l'inverse des relances precedentes,
+// armees a l'aveugle sur le compteur de manche: celles-la partaient toutes.
+const RELANCES_MS = [400, 1000, 2000];
 
 // La requete est CONSTANTE et vide. On la construit une fois pour toutes.
 const TRAME_PASSE = encodeRaw([
@@ -82,32 +82,16 @@ function personnageAnnonce(frame) {
   return f === undefined ? null : f.value;
 }
 
-// Le meme champ 2, sur jxz, porte le numero de manche.
-function estPremiereManche(frame) {
-  const n = personnageAnnonce(frame);
-  if (n === null) return false;
-  try { return BigInt(n) === PREMIERE_MANCHE; } catch { return false; }
-}
-
 // superviseur   — porte emettre(pid, octets) et comptes.get(pid)
 // reglages      — { actif, delaiMs }, RELU a chaque trame pour que
 //                 l'interrupteur general et le delai prennent effet aussitot
 // onCompteRendu — recoit ce qui a ete emis, ou refuse et pourquoi
 function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
-  // Les minuteurs en attente par compte. Il peut y en avoir plusieurs: le
-  // delai configure par l'utilisateur, et la relance du compteur ci-dessous.
+  // Les relances en attente, par compte. Elles n'ont de sens que pendant NOTRE
+  // tour: des qu'il se termine, elles ne peuvent plus rien passer.
   const minuteurs = new Map();   // pid -> Set de timeouts annulables
 
-  // Les relances d'ouverture ne sont PAS enregistrees ici, donc pas annulables.
-  // Le journal du 20/08 dit pourquoi: a l'ouverture, un jxh portant notre
-  // propre characterId arrive 29 ms apres le compteur, avant que le moindre
-  // tour ait pu avoir lieu. Lu comme « notre tour vient de finir », il annulait
-  // les cinq relances, et le premier tour partait au chronometre complet
-  // (36,0 s mesurees). On ne sait pas ce qu'annonce ce jxh; on sait qu'il ne
-  // doit rien annuler. Une relance qui survit a notre vrai tour ne coute qu'une
-  // trame ignoree — le passeur en emet deja une par combattant et par manche.
-  function programmer(pid, fn, delai, annulable = true) {
-    if (!annulable) { setTimeout(fn, delai); return; }
+  function programmer(pid, fn, delai) {
     let lot = minuteurs.get(pid);
     if (lot === undefined) { lot = new Set(); minuteurs.set(pid, lot); }
     const t = setTimeout(() => { lot.delete(t); fn(); }, delai);
@@ -122,14 +106,12 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
   }
 
   // etatArme    — l'objet d'etat tel qu'il etait au moment de l'armement.
-  // declencheur — le jalon qui a arme l'envoi, repris tel quel dans le compte
-  //               rendu: sans lui, l'ordre des lignes de journal est le seul
-  //               indice, et il ne suffit pas a savoir quel jalon a tire.
+  // declencheur — repris tel quel dans le compte rendu: sans lui, l'ordre des
+  //               lignes de journal est le seul indice, et il ne suffit pas.
   function emettre(pid, etatArme, declencheur) {
-    // L'interrupteur general est un coupe-circuit immediat: s'il a ete
-    // eteint pendant le delai, ou que le compte a ete desactive entre-temps,
-    // l'envoi programme doit s'annuler silencieusement. Ce n'est pas un refus
-    // a signaler, c'est une annulation demandee par l'utilisateur.
+    // Coupe-circuit immediat: si l'interrupteur a ete eteint pendant le delai,
+    // ou le compte desactive, l'envoi programme s'annule silencieusement. Ce
+    // n'est pas un refus a signaler, c'est une annulation demandee.
     if (!reglages.actif) return;
     const etat = superviseur.comptes.get(pid);
     // On compare l'IDENTITE de l'objet, pas seulement le pid: si le compte a
@@ -144,51 +126,38 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
   return function onTrame({ pid, dir, frame }) {
     if (dir !== 'in' || frame === null) return;
 
-    // On ne filtre PAS sur frame.kind. Le passeur exigeait « event », et jxz
-    // n'a jamais declenche la moindre emission dans aucun journal, alors que
-    // jxh en declenchait a chaque tour: les deux passent pourtant par le meme
-    // diagnostic, qui lui ne regarde que le type. `dir === 'in'` suffit a
-    // ecarter ce que le client emet lui-meme.
-    const finTour = frame.type === TYPE_FIN_TOUR;
-    const compteur = frame.type === TYPE_COMPTEUR;
-    if (!finTour && !compteur) return;
+    // La fin de NOTRE tour: il n'y a plus rien a passer, et toute relance en
+    // attente est desormais sans objet. C'est ce qui rend les relances
+    // gratuites dans le cas nominal.
+    if (frame.type === TYPE_FIN_TOUR) {
+      const etat = superviseur.comptes.get(pid);
+      if (etat !== null && etat.characterId !== null && etat.characterId !== undefined
+        && personnageAnnonce(frame) === etat.characterId) annuler(pid);
+      return;
+    }
 
-    // Un passe-tour muet ressemble trait pour trait a un combat qui n'arrive
-    // pas jusqu'ici. Sur le compteur — un message par manche, donc sans bruit —
-    // on dit laquelle des gardes a arrete l'envoi.
-    const dire = (raison) => { if (compteur) onCompteRendu({ pid, ok: false, raison }); };
+    if (frame.type !== TYPE_MON_TOUR) return;
 
-    if (!reglages.actif) { dire('jxz ignore : interrupteur general eteint'); return; }
+    // jyj arrive une fois par tour, et seulement pour NOUS: on peut dire a
+    // chaque fois pourquoi rien ne part, sans noyer le journal.
+    const dire = (raison) => onCompteRendu({ pid, ok: false, raison });
+
+    if (!reglages.actif) { dire('notre tour : interrupteur general eteint'); return; }
     const etat = superviseur.comptes.get(pid);
-    if (etat === null) { dire('jxz ignore : compte inconnu du superviseur'); return; }
-    if (!etat.passeTour) { dire('jxz ignore : passe-tour eteint pour ce compte'); return; }
+    if (etat === null) { dire('notre tour : compte inconnu du superviseur'); return; }
+    if (!etat.passeTour) { dire('notre tour : passe-tour eteint pour ce compte'); return; }
 
-    if (etat.characterId === null || etat.characterId === undefined) {
-      // Sans characterId, impossible de distinguer la fin de notre tour de
-      // celle d'un autre. On s'abstient plutot que d'emettre a l'aveugle.
-      onCompteRendu({ pid, ok: false, raison: 'characterId inconnu' });
-      return;
-    }
-
-    // Notre propre tour vient de finir: rien a passer, et tout envoi encore
-    // en attente est desormais sans objet.
-    if (finTour && personnageAnnonce(frame) === etat.characterId) {
-      annuler(pid);
-      return;
-    }
-
-    const jalon = finTour ? `jxh ${personnageAnnonce(frame)}` : TYPE_COMPTEUR;
+    // Le characterId n'est plus exige. Il ne sert qu'a reconnaitre la fin de
+    // notre tour, donc a arreter les relances: sans lui elles iront a leur
+    // terme, ce qui coute quelques trames ignorees, pas un tour perdu.
     const delai = Math.max(0, Number(reglages.delaiMs) || 0);
-    if (delai === 0) emettre(pid, etat, jalon);
-    else programmer(pid, () => emettre(pid, etat, jalon), delai);
+    if (delai === 0) emettre(pid, etat, TYPE_MON_TOUR);
+    else programmer(pid, () => emettre(pid, etat, TYPE_MON_TOUR), delai);
 
-    // Le compteur ouvre la manche, et rien ne garantit que notre tour soit
-    // deja actif quand il arrive — c'est le cas du PREMIER tour d'un combat,
-    // le seul que rien d'autre ne precede. Les relances le rattrapent.
-    if (compteur && estPremiereManche(frame)) {
-      for (const t of RELANCES_MS) programmer(pid, () => emettre(pid, etat, `jxz relance ${t}`), delai + t, false);
+    for (const t of RELANCES_MS) {
+      programmer(pid, () => emettre(pid, etat, `${TYPE_MON_TOUR} relance ${t}`), delai + t);
     }
   };
 }
 
-module.exports = { creerPasseur, TRAME_PASSE, TYPE_FIN_TOUR, TYPE_COMPTEUR };
+module.exports = { creerPasseur, TRAME_PASSE, TYPE_MON_TOUR, TYPE_FIN_TOUR };
