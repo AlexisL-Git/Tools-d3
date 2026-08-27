@@ -621,10 +621,15 @@ test('l etat de la souris est retenu pour les clients suivants', () => {
   assert.strictEqual(s.sourisActive, true);
 });
 
-// Un client sans agent charge ne doit pas faire lever reglerSouris: il y en a
-// toujours un en cours d'attache quand l'utilisateur change un raccourci.
-test('un client sans script ne fait pas lever reglerSouris', () => {
-  const s = new Superviseur();
-  s.clients.set(1, { pid: 1, script: null });
+// Un client sans agent charge ne doit pas faire lever reglerSouris, ni etre
+// journalise comme une erreur: il y en a toujours un en cours d'attache quand
+// l'utilisateur change un raccourci, et c'est un etat parfaitement normal.
+test('un client sans script ne fait pas lever reglerSouris, ni journaliser', () => {
+  const lignes = [];
+  const s = new Superviseur({ onJournal: (pid, texte) => lignes.push({ pid, texte }) });
+  const avecScript = { pid: 1, script: { post: () => {} } };
+  s.clients.set(1, avecScript);
+  s.clients.set(2, { pid: 2, script: null });
   assert.doesNotThrow(() => s.reglerSouris(true));
+  assert.deepStrictEqual(lignes, [], 'un client sans script ne doit produire aucune ligne de journal');
 });
