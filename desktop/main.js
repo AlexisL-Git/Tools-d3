@@ -1,4 +1,5 @@
 'use strict';
+const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require('electron');
 
@@ -274,10 +275,67 @@ const DEPART = Date.now();
 // retrouver la sortie qui a servi a diagnostiquer le passe-tour et le no-anim.
 const JOURNAL_COMPLET = process.env.OMNI_JOURNAL === 'complet';
 
+// Le journal doit atterrir dans un FICHIER, pas seulement dans la console.
+// Lance par outils/lancer-dev.vbs, OMNI tourne sans console attachee: tout ce
+// que console.log ecrit est perdu, et un diagnostic muet ressemble trait pour
+// trait a un diagnostic qui n'a rien vu. Le meme piege a deja coute une soiree
+// sur faire-etape.js.
+let cheminJournal = null;
+function fichierJournal() {
+  if (cheminJournal === null) {
+    cheminJournal = process.env.OMNI_JOURNAL_FICHIER
+      || path.join(process.env.OMNI_DEV || app.getPath('userData'), 'journal-dev.log');
+    try { fs.writeFileSync(cheminJournal, `--- OMNI ${new Date().toISOString()} ---\n`); }
+    catch { /* un journal qui ne s'ouvre pas ne doit pas empecher l'app de tourner */ }
+  }
+  return cheminJournal;
+}
+
 function journal(pid, texte) {
   if (!JOURNAL_COMPLET) return;
   const t = String(Date.now() - DEPART).padStart(7);
-  console.log(`${t}ms [${pid}] ${texte}`);
+  const ligne = `${t}ms [${pid}] ${texte}`;
+  console.log(ligne);
+  try { fs.appendFileSync(fichierJournal(), ligne + '\n'); } catch { /* idem */ }
+}
+
+// DIAGNOSTIC TEMPORAIRE — a retirer une fois le passe-tour de l'ESCLAVE valide.
+//
+// Ce que le journal ne disait pas: pourquoi le maitre passe son tour et pas
+// l'esclave. Trois causes produisent le meme silence cote esclave — le passeur
+// n'est pas appele, une garde l'arrete, ou la trame part sans effet. Il faut
+// pouvoir les separer, donc on journalise pour CHAQUE client:
+//   - son characterId des qu'il est connu (la garde la plus probable);
+//   - chaque jxh/jxz avec ses champs, pour voir si l'esclave recoit bien ses
+//     propres jalons de tour et sous quelle valeur;
+//   - tout ce que le serveur repond dans la demi-seconde suivant notre jxy —
+//     un refus explicite serait la reponse la plus utile du projet, et son
+//     absence est une information tout aussi nette.
+let instantEmission = 0;
+
+function diagnostic(sup) {
+  const idsVus = new Map();   // pid -> characterId deja journalise
+  return function onTrame({ pid, dir, frame, estMaitre }) {
+    if (dir !== 'in' || frame === null) return;
+
+    const etat = sup.comptes.get(pid);
+    const id = etat === null ? null : etat.characterId;
+    if (idsVus.get(pid) !== id) {
+      idsVus.set(pid, id);
+      journal(pid, `diag : characterId=${id} passeTour=${etat && etat.passeTour} maitre=${Boolean(estMaitre)}`);
+    }
+
+    if (frame.type === 'jxh' || frame.type === 'jxz') {
+      const champs = (frame.payload || []).map((f) => `${f.no}=${f.value}`).join(' ');
+      const moi = id !== null && id !== undefined
+        && (frame.payload || []).some((f) => f.no === 2 && f.value === id);
+      journal(pid, `diag : ${frame.kind} ${frame.type} { ${champs} }${moi ? '  <-- MOI' : ''}`);
+      return;
+    }
+
+    const depuis = Date.now() - instantEmission;
+    if (depuis >= 0 && depuis < 500) journal(pid, `diag : +${depuis}ms apres jxy -> ${frame.kind} ${frame.type}`);
+  };
 }
 
 // Une trame decodee prouve que le trafic traverse le proxy. Un client attache
@@ -609,7 +667,7 @@ app.whenReady().then(async () => {
       onCompteRendu: ({ pid, ok, raison, declencheur }) => {
         // Le jalon declencheur, et pas seulement le fait d'avoir emis: c'est
         // lui qui a dit que la relance d'ouverture avait survecu.
-        if (ok) journal(pid, `passe-tour : jxy emis (sur ${declencheur})`);
+        if (ok) { instantEmission = Date.now(); journal(pid, `passe-tour : jxy emis (sur ${declencheur})`); }
         else journal(pid, `passe-tour : ${raison}`);
       },
     }),
@@ -631,6 +689,8 @@ app.whenReady().then(async () => {
       },
     }),
     noterTrafic(),
+    // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
+    diagnostic(superviseur),
     // Une politique qui leve doit se voir. C'est ce qui manquait: le passeur
     // pouvait echouer sur une trame sans laisser la moindre trace.
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
