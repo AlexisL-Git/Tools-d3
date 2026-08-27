@@ -19,9 +19,10 @@ function fauxSuperviseur(comptes = [[1, MOI]]) {
   };
 }
 
-// jxh { 2: X } — FIN du tour de X. Mesure le 20/08 sur les octets bruts:
-// les tours du joueur duraient 36 s et se terminaient sur ce message.
-const finDeTour = (id) => ({ kind: 'event', type: 'jxh', payload: [{ no: 2, value: id }] });
+// jxh { 2: X } — DEBUT du tour de X. Mesure le 20/08 sur un combat a deux:
+// l'autopasse de krm35 emettait sa passe 16 ms apres un jxh portant SON propre
+// characterId, et le compteur jxz s'incrementait 100 ms plus tard. Quatre fois.
+const debutDeTour = (id) => ({ kind: 'event', type: 'jxh', payload: [{ no: 2, value: id }] });
 // jxz { 2: N } — compteur de tours du combat. Dans les combats mesures, le
 // tour du joueur commence juste apres.
 const compteurTour = (n) => ({ kind: 'event', type: 'jxz', payload: [{ no: 2, value: BigInt(n) }] });
@@ -48,24 +49,61 @@ test('les octets exacts correspondent a la trame mesuree', () => {
   assert.strictEqual(TRAME_PASSE.toString('hex'), attendu);
 });
 
-// jxh porte la FIN d'un tour. Sur le notre, il est trop tard pour passer.
-test('la fin de NOTRE tour ne declenche rien', () => {
+// LE DECLENCHEUR. Notre propre jxh est le seul instant ou le serveur accepte
+// jxy: c'est la que notre tour commence. Le passeur l'ecartait — il annulait
+// meme les envois en attente — et n'emettait que sur les jalons des AUTRES
+// combattants, donc toujours trop tot. En solo la coincidence sauvait la mise:
+// seul joueur, notre tour commence juste apres le compteur de manche, sur
+// lequel le passeur emet aussi. En groupe, notre tour est 3e ou 5e et plus
+// aucun jalon ne tombe au bon moment.
+test('le debut de NOTRE tour declenche le passe-tour', () => {
   const sup = fauxSuperviseur();
-  passeur(sup)(evenement(finDeTour(MOI)));
-  assert.strictEqual(sup.emis.length, 0);
+  const rendu = [];
+  passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(debutDeTour(MOI)));
+  assert.strictEqual(sup.emis.length, 1);
+  assert.deepStrictEqual(sup.emis[0].octets, TRAME_PASSE);
+  assert.match(rendu[0].declencheur, /moi/);
 });
 
-// La fin du tour d'un autre combattant peut annoncer le debut du notre.
-test('la fin du tour d un autre declenche une tentative', () => {
+// Le cas du groupe, bout en bout: manche 1, quatre combattants jouent avant
+// nous, puis notre tour s'ouvre. Une seule chose compte — qu'une trame parte
+// APRES notre propre jxh, pas seulement avant.
+test('en groupe, la trame part au debut de notre tour', () => {
   const sup = fauxSuperviseur();
-  passeur(sup)(evenement(finDeTour(AUTRE)));
+  const rendu = [];
+  const p = passeur(sup, { actif: true, delaiMs: 0 }, rendu);
+  p(evenement(compteurTour(1)));
+  for (const id of [111n, 222n, MONSTRE, 444n]) p(evenement(debutDeTour(id)));
+  const avant = sup.emis.length;
+  p(evenement(debutDeTour(MOI)));
+  assert.strictEqual(sup.emis.length, avant + 1, 'notre tour emet');
+  assert.match(rendu[rendu.length - 1].declencheur, /moi/);
+});
+
+// Notre jxh n'annule plus rien. C'etait le defaut: en groupe, l'envoi arme au
+// tour du combattant precedent etait detruit a l'instant meme ou il devenait
+// utile.
+test('notre jxh n annule pas un envoi en attente', async () => {
+  const sup = fauxSuperviseur();
+  const p = passeur(sup, { actif: true, delaiMs: 50 });
+  p(evenement(debutDeTour(AUTRE)));
+  p(evenement(debutDeTour(MOI)));
+  await new Promise((r) => setTimeout(r, 160));
+  assert.strictEqual(sup.emis.length, 2, 'les deux envois aboutissent');
+});
+
+// Le debut du tour d'un autre combattant reste un jalon de repli: le notre
+// peut suivre, et un jxy hors tour est ignore par le serveur.
+test('le debut du tour d un autre declenche une tentative', () => {
+  const sup = fauxSuperviseur();
+  passeur(sup)(evenement(debutDeTour(AUTRE)));
   assert.strictEqual(sup.emis.length, 1);
   assert.deepStrictEqual(sup.emis[0].octets, TRAME_PASSE);
 });
 
-test('la fin du tour d un monstre declenche aussi', () => {
+test('le debut du tour d un monstre declenche aussi', () => {
   const sup = fauxSuperviseur();
-  passeur(sup)(evenement(finDeTour(MONSTRE)));
+  passeur(sup)(evenement(debutDeTour(MONSTRE)));
   assert.strictEqual(sup.emis.length, 1);
 });
 
@@ -97,12 +135,12 @@ test('un autre type entrant ne declenche rien', () => {
   assert.strictEqual(sup.emis.length, 0);
 });
 
-// Le characterId ne sert plus qu'a ECARTER la fin de notre propre tour. Sans
-// lui, on ne peut pas distinguer, donc on s'abstient.
+// Le characterId est ce qui reconnait NOTRE jxh parmi ceux de tous les
+// combattants. Sans lui, le seul declencheur fiable est perdu: on s'abstient.
 test('un characterId inconnu bloque et le dit', () => {
   const sup = fauxSuperviseur([[1, null]]);
   const rendu = [];
-  passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(finDeTour(AUTRE)));
+  passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(debutDeTour(AUTRE)));
   assert.strictEqual(sup.emis.length, 0);
   assert.match(rendu[0].raison, /characterId/);
 });
@@ -110,24 +148,24 @@ test('un characterId inconnu bloque et le dit', () => {
 test('un compte eteint ne declenche pas', () => {
   const sup = fauxSuperviseur();
   sup.comptes.get(1).passeTour = false;
-  passeur(sup)(evenement(finDeTour(AUTRE)));
+  passeur(sup)(evenement(debutDeTour(AUTRE)));
   assert.strictEqual(sup.emis.length, 0);
 });
 
 test('l interrupteur general eteint neutralise tout', () => {
   const sup = fauxSuperviseur();
-  passeur(sup, { actif: false, delaiMs: 0 })(evenement(finDeTour(AUTRE)));
+  passeur(sup, { actif: false, delaiMs: 0 })(evenement(debutDeTour(AUTRE)));
   assert.strictEqual(sup.emis.length, 0);
 });
 
 // Le combat multicompte est le cas qui a condamne le limiteur « une tentative
 // par manche »: notre personnage joue en cinquieme position, la tentative
-// unique partait apres la premiere fin de tour et n'atteignait jamais la
-// notre. Chaque fin de tour adverse doit donner sa chance.
-test('chaque fin de tour adverse donne lieu a une tentative', () => {
+// unique partait au premier jalon et n'atteignait jamais son tour. Chaque
+// jalon adverse doit donner sa chance.
+test('chaque jalon adverse donne lieu a une tentative', () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup, { actif: true, delaiMs: 0 });
-  for (const id of [111n, 222n, 333n, 444n]) p(evenement(finDeTour(id)));
+  for (const id of [111n, 222n, 333n, 444n]) p(evenement(debutDeTour(id)));
   assert.strictEqual(sup.emis.length, 4);
 });
 
@@ -160,17 +198,20 @@ test('le compteur emet une fois puis relance plusieurs fois', async () => {
 //   280221  jxh { 2: MOI }      29 ms plus tard, avant tout tour
 //   316240  jxh { 2: MOI }      36,0 s: le chronometre complet
 //
-// Ce jxh a 29 ms n'est pas la fin d'un tour — aucun tour n'avait eu lieu. Il
-// annulait pourtant les cinq relances armees juste avant, et le premier tour
-// partait au chronometre. C'etait la seule cause du « premier tour a passer a
-// la main »: les relances de l'ouverture n'ont jamais atteint leur echeance.
-test('la fin de notre tour n annule pas les relances d ouverture', async () => {
+// Ce jxh a 29 ms n'est pas la fin d'un tour — aucun tour n'avait eu lieu:
+// c'est l'OUVERTURE de notre premier tour, et les 36,0 s qui suivent sont le
+// chronometre complet ecoule faute de passe. Le passeur y voyait une fin de
+// tour, annulait les cinq relances armees juste avant, et le premier tour
+// partait au chronometre.
+test('a l ouverture, notre jxh emet et les relances suivent', async () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup, { actif: true, delaiMs: 0 });
   p(evenement(compteurTour(1)));
-  p(evenement(finDeTour(MOI)));
+  assert.strictEqual(sup.emis.length, 1, 'le compteur tente une fois');
+  p(evenement(debutDeTour(MOI)));
+  assert.strictEqual(sup.emis.length, 2, 'notre tour tente a son tour');
   await new Promise((r) => setTimeout(r, 900));
-  assert.strictEqual(sup.emis.length, 2, 'la relance a 700 ms survit');
+  assert.strictEqual(sup.emis.length, 3, 'la relance a 700 ms survit');
 });
 
 // Les relances ne repondent qu'a l'ouverture d'un combat. Les armer a chaque
@@ -188,7 +229,7 @@ test('en regime etabli le compteur n arme aucune relance', async () => {
 
 test('le delai differe l emission', async () => {
   const sup = fauxSuperviseur();
-  passeur(sup, { actif: true, delaiMs: 60 })(evenement(finDeTour(AUTRE)));
+  passeur(sup, { actif: true, delaiMs: 60 })(evenement(debutDeTour(AUTRE)));
   assert.strictEqual(sup.emis.length, 0);
   await new Promise((r) => setTimeout(r, 160));
   assert.strictEqual(sup.emis.length, 1);
@@ -197,15 +238,15 @@ test('le delai differe l emission', async () => {
 test('deux comptes sont independants', async () => {
   const sup = fauxSuperviseur([[1, MOI], [2, AUTRE]]);
   const p = passeur(sup, { actif: true, delaiMs: 0 });
-  p(evenement(finDeTour(MONSTRE), 1));
-  p(evenement(finDeTour(MONSTRE), 2));
+  p(evenement(debutDeTour(MONSTRE), 1));
+  p(evenement(debutDeTour(MONSTRE), 2));
   assert.deepStrictEqual(sup.emis.map((e) => e.pid).sort(), [1, 2]);
 });
 
 test('le compte rendu dit ce qui a ete emis', () => {
   const sup = fauxSuperviseur();
   const rendu = [];
-  passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(finDeTour(MONSTRE)));
+  passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(debutDeTour(MONSTRE)));
   assert.strictEqual(rendu.length, 1);
   assert.strictEqual(rendu[0].pid, 1);
   assert.strictEqual(rendu[0].ok, true);
@@ -216,7 +257,7 @@ test('un echec d emission est signale sans exception', () => {
   const sup = fauxSuperviseur();
   sup.emettre = () => ({ ok: false, raison: 'pas de socket amont' });
   const rendu = [];
-  assert.doesNotThrow(() => passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(finDeTour(MONSTRE))));
+  assert.doesNotThrow(() => passeur(sup, { actif: true, delaiMs: 0 }, rendu)(evenement(debutDeTour(MONSTRE))));
   assert.strictEqual(rendu[0].ok, false);
   assert.match(rendu[0].raison, /socket amont/);
 });
@@ -228,7 +269,7 @@ test('eteindre l interrupteur general pendant le delai empeche l emission', asyn
   const sup = fauxSuperviseur();
   const reglages = { actif: true, delaiMs: 40 };
   const p = passeur(sup, reglages);
-  p(evenement(finDeTour(MONSTRE)));
+  p(evenement(debutDeTour(MONSTRE)));
   reglages.actif = false;
   await new Promise((r) => setTimeout(r, 120));
   assert.strictEqual(sup.emis.length, 0);
@@ -241,7 +282,7 @@ test('eteindre l interrupteur general pendant le delai empeche l emission', asyn
 test('un pid reattribue a un autre client n herite pas du minuteur en attente', async () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup, { actif: true, delaiMs: 40 });
-  p(evenement(finDeTour(MONSTRE)));
+  p(evenement(debutDeTour(MONSTRE)));
   // Meme pid, meme characterId, meme interrupteur: seul l'objet differe.
   sup.etats.set(1, { pid: 1, passeTour: true, characterId: MOI });
   await new Promise((r) => setTimeout(r, 140));
@@ -251,7 +292,7 @@ test('un pid reattribue a un autre client n herite pas du minuteur en attente', 
 test('un compte retire pendant le delai n emet pas', async () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup, { actif: true, delaiMs: 40 });
-  p(evenement(finDeTour(MONSTRE)));
+  p(evenement(debutDeTour(MONSTRE)));
   sup.etats.delete(1);
   await new Promise((r) => setTimeout(r, 140));
   assert.strictEqual(sup.emis.length, 0);
@@ -260,7 +301,7 @@ test('un compte retire pendant le delai n emet pas', async () => {
 test('eteindre le passeTour du compte pendant le delai empeche l emission', async () => {
   const sup = fauxSuperviseur();
   const p = passeur(sup, { actif: true, delaiMs: 40 });
-  p(evenement(finDeTour(MONSTRE)));
+  p(evenement(debutDeTour(MONSTRE)));
   sup.comptes.get(1).passeTour = false;
   await new Promise((r) => setTimeout(r, 120));
   assert.strictEqual(sup.emis.length, 0);
