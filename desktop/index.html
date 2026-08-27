@@ -666,6 +666,10 @@
   // L'appelant ne fournit plus que `poser`. Le libelle definitif viendra de
   // l'etat suivant, comme pour tout le reste du panneau.
   function armerSaisie(bouton, poser) {
+    // Sans ceci, armer un cabochon puis en cliquer un autre laisse le
+    // premier fige sur "frappe ou clique..." pour toujours: la mise a jour
+    // d'un rang saute volontairement tout cabochon marque `ecoute`.
+    if (ecoute !== null) { const precedente = ecoute; ecoute = null; precedente.annuler(); }
     const avant = bouton.textContent;
     bouton.classList.add('ecoute');
     bouton.textContent = 'frappe ou clique…';
