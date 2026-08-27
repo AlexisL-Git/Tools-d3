@@ -95,7 +95,7 @@ let avisBascule = { texte: null, instant: 0 };
 // reconstruit toutes les 2 s. On le garde ici, et la bascule devient
 // instantanee: aucun process a lancer, aucune attente.
 let carteComptes = new Map();   // idCompte -> pid
-let ordreNavigation = [];       // pids, dans l'ordre affiche
+let ordreAffiche = [];       // pids, dans l'ordre affiche
 
 // LA FERMETURE EMPORTE LES CLIENTS, MAIS ON DEMANDE.
 //
@@ -171,9 +171,9 @@ async function demanderFermeture() {
 // entier, coupure de courant). Aucun code ne tourne, et les clients survivent.
 // Il n'existe pas de moyen d'y remedier depuis l'application elle-meme.
 function fermerClientsConnus() {
-  if (ordreNavigation.length === 0) return;
+  if (ordreAffiche.length === 0) return;
   try {
-    fermerClients(ordreNavigation);
+    fermerClients(ordreAffiche);
   } catch (e) {
     // On est deja en train de mourir: il n'y a personne a qui rendre l'echec.
   }
@@ -521,7 +521,7 @@ async function envoyerEtat() {
 
   // L'ordre voulu par l'utilisateur, applique aux lignes envoyees au
   // panneau. C'est le seul consommateur de l'ORDRE: carteComptes et
-  // ordreNavigation, construits juste apres, ne s'en servent que par id ou
+  // ordreAffiche, construits juste apres, ne s'en servent que par id ou
   // comme ensemble complet de pids. L'ordre de Zaap n'a aucune raison
   // d'etre celui de l'equipe.
   const rangees = ordonner(lignes, favoris.ordre());
@@ -532,15 +532,15 @@ async function envoyerEtat() {
   // c'est le seul endroit qui connaisse a la fois les comptes, les clients
   // et l'ordre voulu. carteComptes sert au clic sur une identite
   // (basculerVersCompte) et a la fermeture d'un client depuis sa ligne
-  // (fermerUnClient), toutes deux par id. ordreNavigation sert a
+  // (fermerUnClient), toutes deux par id. ordreAffiche sert a
   // fermerClientsConnus, sur le chemin process.on('exit') — comme ensemble
   // complet de pids a fermer, jamais dans son ordre.
   carteComptes = new Map();
-  ordreNavigation = [];
+  ordreAffiche = [];
   for (const l of lignes) {
     if (l.pid === null || l.pid === undefined) continue;
     if (l.id !== null && l.id !== undefined) carteComptes.set(l.id, l.pid);
-    ordreNavigation.push(l.pid);
+    ordreAffiche.push(l.pid);
   }
 
   // La touche assignee a chaque compte, pour l'afficher sur sa ligne.
