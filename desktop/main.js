@@ -15,7 +15,7 @@ const { listerClients, fermerClients } = require('../src/comptes/clients');
 const { construireVue } = require('../src/comptes/vue');
 const { resoudreMaitre } = require('../src/comptes/maitre');
 const { creerEmblemes } = require('../src/comptes/emblemes');
-const { ordonner, suivant, precedent } = require('../src/comptes/navigation');
+const { ordonner } = require('../src/comptes/ordre');
 const { COLONNES, parNom, cibleBascule } = require('../src/comptes/colonnes');
 const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
@@ -75,7 +75,7 @@ let clientsCache = { instant: 0, valeur: [], enVol: null };
 
 // LE DERNIER REFUS DE BASCULE, pour l'afficher.
 //
-// naviguer() et basculerVersCompte() abandonnaient EN SILENCE dans trois cas:
+// basculerVersCompte() abandonnait EN SILENCE dans trois cas:
 // aucun client pilote, compte sans client, agent pas encore en place. Vu de
 // l'utilisateur, la touche « ne faisait rien », et c'est le mode d'echec le
 // plus couteux de ce projet — celui qu'aucune trace ne relie a sa cause.
@@ -96,19 +96,6 @@ let avisBascule = { texte: null, instant: 0 };
 // instantanee: aucun process a lancer, aucune attente.
 let carteComptes = new Map();   // idCompte -> pid
 let ordreNavigation = [];       // pids, dans l'ordre affiche
-
-// LE CURSEUR DU CYCLE, et rien d'autre.
-//
-// « Suivant » partait du client au premier plan, ce qui obligeait a le
-// SURVEILLER: chaque agent sondait GetForegroundWindow toutes les 250 ms a
-// l'interieur du jeu. Et le resultat surprenait — depuis le navigateur ou
-// depuis OMNI, le premier plan est inconnu et « suivant » revenait au premier
-// de la liste au lieu d'avancer d'un cran.
-//
-// C'est desormais un cycle franc: on retient le dernier client vise, et on
-// avance a partir de la. Le pid est retenu plutot que l'indice, parce qu'un
-// client qui se ferme decale toute la liste et rendrait un indice faux.
-let curseurNav = null;
 
 // LA FERMETURE EMPORTE LES CLIENTS, MAIS ON DEMANDE.
 //
@@ -211,7 +198,7 @@ process.on('uncaughtException', (e) => {
   process.exit(1);
 });
 
-// Meme trou, cote promesses: naviguer() et basculerVersCompte() lancent
+// Meme trou, cote promesses: basculerVersCompte() lance
 // envoyerEtat() sans l'attendre, et un rejet de cette promesse orpheline ne
 // passe par aucun catch. Sans ce filet, il tuerait le process en silence, en
 // emportant tous les clients Dofus de l'utilisateur — exactement ce que le
@@ -223,12 +210,6 @@ process.on('unhandledRejection', (raison) => {
   journal('panne', `rejet non capture : ${raison && raison.stack ? raison.stack : raison}`);
   process.exit(1);
 });
-
-// Le clic sur une identite deplace le curseur, sinon le raccourci suivant
-// repartirait d'ou on etait avant le clic.
-function poserCurseur(pid) {
-  curseurNav = pid;
-}
 
 function noterAvis(texte) {
   avisBascule = { texte, instant: Date.now() };
@@ -869,42 +850,10 @@ async function basculerVersCompte(idCompte) {
     await envoyerEtat();
     return;
   }
-  poserCurseur(pid);
   const r = superviseur.basculerVers(pid);
   if (!r.ok) {
     journal(pid, `bascule refusee : ${r.raison}`);
     noterAvis(`bascule impossible : ${r.raison}`);
-    envoyerEtat();
-  }
-}
-
-// Le pas suivant ou precedent, dans l'ORDRE AFFICHE. Le point de depart est le
-// client au premier plan; s'il est inconnu (navigateur, Zaap, client non pris
-// en charge), on entre par le bout correspondant au sens demande.
-function naviguer(pas) {
-  // Meme raison que ci-dessus: l'ordre affiche est deja connu, et une touche de
-  // navigation doit repondre a l'instant.
-  //
-  // Seuls les clients qu'OMNI pilote: basculer vers un client sans agent
-  // echouerait sans rien dire d'utile.
-  const navigables = ordreNavigation.filter((p) => superviseur.clients.has(p));
-  if (navigables.length === 0) {
-    noterAvis(ordreNavigation.length === 0
-      ? 'aucun client Dofus détecté'
-      : 'aucun client piloté par OMNI — lance-les APRÈS OMNI');
-    envoyerEtat();
-    return;
-  }
-
-  // Le curseur peut designer un client ferme entre-temps: suivant() et
-  // precedent() entrent alors par le bout correspondant au sens demande.
-  const cible = pas > 0 ? suivant(navigables, curseurNav) : precedent(navigables, curseurNav);
-  if (cible === null) return;
-  poserCurseur(cible);
-  const r = superviseur.basculerVers(cible);
-  if (!r.ok) {
-    journal(cible, `navigation refusee : ${r.raison}`);
-    noterAvis(`navigation impossible : ${r.raison}`);
     envoyerEtat();
   }
 }
