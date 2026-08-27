@@ -43,6 +43,10 @@ contextBridge.exposeInMainWorld('app', {
   reglerToucheNav: (nom, accelerateur) => ipcRenderer.invoke('reglerToucheNav', nom, accelerateur),
 
   reglerDelai: (secondes) => ipcRenderer.invoke('reglerDelai', secondes),
+  // Les notes de version, lues au premier clic sur le numero. Lecture seule,
+  // sans parametre: c'est le seul canal qui rend des donnees plutot que
+  // d'emettre un ordre.
+  devlog: () => ipcRenderer.invoke('devlog'),
   fermerUnClient: (idCompte) => ipcRenderer.invoke('fermerUnClient', idCompte),
   fermerTousLesClients: () => ipcRenderer.invoke('fermerTousLesClients'),
 });

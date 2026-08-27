@@ -18,6 +18,7 @@ const { ordonner, suivant, precedent } = require('../src/comptes/navigation');
 const { COLONNES, parNom, cibleBascule } = require('../src/comptes/colonnes');
 const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
+const { lireDevlog, CHEMIN: CHEMIN_DEVLOG } = require('./devlog');
 
 const PERIODE_PROCESS = 500;    // prise en charge des nouveaux clients
 const PERIODE_VUE = 2000;       // rafraichissement de la liste affichee
@@ -954,6 +955,16 @@ ipcMain.handle('fermerTousLesClients', async () => {
   // Le balayage retire les clients morts et purge leur etat tout seul, sous
   // 500 ms. On rafraichit quand meme pour que la liste ne mente pas d'ici la.
   await envoyerEtat();
+});
+
+// LU UNE SEULE FOIS, AU PREMIER CLIC. Le fichier est fige pour la duree de
+// l'execution — il fait partie de la version installee. Le mettre dans le flux
+// d'etat, qui repart vers la fenetre toutes les deux secondes, ferait relire un
+// fichier a chaque tour pour du texte qui ne bouge jamais.
+let devlogEnMemoire = null;
+ipcMain.handle('devlog', () => {
+  if (devlogEnMemoire === null) devlogEnMemoire = lireDevlog(CHEMIN_DEVLOG);
+  return devlogEnMemoire;
 });
 
 app.on('window-all-closed', async () => {

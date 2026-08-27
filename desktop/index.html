@@ -104,6 +104,51 @@
     font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase;
     color: var(--attenue); font-weight: 600;
   }
+
+  /* LE `no-drag` N'EST PAS DECORATIF. `.barre-titre` est `-webkit-app-region:
+     drag` : sans cette ligne, Windows avale le clic comme un deplacement de
+     fenetre et le bouton ne fait RIEN, sans le moindre message. Meme raison
+     que sur `.fenetre-boutons` et `.maitre-inter`. */
+  .version-lien {
+    -webkit-app-region: no-drag;
+    background: transparent; border: 0; padding: 0;
+    font: inherit; color: inherit; letter-spacing: inherit;
+    text-transform: inherit; cursor: pointer;
+    border-bottom: 1px dotted var(--bord);
+  }
+  .version-lien:hover { color: var(--texte); border-bottom-color: var(--arme); }
+
+  /* Un panneau DANS la fenetre, pas une fenetre modale: le depot s'y refuse
+     deja (confirmation en place pour la fermeture d'un client). */
+  .quoi-de-neuf {
+    position: absolute; inset: 38px 0 0 0; z-index: 20;
+    background: var(--fond); display: flex; flex-direction: column;
+  }
+  .qdn-tete {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 12px 12px 15px; border-bottom: 1px solid var(--filet);
+  }
+  .qdn-tete b { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
+  .qdn-tete button {
+    margin-left: auto; width: 30px; height: 30px;
+    background: transparent; border: 0; color: var(--attenue);
+    font-size: 15px; cursor: pointer;
+  }
+  .qdn-tete button:hover { color: var(--texte); }
+  .qdn-corps { overflow-y: auto; padding: 6px 15px 18px; }
+  .qdn-version { padding: 12px 0; border-bottom: 1px solid var(--filet); }
+  .qdn-version:last-child { border-bottom: 0; }
+  .qdn-titre { display: flex; align-items: baseline; gap: 8px; }
+  .qdn-titre b { font-size: 14px; }
+  .qdn-titre .date { font-size: 11px; color: var(--attenue); }
+  .qdn-titre .ici {
+    font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--arme-encre); background: var(--arme);
+    padding: 2px 6px; border-radius: 999px; font-weight: 700;
+  }
+  .qdn-version ul { margin: 7px 0 0; padding-left: 18px; }
+  .qdn-version li { font-size: 13px; line-height: 1.5; margin-bottom: 3px; color: var(--texte); }
+  .qdn-vide { padding: 30px 0; text-align: center; color: var(--attenue); font-size: 13.5px; }
   .fenetre-boutons { margin-left: auto; display: flex; -webkit-app-region: no-drag; }
   .fenetre-boutons button {
     width: 44px; height: 38px; display: grid; place-items: center;
@@ -364,7 +409,7 @@
 <div class="barre-titre">
   <span class="titre-nom"><span class="o">O</span>MNI</span>
   <button class="maitre-inter" id="interActif"><span class="temoin"></span><span id="libelleActif">au repos</span></button>
-  <span class="titre-etat" id="titreEtat"></span>
+  <span class="titre-etat"><button class="version-lien" id="versionBouton" title="Voir ce qui a changé"></button><span id="titreEtat"></span></span>
   <span class="fenetre-boutons">
     <button id="reduire" title="Réduire"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
     <button id="fermer" class="fermer" title="Fermer"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
@@ -392,6 +437,14 @@
     <b>Aucun client Dofus détecté</b>
     Lance tes clients maintenant : OMNI doit tourner AVANT eux pour pouvoir les suivre.
   </div>
+</div>
+
+<div class="quoi-de-neuf" id="quoiDeNeuf" hidden>
+  <div class="qdn-tete">
+    <b>Quoi de neuf</b>
+    <button id="qdnFermer" title="Fermer (Échap)">✕</button>
+  </div>
+  <div class="qdn-corps" id="qdnCorps"></div>
 </div>
 
 <div class="barre-nav">
@@ -453,6 +506,75 @@
 
   const libelleTouche = (a) => (!a ? '' : a.split('+').map((p) => AFFICHAGE[p] || p).join('+'));
 
+  // ---------------- le devlog ----------------
+  // Charge au PREMIER clic seulement, puis garde. Le fichier fait partie de la
+  // version installee: il ne change pas tant qu'OMNI tourne.
+  let versionCourante = 'dev';
+  let devlogCharge = null;
+
+  function fermerQuoiDeNeuf() {
+    document.getElementById('quoiDeNeuf').hidden = true;
+  }
+
+  function rendreDevlog(entrees) {
+    const corps = document.getElementById('qdnCorps');
+    corps.textContent = '';
+    if (!entrees.length) {
+      const vide = document.createElement('div');
+      vide.className = 'qdn-vide';
+      vide.textContent = 'Pas de notes pour cette version.';
+      corps.append(vide);
+      return;
+    }
+    for (const e of entrees) {
+      const bloc = document.createElement('div');
+      bloc.className = 'qdn-version';
+      const titre = document.createElement('div');
+      titre.className = 'qdn-titre';
+      const num = document.createElement('b');
+      num.textContent = e.version;
+      titre.append(num);
+      if (e.le) {
+        const date = document.createElement('span');
+        date.className = 'date';
+        date.textContent = e.le;
+        titre.append(date);
+      }
+      if (e.version === versionCourante) {
+        const ici = document.createElement('span');
+        ici.className = 'ici';
+        ici.textContent = 'la tienne';
+        titre.append(ici);
+      }
+      bloc.append(titre);
+      const ul = document.createElement('ul');
+      for (const n of e.notes) {
+        const li = document.createElement('li');
+        // textContent, jamais innerHTML: les notes sont du texte, et ce
+        // fichier arrive par le reseau au meme titre que le reste du code.
+        li.textContent = n;
+        ul.append(li);
+      }
+      bloc.append(ul);
+      corps.append(bloc);
+    }
+  }
+
+  async function ouvrirQuoiDeNeuf() {
+    if (devlogCharge === null) {
+      try {
+        devlogCharge = await window.app.devlog();
+      } catch {
+        devlogCharge = [];   // le devlog ne casse jamais la fenetre
+      }
+    }
+    rendreDevlog(devlogCharge);
+    document.getElementById('quoiDeNeuf').hidden = false;
+  }
+
+  document.getElementById('versionBouton').onclick = ouvrirQuoiDeNeuf;
+  document.getElementById('qdnFermer').onclick = fermerQuoiDeNeuf;
+
   // Une touche NUE, hors touches de fonction, sera confisquee a Dofus.
   function estRisquee(a) {
     if (!a) return false;
@@ -463,6 +585,12 @@
   // Une seule saisie a la fois. Échap annule sans rien changer.
   let ecoute = null;
   window.addEventListener('keydown', (e) => {
+    // Echap ferme le devlog — mais seulement si aucune saisie de touche n'est
+    // en cours: pendant une saisie, Echap doit garder son sens d'annulation.
+    if (e.key === 'Escape' && ecoute === null && !document.getElementById('quoiDeNeuf').hidden) {
+      fermerQuoiDeNeuf();
+      return;
+    }
     if (ecoute === null) return;
     e.preventDefault();
     const cible = ecoute;
@@ -856,8 +984,13 @@
       : '';
 
     const enJeu = etat.lignes.filter((l) => l.suivi).length;
+    // Le numero est un bouton a part: il ouvre le devlog. Le reste du texte
+    // suit dans son propre span, sinon le rafraichissement de l'etat
+    // ecraserait le bouton toutes les deux secondes.
+    versionCourante = etat.version || 'dev';
+    document.getElementById('versionBouton').textContent = versionCourante;
     document.getElementById('titreEtat').textContent =
-      (etat.version || 'dev') + ' · ' + enJeu + ' compte' + (enJeu > 1 ? 's' : '') + ' en jeu';
+      ' · ' + enJeu + ' compte' + (enJeu > 1 ? 's' : '') + ' en jeu';
 
     const liste = document.getElementById('liste');
     document.getElementById('listeVide').hidden = etat.lignes.length > 0;
