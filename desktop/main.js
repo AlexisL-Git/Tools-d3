@@ -519,17 +519,22 @@ async function envoyerEtat() {
     messages,
   });
 
-  // L'ordre voulu par l'utilisateur. Il ne sert pas qu'a l'affichage: c'est
-  // lui que « personnage suivant » parcourt, donc c'est de la memoire
-  // musculaire. L'ordre de Zaap n'a aucune raison d'etre celui de l'equipe.
+  // L'ordre voulu par l'utilisateur, applique aux lignes envoyees au
+  // panneau. C'est le seul consommateur de l'ORDRE: carteComptes et
+  // ordreNavigation, construits juste apres, ne s'en servent que par id ou
+  // comme ensemble complet de pids. L'ordre de Zaap n'a aucune raison
+  // d'etre celui de l'equipe.
   const rangees = ordonner(lignes, favoris.ordre());
   lignes.length = 0;
   lignes.push(...rangees);
 
-  // La carte des pids et l'ordre de navigation, tenus a jour ici: c'est le
-  // seul endroit qui connaisse a la fois les comptes, les clients et l'ordre
-  // voulu. Les deux touches de navigation et le clic sur une identite s'en
-  // servent sans rien redemander a Windows.
+  // La carte des pids et la liste des pids affiches, tenues a jour ici:
+  // c'est le seul endroit qui connaisse a la fois les comptes, les clients
+  // et l'ordre voulu. carteComptes sert au clic sur une identite
+  // (basculerVersCompte) et a la fermeture d'un client depuis sa ligne
+  // (fermerUnClient), toutes deux par id. ordreNavigation sert a
+  // fermerClientsConnus, sur le chemin process.on('exit') — comme ensemble
+  // complet de pids a fermer, jamais dans son ordre.
   carteComptes = new Map();
   ordreNavigation = [];
   for (const l of lignes) {

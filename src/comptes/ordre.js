@@ -2,9 +2,11 @@
 
 // L'ordre de l'equipe. Rien d'autre.
 //
-// POURQUOI L'ORDRE EST STRUCTURANT. C'est l'ordre qu'affiche le panneau, et
-// c'est la liste que « fermer les clients » parcourt. Il n'a aucune raison de
-// coincider avec celui de Zaap.
+// A QUOI SERT L'ORDRE, MODESTEMENT. C'est l'ordre qu'affiche le panneau, et
+// rien de plus: la fermeture d'un client depuis sa ligne, celle du bouton qui
+// ferme tout, et celle qui tourne a la sortie du process ne travaillent que
+// sur un id ou sur l'ensemble complet des pids, jamais sur leur ordre. Il
+// n'a aucune raison de coincider avec celui de Zaap.
 //
 // Fonctions pures: ni Electron, ni Frida, ni disque.
 
