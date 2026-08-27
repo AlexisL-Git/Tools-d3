@@ -70,7 +70,7 @@ laisserait deux endroits où chercher la réponse à « comment s'écrit un
 raccourci ». Il reste pur — ni Electron, ni Frida, ni disque.
 
 ```
-depuisBouton({ bouton, ctrlKey, altKey, shiftKey })  -> 'CommandOrControl+Souris4'
+depuisBouton({ button, ctrlKey, altKey, shiftKey })  -> 'CommandOrControl+Souris4'
                                                         ou null
 estSouris(accelerateur)                              -> booleen
 ```
@@ -121,7 +121,7 @@ tourne que quand elle sert.
 Le message remonté porte l'état brut, pas une chaîne :
 
 ```
-send({ souris: { bouton: 4, ctrlKey: false, altKey: false, shiftKey: true } })
+send({ souris: { button: 4, ctrlKey: false, altKey: false, shiftKey: true } })
 ```
 
 Les noms de champs sont ceux d'un `MouseEvent` du navigateur, pour que la même
