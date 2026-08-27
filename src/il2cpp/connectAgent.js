@@ -433,6 +433,17 @@ function connectAgentSource({
         return casier.readU32() === Process.id;
       }
 
+      // Rempli juste avant d'allumer le sondage, avec l'etat REEL de chaque
+      // bouton, sans rien emettre. Sans cela, un bouton deja enfonce au
+      // moment de l'allumage serait vu comme un front montant au premier
+      // passage et enverrait un appui fantome.
+      function reamorcerAvant() {
+        for (let i = 0; i < BOUTONS_VK.length; i++) {
+          const vk = BOUTONS_VK[i][0];
+          avant[vk] = enfonce(vk);
+        }
+      }
+
       function sonderBoutons() {
         try {
           // Sans cette garde, les cinq clients verraient le meme appui et la
@@ -464,7 +475,7 @@ function connectAgentSource({
         recv('souris', function (m) {
           try {
             // 30 ms: un clic dure 80 a 150 ms, on ne peut pas en rater.
-            if (m && m.actif && sonde === null) sonde = setInterval(sonderBoutons, 30);
+            if (m && m.actif && sonde === null) { reamorcerAvant(); sonde = setInterval(sonderBoutons, 30); }
             else if ((!m || !m.actif) && sonde !== null) { clearInterval(sonde); sonde = null; }
           } catch (e) {}
           ecouterSouris();
