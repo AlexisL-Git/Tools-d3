@@ -216,9 +216,10 @@
   .cabochon:hover { border-color: var(--commande); color: var(--commande); }
   .cabochon.sans-touche { color: var(--filet); border-style: dashed; box-shadow: none; background: transparent; }
   .cabochon.ecoute { border-color: var(--commande); color: var(--commande); border-style: solid; background: rgba(255,159,28,.12); }
-  /* Une touche NUE est signalee: elle sera confisquee a Dofus tant qu'OMNI
-     tourne. Signalee, pas interdite — c'est l'utilisateur qui sait ce qu'il
-     utilise en combat. */
+  /* Signale deux situations differentes, pas une seule: une touche NUE est
+     CONFISQUEE a Dofus tant qu'OMNI tourne, alors qu'un clic molette est
+     seulement PARTAGE avec lui (Dofus le recoit aussi). Signalee, pas
+     interdite — c'est l'utilisateur qui sait ce qu'il utilise en combat. */
   .cabochon.risque { border-color: var(--alerte); color: var(--alerte); }
 
   .barre-nav {
