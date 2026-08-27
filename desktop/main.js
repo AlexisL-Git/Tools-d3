@@ -95,7 +95,7 @@ let avisBascule = { texte: null, instant: 0 };
 // reconstruit toutes les 2 s. On le garde ici, et la bascule devient
 // instantanee: aucun process a lancer, aucune attente.
 let carteComptes = new Map();   // idCompte -> pid
-let ordreAffiche = [];       // pids, dans l'ordre affiche
+let ordreAffiche = [];          // pids, dans l'ordre affiche
 
 // LA FERMETURE EMPORTE LES CLIENTS, MAIS ON DEMANDE.
 //
@@ -530,11 +530,14 @@ async function envoyerEtat() {
 
   // La carte des pids et la liste des pids affiches, tenues a jour ici:
   // c'est le seul endroit qui connaisse a la fois les comptes, les clients
-  // et l'ordre voulu. carteComptes sert au clic sur une identite
-  // (basculerVersCompte) et a la fermeture d'un client depuis sa ligne
-  // (fermerUnClient), toutes deux par id. ordreAffiche sert a
-  // fermerClientsConnus, sur le chemin process.on('exit') — comme ensemble
-  // complet de pids a fermer, jamais dans son ordre.
+  // et l'ordre voulu. carteComptes sert a basculerVersCompte() -- qui repond
+  // au clic sur une identite, au raccourci clavier par compte ET au bouton de
+  // souris par compte (les deux poses dans poserRaccourcis()), c'est la
+  // fonctionnalite meme qui a rendu la navigation cyclique inutile -- et a la
+  // fermeture d'un client depuis sa ligne (fermerUnClient), toutes deux par
+  // id. ordreAffiche sert a fermerClientsConnus, sur le chemin
+  // process.on('exit') — comme ensemble complet de pids a fermer, jamais
+  // dans son ordre.
   carteComptes = new Map();
   ordreAffiche = [];
   for (const l of lignes) {
@@ -858,7 +861,15 @@ async function basculerVersCompte(idCompte) {
   const r = superviseur.basculerVers(pid);
   if (!r.ok) {
     journal(pid, `bascule refusee : ${r.raison}`);
-    noterAvis(`bascule impossible : ${r.raison}`);
+    // 'client inconnu' vient de basculerVers() quand ce pid n'a jamais ete
+    // passe a superviseur.ajouter() (voir balayerProcess : plafond de 8
+    // clients, ou pid vu par clientsRecents() avant le prochain balayage).
+    // Ce n'est PAS le cas d'un client lance avant OMNI: celui-la s'attache
+    // sans probleme (voir src/comptes/vue.js, etat "non-intercepte"), donc
+    // basculerVers() y reussit. La raison technique reste dans le journal.
+    noterAvis(r.raison === 'client inconnu'
+      ? 'bascule impossible : client pas encore pris en charge par OMNI'
+      : `bascule impossible : ${r.raison}`);
     envoyerEtat();
   }
 }
