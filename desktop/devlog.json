@@ -1,0 +1,33 @@
+[
+  {
+    "version": "0.2.4",
+    "le": "2026-08-26",
+    "notes": [
+      "Le launcher s'appelle OMNI.",
+      "Panneau refait : raccourcis clavier par compte, bascule vers la fenêtre d'un compte.",
+      "Les personnages dont le nom contient un tiret sont enfin reconnus."
+    ]
+  },
+  {
+    "version": "0.2.3",
+    "le": "2026-08-25",
+    "notes": [
+      "Une version installée par la mise à jour retrouve tout ce qu'il lui faut pour démarrer.",
+      "Paquet allégé des outils de développement."
+    ]
+  },
+  {
+    "version": "0.2.2",
+    "le": "2026-08-25",
+    "notes": [
+      "OMNI ne se ferme plus tout seul juste après la saisie de la clé."
+    ]
+  },
+  {
+    "version": "0.2.1",
+    "le": "2026-08-24",
+    "notes": [
+      "Moins de traces écrites sur le disque."
+    ]
+  }
+]

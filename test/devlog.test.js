@@ -85,3 +85,22 @@ test('CHEMIN pointe dans desktop/', () => {
   assert.strictEqual(path.basename(CHEMIN), 'devlog.json');
   assert.strictEqual(path.basename(path.dirname(CHEMIN)), 'desktop');
 });
+
+// CE TEST-CI EST LE PLUS UTILE DES NEUF. Les autres portent sur des fichiers
+// fabriques; celui-ci lit le fichier REEL qui part chez les amis. Une virgule
+// en trop dans devlog.json rendrait le panneau vide chez tout le monde, sans
+// un message, et rien d'autre ne l'attraperait.
+test('le devlog reel du depot se lit et n est pas vide', () => {
+  const entrees = lireDevlog(CHEMIN);
+  assert.ok(entrees.length >= 4, `devlog.json rend ${entrees.length} entrees`);
+  const versions = entrees.map((e) => e.version);
+  for (const attendue of ['0.2.1', '0.2.2', '0.2.3', '0.2.4']) {
+    assert.ok(versions.includes(attendue), `${attendue} manque au devlog`);
+  }
+});
+
+test('chaque entree du devlog reel porte une date au format AAAA-MM-JJ', () => {
+  for (const e of lireDevlog(CHEMIN)) {
+    assert.match(e.le, /^\d{4}-\d{2}-\d{2}$/, `date invalide sur ${e.version}`);
+  }
+});
