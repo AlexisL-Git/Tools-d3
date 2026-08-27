@@ -738,10 +738,11 @@ Dans `desktop/preload.js`, après `reglerToucheNav` :
 À côté de la constante `MODIF`, ajouter :
 
 ```js
-  // RECOPIE DE src/comptes/raccourcis.js, et il faut que ca le reste.
-  // Le renderer tourne en bac a sable: il n'a pas de require, et un preload
-  // en bac a sable ne peut charger que les modules d'Electron. Toute
-  // modification ici doit etre reportee la-bas, et reciproquement.
+  // >>> COPIE DE src/comptes/raccourcis.js - NE PAS MODIFIER D'UN SEUL COTE
+  // Le renderer tourne en bac a sable: il n'a pas de require, et un preload en
+  // bac a sable ne peut charger que les modules d'Electron. Cette copie est
+  // donc imposee, pas un oubli. test/souris-copie.test.js compare les deux par
+  // leur COMPORTEMENT: modifier l'une sans l'autre rend npm test rouge.
   const BOUTONS = { 1: 'SourisMilieu', 3: 'Souris4', 4: 'Souris5' };
   const SOURIS = new Set(Object.values(BOUTONS));
 
@@ -755,7 +756,12 @@ Dans `desktop/preload.js`, après `reglerToucheNav` :
     parties.push(nom);
     return parties.join('+');
   }
+  // <<< FIN DE COPIE
 ```
+
+Les deux marqueurs sont **obligatoires** : `test/souris-copie.test.js` (tache 6)
+extrait ce bloc entre eux et compare son comportement a celui du module. Sans
+eux, l'extraction echoue et le test est rouge.
 
 Ajouter dans la table `AFFICHAGE` du fichier :
 
@@ -857,7 +863,138 @@ en bac a sable et n'a pas de require."
 
 ---
 
-### Task 6: Verification en conditions reelles
+### Task 6: Tenir les deux copies ensemble
+
+**Files:**
+- Create: `test/souris-copie.test.js`
+- Modify: aucun fichier de production.
+
+**Interfaces:**
+- Consumes: `depuisBouton` (tâche 1) et les marqueurs `>>> COPIE DE` / `<<< FIN DE COPIE` posés dans `desktop/index.html` (tâche 5).
+- Produces: rien.
+
+**Pourquoi cette tâche.** Le renderer est en bac à sable : la traduction est recopiée, et rien ne garantit que les deux copies restent d'accord. Une divergence d'un caractère rendrait le raccourci muet **sans erreur**. Le dépôt traite déjà ce risque ainsi — `test/pont-ipc.test.js` fait une assertion sur le source pour un chemin qui demanderait un vrai renderer.
+
+On ne compare pas des chaînes de caractères : on **exécute** la copie et on vérifie qu'elle rend exactement ce que rend le module, sur toutes les combinaisons.
+
+- [ ] **Step 1: Write the failing test**
+
+Créer `test/souris-copie.test.js` :
+
+```js
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+const { depuisBouton } = require('../src/comptes/raccourcis');
+
+// LES DEUX COPIES DE LA TRADUCTION, TENUES ENSEMBLE.
+//
+// desktop/index.html porte une copie de ce que fait src/comptes/raccourcis.js.
+// Elle est IMPOSEE: le renderer tourne avec sandbox: true, il n'a pas de
+// require, et un preload en bac a sable ne peut charger que les modules
+// d'Electron.
+//
+// Une divergence d'un seul caractere — un modificateur dans un autre ordre, un
+// bouton mal nomme — produirait une chaine differente de celle que fabrique
+// l'agent. Le raccourci deviendrait muet SANS la moindre erreur, et c'est le
+// mode d'echec le plus couteux de ce projet.
+//
+// On n'assertionne donc pas sur le texte: on EXECUTE la copie et on compare son
+// resultat a celui du module, sur toutes les combinaisons.
+
+const html = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'index.html'), 'utf8');
+
+const DEBUT = '// >>> COPIE DE src/comptes/raccourcis.js';
+const FIN = '// <<< FIN DE COPIE';
+
+test('la copie est delimitee par ses marqueurs', () => {
+  const i = html.indexOf(DEBUT);
+  const j = html.indexOf(FIN);
+  assert.notStrictEqual(i, -1, 'marqueur de debut absent de index.html');
+  assert.notStrictEqual(j, -1, 'marqueur de fin absent de index.html');
+  assert.ok(j > i, 'le marqueur de fin doit suivre celui de debut');
+});
+
+function copieDuRenderer() {
+  const i = html.indexOf(DEBUT);
+  const j = html.indexOf(FIN);
+  const source = html.slice(i, j);
+  // La copie est du code de module: on la charge telle quelle et on rend la
+  // fonction qu'elle definit.
+  return new Function(source + '\nreturn accelerateurSourisDe;')();
+}
+
+test('la copie du renderer rend exactement ce que rend le module', () => {
+  const accelerateurSourisDe = copieDuRenderer();
+  // Les six numeros de bouton du DOM, dont trois qui ne s'assignent pas.
+  for (const button of [0, 1, 2, 3, 4, 5]) {
+    for (const ctrlKey of [false, true]) {
+      for (const altKey of [false, true]) {
+        for (const shiftKey of [false, true]) {
+          const clic = { button, ctrlKey, altKey, shiftKey };
+          assert.strictEqual(
+            accelerateurSourisDe(clic),
+            depuisBouton(clic),
+            'divergence sur ' + JSON.stringify(clic)
+              + ' : index.html et raccourcis.js ne s accordent plus',
+          );
+        }
+      }
+    }
+  }
+});
+
+// Le libelle vit lui aussi en double. Il ne rend pas le raccourci muet, mais il
+// afficherait « Souris4 » a l'utilisateur au lieu de « M4 ».
+test('les trois boutons ont leur libelle court dans le renderer', () => {
+  for (const nom of ['Souris4', 'Souris5', 'SourisMilieu']) {
+    assert.match(html, new RegExp(nom + ":\\s*'"), nom + ' n a pas de libelle dans AFFICHAGE de index.html');
+  }
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `node --test test/souris-copie.test.js`
+
+Expected: la tâche 5 ayant déjà posé les marqueurs, le test passe probablement du premier coup. **Ce n'est pas une preuve** — passer à l'étape 3, qui vérifie qu'il sait échouer.
+
+- [ ] **Step 3: Vérifier que le test attrape une vraie divergence**
+
+Dans `desktop/index.html`, intervertir temporairement `Alt` et `Shift` dans `accelerateurSourisDe`.
+
+Run: `node --test test/souris-copie.test.js`
+Expected: FAIL avec `divergence sur {"button":1,...}`.
+
+**Remettre l'ordre correct** et relancer pour vérifier le retour au vert. Un test qui ne sait pas échouer ne prouve rien, et celui-ci ne peut pas être écrit avant le code qu'il surveille.
+
+- [ ] **Step 4: Run the full suite**
+
+Run: `npm test`
+Expected: `fail 0`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add test/souris-copie.test.js
+git commit -m "test: tenir ensemble les deux copies de la traduction
+
+Le renderer est en bac a sable: la traduction bouton -> accelerateur est
+recopiee dans index.html, et rien ne garantissait que les deux copies
+restent d'accord. Une divergence d'un caractere rendrait le raccourci
+muet SANS erreur — le mode d'echec le plus couteux de ce projet.
+
+Le test n'assertionne pas sur le texte: il EXECUTE la copie extraite de
+index.html et compare son resultat a celui du module sur les 48
+combinaisons de bouton et de modificateurs. Meme methode que
+pont-ipc.test.js, pour la meme raison."
+```
+
+---
+
+### Task 7: Verification en conditions reelles
 
 **Files:** aucun, sauf correctif éventuel.
 
