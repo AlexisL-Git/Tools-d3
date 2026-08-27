@@ -797,6 +797,16 @@ function poserRaccourcis() {
   if (superviseur !== null) superviseur.reglerSouris(actionsSouris.size > 0);
 }
 
+// Derive un message affichable de n'importe quoi: un throw ou un reject
+// peuvent porter autre chose qu'une Error (throw null, Promise.reject() sans
+// argument...). Lire .message dessus leverait a son tour, DANS le catch qui
+// est cense arreter la casse — String() ne leve jamais sur ces formes.
+function messageErreur(e) {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  try { return String(e); } catch { return 'erreur inconnue'; }
+}
+
 // Un appui de bouton, d'ou qu'il vienne: de l'agent quand Dofus est devant, de
 // l'interface quand c'est OMNI. Meme table, meme action.
 //
@@ -814,8 +824,8 @@ function jouerSouris(clic) {
   const action = actionsSouris.get(accelerateur);
   if (action === undefined) return;
   let r = null;
-  try { r = action(); } catch (e) { journal('souris', `${accelerateur} : ${e.message}`); return; }
-  if (r && typeof r.then === 'function') r.catch((e) => journal('souris', `${accelerateur} : ${e.message}`));
+  try { r = action(); } catch (e) { journal('souris', `${accelerateur} : ${messageErreur(e)}`); return; }
+  if (r && typeof r.then === 'function') r.catch((e) => journal('souris', `${accelerateur} : ${messageErreur(e)}`));
 }
 
 // Met au premier plan la fenetre du compte demande. Rend un compte rendu
