@@ -60,7 +60,7 @@ class Superviseur {
     this.maitre = null;
     // Le dernier client qu'on a REELLEMENT mis au premier plan, confirme par
     // son agent. Ce n'est pas « qui est devant »: personne ne le surveille
-    // plus, et le curseur du cycle vit dans desktop/main.js.
+    // plus.
     //
     // IL NE DECERNE RIEN. Le maitre est epingle: confondre le focus et le
     // commandement est exactement ce qu'on a retire.
@@ -162,8 +162,10 @@ class Superviseur {
       excludePorts: [26116],   // le launcher Ankama: le detourner coupe la session
       // La surveillance du premier plan est DE NOUVEAU eteinte, et cette fois
       // plus rien n'en depend. Elle etait revenue pour dire d'ou partait
-      // « personnage suivant »; la navigation est devenue un cycle franc, qui
-      // retient le dernier client vise au lieu de chercher lequel est devant.
+      // « personnage suivant »; ce raccourci a disparu avec le cycle de
+      // navigation -- chaque compte a desormais sa propre touche ou son
+      // propre bouton de souris, qui vise le client voulu directement, sans
+      // avoir besoin de savoir lequel etait devant.
       //
       // Ce que ca economise n'est pas symbolique: une boucle setInterval de
       // 250 ms tournait A L'INTERIEUR de chaque client Dofus, uniquement pour
@@ -327,7 +329,9 @@ class Superviseur {
   //
   // `premierPlan` alimente enAvant, JAMAIS maitre. Le focus a decerne le role
   // de maitre pendant tout un temps, et cliquer sur un alt envoyait ses actions
-  // a toute l'equipe. Il ne sert plus qu'a savoir d'ou part la navigation.
+  // a toute l'equipe. enAvant est ecrit ici et remis a null a la deconnexion
+  // (retirer()), mais rien d'autre ne le lit: plus aucun consommateur ne s'en
+  // sert. Le gestionnaire reste, garde par prudence -- un test le couvre.
   _recevoirMessageAgent(pid, p, port) {
     if (p.premierPlan !== undefined) {
       if (p.premierPlan) this.enAvant = pid;
