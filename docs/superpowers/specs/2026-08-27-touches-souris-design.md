@@ -62,23 +62,39 @@ recherche dans la table échoue et le raccourci ne fait rien, sans erreur.
 
 ## Architecture
 
-### `src/souris.js` — nouveau, pur
+### `src/comptes/raccourcis.js` — étendu, pas un fichier de plus
 
-Jumeau de `src/passeur.js` : ni Electron, ni Frida, ni disque. Il porte la
-totalité de la connaissance du format.
+Le module qui traduit déjà entre frappe, accélérateur Electron et libellé
+affiché. C'est là que la souris appartient : un second fichier au même sujet
+laisserait deux endroits où chercher la réponse à « comment s'écrit un
+raccourci ». Il reste pur — ni Electron, ni Frida, ni disque.
 
 ```
-accelerateurSouris({ bouton, ctrl, alt, shift })   -> 'CommandOrControl+Souris4'
-                                                     ou null
-estAccelerateurSouris(chaine)                      -> booleen
+depuisBouton({ bouton, ctrlKey, altKey, shiftKey })  -> 'CommandOrControl+Souris4'
+                                                        ou null
+estSouris(accelerateur)                              -> booleen
 ```
 
-`accelerateurSouris` rend `null` pour tout bouton non assignable (gauche,
-droit, inconnu). C'est **la même fonction** qui sert à la capture dans
-l'interface et à la réception depuis l'agent — c'est ce qui garantit que les
-deux chaînes coïncident.
+`depuisBouton` est le jumeau exact de `depuisFrappe` : mêmes noms de champs
+que l'objet `MouseEvent` du navigateur, même ordre de modificateurs, et `null`
+pour tout bouton non assignable (gauche, droit, inconnu). C'est **la même
+fonction** qui sert à la capture dans l'interface et à la réception depuis
+l'agent : c'est ce qui garantit que les deux chaînes coïncident.
 
-`estAccelerateurSouris` est ce qui permet à `poserRaccourcis()` de trier.
+`estSouris` est ce qui permet à `poserRaccourcis()` de trier.
+
+`estUtilisable` doit changer. Elle classe aujourd'hui tout accélérateur d'une
+seule partie comme risqué, sauf les touches de fonction : `Souris4` serait donc
+signalé à tort. Elle rendra `{ risque: false }` pour M4 et M5, et pour la
+molette un risque au texte **différent** de celui du clavier — le clic n'est
+pas confisqué, il est partagé.
+
+### La duplication dans `index.html` est imposée
+
+Le renderer tourne avec `sandbox: true` (`desktop/main.js:611`), et un preload
+en bac à sable ne peut charger que les modules d'Electron. `index.html` porte
+donc sa propre copie de cette traduction, et il faut l'y étendre aussi. Ce
+n'est pas un oubli à corriger : c'est la frontière de confiance.
 
 ### `src/il2cpp/connectAgent.js` — un bloc de plus
 
@@ -105,10 +121,12 @@ tourne que quand elle sert.
 Le message remonté porte l'état brut, pas une chaîne :
 
 ```
-send({ souris: { bouton: 4, ctrl: false, alt: false, shift: true } })
+send({ souris: { bouton: 4, ctrlKey: false, altKey: false, shiftKey: true } })
 ```
 
-La mise en forme reste dans `src/souris.js`, où elle se teste.
+Les noms de champs sont ceux d'un `MouseEvent` du navigateur, pour que la même
+fonction accepte les deux sources sans adaptateur. La mise en forme reste dans
+`src/comptes/raccourcis.js`, où elle se teste.
 
 ### `src/superviseur.js`
 
@@ -132,7 +150,7 @@ La table est reconstruite en entier à chaque changement, comme les raccourcis
 clavier le sont déjà : au plus dix entrées, et un différentiel faux laisserait
 un bouton fantôme actif jusqu'à la fermeture.
 
-`onSouris` fabrique la chaîne avec `src/souris.js`, cherche dans la table, et
+`onSouris` fabrique la chaîne avec `depuisBouton`, cherche dans la table, et
 exécute. Une entrée absente ne fait rien — ce n'est pas une erreur, c'est un
 bouton non assigné.
 
@@ -172,10 +190,11 @@ Le canal `boutonSouris` exposé au renderer, comme les autres.
 
 Sans jeu ni interface :
 
-- `src/souris.js` : les trois boutons rendent la bonne chaîne ; gauche, droit et
-  un bouton inconnu rendent `null` ; l'ordre des modificateurs est le même que
-  celui du clavier ; `estAccelerateurSouris` distingue `Ctrl+Souris4` de
-  `Ctrl+A`.
+- `src/comptes/raccourcis.js` : les trois boutons rendent la bonne chaîne ;
+  gauche, droit et un bouton inconnu rendent `null` ; l'ordre des
+  modificateurs est le même que celui du clavier ; `estSouris` distingue
+  `CommandOrControl+Souris4` de `CommandOrControl+A` ; `estUtilisable` ne
+  signale plus M4 et M5, et signale la molette avec son propre texte.
 - `poserRaccourcis` : un accélérateur souris ne part jamais chez
   `globalShortcut`, un accélérateur clavier y va toujours, et un mélange des
   deux se répartit correctement.
@@ -187,7 +206,7 @@ Sans jeu ni interface :
 
 | | |
 |---|---|
-| 1 | `src/souris.js` et ses tests |
+| 1 | `src/comptes/raccourcis.js` étendu, et ses tests |
 | 2 | Le bloc souris de l'agent, et son allumage par le superviseur |
 | 3 | Le tri dans `poserRaccourcis` et la table d'actions |
 | 4 | La capture et l'affichage dans l'interface |
