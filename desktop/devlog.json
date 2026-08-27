@@ -1,5 +1,13 @@
 [
   {
+    "version": "0.2.5",
+    "le": "2026-08-27",
+    "notes": [
+      "Le numéro de version en bas de la fenêtre est cliquable : il ouvre ces notes.",
+      "Tu peux désormais voir ce que chaque mise à jour a changé."
+    ]
+  },
+  {
     "version": "0.2.4",
     "le": "2026-08-26",
     "notes": [
