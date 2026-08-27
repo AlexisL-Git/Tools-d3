@@ -52,7 +52,7 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   // Depuis les extensions au passe-tour et a l'invitation, le fichier porte
   // aussi passeTour, invitation et delai (vides/nuls ici): voir le test
   // dedie plus bas pour le contenu complet.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'nav', 'noAnim', 'ordre', 'passeTour', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'passeTour', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -103,7 +103,7 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'nav', 'noAnim', 'ordre', 'passeTour', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'passeTour', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
@@ -337,8 +337,8 @@ test('une valeur non booleenne dans le fichier vaut au repos', (t) => {
 
 // --- touches et ordre de l equipe ------------------------------------------
 
-// Un raccourci par compte, plus les deux touches de navigation. Le fichier ne
-// porte que des chaines courtes et des identifiants: rien de sensible.
+// Un raccourci par compte. Le fichier ne porte que des chaines courtes et
+// des identifiants: rien de sensible.
 test('sans fichier, aucune touche n est assignée', (t) => {
   const f = new Favoris(fichierTemporaire(t)).charger();
   assert.deepStrictEqual(f.touches(), {});
@@ -377,30 +377,6 @@ test('un identifiant non entier ou une touche non textuelle sont refusés', (t) 
   assert.deepStrictEqual(f.touches(), {});
 });
 
-// Les deux touches de navigation ont un defaut utilisable: Ctrl plus les
-// fleches n'entre pas en conflit avec le jeu.
-test('la navigation a des touches par défaut', (t) => {
-  const f = new Favoris(fichierTemporaire(t)).charger();
-  assert.deepStrictEqual(f.touchesNav(), {
-    precedent: 'CommandOrControl+Left',
-    suivant: 'CommandOrControl+Right',
-  });
-});
-
-test('les touches de navigation se règlent et survivent', (t) => {
-  const chemin = fichierTemporaire(t);
-  new Favoris(chemin).charger().reglerToucheNav('suivant', 'F12');
-  const nav = new Favoris(chemin).charger().touchesNav();
-  assert.strictEqual(nav.suivant, 'F12');
-  assert.strictEqual(nav.precedent, 'CommandOrControl+Left');
-});
-
-test('un nom de navigation inconnu est ignoré', (t) => {
-  const f = new Favoris(fichierTemporaire(t)).charger();
-  f.reglerToucheNav('milieu', 'F5');
-  assert.strictEqual(f.touchesNav().milieu, undefined);
-});
-
 test('l ordre de l équipe se règle et survit', (t) => {
   const chemin = fichierTemporaire(t);
   new Favoris(chemin).charger().reglerOrdre([7, 3, 5]);
@@ -419,6 +395,5 @@ test('un fichier sans les nouvelles clés se lit sans erreur', (t) => {
   const f = new Favoris(chemin).charger();
   assert.deepStrictEqual(f.touches(), {});
   assert.deepStrictEqual(f.ordre(), []);
-  assert.strictEqual(f.touchesNav().suivant, 'CommandOrControl+Right');
   assert.strictEqual(f.estFavori(3), true);
 });
