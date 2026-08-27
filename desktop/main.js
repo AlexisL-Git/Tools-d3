@@ -211,6 +211,19 @@ process.on('uncaughtException', (e) => {
   process.exit(1);
 });
 
+// Meme trou, cote promesses: naviguer() et basculerVersCompte() lancent
+// envoyerEtat() sans l'attendre, et un rejet de cette promesse orpheline ne
+// passe par aucun catch. Sans ce filet, il tuerait le process en silence, en
+// emportant tous les clients Dofus de l'utilisateur — exactement ce que le
+// filet de jouerSouris essaie d'eviter. Meme journalisation, meme sortie que
+// uncaughtException: un rejet non rattrape est du meme ordre de gravite
+// qu'une exception non capturee, et le laisser continuer sans sortir
+// laisserait le process dans un etat que personne n'a valide.
+process.on('unhandledRejection', (raison) => {
+  journal('panne', `rejet non capture : ${raison && raison.stack ? raison.stack : raison}`);
+  process.exit(1);
+});
+
 // Le clic sur une identite deplace le curseur, sinon le raccourci suivant
 // repartirait d'ou on etait avant le clic.
 function poserCurseur(pid) {
