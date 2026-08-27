@@ -802,12 +802,20 @@ function poserRaccourcis() {
 //
 // Un bouton non assigne ne fait rien et ne se journalise pas: l'utilisateur a
 // deux boutons sous le pouce et s'en sert pour autre chose.
+//
+// L'action peut jeter (synchrone) ou rejeter (sa promesse): laisser passer
+// l'un ou l'autre declenche uncaughtException, qui fait sortir tout le
+// process et emporte les clients Dofus avec lui a la fermeture. Le chemin
+// agent est le plus expose: onSouris est appelee depuis un rappel Frida, sans
+// aucun autre filet le long de la chaine.
 function jouerSouris(clic) {
   const accelerateur = depuisBouton(clic);
   if (accelerateur === null) return;
   const action = actionsSouris.get(accelerateur);
   if (action === undefined) return;
-  action();
+  let r = null;
+  try { r = action(); } catch (e) { journal('souris', `${accelerateur} : ${e.message}`); return; }
+  if (r && typeof r.then === 'function') r.catch((e) => journal('souris', `${accelerateur} : ${e.message}`));
 }
 
 // Met au premier plan la fenetre du compte demande. Rend un compte rendu
