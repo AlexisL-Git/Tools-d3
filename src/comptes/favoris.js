@@ -48,8 +48,8 @@ class Favoris {
     // Un raccourci global par compte, pour mettre sa fenetre au premier plan.
     // idCompte -> accelerateur Electron.
     this._touches = new Map();
-    // L'ordre voulu par l'utilisateur. Il devient structurant des lors qu'une
-    // touche dit « personnage suivant »: c'est de la memoire musculaire.
+    // L'ordre voulu par l'utilisateur. C'est l'ordre qu'affiche le panneau,
+    // et rien de plus -- voir src/comptes/ordre.js.
     this._ordre = [];
   }
 
