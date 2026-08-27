@@ -800,15 +800,24 @@ function poserRaccourcis() {
 // Derive un message affichable de n'importe quoi: un throw ou un reject
 // peuvent porter autre chose qu'une Error (throw null, Promise.reject() sans
 // argument, un objet dont .message ou toString() ne rend pas une chaine...).
-// Toutes les branches passent par la meme conversion protegee: .message n'est
-// pas fiable a lui seul (il peut valoir un Symbol, un nombre...), et un Symbol
-// renvoye tel quel leverait plus tard a l'interpolation dans le gabarit, DANS
-// le catch qui est cense arreter la casse. String() sous try/catch ne leve
-// jamais et rend toujours une chaine.
+//
+// TOUT le corps est sous le try, y compris le test instanceof et la lecture de
+// .message: ce n'est pas de la precaution decorative, ces deux operations
+// peuvent lever a elles seules. .message peut etre un accesseur qui jette, et
+// instanceof interroge la chaine de prototypes, donc un Proxy dont le trap
+// getPrototypeOf jette fait lever le test lui-meme. Un jet ici sortirait de
+// messageErreur avant tout filet et remonterait DANS le catch de jouerSouris,
+// cense justement arreter la casse: c'est le crash qu'on veut supprimer.
+// Ne pas ressortir la premiere ligne du try en croyant simplifier.
+//
+// Le repli ne touche a aucune propriete de e, pour la meme raison. String()
+// sous try/catch rend toujours une chaine, et une chaine est necessaire: un
+// Symbol rendu tel quel leverait plus loin a l'interpolation dans le gabarit.
 function messageErreur(e) {
-  const brut = e instanceof Error ? e.message : e;
-  if (typeof brut === 'string') return brut;
-  try { return String(brut); } catch { return 'erreur inconnue'; }
+  try {
+    const brut = e instanceof Error ? e.message : e;
+    return typeof brut === 'string' ? brut : String(brut);
+  } catch { return 'erreur inconnue'; }
 }
 
 // Un appui de bouton, d'ou qu'il vienne: de l'agent quand Dofus est devant, de
