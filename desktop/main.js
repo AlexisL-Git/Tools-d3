@@ -20,6 +20,7 @@ const { COLONNES, parNom, cibleBascule } = require('../src/comptes/colonnes');
 const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
 const { lireDevlog, CHEMIN: CHEMIN_DEVLOG } = require('./devlog');
+const { estSouris, depuisBouton } = require('../src/comptes/raccourcis');
 
 const PERIODE_PROCESS = 500;    // prise en charge des nouveaux clients
 const PERIODE_VUE = 2000;       // rafraichissement de la liste affichee
@@ -622,6 +623,11 @@ function creerFenetre() {
     demanderFermeture();
   });
 
+  // M4 et M5 sont « precedent » et « suivant » pour Chromium. La fenetre n'a
+  // aucun historique, donc rien ne se passerait — mais on coupe court plutot
+  // que de dependre de ce fait.
+  fenetre.on('app-command', (e) => e.preventDefault());
+
   fenetre.removeMenu();
   fenetre.once('ready-to-show', () => fenetre.show());
   fenetre.loadFile(path.join(__dirname, 'index.html'));
@@ -667,6 +673,7 @@ app.whenReady().then(async () => {
       },
       onCompteRendu: ({ conn, pid, raison }) => journal(pid, `no-anim (connexion ${conn}) : ${raison}`),
     }),
+    onSouris: ({ clic }) => jouerSouris(clic),
   });
 
   // Sans ce branchement, le superviseur decode tout et ne rejoue rien:
@@ -745,12 +752,26 @@ app.whenReady().then(async () => {
 // On repose tout a chaque changement plutot que de tenir un differentiel: il y
 // a au plus dix raccourcis, et un differentiel faux laisse une touche fantome
 // enregistree jusqu'a la fermeture.
+
+// LES RACCOURCIS SOURIS, qui ne peuvent pas passer par globalShortcut.
+//
+// Electron ne sait enregistrer que des touches. Un bouton passe donc par un
+// second chemin, de l'agent jusqu'ici, et cette table est son aboutissement.
+// Elle est refaite en entier a chaque changement, comme les raccourcis
+// clavier: un differentiel faux laisserait un bouton fantome actif jusqu'a la
+// fermeture.
+const actionsSouris = new Map();   // accelerateur -> action
+
 function poserRaccourcis() {
   globalShortcut.unregisterAll();
+  actionsSouris.clear();
   if (favoris === null) return;
 
   const poser = (accelerateur, action) => {
     if (!accelerateur) return;
+    // Un bouton n'est pas representable dans un accelerateur Electron: le
+    // passer a register() echouerait sans lever, donc en silence.
+    if (estSouris(accelerateur)) { actionsSouris.set(accelerateur, action); return; }
     try {
       // register rend faux quand la touche est deja prise par une AUTRE
       // application: on le dit plutot que de laisser croire que ca marche.
@@ -770,6 +791,23 @@ function poserRaccourcis() {
   const nav = favoris.touchesNav();
   poser(nav.suivant, () => naviguer(1));
   poser(nav.precedent, () => naviguer(-1));
+
+  // La boucle de sondage ne tourne dans les clients que s'il y a quelque chose
+  // a sonder.
+  if (superviseur !== null) superviseur.reglerSouris(actionsSouris.size > 0);
+}
+
+// Un appui de bouton, d'ou qu'il vienne: de l'agent quand Dofus est devant, de
+// l'interface quand c'est OMNI. Meme table, meme action.
+//
+// Un bouton non assigne ne fait rien et ne se journalise pas: l'utilisateur a
+// deux boutons sous le pouce et s'en sert pour autre chose.
+function jouerSouris(clic) {
+  const accelerateur = depuisBouton(clic);
+  if (accelerateur === null) return;
+  const action = actionsSouris.get(accelerateur);
+  if (action === undefined) return;
+  action();
 }
 
 // Met au premier plan la fenetre du compte demande. Rend un compte rendu
@@ -842,6 +880,18 @@ ipcMain.handle('reglerToucheNav', async (_e, nom, accelerateur) => {
   favoris.reglerToucheNav(nom, accelerateur);
   poserRaccourcis();
   await envoyerEtat();
+});
+
+// L'interface signale un appui quand c'est la fenetre d'OMNI qui a le focus:
+// l'agent, lui, ne voit que les appuis faits sur son client Dofus.
+ipcMain.handle('boutonSouris', (_e, clic) => {
+  if (clic === null || typeof clic !== 'object') return;
+  jouerSouris({
+    button: clic.button,
+    ctrlKey: Boolean(clic.ctrlKey),
+    altKey: Boolean(clic.altKey),
+    shiftKey: Boolean(clic.shiftKey),
+  });
 });
 
 ipcMain.handle('reglerOrdre', async (_e, ids) => {
