@@ -4,6 +4,10 @@
 '   OMNI_JOURNAL=complet          allume le journal detaille
 '   OMNI_JOURNAL_FICHIER=...      l'ecrit dans <racine>\journal-dev.log
 '
+' Pour MESURER le protocole — toutes les trames, dans les deux sens — ajouter
+' a la main OMNI_CAPTURE=1 ci-dessous. C'est ce qui a identifie jyj le 27/08,
+' et c'est plusieurs milliers de lignes par combat: hors mesure, on s'en passe.
+'
 ' Le fichier est INDISPENSABLE: lance par un raccourci, OMNI n'a pas de console
 ' attachee et tout ce que console.log ecrit est perdu. Un diagnostic muet
 ' ressemble alors trait pour trait a un diagnostic qui n'a rien vu.

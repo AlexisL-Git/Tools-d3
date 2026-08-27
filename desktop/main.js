@@ -299,24 +299,26 @@ function journal(pid, texte) {
   try { fs.appendFileSync(fichierJournal(), ligne + '\n'); } catch { /* idem */ }
 }
 
-// DIAGNOSTIC TEMPORAIRE — a retirer une fois le passe-tour de l'ESCLAVE valide.
+// LA CAPTURE COMPLETE, sur son propre interrupteur: OMNI_CAPTURE=1.
 //
-// CE QUI MANQUE, ET QUI A COUTE DEUX DIAGNOSTICS FAUX: la mesure de reference.
-// Deux lectures de jxh — debut de tour, fin de tour — expliquent aussi bien
-// l'une que l'autre les intervalles observes, et rien dans un journal fait
-// uniquement de trames ENTRANTES ne permet de trancher. Ce qui tranche, c'est
-// un vrai clic sur « Passer »: il donne l'instant exact ou notre tour etait
-// ouvert, puisque le serveur l'a accepte.
+// Elle journalise TOUTE trame, dans LES DEUX SENS, avec ses champs de premier
+// niveau. C'est elle qui a identifie jyj le 27/08, apres deux diagnostics faux
+// tires de correlations. Deux raisons de la garder plutot que de la retirer
+// comme la precedente:
 //
-// D'ou le sens SORTANT, ajoute ici. Notre propre jxy ne s'y voit pas — il est
-// ecrit directement sur la socket amont et ne repasse pas par le reassembleur —
-// donc tout jxy sortant journalise vient de la MAIN de l'utilisateur. C'est
-// exactement la mesure du 20/08, celle qui avait identifie la trame.
+// - LE SENS SORTANT est la seule mesure de reference qui existe. Notre propre
+//   jxy ne s'y voit pas — il est ecrit directement sur la socket amont et ne
+//   repasse pas par le reassembleur — donc tout jxy sortant journalise vient
+//   de la MAIN de l'utilisateur, et date un instant ou le serveur a
+//   effectivement accepte de passer le tour. Aucune correlation ne vaut ca.
+// - REGARDER TOUS LES TYPES, et pas seulement ceux qu'on croit utiles. jyj
+//   traversait le flux depuis le debut; il figurait meme dans les tests, comme
+//   exemple de type SANS interet.
 //
-// On journalise aussi TOUTES les trames entrantes, et plus seulement jxh/jxz:
-// le message qui ouvre un tour n'est peut-etre aucun des deux, et on ne peut
-// pas trouver ce qu'on refuse de regarder.
-let instantEmission = 0;
+// Elle reste couteuse — plusieurs milliers de lignes par combat — d'ou son
+// interrupteur separe: OMNI_JOURNAL=complet donne les lignes utiles sans le
+// deluge, OMNI_CAPTURE=1 y ajoute le deluge quand il faut mesurer.
+const CAPTURE = process.env.OMNI_CAPTURE === '1';
 
 // Les champs de premier niveau, en une ligne courte. Un champ imbrique ou
 // binaire est resume: sa taille suffit a le reconnaitre, son contenu noierait
@@ -337,28 +339,30 @@ function diagnostic(sup) {
   return function onTrame({ pid, dir, frame, estMaitre }) {
     if (frame === null) return;
 
+    // Une ligne par changement, hors capture: le characterId et les deux
+    // interrupteurs expliquent a eux seuls la plupart des « ca ne fait rien ».
     const etat = sup.comptes.get(pid);
     const id = etat === null ? null : etat.characterId;
     if (idsVus.get(pid) !== id) {
       idsVus.set(pid, id);
-      journal(pid, `diag : characterId=${id} passeTour=${etat && etat.passeTour} maitre=${Boolean(estMaitre)}`);
+      journal(pid, `characterId=${id} passeTour=${etat && etat.passeTour} maitre=${Boolean(estMaitre)}`);
     }
 
-    // LE SENS SORTANT. Volume faible — ce que le joueur fait, rien de plus — et
-    // c'est la seule source de verite sur l'instant d'un vrai tour.
+    if (!CAPTURE) return;
+
     if (dir !== 'in') {
-      journal(pid, `diag : --> ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
+      journal(pid, `cap : --> ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
         + (frame.type === 'jxy' ? '   <<<<< PASSE A LA MAIN' : ''));
       return;
     }
 
+    // Les trois messages de tour sont marques: jzc l'ouvre, jyj dit qu'il est
+    // a nous, jxh le termine.
     const moi = id !== null && id !== undefined
-      && (frame.payload || []).some((f) => f.no === 2 && f.value === id);
-    const marque = frame.type === 'jxh' || frame.type === 'jxz' ? ' *' : '  ';
-    const depuis = Date.now() - instantEmission;
-    const apres = depuis >= 0 && depuis < 500 ? `  (+${depuis}ms apres notre jxy)` : '';
-    journal(pid, `diag :${marque}<-- ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
-      + `${moi ? '  <-- MOI' : ''}${apres}`);
+      && (frame.payload || []).some((f) => (f.no === 1 || f.no === 2) && f.value === id);
+    const tour = ['jzc', 'jyj', 'jxh'].includes(frame.type) ? ' *' : '  ';
+    journal(pid, `cap :${tour}<-- ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
+      + `${moi ? '  <-- MOI' : ''}`);
   };
 }
 
@@ -691,7 +695,7 @@ app.whenReady().then(async () => {
       onCompteRendu: ({ pid, ok, raison, declencheur }) => {
         // Le jalon declencheur, et pas seulement le fait d'avoir emis: c'est
         // lui qui a dit que la relance d'ouverture avait survecu.
-        if (ok) { instantEmission = Date.now(); journal(pid, `passe-tour : jxy emis (sur ${declencheur})`); }
+        if (ok) journal(pid, `passe-tour : jxy emis (sur ${declencheur})`);
         else journal(pid, `passe-tour : ${raison}`);
       },
     }),
