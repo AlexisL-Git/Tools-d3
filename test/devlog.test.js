@@ -104,3 +104,13 @@ test('chaque entree du devlog reel porte une date au format AAAA-MM-JJ', () => {
     assert.match(e.le, /^\d{4}-\d{2}-\d{2}$/, `date invalide sur ${e.version}`);
   }
 });
+
+// Ce test est le garde-fou d'une regle autrement seulement ecrite dans un
+// document: une version publiee sans son entree dans devlog.json laisse un trou
+// definitif dans l'histoire que lisent les amis, parce que le fichier est fige
+// dans l'archive deja distribuee. Apres coup, c'est irreperable.
+test('la version publiee a son entree dans le devlog', () => {
+  const v = require('../package.json').version;
+  assert.ok(lireDevlog(CHEMIN).some((e) => e.version === v),
+    `${v} est publiee sans entree dans devlog.json`);
+});
