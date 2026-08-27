@@ -301,22 +301,41 @@ function journal(pid, texte) {
 
 // DIAGNOSTIC TEMPORAIRE — a retirer une fois le passe-tour de l'ESCLAVE valide.
 //
-// Ce que le journal ne disait pas: pourquoi le maitre passe son tour et pas
-// l'esclave. Trois causes produisent le meme silence cote esclave — le passeur
-// n'est pas appele, une garde l'arrete, ou la trame part sans effet. Il faut
-// pouvoir les separer, donc on journalise pour CHAQUE client:
-//   - son characterId des qu'il est connu (la garde la plus probable);
-//   - chaque jxh/jxz avec ses champs, pour voir si l'esclave recoit bien ses
-//     propres jalons de tour et sous quelle valeur;
-//   - tout ce que le serveur repond dans la demi-seconde suivant notre jxy —
-//     un refus explicite serait la reponse la plus utile du projet, et son
-//     absence est une information tout aussi nette.
+// CE QUI MANQUE, ET QUI A COUTE DEUX DIAGNOSTICS FAUX: la mesure de reference.
+// Deux lectures de jxh — debut de tour, fin de tour — expliquent aussi bien
+// l'une que l'autre les intervalles observes, et rien dans un journal fait
+// uniquement de trames ENTRANTES ne permet de trancher. Ce qui tranche, c'est
+// un vrai clic sur « Passer »: il donne l'instant exact ou notre tour etait
+// ouvert, puisque le serveur l'a accepte.
+//
+// D'ou le sens SORTANT, ajoute ici. Notre propre jxy ne s'y voit pas — il est
+// ecrit directement sur la socket amont et ne repasse pas par le reassembleur —
+// donc tout jxy sortant journalise vient de la MAIN de l'utilisateur. C'est
+// exactement la mesure du 20/08, celle qui avait identifie la trame.
+//
+// On journalise aussi TOUTES les trames entrantes, et plus seulement jxh/jxz:
+// le message qui ouvre un tour n'est peut-etre aucun des deux, et on ne peut
+// pas trouver ce qu'on refuse de regarder.
 let instantEmission = 0;
+
+// Les champs de premier niveau, en une ligne courte. Un champ imbrique ou
+// binaire est resume: sa taille suffit a le reconnaitre, son contenu noierait
+// le journal.
+function champsCourts(payload) {
+  const out = [];
+  for (const f of payload || []) {
+    if (f.kind === 'message') out.push(`${f.no}={…}`);
+    else if (f.kind === 'bytes') out.push(`${f.no}=<${(f.raw || f.value || '').length}o>`);
+    else out.push(`${f.no}=${f.value}`);
+    if (out.join(' ').length > 140) { out.push('…'); break; }
+  }
+  return out.join(' ');
+}
 
 function diagnostic(sup) {
   const idsVus = new Map();   // pid -> characterId deja journalise
   return function onTrame({ pid, dir, frame, estMaitre }) {
-    if (dir !== 'in' || frame === null) return;
+    if (frame === null) return;
 
     const etat = sup.comptes.get(pid);
     const id = etat === null ? null : etat.characterId;
@@ -325,16 +344,21 @@ function diagnostic(sup) {
       journal(pid, `diag : characterId=${id} passeTour=${etat && etat.passeTour} maitre=${Boolean(estMaitre)}`);
     }
 
-    if (frame.type === 'jxh' || frame.type === 'jxz') {
-      const champs = (frame.payload || []).map((f) => `${f.no}=${f.value}`).join(' ');
-      const moi = id !== null && id !== undefined
-        && (frame.payload || []).some((f) => f.no === 2 && f.value === id);
-      journal(pid, `diag : ${frame.kind} ${frame.type} { ${champs} }${moi ? '  <-- MOI' : ''}`);
+    // LE SENS SORTANT. Volume faible — ce que le joueur fait, rien de plus — et
+    // c'est la seule source de verite sur l'instant d'un vrai tour.
+    if (dir !== 'in') {
+      journal(pid, `diag : --> ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
+        + (frame.type === 'jxy' ? '   <<<<< PASSE A LA MAIN' : ''));
       return;
     }
 
+    const moi = id !== null && id !== undefined
+      && (frame.payload || []).some((f) => f.no === 2 && f.value === id);
+    const marque = frame.type === 'jxh' || frame.type === 'jxz' ? ' *' : '  ';
     const depuis = Date.now() - instantEmission;
-    if (depuis >= 0 && depuis < 500) journal(pid, `diag : +${depuis}ms apres jxy -> ${frame.kind} ${frame.type}`);
+    const apres = depuis >= 0 && depuis < 500 ? `  (+${depuis}ms apres notre jxy)` : '';
+    journal(pid, `diag :${marque}<-- ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
+      + `${moi ? '  <-- MOI' : ''}${apres}`);
   };
 }
 
