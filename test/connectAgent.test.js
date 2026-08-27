@@ -173,3 +173,33 @@ test('le rattachement de fil est toujours défait', () => {
   const src = connectAgentSource({ proxyPort: 8000 });
   assert.match(src, /finally\s*\{[\s\S]{0,200}AttachThreadInput\([^)]*, 0\)/);
 });
+
+// --- boutons de souris ------------------------------------------------------
+
+test('l agent porte le bloc des boutons de souris', () => {
+  const src = connectAgentSource({ proxyPort: 8105 });
+  assert.match(src, /GetAsyncKeyState/, 'il faut lire l etat des boutons');
+  assert.match(src, /recv\('souris'/, 'le bloc s allume sur commande');
+  assert.match(src, /boutons de souris/, 'le rapport d attache le mentionne');
+});
+
+// Les trois codes Windows des boutons assignables. Se tromper d'un code
+// donnerait un bouton qui ne repond jamais, sans erreur nulle part.
+test('les trois codes de bouton sont ceux de Windows', () => {
+  const src = connectAgentSource({ proxyPort: 8105 });
+  assert.match(src, /0x04/, 'VK_MBUTTON');
+  assert.match(src, /0x05/, 'VK_XBUTTON1');
+  assert.match(src, /0x06/, 'VK_XBUTTON2');
+});
+
+// Sans cette garde, les cinq clients verraient le meme appui.
+test('l agent ne signale un appui que s il est au premier plan', () => {
+  const src = connectAgentSource({ proxyPort: 8105 });
+  const bloc = src.slice(src.indexOf('GetAsyncKeyState'));
+  assert.match(bloc, /GetForegroundWindow/);
+});
+
+test('le source reste du JavaScript valide avec le bloc souris', () => {
+  const src = connectAgentSource({ proxyPort: 8105, fakeDeviceId: 'abc', neutralizeCache: true });
+  assert.doesNotThrow(() => new Function(src));
+});
