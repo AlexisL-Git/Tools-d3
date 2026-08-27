@@ -580,7 +580,6 @@ async function envoyerEtat() {
     sansMaitre: superviseur.maitre === null,
     erreurComptes,
     delai: favoris.delai(),
-    nav: favoris.touchesNav(),
     avisBascule: avisCourant(),
     lignes,
   });
@@ -809,10 +808,6 @@ function poserRaccourcis() {
     poser(accelerateur, () => basculerVersCompte(idCompte));
   }
 
-  const nav = favoris.touchesNav();
-  poser(nav.suivant, () => naviguer(1));
-  poser(nav.precedent, () => naviguer(-1));
-
   // La boucle de sondage ne tourne dans les clients que s'il y a quelque chose
   // a sonder.
   if (superviseur !== null) superviseur.reglerSouris(actionsSouris.size > 0);
@@ -923,13 +918,6 @@ ipcMain.handle('reglerTouche', async (_e, idCompte, accelerateur) => {
   if (!Number.isInteger(idCompte)) return;
   if (accelerateur !== null && typeof accelerateur !== 'string') return;
   favoris.reglerTouche(idCompte, accelerateur);
-  poserRaccourcis();
-  await envoyerEtat();
-});
-
-ipcMain.handle('reglerToucheNav', async (_e, nom, accelerateur) => {
-  if (typeof nom !== 'string' || typeof accelerateur !== 'string') return;
-  favoris.reglerToucheNav(nom, accelerateur);
   poserRaccourcis();
   await envoyerEtat();
 });

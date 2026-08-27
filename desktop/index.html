@@ -256,7 +256,6 @@
   .oter:hover { color: var(--alerte); background: rgba(242,84,91,.12); }
   .oter svg { width: 12px; height: 12px; }
 
-  .barre-nav .cabochon { width: auto; min-width: 62px; display: inline-block; text-transform: none; letter-spacing: .04em; }
   .barre-nav .separateur { width: 1px; align-self: stretch; background: var(--filet); margin: 0 4px; }
   .paire { display: inline-flex; align-items: center; gap: 7px; }
   /* Le refus de la derniere bascule. Il s efface seul au bout de dix
@@ -449,8 +448,6 @@
 </div>
 
 <div class="barre-nav">
-  <span class="paire">Précédent <button class="cabochon" id="navPrec" data-nav="precedent">—</button></span>
-  <span class="paire">Suivant <button class="cabochon" id="navSuiv" data-nav="suivant">—</button></span>
   <span class="avis-nav" id="avisNav"></span>
   <span class="separateur"></span>
   <label class="champ-delai">Délai <input id="delai" type="number" min="0" step="0.1" value="0"> s</label>
@@ -681,13 +678,6 @@
       poser: (a) => { rendre(); poser(a); },
       annuler: rendre,
     };
-  }
-
-  // --- les deux touches de navigation, en pied ----------------------------
-  for (const b of document.querySelectorAll('[data-nav]')) {
-    b.addEventListener('click', () => {
-      armerSaisie(b, (a) => window.app.reglerToucheNav(b.dataset.nav, a));
-    });
   }
 
   // On ne propose la bascule que pour un client reellement pilote: l'agent est
@@ -1009,16 +999,6 @@
       b.title = e === 'tous' ? 'Actif pour tous — cliquer pour couper tout le monde'
         : e === 'aucun' ? 'Éteint partout — cliquer pour activer tout le monde'
         : 'Actif pour certains — cliquer pour activer tout le monde';
-    }
-
-    // Les deux touches de navigation viennent du fichier de reglages, comme
-    // tout le reste: le clic ne fait que demander, l'etat fait foi.
-    for (const b of document.querySelectorAll('[data-nav]')) {
-      if (b.classList.contains('ecoute')) continue;
-      const a = (etat.nav || {})[b.dataset.nav];
-      b.textContent = libelleTouche(a) || 'aucune';
-      b.classList.toggle('sans-touche', !a);
-      b.classList.toggle('risque', risqueDe(a));
     }
 
     const enDouble = [...new Set(
