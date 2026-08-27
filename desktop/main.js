@@ -638,11 +638,11 @@ function creerFenetre() {
 
   // M4 et M5 sont « precedent » et « suivant » pour Chromium. La fenetre n'a
   // aucun historique, donc rien ne se passerait — mais on coupe court plutot
-  // que de dependre de ce fait. On filtre sur le nom de la commande: bloquer
-  // sans filtrer preventDefault() sur toutes les commandes risquerait de
-  // rendre inertes les touches multimedia de l'utilisateur (volume,
-  // lecture/pause) tant qu'OMNI a le focus, un effet qu'Electron ne
-  // documente pas mais qu'on n'a aucune raison de provoquer.
+  // que de dependre de ce fait. On filtre sur le nom de la commande: appeler
+  // preventDefault() sur TOUTES les commandes risquerait de rendre inertes
+  // les touches multimedia de l'utilisateur (volume, lecture/pause) tant
+  // qu'OMNI a le focus. Electron ne documente pas cet effet, mais on n'a
+  // aucune raison de le provoquer.
   fenetre.on('app-command', (e, commande) => {
     if (commande === 'browser-backward' || commande === 'browser-forward') {
       e.preventDefault();
