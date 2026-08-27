@@ -29,8 +29,8 @@ utilisateurs, sans que personne ait à faire quoi que ce soit.
 
 | quoi | où |
 |---|---|
-| le module de cycle, en entier | `src/comptes/navigation.js` |
-| son fichier de tests, en entier | `test/comptes-navigation.test.js` |
+| `deplacer()`, `suivant()`, `precedent()` | `src/comptes/navigation.js` — le fichier **reste**, voir ci-dessous |
+| les cas de test portant sur `suivant` / `precedent` | `test/comptes-navigation.test.js` |
 | `naviguer()`, `curseurNav`, `poserCurseur()` | `desktop/main.js` |
 | l'appel `poserCurseur(pid)` dans `basculerVersCompte` | `desktop/main.js` — il ne nourrissait que le cycle |
 | les deux `poser(nav.suivant…)` / `poser(nav.precedent…)` | `desktop/main.js`, dans `poserRaccourcis` |
@@ -41,6 +41,27 @@ utilisateurs, sans que personne ait à faire quoi que ce soit.
 | les deux `<span class="paire">` du pied | `desktop/index.html` |
 | les deux boucles `document.querySelectorAll('[data-nav]')` | `desktop/index.html` |
 | les cas de test portant sur `nav` | `test/comptes-favoris.test.js` |
+
+## Le module de cycle ne disparait pas — correction
+
+La premiere redaction de cette conception affirmait que `src/comptes/navigation.js`
+n'existait que pour precedent/suivant et pouvait etre efface. **C'est faux**, et
+la verification l'a montre avant l'implementation : le module exporte trois
+choses, et `ordonner(lignes, ordre)` est appele par `desktop/main.js:544` pour
+trier les lignes affichees. Rien a voir avec le cycle.
+
+Ce qui part est donc l'interieur du module, pas le module :
+
+- `deplacer()`, et les deux fleches `suivant()` / `precedent()` qui l'habillent ;
+- les cas de test qui les couvrent, dans `test/comptes-navigation.test.js`.
+
+`ordonner()` reste, seul, avec les tests qui le couvrent.
+
+**Le fichier est renomme `src/comptes/ordre.js`**, et son test
+`test/comptes-ordre.test.js`. C'est la meme decision que pour `ordreNavigation` :
+un fichier nomme « navigation » qui ne contient plus que du tri de lignes est
+exactement le piege qu'on vient de retirer ailleurs. Le renommage coute un
+import et un nom de fichier.
 
 ## Ce qui reste, et pourquoi
 
