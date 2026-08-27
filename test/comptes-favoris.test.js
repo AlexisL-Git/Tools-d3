@@ -397,3 +397,27 @@ test('un fichier sans les nouvelles clés se lit sans erreur', (t) => {
   assert.deepStrictEqual(f.ordre(), []);
   assert.strictEqual(f.estFavori(3), true);
 });
+
+// Le fichier de chaque ami porte encore la cle `nav`, laissee par la version
+// precedente: c'est exactement ce fichier que la prochaine version va lire.
+// charger() doit l'ignorer sans lever et sans toucher aux autres reglages, et
+// le premier enregistrement doit la faire disparaitre — _ecrire() reconstruit
+// le fichier de zero avec les seules cles qu'elle connait.
+test('un fichier avec l ancienne clé nav se lit sans erreur, et nav disparaît à l écriture', (t) => {
+  const chemin = fichierTemporaire(t);
+  fs.writeFileSync(chemin, JSON.stringify({
+    delai: 5, favoris: [3], maitre: 3, nav: { curseur: 3, sens: 1 },
+  }), 'utf8');
+
+  const f = new Favoris(chemin).charger();
+  assert.strictEqual(f.delai(), 5);
+  assert.deepStrictEqual(f.tous(), [3]);
+  assert.strictEqual(f.maitre(), 3);
+
+  f.reglerOrdre([3]);
+  const relu = JSON.parse(fs.readFileSync(chemin, 'utf8'));
+  assert.strictEqual('nav' in relu, false);
+  assert.strictEqual(relu.delai, 5);
+  assert.deepStrictEqual(relu.favoris, [3]);
+  assert.strictEqual(relu.maitre, 3);
+});
