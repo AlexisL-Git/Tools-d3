@@ -5,6 +5,7 @@ const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require('electro
 
 const { Superviseur } = require('../src/superviseur');
 const { creerDuplicateur, ETALEMENT_REJEU } = require('../src/duplicateur');
+const { creerGardeCombat } = require('../src/garde-combat');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
@@ -569,6 +570,7 @@ async function envoyerEtat() {
     sansMaitre: superviseur.maitre === null,
     erreurComptes,
     delai: favoris.delai(),
+    combats: favoris.combats().length,
     avisBascule: avisCourant(),
     lignes,
   });
@@ -695,6 +697,7 @@ app.whenReady().then(async () => {
   superviseur.onTrame = composer(
     creerDuplicateur({
       superviseur,
+      estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
       onCompteRendu: ({ nom, rendu }) => {
         // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
         // compte qui ne rejoue pas ressemble a un compte inactif. On garde le
@@ -704,6 +707,34 @@ app.whenReady().then(async () => {
           else messages.set(r.pid, `${nom} : ${r.raison}`);
         }
       },
+    }),
+    creerGardeCombat({
+      superviseur,
+      // La liste vit dans les reglages: le garde ne la connait pas, il
+      // demande. Les reglages sont poses avant la fenetre, donc avant tout
+      // client, mais la garde evite de dependre de cet ordre.
+      estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
+      // REVUE FINALE : le garde etait muet en usage normal. onJournal ne
+      // s'ecrit que sous OMNI_JOURNAL=complet -- jamais chez l'utilisateur ni
+      // chez ses amis -- donc l'apprentissage d'une action et l'annulation de
+      // rejeux ne laissaient aucune trace visible. C'est precisement le mode
+      // d'echec le plus couteux du projet : une chose qui « ne fait rien »
+      // sans que rien ne le relie a sa cause.
+      //
+      // noterAvis() plutot que la Map `messages` : ces deux evenements
+      // concernent le maitre et ce qu'il vient de declencher chez TOUS ses
+      // esclaves, pas un compte en particulier -- `messages` est affichee sur
+      // la ligne d'UN compte et n'a pas de ligne naturelle pour ca. Le pied de
+      // page, qui s'efface seul, est deja le canal des evenements ponctuels
+      // sans destinataire unique (voir avisBascule plus haut).
+      onApprendre: (cle) => {
+        if (favoris !== null) favoris.apprendreCombat(cle);
+        noterAvis(`combat : action retenue, elle ne sera plus rejouée (${cle})`);
+      },
+      onAnnulation: (n) => noterAvis(
+        n === 1 ? 'combat : 1 rejeu en attente annulé' : `combat : ${n} rejeux en attente annulés`,
+      ),
+      onJournal: journal,
     }),
     creerPasseur({
       superviseur,
@@ -884,6 +915,14 @@ ipcMain.handle('reglerTouche', async (_e, idCompte, accelerateur) => {
   if (accelerateur !== null && typeof accelerateur !== 'string') return;
   favoris.reglerTouche(idCompte, accelerateur);
   poserRaccourcis();
+  await envoyerEtat();
+});
+
+// LE SEUL RECOURS quand OMNI a retenu a tort qu'une action lance un combat.
+// La liste est faite de numeros: personne ne peut deviner quelle entree est
+// fautive, donc on vide tout. Le delai continue de proteger apres l'oubli.
+ipcMain.handle('oublierCombats', async () => {
+  favoris.oublierCombats();
   await envoyerEtat();
 });
 

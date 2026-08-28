@@ -51,6 +51,9 @@ class Favoris {
     // L'ordre voulu par l'utilisateur. C'est l'ordre qu'affiche le panneau,
     // et rien de plus -- voir src/comptes/ordre.js.
     this._ordre = [];
+    // Les actions vues lancer un combat chez le maitre. Rejouer l'une d'elles
+    // ferait ouvrir a chaque esclave SON PROPRE combat — mesure le 28/08.
+    this._combats = new Set();
   }
 
   charger() {
@@ -88,6 +91,11 @@ class Favoris {
       }
       // Un booleen, ou rien: toute autre forme vaut « au repos ».
       if (typeof json.actif === 'boolean') this._actif = json.actif;
+      if (Array.isArray(json.combats)) {
+        for (const c of json.combats) {
+          if (typeof c === 'string' && c.length) this._combats.add(c);
+        }
+      }
     } catch (e) {
       // Fichier absent ou corrompu: on repart d'une liste vide plutot que de
       // faire echouer le demarrage de l'application.
@@ -101,6 +109,7 @@ class Favoris {
       this._actif = false;
       this._touches = new Map();
       this._ordre = [];
+      this._combats = new Set();
     }
     return this;
   }
@@ -234,6 +243,23 @@ class Favoris {
     this._ecrire();
   }
 
+  combats() {
+    return [...this._combats];
+  }
+
+  apprendreCombat(cle) {
+    if (typeof cle !== 'string' || cle.length === 0) return;
+    this._combats.add(cle);
+    this._ecrire();
+  }
+
+  // LE SEUL RECOURS quand OMNI a retenu a tort. La liste est faite de numeros:
+  // personne ne peut deviner quelle entree est fautive, donc on vide tout.
+  oublierCombats() {
+    this._combats.clear();
+    this._ecrire();
+  }
+
   ordre() {
     return [...this._ordre];
   }
@@ -258,6 +284,7 @@ class Favoris {
         actif: this._actif,
         touches: this.touches(),
         ordre: this._ordre,
+        combats: this.combats(),
       };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
     } catch (e) {

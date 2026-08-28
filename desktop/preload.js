@@ -41,6 +41,9 @@ contextBridge.exposeInMainWorld('app', {
   // confiance ne s'elargit pas par anticipation.
   reglerTouche: (idCompte, accelerateur) => ipcRenderer.invoke('reglerTouche', idCompte, accelerateur),
 
+  // Vide la liste des actions connues pour lancer un combat.
+  oublierCombats: () => ipcRenderer.invoke('oublierCombats'),
+
   // Un appui de bouton fait DANS la fenetre d'OMNI. Les appuis faits sur un
   // client Dofus remontent par son agent, sans passer par ici.
   boutonSouris: (clic) => ipcRenderer.invoke('boutonSouris', clic),

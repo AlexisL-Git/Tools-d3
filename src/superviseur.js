@@ -83,6 +83,11 @@ class Superviseur {
     this.etalementRejeu = etalementRejeu;
     this.alea = alea;
     this.planifier = planifier;
+    // Les rejeux differes encore en attente, par pid. Sans eux, rien n'est
+    // annulable — et c'est toute la protection contre le combat duplique: le
+    // serveur annonce le combat au maitre 30 ms apres son action, bien avant
+    // l'echeance d'un rejeu retarde.
+    this._rejeuxEnAttente = new Map();   // pid -> Set de minuteurs
   }
 
   // Ecart, en millisecondes entieres, entre un esclave et le precedent. Borne
@@ -279,9 +284,11 @@ class Superviseur {
   // l'emission est acquise, `retardMs` dans combien de temps. Rendre une
   // promesse ici aurait contamine le CLI, le duplicateur et leurs tests pour
   // une information qu'aucun des deux n'attend.
-  rejouer({ type, brute, pidMaitre }) {
+  rejouer({ type, brute, pidMaitre, retardPlancher = 0 }) {
     const rendu = [];
-    let retard = 0;
+    // Le plancher recule TOUS les esclaves sans supprimer leur etalement: le
+    // premier part a retardPlancher + son ecart, pas a retardPlancher.
+    let retard = retardPlancher;
     for (const etat of this.comptes.esclaves(pidMaitre)) {
       const prep = this.preparer(type, brute, etat);
       if (!prep.ok) {
@@ -317,10 +324,57 @@ class Superviseur {
   // raison — sauf qu'ici il n'y a plus personne a qui rendre un refus, d'ou le
   // journal.
   _emettreApres(retardMs, pid, amont, paquet) {
-    this.planifier(() => {
+    let lot = this._rejeuxEnAttente.get(pid);
+    if (lot === undefined) { lot = new Set(); this._rejeuxEnAttente.set(pid, lot); }
+    // Jeton d'IDENTITE, ajoute AVANT tout appel a planifier -- pas le retour
+    // de planifier lui-meme. Un planifier factice synchrone (comme en
+    // trouvent les tests) execute son rappel PENDANT l'appel, avant que
+    // "const t = this.planifier(...)" n'ait fini de s'affecter: avec un
+    // simple `let t`, le rappel ecrirait alors le paquet PUIS `lot.add(t)`
+    // inserait le jeton d'un rejeu DEJA ECRIT -- compte a tort comme
+    // annulable par annulerRejeux(). Le jeton existe des le depart et est
+    // ajoute au lot avant meme que planifier() ne soit appele: correct dans
+    // les deux ordonnancements. Ca regle aussi la collision de deux rejeux
+    // vers le MEME pid quand planifier rend toujours la meme valeur (null
+    // dans les tests): un timer brut les aurait fait s'ecraser l'un l'autre
+    // dans le Set, un jeton est unique par construction.
+    const jeton = { t: null };
+    lot.add(jeton);
+    jeton.t = this.planifier(() => {
+      // Un minuteur echu se retire de lui-meme: sans cela la liste grossit a
+      // chaque rejeu de la session, et le pid ne disparaitrait jamais de la
+      // Map, meme apres qu'un client Dofus ferme et qu'un autre reprenne
+      // son pid.
+      lot.delete(jeton);
+      if (lot.size === 0) this._rejeuxEnAttente.delete(pid);
       try { amont.write(paquet); }
       catch (e) { this.journal(pid, `rejeu differe (${retardMs} ms) : ${e.message}`); }
     }, retardMs);
+  }
+
+  // Annule les rejeux en attente d'UN SEUL compte. Utilise par retirer(): un
+  // client retire ne doit plus recevoir de trame differee -- sans ca, sa
+  // fermeture retiendrait la socket morte et le paquet jusqu'a l'echeance,
+  // et la trame finirait par partir vers un client que l'utilisateur vient
+  // de fermer.
+  _annulerRejeuxPid(pid) {
+    const lot = this._rejeuxEnAttente.get(pid);
+    if (lot === undefined) return 0;
+    const n = lot.size;
+    for (const jeton of lot) clearTimeout(jeton.t);
+    this._rejeuxEnAttente.delete(pid);
+    return n;
+  }
+
+  // Annule tout rejeu encore en attente, chez tous les esclaves. Rend le
+  // nombre annule.
+  //
+  // Un rejeu DEJA ECRIT ne se rattrape pas — c'est precisement pourquoi les
+  // actions qui peuvent ouvrir un combat partent avec un plancher de retard.
+  annulerRejeux() {
+    let n = 0;
+    for (const pid of [...this._rejeuxEnAttente.keys()]) n += this._annulerRejeuxPid(pid);
+    return n;
   }
 
   // Ce que l'agent nous annonce. Extrait de ajouter() pour etre atteignable
@@ -417,6 +471,11 @@ class Superviseur {
     if (!c) return false;
     this.clients.delete(pid);
     this.comptes.retirer(pid);
+    // Un rejeu differe encore en attente pour ce pid retient la socket
+    // morte et le paquet jusqu'a son echeance: sans annulation ici, la
+    // trame finit par partir vers un client que l'utilisateur vient de
+    // fermer.
+    this._annulerRejeuxPid(pid);
     if (this.maitre === pid) this.maitre = null;
     if (this.enAvant === pid) this.enAvant = null;
     await (c.script ? c.script.unload().catch(() => {}) : Promise.resolve());
