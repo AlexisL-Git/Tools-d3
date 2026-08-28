@@ -151,3 +151,81 @@ test('sans rappel de compte rendu, le rejeu a quand même lieu', () => {
 
   assert.strictEqual(s.appels.length, 1);
 });
+
+// --- garde contre les combats dupliques ------------------------------------
+
+const { DELAI_PLANCHER_MS } = require('../src/garde-combat');
+
+function superviseurQuiNoteLesRejeux(esclaves = [2]) {
+  const appels = [];
+  return {
+    appels,
+    arme: true,
+    comptes: { esclaves: () => esclaves.map((pid) => ({ pid })) },
+    rejouer: (args) => {
+      appels.push(args);
+      return esclaves.map((pid) => ({ pid, ok: true, emis: true, retardMs: args.retardPlancher || 0 }));
+    },
+  };
+}
+
+const sortante = (type, champs) => ({
+  pid: 1, dir: 'out', estMaitre: true, brute: Buffer.from([0x08, 0x01]),
+  frame: {
+    kind: 'request', type,
+    payload: Object.entries(champs).map(([no, value]) => ({ no: Number(no), value })),
+  },
+});
+
+// Les trois types qui peuvent ouvrir un combat partent avec le plancher: le
+// serveur annonce le combat au maitre 30 ms apres son action, et il faut que
+// rien ne soit encore ecrit a cet instant.
+test('une action sensible part avec le plancher de retard', () => {
+  const sup = superviseurQuiNoteLesRejeux();
+  const d = creerDuplicateur({ superviseur: sup });
+  d(sortante('ioy', { 1: 25088 }));
+  assert.strictEqual(sup.appels[0].retardPlancher, DELAI_PLANCHER_MS);
+});
+
+test('une action ordinaire garde son etalement seul', () => {
+  const sup = superviseurQuiNoteLesRejeux();
+  const d = creerDuplicateur({ superviseur: sup });
+  d(sortante('hjc', { 1: 1, 2: 2 }));
+  assert.strictEqual(sup.appels[0].retardPlancher || 0, 0);
+});
+
+// Une action deja vue lancer un combat n'est ni retardee ni tentee.
+test('une action apprise n est pas rejouee du tout', () => {
+  const sup = superviseurQuiNoteLesRejeux();
+  const d = creerDuplicateur({ superviseur: sup, estApprise: (c) => c === 'ioy:25088' });
+  d(sortante('ioy', { 1: 25088 }));
+  assert.strictEqual(sup.appels.length, 0, 'rejouer ne doit pas etre appele');
+});
+
+// Un compte qui ne rejoue pas ressemble a un compte inactif: le refus doit se
+// voir sur sa ligne, comme tout autre refus de rejeu.
+test('le refus est signale pour chaque esclave', () => {
+  const sup = superviseurQuiNoteLesRejeux([2, 3]);
+  const rendus = [];
+  const d = creerDuplicateur({
+    superviseur: sup,
+    estApprise: () => true,
+    onCompteRendu: (r) => rendus.push(r),
+  });
+  d(sortante('ioy', { 1: 25088 }));
+  assert.strictEqual(rendus.length, 1);
+  assert.deepStrictEqual(rendus[0].rendu.map((r) => r.pid), [2, 3]);
+  for (const r of rendus[0].rendu) {
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.emis, false);
+    assert.match(r.raison, /combat/);
+  }
+});
+
+// Sans estApprise, le duplicateur se comporte comme avant.
+test('sans liste apprise, tout se rejoue comme avant', () => {
+  const sup = superviseurQuiNoteLesRejeux();
+  const d = creerDuplicateur({ superviseur: sup });
+  d(sortante('ioy', { 1: 25088 }));
+  assert.strictEqual(sup.appels.length, 1);
+});

@@ -1,5 +1,6 @@
 'use strict';
 const { lookup } = require('./protocol/omni');
+const { estSensible, cleDe, DELAI_PLANCHER_MS } = require('./garde-combat');
 
 // La decision de rejeu, et elle seule.
 //
@@ -39,7 +40,9 @@ const ETALEMENT_REJEU = { minMs: MIN_TICK_WINDOWS, maxMs: 80 };
 // onCompteRendu — recoit ce qui a ete rejoue, ou refuse et pourquoi. C'est par
 //   la que passent les raisons rendues dans rendu[].raison, qu'un appelant
 //   affiche en console (le CLI) ou sur la ligne du compte (l'application).
-function creerDuplicateur({ superviseur, onCompteRendu = () => {} }) {
+// estApprise — dit si une cle d'action a deja ete vue lancer un combat chez
+//   le maitre. Faux par defaut: sans elle, la politique est celle d'avant.
+function creerDuplicateur({ superviseur, onCompteRendu = () => {}, estApprise = () => false }) {
   return function onTrame({ pid, dir, frame, brute, estMaitre }) {
     // Seules les requetes SORTANTES du maitre se rejouent: ce que le serveur
     // renvoie est propre a chaque client et n'a rien a faire ailleurs.
@@ -48,7 +51,33 @@ function creerDuplicateur({ superviseur, onCompteRendu = () => {} }) {
     if (connu === null) return;
     if (!estMaitre) return;
 
-    const rendu = superviseur.rejouer({ type: frame.type, brute, pidMaitre: pid });
+    // UNE ACTION DEJA VUE LANCER UN COMBAT n'est ni retardee ni tentee. Le
+    // refus se rend esclave par esclave: un compte qui ne rejoue pas
+    // ressemble sinon a un compte inactif, le mode d'echec le plus couteux
+    // du projet, celui qu'aucune trace ne relie a sa cause.
+    const cle = cleDe(frame.type, frame);
+    if (cle !== null && estApprise(cle)) {
+      const refuses = [...superviseur.comptes.esclaves(pid)].map((etat) => ({
+        pid: etat.pid, ok: false, emis: false,
+        raison: 'action connue pour lancer un combat',
+      }));
+      if (refuses.length === 0) return;
+      onCompteRendu({ pidMaitre: pid, type: frame.type, nom: connu.name, arme: superviseur.arme, rendu: refuses });
+      return;
+    }
+
+    // Le plancher ne s'applique qu'aux trois types qui peuvent ouvrir un
+    // combat: retarder une teleportation ne protegerait de rien. La cle
+    // n'est ajoutee que si elle est non nulle: un appel toujours muni de
+    // retardPlancher romprait le contrat des appelants qui n'attendent que
+    // { type, brute, pidMaitre } pour les types ordinaires.
+    const retardPlancher = estSensible(frame.type) ? DELAI_PLANCHER_MS : 0;
+    const rendu = superviseur.rejouer({
+      type: frame.type,
+      brute,
+      pidMaitre: pid,
+      ...(retardPlancher ? { retardPlancher } : {}),
+    });
     // Le maitre seul en jeu: aucun esclave, rien a signaler.
     if (rendu.length === 0) return;
 
