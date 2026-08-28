@@ -52,7 +52,7 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   // Depuis les extensions au passe-tour et a l'invitation, le fichier porte
   // aussi passeTour, invitation et delai (vides/nuls ici): voir le test
   // dedie plus bas pour le contenu complet.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'passeTour', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'passeTour', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -103,7 +103,7 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'passeTour', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'passeTour', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
@@ -420,4 +420,57 @@ test('un fichier avec l ancienne clé nav se lit sans erreur, et nav disparaît 
   assert.strictEqual(relu.delai, 5);
   assert.deepStrictEqual(relu.favoris, [3]);
   assert.strictEqual(relu.maitre, 3);
+});
+
+// --- les actions connues pour lancer un combat -----------------------------
+
+test('sans fichier, aucune action n est connue', (t) => {
+  const f = new Favoris(fichierTemporaire(t)).charger();
+  assert.deepStrictEqual(f.combats(), []);
+});
+
+test('une action apprise survit au rechargement', (t) => {
+  const chemin = fichierTemporaire(t);
+  new Favoris(chemin).charger().apprendreCombat('ioy:25088');
+  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), ['ioy:25088']);
+});
+
+test('la meme action deux fois ne compte qu une', (t) => {
+  const f = new Favoris(fichierTemporaire(t)).charger();
+  f.apprendreCombat('ioy:25088');
+  f.apprendreCombat('ioy:25088');
+  assert.deepStrictEqual(f.combats(), ['ioy:25088']);
+});
+
+test('une cle vide ou d un mauvais type est ignoree', (t) => {
+  const f = new Favoris(fichierTemporaire(t)).charger();
+  f.apprendreCombat('');
+  f.apprendreCombat(null);
+  f.apprendreCombat(42);
+  assert.deepStrictEqual(f.combats(), []);
+});
+
+// LE SEUL RECOURS quand OMNI a retenu a tort: la liste est faite de numeros,
+// personne ne peut deviner laquelle est fautive.
+test('oublier vide la liste et l enregistre', (t) => {
+  const chemin = fichierTemporaire(t);
+  const f = new Favoris(chemin).charger();
+  f.apprendreCombat('ioy:25088');
+  f.oublierCombats();
+  assert.deepStrictEqual(f.combats(), []);
+  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), []);
+});
+
+test('une liste d un mauvais type dans le fichier est ignoree', (t) => {
+  const chemin = fichierTemporaire(t);
+  fs.writeFileSync(chemin, JSON.stringify({ combats: 'ioy:1', delai: 3 }), 'utf8');
+  const f = new Favoris(chemin).charger();
+  assert.deepStrictEqual(f.combats(), []);
+  assert.strictEqual(f.delai(), 3);
+});
+
+test('les entrees qui ne sont pas des chaines sont ecartees', (t) => {
+  const chemin = fichierTemporaire(t);
+  fs.writeFileSync(chemin, JSON.stringify({ combats: ['ioy:1', 42, null, 'iwo:2'] }), 'utf8');
+  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), ['ioy:1', 'iwo:2']);
 });
