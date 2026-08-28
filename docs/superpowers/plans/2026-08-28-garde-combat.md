@@ -792,110 +792,347 @@ sont des numeros, personne ne peut deviner laquelle est fautive."
 
 ---
 
-### Task 5: Brancher le garde dans l application
+### Task 5: La fabrique du garde
 
 **Files:**
-- Modify: `desktop/main.js`
-- Test: aucun test automatisé — `desktop/main.js` ne tourne pas hors d'Electron. La vérification est celle de la tâche 7.
+- Modify: `src/garde-combat.js`
+- Test: `test/garde-combat.test.js`
 
 **Interfaces:**
-- Consumes: `cleDe`, `estSensible`, `TRAME_FERMER_DIALOGUE`, `TYPE_ENTREE_COMBAT`, `FENETRE_APPRENTISSAGE_MS`, `FENETRE_DIALOGUE_MS` (tâche 1) ; `superviseur.annulerRejeux()` (tâche 2) ; `estApprise` du duplicateur (tâche 3) ; `favoris.combats()` / `apprendreCombat()` (tâche 4).
-- Produces: rien pour les tâches suivantes.
+- Consumes: `estSensible`, `cleDe`, `TRAME_FERMER_DIALOGUE`, `TYPE_ENTREE_COMBAT`, `FENETRE_APPRENTISSAGE_MS`, `FENETRE_DIALOGUE_MS` (tâche 1) ; `superviseur.annulerRejeux()` (tâche 2).
+- Produces : `creerGardeCombat({ superviseur, estApprise, onApprendre, onJournal, maintenant })` → une fonction `onTrame({ pid, dir, frame, estMaitre })`.
+  - `estApprise(cle)` → `boolean`, `() => false` par défaut
+  - `onApprendre(cle)` — appelée une fois quand une action est retenue
+  - `onJournal(pid, texte)` — `() => {}` par défaut
+  - `maintenant()` → `number`, `Date.now` par défaut, injecté pour tester les fenêtres sans dormir
 
-- [ ] **Step 1: Importer le module**
+**Pourquoi une fabrique et pas une fermeture dans l'application.** Toutes les politiques du projet en sont une — `creerDuplicateur`, `creerPasseur`, `creerAccepteur`, `creerAccepteurEchange` — et chacune se teste avec un double du superviseur, sans Electron. La partie la plus délicate de ce travail est ici : la fenêtre de 2 secondes, l'annulation, la fermeture des dialogues. Aucune ne doit reposer sur un seul essai manuel.
 
-Dans `desktop/main.js`, près des autres imports :
+- [ ] **Step 1: Write the failing tests**
+
+Ajouter à `test/garde-combat.test.js` :
 
 ```js
-const {
-  cleDe, estSensible, TRAME_FERMER_DIALOGUE, TYPE_ENTREE_COMBAT,
-  FENETRE_APPRENTISSAGE_MS, FENETRE_DIALOGUE_MS,
-} = require('../src/garde-combat');
+// --- le garde lui-meme -----------------------------------------------------
+
+const { creerGardeCombat } = require('../src/garde-combat');
+
+const MAITRE = 1;
+
+function fauxSuperviseur(esclaves = [2, 3]) {
+  const emis = [];
+  let annulations = 0;
+  return {
+    emis,
+    get annulations() { return annulations; },
+    arme: true,
+    annulerRejeux: () => { annulations += 1; return 2; },
+    emettre: (pid, octets) => { emis.push({ pid, octets }); return { ok: true }; },
+    comptes: { esclaves: () => esclaves.map((pid) => ({ pid })) },
+  };
+}
+
+const sortante = (type, champs) => ({
+  pid: MAITRE, dir: 'out', estMaitre: true, frame: {
+    kind: 'request', type,
+    payload: Object.entries(champs).map(([no, value]) => ({ no: Number(no), value })),
+  },
+});
+
+const entreeCombat = () => ({
+  pid: MAITRE, dir: 'in', estMaitre: true,
+  frame: { kind: 'event', type: 'ieb', payload: [{ no: 1, value: 1642 }, { no: 2, value: 9828 }] },
+});
+
+function garde(sup, extra = {}) {
+  const retenues = [];
+  const lignes = [];
+  const horloge = { t: 1000 };
+  const g = creerGardeCombat({
+    superviseur: sup,
+    onApprendre: (c) => retenues.push(c),
+    onJournal: (pid, texte) => lignes.push({ pid, texte }),
+    maintenant: () => horloge.t,
+    ...extra,
+  });
+  return { g, retenues, lignes, horloge };
+}
+
+// CE QUI N'EST PAS ENCORE ECRIT NE PARTIRA PAS. C'est la moitie du mecanisme:
+// le serveur annonce le combat au maitre 30 ms apres son action, bien avant
+// l'echeance d'un rejeu retarde de 250 ms.
+test('l entree en combat annule les rejeux en attente', () => {
+  const sup = fauxSuperviseur();
+  const { g, lignes } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.strictEqual(sup.annulations, 1);
+  assert.ok(lignes.some((l) => /annule/.test(l.texte)), 'l annulation doit se journaliser');
+});
+
+test('l action qui precede le combat est retenue', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, ['ioy:25088']);
+});
+
+// UN MONSTRE AGRESSIF qui saute sur le maitre trois secondes apres un dialogue
+// anodin n'a pas a empoisonner la liste.
+test('une action trop ancienne n est pas retenue', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues, horloge } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  horloge.t += 2500;
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, []);
+});
+
+test('une action juste dans la fenetre est retenue', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues, horloge } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  horloge.t += 1999;
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, ['ioy:25088']);
+});
+
+test('une action deja connue n est pas retenue deux fois', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup, { estApprise: () => true });
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, []);
+});
+
+test('deux combats de suite ne retiennent pas la meme action deux fois', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, ['ioy:25088']);
+});
+
+// Les reponses precedentes de l'enchainement sont parties il y a plusieurs
+// secondes et ne sont pas annulables; le maitre, lui, ne fermera jamais le
+// dialogue des esclaves puisqu'il est en combat.
+test('le dialogue des esclaves est ferme apres un dialogue recent', () => {
+  const sup = fauxSuperviseur([2, 3]);
+  const { g } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(sup.emis.map((e) => e.pid), [2, 3]);
+  assert.deepStrictEqual(sup.emis[0].octets, TRAME_FERMER_DIALOGUE);
+});
+
+test('aucun dialogue n est ferme si le dernier remonte a trop longtemps', () => {
+  const sup = fauxSuperviseur();
+  const { g, horloge } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  horloge.t += 31000;
+  g(entreeCombat());
+  assert.deepStrictEqual(sup.emis, []);
+});
+
+// Un combat ouvert par un element interactif n'a jamais ouvert de dialogue: il
+// n'y a rien a fermer, et un kla envoye pour rien est une trame de plus sans
+// raison.
+test('un element interactif ne fait fermer aucun dialogue', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(sortante('iwo', { 1: 1920, 2: 489565 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, ['iwo:489565'], 'mais l action est bien retenue');
+  assert.deepStrictEqual(sup.emis, []);
+});
+
+test('un combat sans action prealable ne retient rien et ne ferme rien', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, []);
+  assert.deepStrictEqual(sup.emis, []);
+  assert.strictEqual(sup.annulations, 1, 'l annulation, elle, reste utile');
+});
+
+// OMNI NE REPARE QUE CE QU'IL A CAUSE: sans duplication armee, aucun esclave
+// n'a rejoue quoi que ce soit.
+test('rien ne se passe si la duplication n est pas armee', () => {
+  const sup = fauxSuperviseur();
+  sup.arme = false;
+  const { g, retenues } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.strictEqual(sup.annulations, 0);
+  assert.deepStrictEqual(retenues, []);
+  assert.deepStrictEqual(sup.emis, []);
+});
+
+// L'entree en combat d'un ESCLAVE ne dit rien: c'est justement ce qu'on essaie
+// d'empecher, et l'action a retenir est celle du maitre.
+test('l entree en combat d un esclave ne declenche rien', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g({ pid: 2, dir: 'in', estMaitre: false, frame: { kind: 'event', type: 'ieb', payload: [] } });
+  assert.strictEqual(sup.annulations, 0);
+  assert.deepStrictEqual(retenues, []);
+});
+
+test('une trame entrante d un autre type ne declenche rien', () => {
+  const sup = fauxSuperviseur();
+  const { g } = garde(sup);
+  g({ pid: MAITRE, dir: 'in', estMaitre: true, frame: { kind: 'event', type: 'jru', payload: [{ no: 2, value: 153486336 }] } });
+  assert.strictEqual(sup.annulations, 0);
+});
+
+// Un envoi refuse — socket fermee — se journalise sans lever: le garde tourne
+// sous un rappel du superviseur, ou une exception n'a personne pour la
+// rattraper.
+test('un refus de fermeture se journalise sans lever', () => {
+  const sup = fauxSuperviseur([2]);
+  sup.emettre = () => ({ ok: false, raison: 'pas de socket amont' });
+  const { g, lignes } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  assert.doesNotThrow(() => g(entreeCombat()));
+  assert.ok(lignes.some((l) => /socket amont/.test(l.texte)));
+});
 ```
 
-- [ ] **Step 2: Poser l état du garde**
+- [ ] **Step 2: Run the tests to verify they fail**
 
-Au-dessus de la construction du superviseur, avec les autres états de module :
+Run: `node --test test/garde-combat.test.js`
+Expected: FAIL — `creerGardeCombat is not a function`.
 
-```js
-// LE GARDE CONTRE LES COMBATS DUPLIQUES.
-//
-// Quand une quete propose un combat solo, l'action du maitre est rejouee et
-// chaque esclave ouvre LE SIEN — mesure le 28/08, identifiants de combat
-// distincts. On retient donc la derniere action du maitre susceptible d'en
-// ouvrir un, pour pouvoir la retenir comme dangereuse si le combat arrive.
-//
-// `dialogue` est date a part: elle sert a savoir s'il faut fermer le dialogue
-// des esclaves, pas a apprendre.
-let derniereActionSensible = { cle: null, instant: 0 };
-let dernierDialogue = 0;
-```
+- [ ] **Step 3: Implement**
 
-- [ ] **Step 3: Écrire la politique du garde**
-
-Juste après `jouerSouris` :
+Ajouter à la fin de `src/garde-combat.js`, avant `module.exports` :
 
 ```js
-// Ce que le garde fait de chaque trame. Sortante du maitre: on date l'action
-// au cas ou. Entrante du maitre et de type ieb: le maitre entre en combat.
-//
-// N'AGIT QUE SI LA DUPLICATION EST ARMEE: sans elle aucun esclave n'a rejoue
-// quoi que ce soit, il n'y a donc rien a annuler ni a reparer.
-function gardeCombat({ pid, dir, frame, estMaitre }) {
-  if (frame === null || !estMaitre || !superviseur.arme) return;
-  // Les reglages sont poses avant la fenetre, donc avant tout client; la garde
-  // est la pour ne pas dependre de cet ordre.
-  if (favoris === null) return;
+// superviseur — porte arme, annulerRejeux(), emettre(pid, octets) et
+//   comptes.esclaves(pidMaitre)
+// estApprise  — dit si une cle est deja connue; faux par defaut
+// onApprendre — recoit une cle a retenir
+// onJournal   — (pid, texte)
+// maintenant  — injecte pour que les deux fenetres se testent sans dormir,
+//   comme alea et planifier dans le superviseur
+function creerGardeCombat({
+  superviseur, estApprise = () => false, onApprendre = () => {},
+  onJournal = () => {}, maintenant = Date.now,
+}) {
+  // La derniere action du maitre susceptible d'ouvrir un combat, datee. On ne
+  // sait pas encore si elle est dangereuse: c'est le combat qui le dira.
+  let derniereAction = { cle: null, instant: 0 };
+  // Date a part, parce qu'elle repond a une autre question: faut-il fermer le
+  // dialogue des esclaves? Un element interactif n'en ouvre aucun.
+  let dernierDialogue = 0;
 
-  if (dir === 'out') {
-    if (!estSensible(frame.type)) return;
-    const cle = cleDe(frame.type, frame);
-    if (cle !== null) derniereActionSensible = { cle, instant: Date.now() };
-    if (frame.type === 'iov' || frame.type === 'ioy') dernierDialogue = Date.now();
-    return;
-  }
+  return function onTrame({ pid, dir, frame, estMaitre }) {
+    // OMNI NE REPARE QUE CE QU'IL A CAUSE: sans duplication armee, aucun
+    // esclave n'a rejoue quoi que ce soit.
+    if (frame === null || !estMaitre || !superviseur.arme) return;
 
-  if (frame.type !== TYPE_ENTREE_COMBAT) return;
-
-  // 1. Ce qui n'est pas encore ecrit ne partira pas.
-  const annules = superviseur.annulerRejeux();
-  if (annules > 0) journal(pid, `garde combat : ${annules} rejeu(x) annule(s)`);
-
-  // 2. Retenir, mais seulement si l'action est fraiche: un monstre agressif
-  //    qui saute sur le maitre trois secondes apres un dialogue anodin n'a pas
-  //    a empoisonner la liste.
-  const depuis = Date.now() - derniereActionSensible.instant;
-  if (derniereActionSensible.cle !== null && depuis < FENETRE_APPRENTISSAGE_MS) {
-    if (!favoris.combats().includes(derniereActionSensible.cle)) {
-      favoris.apprendreCombat(derniereActionSensible.cle);
-      journal(pid, `garde combat : ${derniereActionSensible.cle} retenue (+${depuis} ms)`);
+    if (dir === 'out') {
+      if (!estSensible(frame.type)) return;
+      const cle = cleDe(frame.type, frame);
+      if (cle !== null) derniereAction = { cle, instant: maintenant() };
+      if (frame.type === 'iov' || frame.type === 'ioy') dernierDialogue = maintenant();
+      return;
     }
-    derniereActionSensible = { cle: null, instant: 0 };
-  }
 
-  // 3. Fermer le dialogue des esclaves. Les reponses precedentes de
-  //    l'enchainement sont parties il y a plusieurs secondes et ne sont pas
-  //    annulables; le maitre, lui, ne fermera jamais leur dialogue puisqu'il
-  //    est en combat.
-  if (Date.now() - dernierDialogue >= FENETRE_DIALOGUE_MS) return;
-  for (const etat of superviseur.comptes.esclaves(pid)) {
-    const r = superviseur.emettre(etat.pid, TRAME_FERMER_DIALOGUE);
-    if (!r.ok) journal(etat.pid, `garde combat : fermeture du dialogue refusee : ${r.raison}`);
-  }
+    if (frame.type !== TYPE_ENTREE_COMBAT) return;
+
+    // 1. Ce qui n'est pas encore ecrit ne partira pas.
+    const annules = superviseur.annulerRejeux();
+    if (annules > 0) onJournal(pid, `garde combat : ${annules} rejeu(x) annule(s)`);
+
+    // 2. Retenir, mais seulement si l'action est fraiche.
+    const depuis = maintenant() - derniereAction.instant;
+    if (derniereAction.cle !== null && depuis < FENETRE_APPRENTISSAGE_MS) {
+      if (!estApprise(derniereAction.cle)) {
+        onApprendre(derniereAction.cle);
+        onJournal(pid, `garde combat : ${derniereAction.cle} retenue (+${depuis} ms)`);
+      }
+      // Consommee: un second ieb sur le meme combat ne doit pas la reprendre.
+      derniereAction = { cle: null, instant: 0 };
+    }
+
+    // 3. Fermer le dialogue des esclaves, s'il y en a un.
+    if (maintenant() - dernierDialogue >= FENETRE_DIALOGUE_MS) return;
+    for (const etat of superviseur.comptes.esclaves(pid)) {
+      const r = superviseur.emettre(etat.pid, TRAME_FERMER_DIALOGUE);
+      if (!r.ok) onJournal(etat.pid, `garde combat : fermeture du dialogue refusee : ${r.raison}`);
+    }
+  };
 }
 ```
 
-- [ ] **Step 4: Brancher le garde et la liste apprise**
-
-Dans la composition des politiques, ajouter `gardeCombat` **après** `creerDuplicateur`.
-
-L'ordre n'a pas d'effet sur le comportement — le garde ne fait que dater la trame sortante, et il n'apprend que sur une trame entrante. Le placer après le duplicateur met simplement les deux politiques du rejeu côte à côte, dans l'ordre où elles se lisent.
+Et l'ajouter à l'export :
 
 ```js
-    gardeCombat,
+module.exports = {
+  creerGardeCombat,
+  estSensible, cleDe, TRAME_FERMER_DIALOGUE,
+  TYPES_SENSIBLES, TYPE_ENTREE_COMBAT,
+  DELAI_PLANCHER_MS, FENETRE_APPRENTISSAGE_MS, FENETRE_DIALOGUE_MS,
+};
 ```
 
-Et passer la liste au duplicateur, dans son appel existant :
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `node --test test/garde-combat.test.js`
+Expected: PASS.
+
+- [ ] **Step 5: Run the full suite**
+
+Run: `npm test`
+Expected: `fail 0`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/garde-combat.js test/garde-combat.test.js
+git commit -m "feat(garde): la politique du garde, testable sans jeu
+
+Sur un ieb entrant chez le maitre, trois choses d'un coup: annuler les
+rejeux en attente, retenir l'action si elle date de moins de deux
+secondes, et fermer le dialogue des esclaves.
+
+C'est une fabrique comme creerPasseur ou creerDuplicateur, et pour la
+meme raison: la fenetre de deux secondes, l'annulation et la fermeture
+des dialogues sont la partie delicate du travail, et aucune ne doit
+reposer sur un seul essai manuel. maintenant() est injecte pour que les
+deux fenetres se testent sans dormir.
+
+Le garde n'agit que si la duplication est armee: sans elle aucun esclave
+n'a rejoue quoi que ce soit."
+```
+
+---
+
+### Task 6: Brancher le garde dans l application
+
+**Files:**
+- Modify: `desktop/main.js`
+- Test: aucun test automatisé — `desktop/main.js` ne tourne pas hors d'Electron. Toute la logique du garde est testée en tâche 5 ; ici il n'y a que du câblage.
+
+**Interfaces:**
+- Consumes: `creerGardeCombat` (tâche 5) ; `favoris.combats()` et `favoris.apprendreCombat(cle)` (tâche 4) ; l'option `estApprise` du duplicateur (tâche 3).
+- Produces: rien pour les tâches suivantes.
+
+- [ ] **Step 1: Importer la fabrique**
+
+Dans `desktop/main.js`, près des autres imports de politiques :
+
+```js
+const { creerGardeCombat } = require('../src/garde-combat');
+```
+
+- [ ] **Step 2: Passer la liste apprise au duplicateur**
+
+Dans l'appel existant à `creerDuplicateur`, ajouter l'option **avant** `onCompteRendu` :
 
 ```js
     creerDuplicateur({
@@ -906,29 +1143,47 @@ Et passer la liste au duplicateur, dans son appel existant :
 
 Le corps de `onCompteRendu` ne change pas.
 
-- [ ] **Step 5: Vérifier**
+- [ ] **Step 3: Brancher le garde**
+
+Dans la même liste de politiques, ajouter après `creerDuplicateur` :
+
+```js
+    creerGardeCombat({
+      superviseur,
+      // La liste vit dans les reglages: le garde ne la connait pas, il
+      // demande. Les reglages sont poses avant la fenetre, donc avant tout
+      // client, mais la garde evite de dependre de cet ordre.
+      estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
+      onApprendre: (cle) => { if (favoris !== null) favoris.apprendreCombat(cle); },
+      onJournal: journal,
+    }),
+```
+
+L'ordre dans la liste n'a pas d'effet sur le comportement — le garde ne fait que dater la trame sortante, et il n'apprend que sur une trame entrante. Le placer après le duplicateur met les deux politiques du rejeu côte à côte, dans l'ordre où elles se lisent.
+
+- [ ] **Step 4: Vérifier**
 
 Run: `node --check desktop/main.js && npm test`
-Expected: `fail 0`.
+Expected: `syntaxe OK` puis `fail 0`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add desktop/main.js
 git commit -m "feat: brancher le garde contre les combats dupliques
 
-Sur un ieb entrant chez le maitre — le message mesure le 28/08 comme
-marquant l'entree en combat — le garde annule les rejeux en attente,
-retient l'action si elle date de moins de deux secondes, et ferme le
-dialogue des esclaves.
+Le garde recoit les trames comme les autres politiques, et rend deux
+rappels vers les reglages: l'un dit si une action est deja connue,
+l'autre en retient une nouvelle. Le duplicateur recoit le meme premier
+rappel, pour refuser d'emblee ce qui est connu.
 
-Il n'agit que si la duplication est armee: sans elle aucun esclave n'a
-rejoue quoi que ce soit, il n'y a rien a annuler ni a reparer."
+Toute la logique est dans src/garde-combat.js et testee la-bas: ici il
+n'y a que du cablage."
 ```
 
 ---
 
-### Task 6: Le bouton d oubli
+### Task 7: Le bouton d oubli
 
 **Files:**
 - Modify: `desktop/index.html`
@@ -1024,7 +1279,7 @@ combien: un bouton qui ne peut rien faire est une promesse fausse."
 
 ---
 
-### Task 7: Verification en conditions reelles
+### Task 8: Verification en conditions reelles
 
 **Files:** aucun, sauf correctif éventuel.
 
