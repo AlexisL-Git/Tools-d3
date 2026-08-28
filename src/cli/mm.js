@@ -2,6 +2,7 @@
 const { Superviseur } = require('../superviseur');
 const { findDofusProcesses } = require('../injector');
 const { creerDuplicateur, ETALEMENT_REJEU } = require('../duplicateur');
+const { creerGardeCombat } = require('../garde-combat');
 const { creerPasseur } = require('../passeur');
 const { composer } = require('../composer');
 
@@ -99,12 +100,28 @@ async function main() {
     onJournal: (pid, texte) => console.log(`[${pid}] ${texte}`),
   });
 
+  // REVUE FINALE : sans --armer, rejouer() ne planifie jamais rien --
+  // this.arme est verifie avant tout appel a _emettreApres, dans
+  // src/superviseur.js. Le plancher de 250 ms qu'impose le duplicateur sur
+  // iov/ioy/iwo est donc purement theorique en mode observation, il n'y a
+  // rien a annuler. Avec --armer, le retard devient reel : de vraies trames
+  // partent avec ce retard, et sans le garde ci-dessous, rien ne les
+  // annulerait jamais si le maitre entre en combat -- exactement le risque
+  // que le garde existe pour couvrir dans l'application.
+  //
+  // Le CLI n'a pas de fichier de reglages comme desktop/favoris.json : la
+  // liste des actions apprises vit en memoire, le temps de la session.
+  const combatsAppris = new Set();
+  const estApprise = (cle) => combatsAppris.has(cle);
+  const onApprendre = (cle) => { combatsAppris.add(cle); };
+
   // La decision de rejeu vit dans src/duplicateur.js, partagee avec
   // l'application: la recopier d'un cote a l'autre a deja produit une
   // application qui decodait tout et ne rejouait rien. Ici, elle n'ecrit que
   // le compte rendu console.
   const rejouer = creerDuplicateur({
     superviseur,
+    estApprise,
     onCompteRendu: ({ type, nom, arme: armeAlors, rendu }) => {
       const ok = rendu.filter((r) => r.ok);
       const refus = rendu.filter((r) => !r.ok);
@@ -132,9 +149,20 @@ async function main() {
     },
   });
 
-  // Le superviseur n'appelle qu'un seul onTrame: les deux politiques se
+  // Le garde contre les combats dupliques, compose comme dans
+  // desktop/main.js : sans lui, --armer paye le retard de 250 ms sans
+  // aucune annulation possible.
+  const garde = creerGardeCombat({
+    superviseur,
+    estApprise,
+    onApprendre,
+    onAnnulation: (n) => console.log(`  garde combat : ${n} rejeu(x) annulé(s)`),
+    onJournal: (pid, texte) => console.log(`[${pid}] ${texte}`),
+  });
+
+  // Le superviseur n'appelle qu'un seul onTrame: les trois politiques se
   // composent ici, sans se gener l'une l'autre.
-  const traiter = composer(rejouer, passer);
+  const traiter = composer(rejouer, garde, passer);
 
   // Le journal brut est propre au CLI et precede toute decision: il doit
   // porter TOUTES les trames, y compris celles qui ne se rejouent pas.
