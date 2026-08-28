@@ -1,5 +1,5 @@
 'use strict';
-const { lookup } = require('./protocol/omni');
+const { lookup, estRejouable } = require('./protocol/omni');
 const { estSensible, cleDe, DELAI_PLANCHER_MS } = require('./garde-combat');
 
 // La decision de rejeu, et elle seule.
@@ -50,6 +50,21 @@ function creerDuplicateur({ superviseur, onCompteRendu = () => {}, estApprise = 
     const connu = lookup(frame.type);
     if (connu === null) return;
     if (!estMaitre) return;
+
+    // UN TYPE REPERTORIE N EST PAS FORCEMENT REJOUABLE. La table classait les
+    // champs en `monde` (recopiable) et `compte` (a reecrire). Il manquait un
+    // troisieme cas, et c est celui qui a coute le defaut du 28/08: un message
+    // dont le serveur verifie une condition que la trame NE PORTE PAS — la
+    // POSITION du personnage. Aucune substitution de champ ne la rattrape.
+    //
+    // Deux types en relevent, mesures: `jqk` (changement de carte) et `jrh`
+    // (infos de carte). Le detail de chaque mesure vit dans la table, a cote
+    // de l entree concernee — voir src/protocol/omni.js.
+    //
+    // Silencieux, sans compte rendu: ces rejeux n ont jamais rien produit, il
+    // n y a donc aucune absence a signaler. Un refus par mule et par carte
+    // s afficherait en permanence pour annoncer un non-evenement.
+    if (!estRejouable(frame.type)) return;
 
     // UNE ACTION DEJA VUE LANCER UN COMBAT n'est ni retardee ni tentee. Le
     // refus se rend esclave par esclave: un compte qui ne rejoue pas

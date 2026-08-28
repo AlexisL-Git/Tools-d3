@@ -10,6 +10,10 @@ const { creerDuplicateur } = require('../src/duplicateur');
 // dialogue, donjon, et le deplacement associe. InteractiveUseRequest, seul
 // message exigeant une substitution de skillInstanceUid, est celui de la
 // recolte de metier, hors perimetre.
+// `jqk` et `jrh` restent de ce perimetre MECANIQUE: le superviseur sait les
+// preparer et les ecrire. C est la POLITIQUE (src/duplicateur.js) qui ne les
+// demande plus depuis le 28/08 — mesure a l appui. Ne pas les retirer d ici
+// pour autant: ces tests verrouillent la mecanique, pas la decision.
 const PERIMETRE = ['hjc', 'jbn', 'iov', 'ioy', 'kla', 'kjw', 'jqk', 'jrh'];
 
 function superviseurAvecComptes(pids) {

@@ -307,8 +307,8 @@ class Superviseur {
       // pendant lesquels rien ne part.
       retard += this._ecartEtalement();
       if (this.arme) {
-        if (retard === 0) client.amont.write(paquet);
-        else this._emettreApres(retard, etat.pid, client.amont, paquet);
+        if (retard === 0) { client.amont.write(paquet); this.journal(etat.pid, `rejeu ${type} ecrit (+0 ms)`); }
+        else this._emettreApres(retard, etat.pid, client.amont, paquet, type);
       }
       // `ok` dit que le rejeu est possible, `emis` qu'il a eu lieu. Les
       // confondre faisait passer tout succes pour un refus en mode
@@ -323,7 +323,11 @@ class Superviseur {
   // capturee dans le process principal. Meme garde que emettre(), pour la meme
   // raison — sauf qu'ici il n'y a plus personne a qui rendre un refus, d'ou le
   // journal.
-  _emettreApres(retardMs, pid, amont, paquet) {
+  // `type` ne sert QU AU JOURNAL, et il est optionnel pour cette raison: les
+  // tests qui appellent _emettreApres directement continuent de marcher. Sans
+  // cette trace, un rejeu n a AUCUNE date mesurable — la capture ne le voit
+  // pas: il est ecrit sur la socket amont sans repasser par le reassembleur.
+  _emettreApres(retardMs, pid, amont, paquet, type = "?") {
     let lot = this._rejeuxEnAttente.get(pid);
     if (lot === undefined) { lot = new Set(); this._rejeuxEnAttente.set(pid, lot); }
     // Jeton d'IDENTITE, ajoute AVANT tout appel a planifier -- pas le retour
@@ -347,7 +351,7 @@ class Superviseur {
       // son pid.
       lot.delete(jeton);
       if (lot.size === 0) this._rejeuxEnAttente.delete(pid);
-      try { amont.write(paquet); }
+      try { amont.write(paquet); this.journal(pid, `rejeu ${type} ecrit (+${retardMs} ms)`); }
       catch (e) { this.journal(pid, `rejeu differe (${retardMs} ms) : ${e.message}`); }
     }, retardMs);
   }

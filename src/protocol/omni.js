@@ -37,6 +37,27 @@ const MESSAGES = {
     // l'esclave: aucune substitution.
     verbatim: true,
   },
+  // NE SE REJOUE PAS. Mesure du 28/08 (journal de 20:39 UTC, trois clients,
+  // suivi de groupe du jeu actif): sur 32 injections chez des mules, ZERO n a
+  // produit une arrivee (`jru`); 26 des 30 refus `jqt` du serveur suivent une
+  // injection de 29 ms medianes — un aller-retour serveur. Aucun des 43 `jqk`
+  // emis par les clients EUX-MEMES n a ete refuse.
+  //
+  // La requete n est valide que si le personnage se tient DEJA sur la cellule
+  // de sortie: le maitre y a marche, la mule est ailleurs sur la carte. Rien
+  // dans la trame ne peut corriger cela — ce n est pas un champ a substituer,
+  // c est une POSITION a occuper.
+  //
+  // Et le refus coute cher: il fait annuler au client de la mule le
+  // deplacement en cours. Les 30 refus mesures ont tous frappe une mule en
+  // train de marcher, 26 ont ete suivis d une nouvelle demande de marche dans
+  // la seconde et demie. Tant que le maitre enchaine les cartes, chacun de ses
+  // changements re-annule la marche des mules, qui bouclent sur place. Une
+  // mule n echappe qu a la faveur d une pause du maitre (mesuree: 4,7 s).
+  //
+  // L entree reste ici: elle documente une mesure reelle, et c est elle qui
+  // porte la raison du refus. Le deplacement de carte en carte est le travail
+  // du suivi de groupe du jeu, pas le notre.
   jqk: {
     name: 'MapChangeRequest',
     fields: {
@@ -44,11 +65,25 @@ const MESSAGES = {
       autoPilot: { nature: 'monde', sur: 'mesure', note: 'drapeau, parfois absent' },
     },
     verbatim: true,
+    rejouable: false,
   },
+  // NE SE REJOUE PAS NON PLUS. Mesure sur les deux sessions du 28/08, avant et
+  // apres le retrait de `jqk`: 78 injections chez des mules, 66 SANS LA
+  // MOINDRE REPONSE. Les 12 reponses `jss` observees portaient la carte ou la
+  // mule se tenait deja et coincidaient avec sa propre demande: ce sont ses
+  // reponses a elle. Aucune, jamais, pour la carte du maitre.
+  //
+  // Le serveur ne repond a une demande d infos que pour la carte ou se trouve
+  // le personnage — meme condition de POSITION que `jqk`, en plus large.
+  //
+  // Aucun degat mesure ici, contrairement a `jqk`: le serveur ignore, point.
+  // Le retrait ne repare donc rien, il cesse d ecrire pour rien sur la socket
+  // d un client de jeu.
   jrh: {
     name: 'MapInformationRequest',
     fields: { mapId: { nature: 'monde', sur: 'mesure' } },
     verbatim: true,
+    rejouable: false,
   },
   iov: {
     name: 'NpcGenericActionRequest',
@@ -111,6 +146,20 @@ function lookupByName(name) {
   return byName.get(name) || null;
 }
 
+// Repertorie ne veut pas dire rejouable. Un message peut etre parfaitement
+// decode, sans champ propre au compte, et rester INJOUABLE chez une mule
+// parce que le serveur en verifie une condition que la trame ne porte pas —
+// la position du personnage, par exemple. `rejouable: false` porte ce cas,
+// avec sa mesure. Absent, il vaut vrai: un type repertorie se rejoue.
+//
+// null pour un type hors table, comme needsRewrite: ne pas connaitre et
+// refuser sont deux reponses differentes.
+function estRejouable(key) {
+  const m = MESSAGES[key];
+  if (!m) return null;
+  return m.rejouable !== false;
+}
+
 // Les messages dont tous les champs decrivent le monde peuvent etre rejoues
 // octet pour octet; les autres doivent etre reconstruits avec l'etat de
 // l'esclave.
@@ -126,4 +175,4 @@ function accountFields(key) {
   return Object.entries(m.fields).filter(([, f]) => f.nature === 'compte').map(([n]) => n);
 }
 
-module.exports = { MESSAGES, lookup, lookupByName, needsRewrite, accountFields };
+module.exports = { MESSAGES, lookup, lookupByName, needsRewrite, accountFields, estRejouable };

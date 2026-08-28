@@ -234,3 +234,52 @@ test('sans liste apprise, tout se rejoue comme avant', () => {
   d(sortante('ioy', { 1: 25088 }));
   assert.strictEqual(sup.appels.length, 1);
 });
+
+// LE DEFAUT DU 28/08: avec le suivi de groupe du jeu, des mules bouclaient
+// sur une carte sans jamais passer a la suivante. Le rejeu du changement de
+// carte etait la cause: le serveur le refusait a chaque fois (la mule n est
+// pas sur la cellule de sortie), et ce refus annulait la marche que le suivi
+// du jeu venait d entamer. Mesure complete dans test/duplication.test.js.
+//
+// Le refus se prend ICI, dans la politique, et pas dans le superviseur: la
+// mecanique de rejeu reste capable de tout ecrire, c est la decision qui
+// change.
+test('un changement de carte n est jamais rejoué', () => {
+  const s = faux();
+  const comptesRendus = [];
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'jqk', payload: [{ no: 2, value: 191104000n }] } }));
+
+  assert.strictEqual(s.appels.length, 0, 'rejouer() ne doit pas être appelé');
+  // Silencieux, et c est voulu: ce rejeu n a JAMAIS fonctionne (0 sur 32
+  // mesures), donc rien n est perdu qu il faille signaler. Un compte rendu de
+  // refus s afficherait sur la ligne de chaque mule a chaque changement de
+  // carte, en permanence, pour annoncer une absence sans consequence.
+  assert.strictEqual(comptesRendus.length, 0);
+});
+
+// Le voisin immediat dans la table doit continuer de partir: le correctif
+// vise UN type, pas la famille du deplacement.
+test('la téléportation continue de se rejouer', () => {
+  const s = faux();
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: () => {} });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'hjc', payload: [] } }));
+
+  assert.strictEqual(s.appels.length, 1);
+});
+
+// Meme raison que le changement de carte, sans le degat: le serveur ne repond
+// a une demande d infos que pour la carte ou se tient le personnage. 78
+// injections mesurees, 66 sans aucune reponse, zero pour la carte du maitre.
+test('une demande d infos de carte n est jamais rejouée', () => {
+  const s = faux();
+  const comptesRendus = [];
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'jrh', payload: [{ no: 1, value: 191104000n }] } }));
+
+  assert.strictEqual(s.appels.length, 0, 'rejouer() ne doit pas être appelé');
+  assert.strictEqual(comptesRendus.length, 0);
+});

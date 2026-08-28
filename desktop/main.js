@@ -698,11 +698,15 @@ app.whenReady().then(async () => {
     creerDuplicateur({
       superviseur,
       estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
-      onCompteRendu: ({ nom, rendu }) => {
+      onCompteRendu: ({ type, nom, rendu }) => {
         // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
         // compte qui ne rejoue pas ressemble a un compte inactif. On garde le
         // dernier par client, efface des que le rejeu repasse.
         for (const r of rendu) {
+          // Un refus n a pas de trace datee ailleurs: `messages` n affiche que
+          // le dernier, et il s efface au rejeu suivant. Sous
+          // OMNI_JOURNAL=complet, chaque refus doit se dater comme un envoi.
+          if (!r.ok) journal(r.pid, `rejeu ${type} refuse : ${r.raison}`);
           if (r.ok) messages.delete(r.pid);
           else messages.set(r.pid, `${nom} : ${r.raison}`);
         }
