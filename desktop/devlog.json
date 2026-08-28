@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.2.6",
+    "le": "2026-08-28",
+    "notes": [
+      "Les mules suivent enfin le maître de carte en carte : elles ne bouclent plus sur place quand le suivi de groupe est actif.",
+      "OMNI n'ouvre plus un combat sur chaque mule : une action qui déclenche un combat chez le maître n'est plus rejouée, les rejeux encore en attente sont annulés et les dialogues des mules sont fermés.",
+      "Nouveau bouton pour oublier les combats retenus, si OMNI en a retenu un à tort.",
+      "Un bouton de souris peut servir de raccourci pour basculer vers un compte.",
+      "Les raccourcis « précédent » et « suivant » ont été retirés : l'ordre des lignes reste, le cycle disparaît."
+    ]
+  },
+  {
     "version": "0.2.5",
     "le": "2026-08-27",
     "notes": [
