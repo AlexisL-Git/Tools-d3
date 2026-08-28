@@ -5,6 +5,7 @@ const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require('electro
 
 const { Superviseur } = require('../src/superviseur');
 const { creerDuplicateur, ETALEMENT_REJEU } = require('../src/duplicateur');
+const { creerGardeCombat } = require('../src/garde-combat');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
@@ -695,6 +696,7 @@ app.whenReady().then(async () => {
   superviseur.onTrame = composer(
     creerDuplicateur({
       superviseur,
+      estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
       onCompteRendu: ({ nom, rendu }) => {
         // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
         // compte qui ne rejoue pas ressemble a un compte inactif. On garde le
@@ -704,6 +706,15 @@ app.whenReady().then(async () => {
           else messages.set(r.pid, `${nom} : ${r.raison}`);
         }
       },
+    }),
+    creerGardeCombat({
+      superviseur,
+      // La liste vit dans les reglages: le garde ne la connait pas, il
+      // demande. Les reglages sont poses avant la fenetre, donc avant tout
+      // client, mais la garde evite de dependre de cet ordre.
+      estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
+      onApprendre: (cle) => { if (favoris !== null) favoris.apprendreCombat(cle); },
+      onJournal: journal,
     }),
     creerPasseur({
       superviseur,
