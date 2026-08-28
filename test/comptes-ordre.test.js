@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { ordonner, suivant, precedent } = require('../src/comptes/navigation');
+const { ordonner } = require('../src/comptes/ordre');
 
 const L = (id, extra = {}) => ({ id, nickname: 'c' + id, pid: 100 + id, ...extra });
 
@@ -45,41 +45,4 @@ test('ordonner ne modifie pas la liste reçue', () => {
   const lignes = [L(3), L(1)];
   ordonner(lignes, [1, 3]);
   assert.deepStrictEqual(lignes.map((l) => l.id), [3, 1]);
-});
-
-// --- suivant et précédent --------------------------------------------------
-
-test('suivant avance dans la liste', () => {
-  assert.strictEqual(suivant([10, 20, 30], 10), 20);
-  assert.strictEqual(suivant([10, 20, 30], 20), 30);
-});
-
-test('suivant reboucle sur le premier', () => {
-  assert.strictEqual(suivant([10, 20, 30], 30), 10);
-});
-
-test('précédent recule et reboucle sur le dernier', () => {
-  assert.strictEqual(precedent([10, 20, 30], 20), 10);
-  assert.strictEqual(precedent([10, 20, 30], 10), 30);
-});
-
-// On peut appuyer sur « suivant » alors que le premier plan est ailleurs: le
-// navigateur, Zaap, ou un client qu'OMNI n'a pas pris en charge.
-test('sans point de départ connu, suivant prend le premier', () => {
-  assert.strictEqual(suivant([10, 20, 30], null), 10);
-  assert.strictEqual(suivant([10, 20, 30], 999), 10);
-});
-
-test('sans point de départ connu, précédent prend le dernier', () => {
-  assert.strictEqual(precedent([10, 20, 30], null), 30);
-});
-
-test('une liste vide ne donne aucune cible', () => {
-  assert.strictEqual(suivant([], 10), null);
-  assert.strictEqual(precedent([], 10), null);
-});
-
-test('un seul client se rend lui-même, sans osciller', () => {
-  assert.strictEqual(suivant([10], 10), 10);
-  assert.strictEqual(precedent([10], 10), 10);
 });

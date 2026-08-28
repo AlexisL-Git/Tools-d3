@@ -67,7 +67,10 @@ import et un nom de fichier.
 
 **`ordreNavigation` reste — son nom ment.** Malgré ce qu'il annonce, il ne sert
 pas qu'à la navigation : c'est lui qui porte la liste des pids passée à
-`fermerClients()` par le bouton « Fermer les clients » (`desktop/main.js:187-189`).
+`fermerClients()` par `fermerClientsConnus()`, sur le chemin `process.on('exit')`
+(`desktop/main.js:173-180`). Ce n'est PAS le bouton « Fermer les clients » du pied,
+qui passe par un autre chemin — la confusion entre les deux a déjà produit un
+commentaire faux.
 Le supprimer casserait une fonction sans rapport. Il est **renommé
 `ordreAffiche`** dans le même mouvement : laisser un nom qui désigne une
 mécanique disparue est exactement le genre de piège qui coûte une heure au

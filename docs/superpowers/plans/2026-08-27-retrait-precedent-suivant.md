@@ -254,7 +254,7 @@ Réduire l'export à :
 module.exports = { ordonner };
 ```
 
-**Réécris l'en-tête du fichier.** Il dit aujourd'hui « L'ordre de l'equipe, et le deplacement dans cet ordre », et justifie l'ordre par la mémoire musculaire d'une touche « personnage suivant » qui n'existe plus. L'ordre reste structurant, mais pour d'autres raisons : c'est celui qu'affiche le panneau, et c'est la liste que « fermer les clients » parcourt. Dis cela, sans inventer : ne garde de l'ancien commentaire que ce qui est encore vrai.
+**Réécris l'en-tête du fichier.** Il dit aujourd'hui « L'ordre de l'equipe, et le deplacement dans cet ordre », et justifie l'ordre par la mémoire musculaire d'une touche « personnage suivant » qui n'existe plus. **N'y recopie pas une justification toute faite — celle que portait la première rédaction de ce plan était fausse.** Cherche toi-même, dans le code d'aujourd'hui, ce qui a encore besoin de l'**ordre** et pas seulement de la liste des pids, et écris ce que tu auras vérifié. Si la seule réponse honnête est « l'affichage », écris-la telle quelle et ajuste le titre du bloc en conséquence : un en-tête modeste et vrai vaut mieux qu'un en-tête important et faux.
 
 - [ ] **Step 5: Renommer le test et retirer les cas du cycle**
 
@@ -411,7 +411,7 @@ connait pas — et le prochain enregistrement l'ecrit sans elle."
 - Consumes: rien.
 - Produces: rien.
 
-**Pourquoi.** `ordreNavigation` ne sert plus du tout à la navigation — il ne l'a jamais fait exclusivement. Il porte la liste des pids affichés, et c'est elle que le bouton « Fermer les clients » passe à `fermerClients()`. Laisser un nom qui désigne une mécanique supprimée est un piège pour le prochain lecteur : il cherchera un cycle qui n'existe plus, ou pire, croira la variable morte et la supprimera.
+**Pourquoi.** `ordreNavigation` ne sert plus du tout à la navigation — il ne l'a jamais fait exclusivement. Il porte la liste des pids affichés, et c'est elle que `fermerClientsConnus()` passe à `fermerClients()` sur le chemin `process.on('exit')`, quand OMNI s'arrête (`desktop/main.js:173-180`). **Attention à ne pas confondre** avec le bouton « Fermer les clients » du pied, qui est un autre chemin : il passe par `fermerTousLesClients` et ferme les pids rendus par `clientsRecents()`. Ce consommateur-là n'a d'ailleurs besoin que de l'**ensemble** des pids, jamais de leur ordre. Laisser un nom qui désigne une mécanique supprimée est un piège pour le prochain lecteur : il cherchera un cycle qui n'existe plus, ou pire, croira la variable morte et la supprimera.
 
 - [ ] **Step 1: Relever toutes les occurrences**
 
@@ -441,7 +441,8 @@ git commit -m "refactor: ordreNavigation devient ordreAffiche
 
 Le nom designait une mecanique qui n'existe plus, et la variable n'a
 jamais servi qu'a ca: elle porte les pids dans l'ordre affiche, et c'est
-cette liste que « fermer les clients » passe a fermerClients().
+cette liste que fermerClientsConnus() passe a fermerClients() quand OMNI
+s'arrete.
 
 Un nom qui ment coute une heure au prochain lecteur — soit il cherche un
 cycle disparu, soit il croit la variable morte et la supprime."

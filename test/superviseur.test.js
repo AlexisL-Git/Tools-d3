@@ -500,14 +500,14 @@ test('sans maître, le duplicateur ne rejoue chez personne', () => {
 // deux est exactement ce qui faisait partir les actions d'un alt chez toute
 // l'equipe des qu'on cliquait sa fenetre.
 //
-// Le superviseur ne DEMANDE plus cette surveillance (reportFocus est eteint,
-// la navigation est un cycle franc), mais le gestionnaire reste: l'option
-// existe toujours, et si elle est rallumee un jour elle ne doit surtout pas
-// se remettre a decerner le commandement.
+// Le superviseur ne DEMANDE plus cette surveillance (reportFocus est eteint),
+// mais le gestionnaire reste: l'option existe toujours, et si elle est
+// rallumee un jour elle ne doit surtout pas se remettre a decerner le
+// commandement.
 //
 // L'assertion porte desormais sur le COMPORTEMENT et non sur le source: elle
 // couvre le chemin reel, et survivra a une reecriture du module.
-test('le premier plan renseigne la navigation, jamais le rôle de maître', () => {
+test('le premier plan alimente enAvant, jamais le rôle de maître', () => {
   const s = superviseurAvecComptes([1, 2]);
   s.maitre = 2;
 
@@ -573,8 +573,9 @@ test('un post qui lève se rend comme un refus', () => {
   assert.match(r.raison, /script detruit/);
 });
 
-// `enAvant` sert de point de depart a « personnage suivant ». Il ne decerne
-// PAS le role de maitre: celui-la est epingle, et le focus ne le decide plus.
+// `enAvant` n'a plus aucun lecteur, mais il est ecrit des la construction. Il
+// ne decerne PAS le role de maitre: celui-la est epingle, et le focus ne le
+// decide plus.
 test('le superviseur ne connaît aucun premier plan au départ', () => {
   assert.strictEqual(new Superviseur().enAvant, null);
 });

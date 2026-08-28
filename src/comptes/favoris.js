@@ -2,14 +2,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Les deux deplacements dans l'equipe. Ctrl et les fleches par defaut: un
-// raccourci GLOBAL confisque la touche a Dofus tant qu'OMNI tourne, et cette
-// combinaison ne sert pas en combat.
-const NAV_DEFAUT = {
-  precedent: 'CommandOrControl+Left',
-  suivant: 'CommandOrControl+Right',
-};
-
 // Comptes marques par l'utilisateur comme etant a lancer.
 //
 // Sans effet en phase 1, ou le lancement reste manuel: la selection est
@@ -56,9 +48,8 @@ class Favoris {
     // Un raccourci global par compte, pour mettre sa fenetre au premier plan.
     // idCompte -> accelerateur Electron.
     this._touches = new Map();
-    this._nav = { ...NAV_DEFAUT };
-    // L'ordre voulu par l'utilisateur. Il devient structurant des lors qu'une
-    // touche dit « personnage suivant »: c'est de la memoire musculaire.
+    // L'ordre voulu par l'utilisateur. C'est l'ordre qu'affiche le panneau,
+    // et rien de plus -- voir src/comptes/ordre.js.
     this._ordre = [];
   }
 
@@ -92,11 +83,6 @@ class Favoris {
           }
         }
       }
-      if (json.nav !== null && typeof json.nav === 'object') {
-        for (const nom of Object.keys(NAV_DEFAUT)) {
-          if (typeof json.nav[nom] === 'string' && json.nav[nom].length) this._nav[nom] = json.nav[nom];
-        }
-      }
       if (Array.isArray(json.ordre)) {
         this._ordre = [...new Set(json.ordre.filter((n) => Number.isInteger(n)))];
       }
@@ -114,7 +100,6 @@ class Favoris {
       this._maitre = null;
       this._actif = false;
       this._touches = new Map();
-      this._nav = { ...NAV_DEFAUT };
       this._ordre = [];
     }
     return this;
@@ -249,17 +234,6 @@ class Favoris {
     this._ecrire();
   }
 
-  touchesNav() {
-    return { ...this._nav };
-  }
-
-  reglerToucheNav(nom, accelerateur) {
-    if (!Object.prototype.hasOwnProperty.call(NAV_DEFAUT, nom)) return;
-    if (typeof accelerateur !== 'string' || accelerateur.length === 0) return;
-    this._nav[nom] = accelerateur;
-    this._ecrire();
-  }
-
   ordre() {
     return [...this._ordre];
   }
@@ -283,7 +257,6 @@ class Favoris {
         maitre: this._maitre,
         actif: this._actif,
         touches: this.touches(),
-        nav: this._nav,
         ordre: this._ordre,
       };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
@@ -294,4 +267,4 @@ class Favoris {
   }
 }
 
-module.exports = { Favoris, NAV_DEFAUT };
+module.exports = { Favoris };

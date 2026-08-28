@@ -137,7 +137,8 @@ test('l agent rend compte de la bascule', () => {
 });
 
 // La surveillance du focus revient, mais pour un AUTRE usage: elle ne decerne
-// plus le role de maitre, elle dit seulement d'ou part « personnage suivant ».
+// plus le role de maitre, elle alimente seulement enAvant -- garde par
+// prudence dans le superviseur, sans lecteur aujourd'hui.
 test('la surveillance du premier plan est de nouveau disponible, en option', () => {
   const avec = connectAgentSource({ proxyPort: 8000, reportFocus: true });
   const sans = connectAgentSource({ proxyPort: 8000 });

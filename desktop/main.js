@@ -15,7 +15,7 @@ const { listerClients, fermerClients } = require('../src/comptes/clients');
 const { construireVue } = require('../src/comptes/vue');
 const { resoudreMaitre } = require('../src/comptes/maitre');
 const { creerEmblemes } = require('../src/comptes/emblemes');
-const { ordonner, suivant, precedent } = require('../src/comptes/navigation');
+const { ordonner } = require('../src/comptes/ordre');
 const { COLONNES, parNom, cibleBascule } = require('../src/comptes/colonnes');
 const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
@@ -75,7 +75,7 @@ let clientsCache = { instant: 0, valeur: [], enVol: null };
 
 // LE DERNIER REFUS DE BASCULE, pour l'afficher.
 //
-// naviguer() et basculerVersCompte() abandonnaient EN SILENCE dans trois cas:
+// basculerVersCompte() abandonnait EN SILENCE dans trois cas:
 // aucun client pilote, compte sans client, agent pas encore en place. Vu de
 // l'utilisateur, la touche « ne faisait rien », et c'est le mode d'echec le
 // plus couteux de ce projet — celui qu'aucune trace ne relie a sa cause.
@@ -95,20 +95,7 @@ let avisBascule = { texte: null, instant: 0 };
 // reconstruit toutes les 2 s. On le garde ici, et la bascule devient
 // instantanee: aucun process a lancer, aucune attente.
 let carteComptes = new Map();   // idCompte -> pid
-let ordreNavigation = [];       // pids, dans l'ordre affiche
-
-// LE CURSEUR DU CYCLE, et rien d'autre.
-//
-// « Suivant » partait du client au premier plan, ce qui obligeait a le
-// SURVEILLER: chaque agent sondait GetForegroundWindow toutes les 250 ms a
-// l'interieur du jeu. Et le resultat surprenait — depuis le navigateur ou
-// depuis OMNI, le premier plan est inconnu et « suivant » revenait au premier
-// de la liste au lieu d'avancer d'un cran.
-//
-// C'est desormais un cycle franc: on retient le dernier client vise, et on
-// avance a partir de la. Le pid est retenu plutot que l'indice, parce qu'un
-// client qui se ferme decale toute la liste et rendrait un indice faux.
-let curseurNav = null;
+let ordreAffiche = [];          // pids, dans l'ordre affiche
 
 // LA FERMETURE EMPORTE LES CLIENTS, MAIS ON DEMANDE.
 //
@@ -184,9 +171,9 @@ async function demanderFermeture() {
 // entier, coupure de courant). Aucun code ne tourne, et les clients survivent.
 // Il n'existe pas de moyen d'y remedier depuis l'application elle-meme.
 function fermerClientsConnus() {
-  if (ordreNavigation.length === 0) return;
+  if (ordreAffiche.length === 0) return;
   try {
-    fermerClients(ordreNavigation);
+    fermerClients(ordreAffiche);
   } catch (e) {
     // On est deja en train de mourir: il n'y a personne a qui rendre l'echec.
   }
@@ -211,7 +198,7 @@ process.on('uncaughtException', (e) => {
   process.exit(1);
 });
 
-// Meme trou, cote promesses: naviguer() et basculerVersCompte() lancent
+// Meme trou, cote promesses: basculerVersCompte() lance
 // envoyerEtat() sans l'attendre, et un rejet de cette promesse orpheline ne
 // passe par aucun catch. Sans ce filet, il tuerait le process en silence, en
 // emportant tous les clients Dofus de l'utilisateur — exactement ce que le
@@ -223,12 +210,6 @@ process.on('unhandledRejection', (raison) => {
   journal('panne', `rejet non capture : ${raison && raison.stack ? raison.stack : raison}`);
   process.exit(1);
 });
-
-// Le clic sur une identite deplace le curseur, sinon le raccourci suivant
-// repartirait d'ou on etait avant le clic.
-function poserCurseur(pid) {
-  curseurNav = pid;
-}
 
 function noterAvis(texte) {
   avisBascule = { texte, instant: Date.now() };
@@ -538,23 +519,31 @@ async function envoyerEtat() {
     messages,
   });
 
-  // L'ordre voulu par l'utilisateur. Il ne sert pas qu'a l'affichage: c'est
-  // lui que « personnage suivant » parcourt, donc c'est de la memoire
-  // musculaire. L'ordre de Zaap n'a aucune raison d'etre celui de l'equipe.
+  // L'ordre voulu par l'utilisateur, applique aux lignes envoyees au
+  // panneau. C'est le seul consommateur de l'ORDRE: carteComptes et
+  // ordreAffiche, construits juste apres, ne s'en servent que par id ou
+  // comme ensemble complet de pids. L'ordre de Zaap n'a aucune raison
+  // d'etre celui de l'equipe.
   const rangees = ordonner(lignes, favoris.ordre());
   lignes.length = 0;
   lignes.push(...rangees);
 
-  // La carte des pids et l'ordre de navigation, tenus a jour ici: c'est le
-  // seul endroit qui connaisse a la fois les comptes, les clients et l'ordre
-  // voulu. Les deux touches de navigation et le clic sur une identite s'en
-  // servent sans rien redemander a Windows.
+  // La carte des pids et la liste des pids affiches, tenues a jour ici:
+  // c'est le seul endroit qui connaisse a la fois les comptes, les clients
+  // et l'ordre voulu. carteComptes sert a basculerVersCompte() -- qui repond
+  // au clic sur une identite, au raccourci clavier par compte ET au bouton de
+  // souris par compte (les deux poses dans poserRaccourcis()), c'est la
+  // fonctionnalite meme qui a rendu la navigation cyclique inutile -- et a la
+  // fermeture d'un client depuis sa ligne (fermerUnClient), toutes deux par
+  // id. ordreAffiche sert a fermerClientsConnus, sur le chemin
+  // process.on('exit') — comme ensemble complet de pids a fermer, jamais
+  // dans son ordre.
   carteComptes = new Map();
-  ordreNavigation = [];
+  ordreAffiche = [];
   for (const l of lignes) {
     if (l.pid === null || l.pid === undefined) continue;
     if (l.id !== null && l.id !== undefined) carteComptes.set(l.id, l.pid);
-    ordreNavigation.push(l.pid);
+    ordreAffiche.push(l.pid);
   }
 
   // La touche assignee a chaque compte, pour l'afficher sur sa ligne.
@@ -580,7 +569,6 @@ async function envoyerEtat() {
     sansMaitre: superviseur.maitre === null,
     erreurComptes,
     delai: favoris.delai(),
-    nav: favoris.touchesNav(),
     avisBascule: avisCourant(),
     lignes,
   });
@@ -809,10 +797,6 @@ function poserRaccourcis() {
     poser(accelerateur, () => basculerVersCompte(idCompte));
   }
 
-  const nav = favoris.touchesNav();
-  poser(nav.suivant, () => naviguer(1));
-  poser(nav.precedent, () => naviguer(-1));
-
   // La boucle de sondage ne tourne dans les clients que s'il y a quelque chose
   // a sonder.
   if (superviseur !== null) superviseur.reglerSouris(actionsSouris.size > 0);
@@ -874,42 +858,18 @@ async function basculerVersCompte(idCompte) {
     await envoyerEtat();
     return;
   }
-  poserCurseur(pid);
   const r = superviseur.basculerVers(pid);
   if (!r.ok) {
     journal(pid, `bascule refusee : ${r.raison}`);
-    noterAvis(`bascule impossible : ${r.raison}`);
-    envoyerEtat();
-  }
-}
-
-// Le pas suivant ou precedent, dans l'ORDRE AFFICHE. Le point de depart est le
-// client au premier plan; s'il est inconnu (navigateur, Zaap, client non pris
-// en charge), on entre par le bout correspondant au sens demande.
-function naviguer(pas) {
-  // Meme raison que ci-dessus: l'ordre affiche est deja connu, et une touche de
-  // navigation doit repondre a l'instant.
-  //
-  // Seuls les clients qu'OMNI pilote: basculer vers un client sans agent
-  // echouerait sans rien dire d'utile.
-  const navigables = ordreNavigation.filter((p) => superviseur.clients.has(p));
-  if (navigables.length === 0) {
-    noterAvis(ordreNavigation.length === 0
-      ? 'aucun client Dofus détecté'
-      : 'aucun client piloté par OMNI — lance-les APRÈS OMNI');
-    envoyerEtat();
-    return;
-  }
-
-  // Le curseur peut designer un client ferme entre-temps: suivant() et
-  // precedent() entrent alors par le bout correspondant au sens demande.
-  const cible = pas > 0 ? suivant(navigables, curseurNav) : precedent(navigables, curseurNav);
-  if (cible === null) return;
-  poserCurseur(cible);
-  const r = superviseur.basculerVers(cible);
-  if (!r.ok) {
-    journal(cible, `navigation refusee : ${r.raison}`);
-    noterAvis(`navigation impossible : ${r.raison}`);
+    // 'client inconnu' vient de basculerVers() quand ce pid n'a jamais ete
+    // passe a superviseur.ajouter() (voir balayerProcess : plafond de 8
+    // clients, ou pid vu par clientsRecents() avant le prochain balayage).
+    // Ce n'est PAS le cas d'un client lance avant OMNI: celui-la s'attache
+    // sans probleme (voir src/comptes/vue.js, etat "non-intercepte"), donc
+    // basculerVers() y reussit. La raison technique reste dans le journal.
+    noterAvis(r.raison === 'client inconnu'
+      ? 'bascule impossible : client pas encore pris en charge par OMNI'
+      : `bascule impossible : ${r.raison}`);
     envoyerEtat();
   }
 }
@@ -923,13 +883,6 @@ ipcMain.handle('reglerTouche', async (_e, idCompte, accelerateur) => {
   if (!Number.isInteger(idCompte)) return;
   if (accelerateur !== null && typeof accelerateur !== 'string') return;
   favoris.reglerTouche(idCompte, accelerateur);
-  poserRaccourcis();
-  await envoyerEtat();
-});
-
-ipcMain.handle('reglerToucheNav', async (_e, nom, accelerateur) => {
-  if (typeof nom !== 'string' || typeof accelerateur !== 'string') return;
-  favoris.reglerToucheNav(nom, accelerateur);
   poserRaccourcis();
   await envoyerEtat();
 });

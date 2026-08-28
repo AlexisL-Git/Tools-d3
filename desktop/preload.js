@@ -40,7 +40,6 @@ contextBridge.exposeInMainWorld('app', {
   // la poignee de reordonnancement n'est pas encore faite, et la frontiere de
   // confiance ne s'elargit pas par anticipation.
   reglerTouche: (idCompte, accelerateur) => ipcRenderer.invoke('reglerTouche', idCompte, accelerateur),
-  reglerToucheNav: (nom, accelerateur) => ipcRenderer.invoke('reglerToucheNav', nom, accelerateur),
 
   // Un appui de bouton fait DANS la fenetre d'OMNI. Les appuis faits sur un
   // client Dofus remontent par son agent, sans passer par ici.
