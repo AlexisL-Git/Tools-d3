@@ -20,6 +20,7 @@ const { COLONNES, parNom, cibleBascule } = require('../src/comptes/colonnes');
 const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
 const { lireDevlog, CHEMIN: CHEMIN_DEVLOG } = require('./devlog');
+const { estSouris, depuisBouton } = require('../src/comptes/raccourcis');
 
 const PERIODE_PROCESS = 500;    // prise en charge des nouveaux clients
 const PERIODE_VUE = 2000;       // rafraichissement de la liste affichee
@@ -207,6 +208,19 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
 // par le chemin habituel, qui emportera les clients.
 process.on('uncaughtException', (e) => {
   journal('panne', `exception non capturee : ${e && e.stack ? e.stack : e}`);
+  process.exit(1);
+});
+
+// Meme trou, cote promesses: naviguer() et basculerVersCompte() lancent
+// envoyerEtat() sans l'attendre, et un rejet de cette promesse orpheline ne
+// passe par aucun catch. Sans ce filet, il tuerait le process en silence, en
+// emportant tous les clients Dofus de l'utilisateur — exactement ce que le
+// filet de jouerSouris essaie d'eviter. Meme journalisation, meme sortie que
+// uncaughtException: un rejet non rattrape est du meme ordre de gravite
+// qu'une exception non capturee, et le laisser continuer sans sortir
+// laisserait le process dans un etat que personne n'a valide.
+process.on('unhandledRejection', (raison) => {
+  journal('panne', `rejet non capture : ${raison && raison.stack ? raison.stack : raison}`);
   process.exit(1);
 });
 
@@ -622,6 +636,19 @@ function creerFenetre() {
     demanderFermeture();
   });
 
+  // M4 et M5 sont « precedent » et « suivant » pour Chromium. La fenetre n'a
+  // aucun historique, donc rien ne se passerait — mais on coupe court plutot
+  // que de dependre de ce fait. On filtre sur le nom de la commande: appeler
+  // preventDefault() sur TOUTES les commandes risquerait de rendre inertes
+  // les touches multimedia de l'utilisateur (volume, lecture/pause) tant
+  // qu'OMNI a le focus. Electron ne documente pas cet effet, mais on n'a
+  // aucune raison de le provoquer.
+  fenetre.on('app-command', (e, commande) => {
+    if (commande === 'browser-backward' || commande === 'browser-forward') {
+      e.preventDefault();
+    }
+  });
+
   fenetre.removeMenu();
   fenetre.once('ready-to-show', () => fenetre.show());
   fenetre.loadFile(path.join(__dirname, 'index.html'));
@@ -667,6 +694,7 @@ app.whenReady().then(async () => {
       },
       onCompteRendu: ({ conn, pid, raison }) => journal(pid, `no-anim (connexion ${conn}) : ${raison}`),
     }),
+    onSouris: ({ clic }) => jouerSouris(clic),
   });
 
   // Sans ce branchement, le superviseur decode tout et ne rejoue rien:
@@ -745,12 +773,26 @@ app.whenReady().then(async () => {
 // On repose tout a chaque changement plutot que de tenir un differentiel: il y
 // a au plus dix raccourcis, et un differentiel faux laisse une touche fantome
 // enregistree jusqu'a la fermeture.
+
+// LES RACCOURCIS SOURIS, qui ne peuvent pas passer par globalShortcut.
+//
+// Electron ne sait enregistrer que des touches. Un bouton passe donc par un
+// second chemin, de l'agent jusqu'ici, et cette table est son aboutissement.
+// Elle est refaite en entier a chaque changement, comme les raccourcis
+// clavier: un differentiel faux laisserait un bouton fantome actif jusqu'a la
+// fermeture.
+const actionsSouris = new Map();   // accelerateur -> action
+
 function poserRaccourcis() {
   globalShortcut.unregisterAll();
+  actionsSouris.clear();
   if (favoris === null) return;
 
   const poser = (accelerateur, action) => {
     if (!accelerateur) return;
+    // Un bouton n'est pas representable dans un accelerateur Electron: le
+    // passer a register() echouerait sans lever, donc en silence.
+    if (estSouris(accelerateur)) { actionsSouris.set(accelerateur, action); return; }
     try {
       // register rend faux quand la touche est deja prise par une AUTRE
       // application: on le dit plutot que de laisser croire que ca marche.
@@ -770,6 +812,54 @@ function poserRaccourcis() {
   const nav = favoris.touchesNav();
   poser(nav.suivant, () => naviguer(1));
   poser(nav.precedent, () => naviguer(-1));
+
+  // La boucle de sondage ne tourne dans les clients que s'il y a quelque chose
+  // a sonder.
+  if (superviseur !== null) superviseur.reglerSouris(actionsSouris.size > 0);
+}
+
+// Derive un message affichable de n'importe quoi: un throw ou un reject
+// peuvent porter autre chose qu'une Error (throw null, Promise.reject() sans
+// argument, un objet dont .message ou toString() ne rend pas une chaine...).
+//
+// TOUT le corps est sous le try, y compris le test instanceof et la lecture de
+// .message: ce n'est pas de la precaution decorative, ces deux operations
+// peuvent lever a elles seules. .message peut etre un accesseur qui jette, et
+// instanceof interroge la chaine de prototypes, donc un Proxy dont le trap
+// getPrototypeOf jette fait lever le test lui-meme. Un jet ici sortirait de
+// messageErreur avant tout filet et remonterait DANS le catch de jouerSouris,
+// cense justement arreter la casse: c'est le crash qu'on veut supprimer.
+// Ne pas ressortir la premiere ligne du try en croyant simplifier.
+//
+// Le repli ne touche a aucune propriete de e, pour la meme raison. String()
+// sous try/catch rend toujours une chaine, et une chaine est necessaire: un
+// Symbol rendu tel quel leverait plus loin a l'interpolation dans le gabarit.
+function messageErreur(e) {
+  try {
+    const brut = e instanceof Error ? e.message : e;
+    return typeof brut === 'string' ? brut : String(brut);
+  } catch { return 'erreur inconnue'; }
+}
+
+// Un appui de bouton, d'ou qu'il vienne: de l'agent quand Dofus est devant, de
+// l'interface quand c'est OMNI. Meme table, meme action.
+//
+// Un bouton non assigne ne fait rien et ne se journalise pas: l'utilisateur a
+// deux boutons sous le pouce et s'en sert pour autre chose.
+//
+// L'action peut jeter (synchrone) ou rejeter (sa promesse): laisser passer
+// l'un ou l'autre declenche uncaughtException, qui fait sortir tout le
+// process et emporte les clients Dofus avec lui a la fermeture. Le chemin
+// agent est le plus expose: onSouris est appelee depuis un rappel Frida, sans
+// aucun autre filet le long de la chaine.
+function jouerSouris(clic) {
+  const accelerateur = depuisBouton(clic);
+  if (accelerateur === null) return;
+  const action = actionsSouris.get(accelerateur);
+  if (action === undefined) return;
+  let r = null;
+  try { r = action(); } catch (e) { journal('souris', `${accelerateur} : ${messageErreur(e)}`); return; }
+  if (r && typeof r.then === 'function') r.catch((e) => journal('souris', `${accelerateur} : ${messageErreur(e)}`));
 }
 
 // Met au premier plan la fenetre du compte demande. Rend un compte rendu
@@ -842,6 +932,18 @@ ipcMain.handle('reglerToucheNav', async (_e, nom, accelerateur) => {
   favoris.reglerToucheNav(nom, accelerateur);
   poserRaccourcis();
   await envoyerEtat();
+});
+
+// L'interface signale un appui quand c'est la fenetre d'OMNI qui a le focus:
+// l'agent, lui, ne voit que les appuis faits sur son client Dofus.
+ipcMain.handle('boutonSouris', (_e, clic) => {
+  if (clic === null || typeof clic !== 'object') return;
+  jouerSouris({
+    button: clic.button,
+    ctrlKey: Boolean(clic.ctrlKey),
+    altKey: Boolean(clic.altKey),
+    shiftKey: Boolean(clic.shiftKey),
+  });
 });
 
 ipcMain.handle('reglerOrdre', async (_e, ids) => {

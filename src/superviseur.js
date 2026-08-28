@@ -53,7 +53,7 @@ class Superviseur {
   // alea, planifier — injectes pour que l'etalement se teste sans dormir.
   constructor({
     onTrame = () => {}, onJournal = () => {}, arme = false, transformerEntrant = null,
-    etalementRejeu = null, alea = Math.random, planifier = setTimeout,
+    etalementRejeu = null, alea = Math.random, planifier = setTimeout, onSouris = () => {},
   } = {}) {
     this.comptes = new Comptes();
     this.clients = new Map();
@@ -68,6 +68,14 @@ class Superviseur {
     this.arme = arme;
     this.onTrame = onTrame;
     this.onJournal = onJournal;
+    // Les appuis de bouton remontes par les agents. Le superviseur ne juge
+    // rien: il transporte, et desktop/main.js decide s'ils correspondent a un
+    // raccourci.
+    this.onSouris = onSouris;
+    // La boucle de sondage ne tourne dans les clients que si au moins un
+    // bouton est assigne. L'etat est retenu ici pour etre pose sur les clients
+    // qui s'attachent APRES le reglage.
+    this.sourisActive = false;
     // Transforme le flux descendant avant qu'il n'atteigne le client. Nul par
     // defaut: le proxy relaie alors octet pour octet, comme avant l'ajout du
     // no-anim.
@@ -167,6 +175,10 @@ class Superviseur {
       this._recevoirMessageAgent(pid, m.payload || {}, client.port);
     });
     await client.script.load();
+    // Un client attache apres le reglage doit sonder lui aussi.
+    if (this.sourisActive) {
+      try { client.script.post({ type: 'souris', actif: true }); } catch (e) {}
+    }
     return etat;
   }
 
@@ -327,6 +339,10 @@ class Superviseur {
       else this.journal(pid, 'bascule de fenetre sans effet');
       return;
     }
+    if (p.souris !== undefined) {
+      this.onSouris({ pid, clic: p.souris });
+      return;
+    }
     if (p.ready) {
       this.journal(pid, `agent en place sur le port ${port} — ${p.ready.join(' | ')}`);
     }
@@ -354,6 +370,20 @@ class Superviseur {
       return { ok: false, raison: e.message };
     }
     return { ok: true };
+  }
+
+  // Allume ou eteint le sondage des boutons dans TOUS les clients.
+  //
+  // Ne leve JAMAIS: elle est appelee depuis poserRaccourcis(), qui tourne sous
+  // un gestionnaire IPC, et un client peut etre en cours d'attache — son
+  // script n'existe pas encore.
+  reglerSouris(actif) {
+    this.sourisActive = Boolean(actif);
+    for (const client of this.clients.values()) {
+      if (!client.script) continue;
+      try { client.script.post({ type: 'souris', actif: this.sourisActive }); }
+      catch (e) { this.journal(client.pid, `souris: ${e.message}`); }
+    }
   }
 
   // Ecrit une trame sur UN client. Contrairement a rejouer(), qui vise tous

@@ -391,6 +391,100 @@ function connectAgentSource({
       report.push('commande de fenetre');
     }
 
+    // LES BOUTONS DE SOURIS, allumes sur commande de l'hote.
+    //
+    // POURQUOI ICI. globalShortcut d'Electron ne connait que le clavier:
+    // aucun bouton de souris n'est representable dans un accelerateur, et
+    // register() rendrait faux sans lever. On observe donc l'etat des boutons
+    // depuis l'interieur du process du jeu, ou l'agent est deja.
+    //
+    // LE BOUTON N'EST PAS CONFISQUE A DOFUS. GetAsyncKeyState lit un etat, il
+    // n'intercepte rien: le jeu recoit le clic lui aussi. C'est sans
+    // consequence pour M4 et M5, que le jeu n'utilise pas.
+    //
+    // La boucle ne tourne QUE si un bouton est assigne. Une boucle de 250 ms
+    // a deja ete retiree d'ici parce qu'elle repondait a une question qu'on ne
+    // posait plus; celle-ci est plus rapide, donc elle doit se justifier a
+    // chaque instant ou elle tourne.
+    {
+      const u32s = Process.getModuleByName('user32.dll');
+      const exs = (n) => u32s.findExportByName ? u32s.findExportByName(n) : u32s.getExportByName(n);
+      const getEtatTouche = new NativeFunction(exs('GetAsyncKeyState'), 'int16', ['int']);
+      const devantS = new NativeFunction(exs('GetForegroundWindow'), 'pointer', []);
+      const pidDeS = new NativeFunction(exs('GetWindowThreadProcessId'), 'uint32', ['pointer', 'pointer']);
+      const casier = Memory.alloc(4);
+
+      // VK_MBUTTON, VK_XBUTTON1, VK_XBUTTON2 -> numero de bouton du DOM.
+      const BOUTONS_VK = [[0x04, 1], [0x05, 3], [0x06, 4]];
+      const VK_SHIFT = 0x10;
+      const VK_CONTROL = 0x11;
+      const VK_MENU = 0x12;
+      const enfonce = function (vk) { return (getEtatTouche(vk) & 0x8000) !== 0; };
+
+      const avant = {};
+      for (let i = 0; i < BOUTONS_VK.length; i++) avant[BOUTONS_VK[i][0]] = false;
+      let sonde = null;
+
+      function auPremierPlanSouris() {
+        const hwnd = devantS();
+        if (hwnd.isNull()) return false;
+        casier.writeU32(0);
+        pidDeS(hwnd, casier);
+        return casier.readU32() === Process.id;
+      }
+
+      // Rempli juste avant d'allumer le sondage, avec l'etat REEL de chaque
+      // bouton, sans rien emettre. Sans cela, un bouton deja enfonce au
+      // moment de l'allumage serait vu comme un front montant au premier
+      // passage et enverrait un appui fantome.
+      function reamorcerAvant() {
+        for (let i = 0; i < BOUTONS_VK.length; i++) {
+          const vk = BOUTONS_VK[i][0];
+          avant[vk] = enfonce(vk);
+        }
+      }
+
+      function sonderBoutons() {
+        try {
+          // Sans cette garde, les cinq clients verraient le meme appui et la
+          // bascule partirait cinq fois.
+          const actif = auPremierPlanSouris();
+          for (let i = 0; i < BOUTONS_VK.length; i++) {
+            const vk = BOUTONS_VK[i][0];
+            const bouton = BOUTONS_VK[i][1];
+            const etat = enfonce(vk);
+            const front = etat && !avant[vk];
+            // L'etat est tenu a jour MEME hors premier plan: un bouton
+            // relache ailleurs paraitrait sinon encore enfonce au retour, et
+            // l'appui suivant serait manque.
+            avant[vk] = etat;
+            if (!front || !actif) continue;
+            send({ souris: {
+              button: bouton,
+              ctrlKey: enfonce(VK_CONTROL),
+              altKey: enfonce(VK_MENU),
+              shiftKey: enfonce(VK_SHIFT),
+            } });
+          }
+        } catch (e) {}
+      }
+
+      // recv n'ecoute qu'UNE fois: on se replace apres chaque message, sinon
+      // le premier allumage serait aussi le dernier.
+      function ecouterSouris() {
+        recv('souris', function (m) {
+          try {
+            // 30 ms: un clic dure 80 a 150 ms, on ne peut pas en rater.
+            if (m && m.actif && sonde === null) { reamorcerAvant(); sonde = setInterval(sonderBoutons, 30); }
+            else if ((!m || !m.actif) && sonde !== null) { clearInterval(sonde); sonde = null; }
+          } catch (e) {}
+          ecouterSouris();
+        });
+      }
+      ecouterSouris();
+      report.push('boutons de souris');
+    }
+
     send({ ready: report });
   `;
 }

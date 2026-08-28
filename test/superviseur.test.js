@@ -578,3 +578,58 @@ test('un post qui lève se rend comme un refus', () => {
 test('le superviseur ne connaît aucun premier plan au départ', () => {
   assert.strictEqual(new Superviseur().enAvant, null);
 });
+
+// --- les boutons de souris ------------------------------------------------
+
+function clientFactice(pid) {
+  const postes = [];
+  return {
+    pid,
+    postes,
+    script: { post: (m) => postes.push(m) },
+  };
+}
+
+test('un appui remonte par onSouris avec le pid', () => {
+  const vus = [];
+  const s = new Superviseur({ onSouris: (e) => vus.push(e) });
+  s._recevoirMessageAgent(7, { souris: { button: 3, ctrlKey: true, altKey: false, shiftKey: false } }, 8300);
+  assert.strictEqual(vus.length, 1);
+  assert.strictEqual(vus[0].pid, 7);
+  assert.deepStrictEqual(vus[0].clic, { button: 3, ctrlKey: true, altKey: false, shiftKey: false });
+});
+
+test('reglerSouris poste a tous les clients attaches', () => {
+  const s = new Superviseur();
+  const a = clientFactice(1);
+  const b = clientFactice(2);
+  s.clients.set(1, a);
+  s.clients.set(2, b);
+  s.reglerSouris(true);
+  assert.deepStrictEqual(a.postes, [{ type: 'souris', actif: true }]);
+  assert.deepStrictEqual(b.postes, [{ type: 'souris', actif: true }]);
+  s.reglerSouris(false);
+  assert.deepStrictEqual(a.postes[1], { type: 'souris', actif: false });
+});
+
+// La boucle ne doit tourner que si un bouton est assigne, et l'etat est
+// decide AVANT qu'un client s'attache aussi bien qu'apres.
+test('l etat de la souris est retenu pour les clients suivants', () => {
+  const s = new Superviseur();
+  assert.strictEqual(s.sourisActive, false);
+  s.reglerSouris(true);
+  assert.strictEqual(s.sourisActive, true);
+});
+
+// Un client sans agent charge ne doit pas faire lever reglerSouris, ni etre
+// journalise comme une erreur: il y en a toujours un en cours d'attache quand
+// l'utilisateur change un raccourci, et c'est un etat parfaitement normal.
+test('un client sans script ne fait pas lever reglerSouris, ni journaliser', () => {
+  const lignes = [];
+  const s = new Superviseur({ onJournal: (pid, texte) => lignes.push({ pid, texte }) });
+  const avecScript = { pid: 1, script: { post: () => {} } };
+  s.clients.set(1, avecScript);
+  s.clients.set(2, { pid: 2, script: null });
+  assert.doesNotThrow(() => s.reglerSouris(true));
+  assert.deepStrictEqual(lignes, [], 'un client sans script ne doit produire aucune ligne de journal');
+});

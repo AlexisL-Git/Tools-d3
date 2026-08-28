@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { depuisFrappe, libelle, estUtilisable } = require('../src/comptes/raccourcis');
+const { depuisFrappe, depuisBouton, estSouris, libelle, estUtilisable } = require('../src/comptes/raccourcis');
 
 const frappe = (extra) => ({ key: 'a', ctrlKey: false, altKey: false, shiftKey: false, ...extra });
 
@@ -95,4 +95,74 @@ test('le libellé affiché est plus court que l accélérateur', () => {
 test('un accélérateur absent s affiche comme tel', () => {
   assert.strictEqual(libelle(null), '');
   assert.strictEqual(libelle(''), '');
+});
+
+// --- les boutons de souris ------------------------------------------------
+
+const clic = (extra) => ({ button: 3, ctrlKey: false, altKey: false, shiftKey: false, ...extra });
+
+test('les trois boutons assignables ont leur nom', () => {
+  assert.strictEqual(depuisBouton(clic({ button: 3 })), 'Souris4');
+  assert.strictEqual(depuisBouton(clic({ button: 4 })), 'Souris5');
+  assert.strictEqual(depuisBouton(clic({ button: 1 })), 'SourisMilieu');
+});
+
+// Il faut pouvoir cliquer sur la case pour armer la saisie: le clic gauche ne
+// peut pas etre un raccourci. Le clic droit ouvre les menus du jeu.
+test('les clics gauche et droit ne sont pas assignables', () => {
+  assert.strictEqual(depuisBouton(clic({ button: 0 })), null);
+  assert.strictEqual(depuisBouton(clic({ button: 2 })), null);
+});
+
+test('un bouton inconnu ou un objet invalide rend null', () => {
+  assert.strictEqual(depuisBouton(clic({ button: 9 })), null);
+  assert.strictEqual(depuisBouton(clic({ button: undefined })), null);
+  assert.strictEqual(depuisBouton(null), null);
+  assert.strictEqual(depuisBouton('Souris4'), null);
+});
+
+// L'ordre doit etre celui du clavier: la chaine fabriquee a la capture et
+// celle fabriquee a la reception doivent coincider caractere pour caractere.
+test('les modificateurs suivent l ordre du clavier', () => {
+  assert.strictEqual(depuisBouton(clic({ button: 3, ctrlKey: true })), 'CommandOrControl+Souris4');
+  assert.strictEqual(depuisBouton(clic({ button: 4, altKey: true })), 'Alt+Souris5');
+  assert.strictEqual(depuisBouton(clic({ button: 1, shiftKey: true })), 'Shift+SourisMilieu');
+  assert.strictEqual(
+    depuisBouton(clic({ button: 3, ctrlKey: true, altKey: true, shiftKey: true })),
+    'CommandOrControl+Alt+Shift+Souris4',
+  );
+});
+
+test('estSouris distingue un bouton d une touche', () => {
+  assert.strictEqual(estSouris('Souris4'), true);
+  assert.strictEqual(estSouris('CommandOrControl+Souris5'), true);
+  assert.strictEqual(estSouris('SourisMilieu'), true);
+  assert.strictEqual(estSouris('CommandOrControl+A'), false);
+  assert.strictEqual(estSouris('F1'), false);
+  assert.strictEqual(estSouris(''), false);
+  assert.strictEqual(estSouris(null), false);
+});
+
+// Un bouton de souris n'est pas confisque a Dofus: on lit un etat, on
+// n'intercepte rien. M4 et M5 sont libres dans le jeu, la molette non.
+test('M4 et M5 ne sont pas signales, la molette si', () => {
+  assert.strictEqual(estUtilisable('Souris4').risque, false);
+  assert.strictEqual(estUtilisable('Souris5').risque, false);
+  assert.strictEqual(estUtilisable('CommandOrControl+Souris4').risque, false);
+  const molette = estUtilisable('SourisMilieu');
+  assert.strictEqual(molette.risque, true);
+  assert.match(molette.raison, /aussi/);
+});
+
+// La molette est PARTAGEE avec Dofus, une touche nue lui est VOLEE: deux
+// situations opposees, deux textes.
+test('le texte de la molette differe de celui d une touche nue', () => {
+  assert.notStrictEqual(estUtilisable('SourisMilieu').raison, estUtilisable('A').raison);
+});
+
+test('les boutons ont un libelle court', () => {
+  assert.strictEqual(libelle('Souris4'), 'M4');
+  assert.strictEqual(libelle('Souris5'), 'M5');
+  assert.strictEqual(libelle('SourisMilieu'), 'Molette');
+  assert.strictEqual(libelle('CommandOrControl+Souris4'), 'Ctrl+M4');
 });

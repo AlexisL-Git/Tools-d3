@@ -216,9 +216,10 @@
   .cabochon:hover { border-color: var(--commande); color: var(--commande); }
   .cabochon.sans-touche { color: var(--filet); border-style: dashed; box-shadow: none; background: transparent; }
   .cabochon.ecoute { border-color: var(--commande); color: var(--commande); border-style: solid; background: rgba(255,159,28,.12); }
-  /* Une touche NUE est signalee: elle sera confisquee a Dofus tant qu'OMNI
-     tourne. Signalee, pas interdite — c'est l'utilisateur qui sait ce qu'il
-     utilise en combat. */
+  /* Signale deux situations differentes, pas une seule: une touche NUE est
+     CONFISQUEE a Dofus tant qu'OMNI tourne, alors qu'un clic molette est
+     seulement PARTAGE avec lui (Dofus le recoit aussi). Signalee, pas
+     interdite — c'est l'utilisateur qui sait ce qu'il utilise en combat. */
   .cabochon.risque { border-color: var(--alerte); color: var(--alerte); }
 
   .barre-nav {
@@ -485,11 +486,34 @@
     Delete: 'Delete', Insert: 'Insert', Home: 'Home', End: 'End',
     PageUp: 'PageUp', PageDown: 'PageDown',
   };
+  // >>> TABLE D'AFFICHAGE COPIEE DE src/comptes/raccourcis.js
   const AFFICHAGE = {
     CommandOrControl: 'Ctrl', Shift: 'Maj', Left: '←', Right: '→', Up: '↑',
     Down: '↓', Space: 'Espace', Return: 'Entrée', Backspace: 'Retour', Delete: 'Suppr',
+    Souris4: 'M4', Souris5: 'M5', SourisMilieu: 'Molette',
   };
+  // <<< FIN DE LA TABLE D'AFFICHAGE
   const MODIF = new Set(['Control', 'Alt', 'Shift', 'Meta', 'AltGraph']);
+
+  // >>> COPIE DE src/comptes/raccourcis.js - NE PAS MODIFIER D'UN SEUL COTE
+  // Le renderer tourne en bac a sable: il n'a pas de require, et un preload en
+  // bac a sable ne peut charger que les modules d'Electron. Cette copie est
+  // donc imposee, pas un oubli. test/souris-copie.test.js compare les deux par
+  // leur COMPORTEMENT: modifier l'une sans l'autre rend npm test rouge.
+  const BOUTONS = { 1: 'SourisMilieu', 3: 'Souris4', 4: 'Souris5' };
+  const SOURIS = new Set(Object.values(BOUTONS));
+
+  function accelerateurSourisDe(e) {
+    const nom = BOUTONS[e.button];
+    if (nom === undefined) return null;
+    const parties = [];
+    if (e.ctrlKey) parties.push('CommandOrControl');
+    if (e.altKey) parties.push('Alt');
+    if (e.shiftKey) parties.push('Shift');
+    parties.push(nom);
+    return parties.join('+');
+  }
+  // <<< FIN DE COPIE
 
   function accelerateurDe(e) {
     const k = e.key;
@@ -575,11 +599,20 @@
   document.getElementById('versionBouton').onclick = ouvrirQuoiDeNeuf;
   document.getElementById('qdnFermer').onclick = fermerQuoiDeNeuf;
 
-  // Une touche NUE, hors touches de fonction, sera confisquee a Dofus.
-  function estRisquee(a) {
-    if (!a) return false;
+  // Une touche NUE est CONFISQUEE a Dofus. Un bouton de souris, non: on lit
+  // son etat, le jeu le recoit aussi. Deux situations opposees, deux textes.
+  // Rend la raison, ou null s'il n'y a rien a signaler.
+  function risqueDe(a) {
+    if (!a) return null;
     const parties = a.split('+');
-    return parties.length === 1 && !/^F([1-9]|1[0-9]|2[0-4])$/.test(parties[0]);
+    const nom = parties[parties.length - 1];
+    if (SOURIS.has(nom)) {
+      return nom === 'SourisMilieu' ? 'Dofus recevra aussi ce clic' : null;
+    }
+    if (parties.length === 1 && !/^F([1-9]|1[0-9]|2[0-4])$/.test(nom)) {
+      return 'Dofus ne recevra plus cette touche tant qu OMNI tourne';
+    }
+    return null;
   }
 
   // Une seule saisie a la fois. Échap annule sans rien changer.
@@ -601,6 +634,26 @@
     cible.poser(a);
   });
 
+  // La saisie accepte un bouton de souris comme une touche. Le clic gauche
+  // est exclu par BOUTONS: c'est lui qui arme la saisie.
+  window.addEventListener('mousedown', (e) => {
+    const a = accelerateurSourisDe(e);
+    if (a === null) return;
+    // M4 et M5 sont « precedent » et « suivant » pour Chromium.
+    e.preventDefault();
+    if (ecoute !== null) {
+      const cible = ecoute;
+      ecoute = null;
+      cible.poser(a);
+      return;
+    }
+    // Hors saisie, l'appui vaut raccourci: c'est le cas ou la fenetre d'OMNI
+    // a le focus, que l'agent ne voit pas.
+    window.app.boutonSouris({
+      button: e.button, ctrlKey: e.ctrlKey, altKey: e.altKey, shiftKey: e.shiftKey,
+    });
+  });
+
   // LE RETOUR A L'ETAT NORMAL EST FAIT ICI, pour les deux issues.
   //
   // Il etait a la charge de l'appelant, qui ne le faisait que dans le chemin
@@ -613,9 +666,13 @@
   // L'appelant ne fournit plus que `poser`. Le libelle definitif viendra de
   // l'etat suivant, comme pour tout le reste du panneau.
   function armerSaisie(bouton, poser) {
+    // Sans ceci, armer un cabochon puis en cliquer un autre laisse le
+    // premier fige sur "frappe ou clique..." pour toujours: la mise a jour
+    // d'un rang saute volontairement tout cabochon marque `ecoute`.
+    if (ecoute !== null) { const precedente = ecoute; ecoute = null; precedente.annuler(); }
     const avant = bouton.textContent;
     bouton.classList.add('ecoute');
-    bouton.textContent = 'frappe…';
+    bouton.textContent = 'frappe ou clique…';
     const rendre = () => {
       bouton.classList.remove('ecoute');
       bouton.textContent = avant;
@@ -888,14 +945,13 @@
     // Le cabochon ne se reecrit pas pendant une saisie de touche, sinon le
     // « frappe… » disparaitrait sous les doigts de l'utilisateur.
     if (!r.cabochon.classList.contains('ecoute')) {
+      const raison = risqueDe(l.touche);
       r.cabochon.className = 'cabochon'
         + (l.touche ? '' : ' sans-touche')
-        + (estRisquee(l.touche) ? ' risque' : '');
+        + (raison ? ' risque' : '');
       r.cabochon.textContent = l.touche ? libelleTouche(l.touche) : 'aucune';
       r.cabochon.disabled = l.id === null;
-      r.cabochon.title = estRisquee(l.touche)
-        ? 'Dofus ne recevra plus cette touche tant qu OMNI tourne'
-        : 'Cliquer puis frapper une touche. Échap annule.';
+      r.cabochon.title = raison || 'Cliquer puis frapper une touche ou un bouton de souris. Échap annule.';
     }
     r.oter.hidden = !l.touche;
 
@@ -962,7 +1018,7 @@
       const a = (etat.nav || {})[b.dataset.nav];
       b.textContent = libelleTouche(a) || 'aucune';
       b.classList.toggle('sans-touche', !a);
-      b.classList.toggle('risque', estRisquee(a));
+      b.classList.toggle('risque', risqueDe(a));
     }
 
     const enDouble = [...new Set(

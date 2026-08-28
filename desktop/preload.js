@@ -42,6 +42,10 @@ contextBridge.exposeInMainWorld('app', {
   reglerTouche: (idCompte, accelerateur) => ipcRenderer.invoke('reglerTouche', idCompte, accelerateur),
   reglerToucheNav: (nom, accelerateur) => ipcRenderer.invoke('reglerToucheNav', nom, accelerateur),
 
+  // Un appui de bouton fait DANS la fenetre d'OMNI. Les appuis faits sur un
+  // client Dofus remontent par son agent, sans passer par ici.
+  boutonSouris: (clic) => ipcRenderer.invoke('boutonSouris', clic),
+
   reglerDelai: (secondes) => ipcRenderer.invoke('reglerDelai', secondes),
   // Les notes de version, lues au premier clic sur le numero. Lecture seule,
   // sans parametre: c'est le seul canal qui rend des donnees plutot que
