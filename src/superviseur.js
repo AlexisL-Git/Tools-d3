@@ -326,20 +326,44 @@ class Superviseur {
   _emettreApres(retardMs, pid, amont, paquet) {
     let lot = this._rejeuxEnAttente.get(pid);
     if (lot === undefined) { lot = new Set(); this._rejeuxEnAttente.set(pid, lot); }
-    // `let`, pas `const`: un planifier de test peut invoquer la fonction tout
-    // de suite (echeance immediate simulee), avant que l'affectation ne soit
-    // terminee. Avec `const` la fermeture referencerait `t` dans sa zone
-    // morte temporaire et leverait — `let` rend juste `undefined`, inoffensif
-    // pour lot.delete.
-    let t;
-    t = this.planifier(() => {
+    // Jeton d'IDENTITE, ajoute AVANT tout appel a planifier -- pas le retour
+    // de planifier lui-meme. Un planifier factice synchrone (comme en
+    // trouvent les tests) execute son rappel PENDANT l'appel, avant que
+    // "const t = this.planifier(...)" n'ait fini de s'affecter: avec un
+    // simple `let t`, le rappel ecrirait alors le paquet PUIS `lot.add(t)`
+    // inserait le jeton d'un rejeu DEJA ECRIT -- compte a tort comme
+    // annulable par annulerRejeux(). Le jeton existe des le depart et est
+    // ajoute au lot avant meme que planifier() ne soit appele: correct dans
+    // les deux ordonnancements. Ca regle aussi la collision de deux rejeux
+    // vers le MEME pid quand planifier rend toujours la meme valeur (null
+    // dans les tests): un timer brut les aurait fait s'ecraser l'un l'autre
+    // dans le Set, un jeton est unique par construction.
+    const jeton = { t: null };
+    lot.add(jeton);
+    jeton.t = this.planifier(() => {
       // Un minuteur echu se retire de lui-meme: sans cela la liste grossit a
-      // chaque rejeu de la session.
-      lot.delete(t);
+      // chaque rejeu de la session, et le pid ne disparaitrait jamais de la
+      // Map, meme apres qu'un client Dofus ferme et qu'un autre reprenne
+      // son pid.
+      lot.delete(jeton);
+      if (lot.size === 0) this._rejeuxEnAttente.delete(pid);
       try { amont.write(paquet); }
       catch (e) { this.journal(pid, `rejeu differe (${retardMs} ms) : ${e.message}`); }
     }, retardMs);
-    lot.add(t);
+  }
+
+  // Annule les rejeux en attente d'UN SEUL compte. Utilise par retirer(): un
+  // client retire ne doit plus recevoir de trame differee -- sans ca, sa
+  // fermeture retiendrait la socket morte et le paquet jusqu'a l'echeance,
+  // et la trame finirait par partir vers un client que l'utilisateur vient
+  // de fermer.
+  _annulerRejeuxPid(pid) {
+    const lot = this._rejeuxEnAttente.get(pid);
+    if (lot === undefined) return 0;
+    const n = lot.size;
+    for (const jeton of lot) clearTimeout(jeton.t);
+    this._rejeuxEnAttente.delete(pid);
+    return n;
   }
 
   // Annule tout rejeu encore en attente, chez tous les esclaves. Rend le
@@ -349,11 +373,7 @@ class Superviseur {
   // actions qui peuvent ouvrir un combat partent avec un plancher de retard.
   annulerRejeux() {
     let n = 0;
-    for (const lot of this._rejeuxEnAttente.values()) {
-      for (const t of lot) { clearTimeout(t); n += 1; }
-      lot.clear();
-    }
-    this._rejeuxEnAttente.clear();
+    for (const pid of [...this._rejeuxEnAttente.keys()]) n += this._annulerRejeuxPid(pid);
     return n;
   }
 
@@ -451,6 +471,11 @@ class Superviseur {
     if (!c) return false;
     this.clients.delete(pid);
     this.comptes.retirer(pid);
+    // Un rejeu differe encore en attente pour ce pid retient la socket
+    // morte et le paquet jusqu'a son echeance: sans annulation ici, la
+    // trame finit par partir vers un client que l'utilisateur vient de
+    // fermer.
+    this._annulerRejeuxPid(pid);
     if (this.maitre === pid) this.maitre = null;
     if (this.enAvant === pid) this.enAvant = null;
     await (c.script ? c.script.unload().catch(() => {}) : Promise.resolve());

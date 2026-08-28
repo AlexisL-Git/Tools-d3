@@ -499,6 +499,32 @@ test('un rejeu immediat n est pas annulable', () => {
   assert.strictEqual(s.annulerRejeux(), 0);
 });
 
+// Deux esclaves, deux minuteurs: annulerRejeux() doit tous les reprendre,
+// pas seulement celui du premier pid rencontre.
+test('annulerRejeux annule les rejeux de plusieurs pids a la fois', async () => {
+  const s = new Superviseur({ arme: true, etalementRejeu: { minMs: 60, maxMs: 60 } });
+  s.comptes.ajouter({ pid: 1, port: 8301 });
+  s.comptes.ajouter({ pid: 2, port: 8302 });
+  s.comptes.ajouter({ pid: 3, port: 8303 });
+  const ecrits2 = fauxClient(s, 2);
+  const ecrits3 = fauxClient(s, 3);
+  s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  assert.strictEqual(s.annulerRejeux(), 2, 'les deux esclaves avaient un rejeu en attente');
+  await new Promise((r) => setTimeout(r, 160));
+  assert.deepStrictEqual(ecrits2, [], 'rien ne doit avoir ete ecrit pour le pid 2');
+  assert.deepStrictEqual(ecrits3, [], 'rien ne doit avoir ete ecrit pour le pid 3');
+});
+
+// Un client retire ne doit plus recevoir de trame differee: sa fermeture ne
+// doit pas laisser un minuteur ecrire sur une socket morte.
+test('un client retire ne reçoit plus son rejeu différé', async () => {
+  const { s, ecrits } = superviseurAvecEsclaveEcrivant(1, 2);
+  s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  await s.retirer(2);
+  await new Promise((r) => setTimeout(r, 160));
+  assert.deepStrictEqual(ecrits, [], 'rien ne doit avoir ete ecrit apres le retrait');
+});
+
 // --- plancher de retard ----------------------------------------------------
 
 // Le plancher s'ajoute a l'etalement, il ne le remplace pas: les esclaves
