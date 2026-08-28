@@ -6,6 +6,7 @@ const {
   DELAI_PLANCHER_MS, FENETRE_APPRENTISSAGE_MS, FENETRE_DIALOGUE_MS,
 } = require('../src/garde-combat');
 const { decodeFrameRaw } = require('../src/codec/rawProto');
+const { creerGardeCombat } = require('../src/garde-combat');
 
 const trame = (type, champs) => ({
   kind: 'request', type,
@@ -73,4 +74,189 @@ test('les valeurs de reglage sont celles de la conception', () => {
   assert.strictEqual(DELAI_PLANCHER_MS, 250);
   assert.strictEqual(FENETRE_APPRENTISSAGE_MS, 2000);
   assert.strictEqual(FENETRE_DIALOGUE_MS, 30000);
+});
+
+// --- le garde lui-meme -----------------------------------------------------
+
+const MAITRE = 1;
+
+function fauxSuperviseur(esclaves = [2, 3]) {
+  const emis = [];
+  let annulations = 0;
+  return {
+    emis,
+    get annulations() { return annulations; },
+    arme: true,
+    annulerRejeux: () => { annulations += 1; return 2; },
+    emettre: (pid, octets) => { emis.push({ pid, octets }); return { ok: true }; },
+    comptes: { esclaves: () => esclaves.map((pid) => ({ pid })) },
+  };
+}
+
+const sortante = (type, champs) => ({
+  pid: MAITRE, dir: 'out', estMaitre: true, frame: {
+    kind: 'request', type,
+    payload: Object.entries(champs).map(([no, value]) => ({ no: Number(no), value })),
+  },
+});
+
+const entreeCombat = () => ({
+  pid: MAITRE, dir: 'in', estMaitre: true,
+  frame: { kind: 'event', type: 'ieb', payload: [{ no: 1, value: 1642 }, { no: 2, value: 9828 }] },
+});
+
+function garde(sup, extra = {}) {
+  const retenues = [];
+  const lignes = [];
+  const horloge = { t: 1000 };
+  const g = creerGardeCombat({
+    superviseur: sup,
+    onApprendre: (c) => retenues.push(c),
+    onJournal: (pid, texte) => lignes.push({ pid, texte }),
+    maintenant: () => horloge.t,
+    ...extra,
+  });
+  return { g, retenues, lignes, horloge };
+}
+
+// CE QUI N'EST PAS ENCORE ECRIT NE PARTIRA PAS. C'est la moitie du mecanisme:
+// le serveur annonce le combat au maitre 30 ms apres son action, bien avant
+// l'echeance d'un rejeu retarde de 250 ms.
+test('l entree en combat annule les rejeux en attente', () => {
+  const sup = fauxSuperviseur();
+  const { g, lignes } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.strictEqual(sup.annulations, 1);
+  assert.ok(lignes.some((l) => /annule/.test(l.texte)), 'l annulation doit se journaliser');
+});
+
+test('l action qui precede le combat est retenue', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, ['ioy:25088']);
+});
+
+// UN MONSTRE AGRESSIF qui saute sur le maitre trois secondes apres un dialogue
+// anodin n'a pas a empoisonner la liste.
+test('une action trop ancienne n est pas retenue', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues, horloge } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  horloge.t += 2500;
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, []);
+});
+
+test('une action juste dans la fenetre est retenue', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues, horloge } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  horloge.t += 1999;
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, ['ioy:25088']);
+});
+
+test('une action deja connue n est pas retenue deux fois', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup, { estApprise: () => true });
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, []);
+});
+
+test('deux combats de suite ne retiennent pas la meme action deux fois', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, ['ioy:25088']);
+});
+
+// Les reponses precedentes de l'enchainement sont parties il y a plusieurs
+// secondes et ne sont pas annulables; le maitre, lui, ne fermera jamais le
+// dialogue des esclaves puisqu'il est en combat.
+test('le dialogue des esclaves est ferme apres un dialogue recent', () => {
+  const sup = fauxSuperviseur([2, 3]);
+  const { g } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(sup.emis.map((e) => e.pid), [2, 3]);
+  assert.deepStrictEqual(sup.emis[0].octets, TRAME_FERMER_DIALOGUE);
+});
+
+test('aucun dialogue n est ferme si le dernier remonte a trop longtemps', () => {
+  const sup = fauxSuperviseur();
+  const { g, horloge } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  horloge.t += 31000;
+  g(entreeCombat());
+  assert.deepStrictEqual(sup.emis, []);
+});
+
+// Un combat ouvert par un element interactif n'a jamais ouvert de dialogue: il
+// n'y a rien a fermer, et un kla envoye pour rien est une trame de plus sans
+// raison.
+test('un element interactif ne fait fermer aucun dialogue', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(sortante('iwo', { 1: 1920, 2: 489565 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, ['iwo:489565'], 'mais l action est bien retenue');
+  assert.deepStrictEqual(sup.emis, []);
+});
+
+test('un combat sans action prealable ne retient rien et ne ferme rien', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, []);
+  assert.deepStrictEqual(sup.emis, []);
+  assert.strictEqual(sup.annulations, 1, 'l annulation, elle, reste utile');
+});
+
+// OMNI NE REPARE QUE CE QU'IL A CAUSE: sans duplication armee, aucun esclave
+// n'a rejoue quoi que ce soit.
+test('rien ne se passe si la duplication n est pas armee', () => {
+  const sup = fauxSuperviseur();
+  sup.arme = false;
+  const { g, retenues } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.strictEqual(sup.annulations, 0);
+  assert.deepStrictEqual(retenues, []);
+  assert.deepStrictEqual(sup.emis, []);
+});
+
+// L'entree en combat d'un ESCLAVE ne dit rien: c'est justement ce qu'on essaie
+// d'empecher, et l'action a retenir est celle du maitre.
+test('l entree en combat d un esclave ne declenche rien', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g({ pid: 2, dir: 'in', estMaitre: false, frame: { kind: 'event', type: 'ieb', payload: [] } });
+  assert.strictEqual(sup.annulations, 0);
+  assert.deepStrictEqual(retenues, []);
+});
+
+test('une trame entrante d un autre type ne declenche rien', () => {
+  const sup = fauxSuperviseur();
+  const { g } = garde(sup);
+  g({ pid: MAITRE, dir: 'in', estMaitre: true, frame: { kind: 'event', type: 'jru', payload: [{ no: 2, value: 153486336 }] } });
+  assert.strictEqual(sup.annulations, 0);
+});
+
+// Un envoi refuse — socket fermee — se journalise sans lever: le garde tourne
+// sous un rappel du superviseur, ou une exception n'a personne pour la
+// rattraper.
+test('un refus de fermeture se journalise sans lever', () => {
+  const sup = fauxSuperviseur([2]);
+  sup.emettre = () => ({ ok: false, raison: 'pas de socket amont' });
+  const { g, lignes } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  assert.doesNotThrow(() => g(entreeCombat()));
+  assert.ok(lignes.some((l) => /socket amont/.test(l.texte)));
 });
