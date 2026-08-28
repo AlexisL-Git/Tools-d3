@@ -131,6 +131,29 @@ test('l entree en combat annule les rejeux en attente', () => {
   assert.ok(lignes.some((l) => /annule/.test(l.texte)), 'l annulation doit se journaliser');
 });
 
+// onAnnulation est le canal visible en usage normal (voir desktop/main.js) :
+// distinct de onJournal, qui reste muet hors OMNI_JOURNAL=complet.
+test('onAnnulation recoit le nombre de rejeux annules', () => {
+  const sup = fauxSuperviseur();
+  const appels = [];
+  const { g } = garde(sup, { onAnnulation: (n) => appels.push(n) });
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(appels, [2]);
+});
+
+// NE PAS PREVENIR POUR RIEN : une annulation de zero rejeu ne doit rien
+// afficher.
+test('onAnnulation n est pas appele si aucun rejeu n etait en attente', () => {
+  const sup = fauxSuperviseur();
+  sup.annulerRejeux = () => 0;
+  const appels = [];
+  const { g } = garde(sup, { onAnnulation: (n) => appels.push(n) });
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(appels, []);
+});
+
 test('l action qui precede le combat est retenue', () => {
   const sup = fauxSuperviseur();
   const { g, retenues } = garde(sup);

@@ -714,7 +714,26 @@ app.whenReady().then(async () => {
       // demande. Les reglages sont poses avant la fenetre, donc avant tout
       // client, mais la garde evite de dependre de cet ordre.
       estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
-      onApprendre: (cle) => { if (favoris !== null) favoris.apprendreCombat(cle); },
+      // REVUE FINALE : le garde etait muet en usage normal. onJournal ne
+      // s'ecrit que sous OMNI_JOURNAL=complet -- jamais chez l'utilisateur ni
+      // chez ses amis -- donc l'apprentissage d'une action et l'annulation de
+      // rejeux ne laissaient aucune trace visible. C'est precisement le mode
+      // d'echec le plus couteux du projet : une chose qui « ne fait rien »
+      // sans que rien ne le relie a sa cause.
+      //
+      // noterAvis() plutot que la Map `messages` : ces deux evenements
+      // concernent le maitre et ce qu'il vient de declencher chez TOUS ses
+      // esclaves, pas un compte en particulier -- `messages` est affichee sur
+      // la ligne d'UN compte et n'a pas de ligne naturelle pour ca. Le pied de
+      // page, qui s'efface seul, est deja le canal des evenements ponctuels
+      // sans destinataire unique (voir avisBascule plus haut).
+      onApprendre: (cle) => {
+        if (favoris !== null) favoris.apprendreCombat(cle);
+        noterAvis(`combat : action retenue, elle ne sera plus rejouée (${cle})`);
+      },
+      onAnnulation: (n) => noterAvis(
+        n === 1 ? 'combat : 1 rejeu en attente annulé' : `combat : ${n} rejeux en attente annulés`,
+      ),
       onJournal: journal,
     }),
     creerPasseur({

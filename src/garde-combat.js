@@ -97,14 +97,19 @@ function cleDe(type, frame) {
 
 // superviseur — porte arme, annulerRejeux(), emettre(pid, octets) et
 //   comptes.esclaves(pidMaitre)
-// estApprise  — dit si une cle est deja connue; faux par defaut
-// onApprendre — recoit une cle a retenir
-// onJournal   — (pid, texte)
-// maintenant  — injecte pour que les deux fenetres se testent sans dormir,
+// estApprise   — dit si une cle est deja connue; faux par defaut
+// onApprendre  — recoit une cle a retenir
+// onAnnulation — recoit le nombre de rejeux annules, jamais appele a zero.
+//   Distinct de onJournal: celui-ci n'est visible que sous OMNI_JOURNAL=complet,
+//   alors que l'annulation d'un rejeu en attente est un evenement que
+//   l'utilisateur doit voir en usage normal, sans quoi rien ne relie
+//   l'absence de suivi d'un esclave a sa cause.
+// onJournal    — (pid, texte)
+// maintenant   — injecte pour que les deux fenetres se testent sans dormir,
 //   comme alea et planifier dans le superviseur
 function creerGardeCombat({
   superviseur, estApprise = () => false, onApprendre = () => {},
-  onJournal = () => {}, maintenant = Date.now,
+  onAnnulation = () => {}, onJournal = () => {}, maintenant = Date.now,
 }) {
   // La derniere action du maitre susceptible d'ouvrir un combat, datee. On ne
   // sait pas encore si elle est dangereuse: c'est le combat qui le dira.
@@ -145,7 +150,10 @@ function creerGardeCombat({
 
     // 1. Ce qui n'est pas encore ecrit ne partira pas.
     const annules = superviseur.annulerRejeux();
-    if (annules > 0) onJournal(pid, `garde combat : ${annules} rejeu(x) annule(s)`);
+    if (annules > 0) {
+      onJournal(pid, `garde combat : ${annules} rejeu(x) annule(s)`);
+      onAnnulation(annules);
+    }
 
     // 2. Retenir, mais seulement si l'action est fraiche. Isolee dans son
     // propre essai: onApprendre peut ecrire sur le disque, et une exception
