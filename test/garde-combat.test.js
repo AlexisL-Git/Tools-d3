@@ -168,12 +168,16 @@ test('une action deja connue n est pas retenue deux fois', () => {
 });
 
 test('deux combats de suite ne retiennent pas la meme action deux fois', () => {
-  const sup = fauxSuperviseur();
+  const sup = fauxSuperviseur([2, 3]);
   const { g, retenues } = garde(sup);
   g(sortante('ioy', { 1: 25088 }));
   g(entreeCombat());
+  const emisApresLePremier = sup.emis.length;
   g(entreeCombat());
   assert.deepStrictEqual(retenues, ['ioy:25088']);
+  assert.strictEqual(emisApresLePremier > 0, true, 'le premier combat doit avoir ferme les dialogues');
+  assert.strictEqual(sup.emis.length, emisApresLePremier,
+    'le second combat ne doit pas refermer un dialogue deja ferme');
 });
 
 // Les reponses precedentes de l'enchainement sont parties il y a plusieurs
@@ -259,4 +263,65 @@ test('un refus de fermeture se journalise sans lever', () => {
   g(sortante('ioy', { 1: 25088 }));
   assert.doesNotThrow(() => g(entreeCombat()));
   assert.ok(lignes.some((l) => /socket amont/.test(l.texte)));
+});
+
+// UN IWO NE HERITE PAS D'UN DIALOGUE ANTERIEUR: le combat qu'il declenche
+// n'a rien a voir avec la reponse de dialogue qui l'a precede, meme sans
+// combat entre les deux pour la consommer explicitement.
+test('un iwo precede d un dialogue ne fait fermer aucun dialogue', () => {
+  const sup = fauxSuperviseur([2, 3]);
+  const { g, retenues } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(sortante('iwo', { 1: 1920, 2: 489565 }));
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, ['iwo:489565']);
+  assert.deepStrictEqual(sup.emis, []);
+});
+
+// Le devis restreint les destinataires a ceux qui avaient reellement le
+// dialogue ouvert: un client connecte entre le dialogue et le combat n'a
+// jamais vu ce dialogue-la, et l'effet d'un kla a vide n'est pas mesure.
+test('un esclave apparu apres le dialogue ne recoit rien', () => {
+  const esclaves = [2];
+  const sup = fauxSuperviseur(esclaves);
+  const { g } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  esclaves.push(3);
+  g(entreeCombat());
+  assert.deepStrictEqual(sup.emis.map((e) => e.pid), [2]);
+});
+
+// onApprendre ecrit la liste apprise sur le disque dans l application: une
+// exception la-dedans ne doit pas laisser les esclaves bloques dans leur
+// dialogue, qui est exactement la panne que le garde existe pour reparer.
+test('une exception dans onApprendre n empeche pas la fermeture des dialogues', () => {
+  const sup = fauxSuperviseur([2]);
+  const { g, lignes } = garde(sup, {
+    onApprendre: () => { throw new Error('disque plein'); },
+  });
+  g(sortante('ioy', { 1: 25088 }));
+  assert.doesNotThrow(() => g(entreeCombat()));
+  assert.deepStrictEqual(sup.emis.map((e) => e.pid), [2]);
+  assert.deepStrictEqual(sup.emis[0].octets, TRAME_FERMER_DIALOGUE);
+  assert.ok(lignes.some((l) => /disque plein/.test(l.texte)));
+});
+
+// LES BORNES, EPINGLEES: rien aujourd'hui ne distingue < de <=, et les
+// elargir en <= ne ferait echouer aucun autre test.
+test('une action a exactement deux secondes n est pas retenue', () => {
+  const sup = fauxSuperviseur();
+  const { g, retenues, horloge } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  horloge.t += FENETRE_APPRENTISSAGE_MS;
+  g(entreeCombat());
+  assert.deepStrictEqual(retenues, []);
+});
+
+test('un dialogue a exactement trente secondes ne fait fermer aucun dialogue', () => {
+  const sup = fauxSuperviseur([2]);
+  const { g, horloge } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  horloge.t += FENETRE_DIALOGUE_MS;
+  g(entreeCombat());
+  assert.deepStrictEqual(sup.emis, []);
 });

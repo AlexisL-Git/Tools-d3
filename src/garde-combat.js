@@ -109,10 +109,14 @@ function creerGardeCombat({
   // La derniere action du maitre susceptible d'ouvrir un combat, datee. On ne
   // sait pas encore si elle est dangereuse: c'est le combat qui le dira.
   let derniereAction = { cle: null, instant: 0 };
-  // Date a part, parce qu'elle repond a une autre question: faut-il fermer le
-  // dialogue des esclaves? Un element interactif n'en ouvre aucun. null tant
-  // qu'aucun dialogue n'a ete vu: avec maintenant() injecte, l'horloge de
-  // test part d'une petite valeur, et un 0 s'y ferait passer pour "recent".
+  // Date et destinataires a part, parce que dernierDialogue repond a une
+  // autre question: faut-il fermer le dialogue des esclaves? Un element
+  // interactif n'en ouvre aucun. null tant qu'aucun dialogue n'a ete vu OU
+  // qu'une action plus recente et non-dialogue l'a supersede -- une ioy suivie
+  // d'un iwo cinq secondes plus tard n'a plus de dialogue a fermer, le iwo n'en
+  // ouvre pas et n'a pas hertie de celui d'avant. pids fige la liste des
+  // esclaves au moment du dialogue: un client connecte apres n'a jamais recu
+  // ce dialogue-la, et un kla envoye a vide n'est pas mesure.
   let dernierDialogue = null;
 
   return function onTrame({ pid, dir, frame, estMaitre }) {
@@ -124,7 +128,16 @@ function creerGardeCombat({
       if (!estSensible(frame.type)) return;
       const cle = cleDe(frame.type, frame);
       if (cle !== null) derniereAction = { cle, instant: maintenant() };
-      if (frame.type === 'iov' || frame.type === 'ioy') dernierDialogue = maintenant();
+      if (frame.type === 'iov' || frame.type === 'ioy') {
+        dernierDialogue = {
+          instant: maintenant(),
+          pids: new Set(superviseur.comptes.esclaves(pid).map((e) => e.pid)),
+        };
+      } else {
+        // Une action sensible non-dialogue (iwo) succede au dialogue
+        // precedent: le combat qui suivra ne lui doit plus rien.
+        dernierDialogue = null;
+      }
       return;
     }
 
@@ -134,22 +147,41 @@ function creerGardeCombat({
     const annules = superviseur.annulerRejeux();
     if (annules > 0) onJournal(pid, `garde combat : ${annules} rejeu(x) annule(s)`);
 
-    // 2. Retenir, mais seulement si l'action est fraiche.
+    // 2. Retenir, mais seulement si l'action est fraiche. Isolee dans son
+    // propre essai: onApprendre peut ecrire sur le disque, et une exception
+    // la-dedans ne doit pas empecher l'etape 3 de fermer les dialogues --
+    // composer.js protege deja le process, pas les etapes de CE garde entre
+    // elles.
     const depuis = maintenant() - derniereAction.instant;
     if (derniereAction.cle !== null && depuis < FENETRE_APPRENTISSAGE_MS) {
       if (!estApprise(derniereAction.cle)) {
-        onApprendre(derniereAction.cle);
-        onJournal(pid, `garde combat : ${derniereAction.cle} retenue (+${depuis} ms)`);
+        try {
+          onApprendre(derniereAction.cle);
+          onJournal(pid, `garde combat : ${derniereAction.cle} retenue (+${depuis} ms)`);
+        } catch (e) {
+          onJournal(pid, `garde combat : apprentissage de ${derniereAction.cle} en erreur : ${e.message}`);
+        }
       }
       // Consommee: un second ieb sur le meme combat ne doit pas la reprendre.
       derniereAction = { cle: null, instant: 0 };
     }
 
-    // 3. Fermer le dialogue des esclaves, s'il y en a un.
-    if (dernierDialogue === null || maintenant() - dernierDialogue >= FENETRE_DIALOGUE_MS) return;
-    for (const etat of superviseur.comptes.esclaves(pid)) {
-      const r = superviseur.emettre(etat.pid, TRAME_FERMER_DIALOGUE);
-      if (!r.ok) onJournal(etat.pid, `garde combat : fermeture du dialogue refusee : ${r.raison}`);
+    // 3. Fermer le dialogue des esclaves qui l'ont reellement recu, et qui
+    // sont toujours la -- chaque esclave isole du suivant, pour la meme
+    // raison qu'au 2.
+    if (dernierDialogue !== null && maintenant() - dernierDialogue.instant < FENETRE_DIALOGUE_MS) {
+      const { pids } = dernierDialogue;
+      for (const etat of superviseur.comptes.esclaves(pid)) {
+        if (!pids.has(etat.pid)) continue;
+        try {
+          const r = superviseur.emettre(etat.pid, TRAME_FERMER_DIALOGUE);
+          if (!r.ok) onJournal(etat.pid, `garde combat : fermeture du dialogue refusee : ${r.raison}`);
+        } catch (e) {
+          onJournal(etat.pid, `garde combat : fermeture du dialogue en erreur : ${e.message}`);
+        }
+      }
+      // Consommee: un second ieb sur le meme combat ne doit pas la refermer.
+      dernierDialogue = null;
     }
   };
 }
