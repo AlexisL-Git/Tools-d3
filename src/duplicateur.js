@@ -67,17 +67,12 @@ function creerDuplicateur({ superviseur, onCompteRendu = () => {}, estApprise = 
     }
 
     // Le plancher ne s'applique qu'aux trois types qui peuvent ouvrir un
-    // combat: retarder une teleportation ne protegerait de rien. La cle
-    // n'est ajoutee que si elle est non nulle: un appel toujours muni de
-    // retardPlancher romprait le contrat des appelants qui n'attendent que
-    // { type, brute, pidMaitre } pour les types ordinaires.
+    // combat: retarder une teleportation ne protegerait de rien. Passe sans
+    // condition: rejouer() a deja retardPlancher = 0 par defaut, donc les
+    // deux formes sont equivalentes en comportement, et l'objet d'appel
+    // garde la meme forme pour tous les types.
     const retardPlancher = estSensible(frame.type) ? DELAI_PLANCHER_MS : 0;
-    const rendu = superviseur.rejouer({
-      type: frame.type,
-      brute,
-      pidMaitre: pid,
-      ...(retardPlancher ? { retardPlancher } : {}),
-    });
+    const rendu = superviseur.rejouer({ type: frame.type, brute, pidMaitre: pid, retardPlancher });
     // Le maitre seul en jeu: aucun esclave, rien a signaler.
     if (rendu.length === 0) return;
 

@@ -95,7 +95,10 @@ test('une trame sortante du maître d un type connu déclenche rejouer', () => {
   onTrame(trame({ pid: 7, brute }));
 
   assert.strictEqual(s.appels.length, 1);
-  assert.deepStrictEqual(s.appels[0], { type: 'hjc', brute, pidMaitre: 7 });
+  // retardPlancher est toujours present dans l'appel, meme a 0 pour un type
+  // ordinaire: rejouer() gagne un parametre, son contrat s'elargit, et cette
+  // forme est desormais celle attendue pour tous les types.
+  assert.deepStrictEqual(s.appels[0], { type: 'hjc', brute, pidMaitre: 7, retardPlancher: 0 });
 });
 
 test('le compte rendu porte le nom du message, le rendu et le mode', () => {
@@ -191,7 +194,9 @@ test('une action ordinaire garde son etalement seul', () => {
   const sup = superviseurQuiNoteLesRejeux();
   const d = creerDuplicateur({ superviseur: sup });
   d(sortante('hjc', { 1: 1, 2: 2 }));
-  assert.strictEqual(sup.appels[0].retardPlancher || 0, 0);
+  // Champ toujours present desormais: strictEqual sur 0, pas de || qui
+  // masquerait un undefined aussi bien qu'une valeur fausse.
+  assert.strictEqual(sup.appels[0].retardPlancher, 0);
 });
 
 // Une action deja vue lancer un combat n'est ni retardee ni tentee.
