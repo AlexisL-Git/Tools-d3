@@ -83,6 +83,11 @@ class Superviseur {
     this.etalementRejeu = etalementRejeu;
     this.alea = alea;
     this.planifier = planifier;
+    // Les rejeux differes encore en attente, par pid. Sans eux, rien n'est
+    // annulable — et c'est toute la protection contre le combat duplique: le
+    // serveur annonce le combat au maitre 30 ms apres son action, bien avant
+    // l'echeance d'un rejeu retarde.
+    this._rejeuxEnAttente = new Map();   // pid -> Set de minuteurs
   }
 
   // Ecart, en millisecondes entieres, entre un esclave et le precedent. Borne
@@ -279,9 +284,11 @@ class Superviseur {
   // l'emission est acquise, `retardMs` dans combien de temps. Rendre une
   // promesse ici aurait contamine le CLI, le duplicateur et leurs tests pour
   // une information qu'aucun des deux n'attend.
-  rejouer({ type, brute, pidMaitre }) {
+  rejouer({ type, brute, pidMaitre, retardPlancher = 0 }) {
     const rendu = [];
-    let retard = 0;
+    // Le plancher recule TOUS les esclaves sans supprimer leur etalement: le
+    // premier part a retardPlancher + son ecart, pas a retardPlancher.
+    let retard = retardPlancher;
     for (const etat of this.comptes.esclaves(pidMaitre)) {
       const prep = this.preparer(type, brute, etat);
       if (!prep.ok) {
@@ -317,10 +324,37 @@ class Superviseur {
   // raison — sauf qu'ici il n'y a plus personne a qui rendre un refus, d'ou le
   // journal.
   _emettreApres(retardMs, pid, amont, paquet) {
-    this.planifier(() => {
+    let lot = this._rejeuxEnAttente.get(pid);
+    if (lot === undefined) { lot = new Set(); this._rejeuxEnAttente.set(pid, lot); }
+    // `let`, pas `const`: un planifier de test peut invoquer la fonction tout
+    // de suite (echeance immediate simulee), avant que l'affectation ne soit
+    // terminee. Avec `const` la fermeture referencerait `t` dans sa zone
+    // morte temporaire et leverait — `let` rend juste `undefined`, inoffensif
+    // pour lot.delete.
+    let t;
+    t = this.planifier(() => {
+      // Un minuteur echu se retire de lui-meme: sans cela la liste grossit a
+      // chaque rejeu de la session.
+      lot.delete(t);
       try { amont.write(paquet); }
       catch (e) { this.journal(pid, `rejeu differe (${retardMs} ms) : ${e.message}`); }
     }, retardMs);
+    lot.add(t);
+  }
+
+  // Annule tout rejeu encore en attente, chez tous les esclaves. Rend le
+  // nombre annule.
+  //
+  // Un rejeu DEJA ECRIT ne se rattrape pas — c'est precisement pourquoi les
+  // actions qui peuvent ouvrir un combat partent avec un plancher de retard.
+  annulerRejeux() {
+    let n = 0;
+    for (const lot of this._rejeuxEnAttente.values()) {
+      for (const t of lot) { clearTimeout(t); n += 1; }
+      lot.clear();
+    }
+    this._rejeuxEnAttente.clear();
+    return n;
   }
 
   // Ce que l'agent nous annonce. Extrait de ajouter() pour etre atteignable

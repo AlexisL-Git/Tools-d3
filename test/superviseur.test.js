@@ -448,6 +448,77 @@ test('le proxy expose la socket amont une fois établie', async (t) => {
   assert.strictEqual(typeof vues[0].amont.write, 'function');
 });
 
+// --- annulation des rejeux differes ---------------------------------------
+
+// Un rejeu differe qui n'a pas encore ete ecrit peut etre repris. C'est tout
+// le mecanisme du garde contre les combats dupliques: le serveur annonce le
+// combat au maitre 30 ms apres son action, bien avant l'echeance du rejeu.
+function superviseurAvecEsclaveEcrivant(pidMaitre, pidEsclave) {
+  const ecrits = [];
+  const s = new Superviseur({ arme: true, etalementRejeu: { minMs: 60, maxMs: 60 } });
+  s.comptes.ajouter({ pid: pidMaitre, port: 8301 });
+  s.comptes.ajouter({ pid: pidEsclave, port: 8302 });
+  s.clients.set(pidEsclave, { pid: pidEsclave, amont: { write: (p) => ecrits.push(p) } });
+  return { s, ecrits };
+}
+
+test('un rejeu differe s annule avant son echeance', async () => {
+  const { s, ecrits } = superviseurAvecEsclaveEcrivant(1, 2);
+  const rendu = s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  assert.strictEqual(rendu[0].emis, true);
+  assert.strictEqual(s.annulerRejeux(), 1);
+  await new Promise((r) => setTimeout(r, 160));
+  assert.deepStrictEqual(ecrits, [], 'rien ne doit avoir ete ecrit');
+});
+
+test('annulerRejeux rend zero quand rien n attend', () => {
+  const { s } = superviseurAvecEsclaveEcrivant(1, 2);
+  assert.strictEqual(s.annulerRejeux(), 0);
+});
+
+// Un minuteur echu ne doit pas rester en memoire: sans cela, la liste grossit
+// a chaque rejeu de la session.
+test('un rejeu arrive a echeance ne reste pas annulable', async () => {
+  const { s, ecrits } = superviseurAvecEsclaveEcrivant(1, 2);
+  s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  await new Promise((r) => setTimeout(r, 160));
+  assert.strictEqual(ecrits.length, 1, 'le rejeu a bien eu lieu');
+  assert.strictEqual(s.annulerRejeux(), 0);
+});
+
+// Sans etalement, l'ecriture est immediate: il n'y a rien a annuler, et c'est
+// le comportement voulu — un rejeu deja ecrit ne se rattrape pas.
+test('un rejeu immediat n est pas annulable', () => {
+  const ecrits = [];
+  const s = new Superviseur({ arme: true });
+  s.comptes.ajouter({ pid: 1, port: 8301 });
+  s.comptes.ajouter({ pid: 2, port: 8302 });
+  s.clients.set(2, { pid: 2, amont: { write: (p) => ecrits.push(p) } });
+  s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  assert.strictEqual(ecrits.length, 1);
+  assert.strictEqual(s.annulerRejeux(), 0);
+});
+
+// --- plancher de retard ----------------------------------------------------
+
+// Le plancher s'ajoute a l'etalement, il ne le remplace pas: les esclaves
+// restent decales les uns des autres.
+test('le plancher de retard recule le premier esclave', () => {
+  const s = new Superviseur({ arme: false, etalementRejeu: { minMs: 20, maxMs: 20 } });
+  s.comptes.ajouter({ pid: 1, port: 8301 });
+  s.comptes.ajouter({ pid: 2, port: 8302 });
+  s.comptes.ajouter({ pid: 3, port: 8303 });
+  // Sans socket amont, rejouer refuse avant meme de calculer un retard: il
+  // faut un client pour chaque esclave, comme partout ailleurs dans ce
+  // fichier (voir fauxClient).
+  fauxClient(s, 2);
+  fauxClient(s, 3);
+  const sans = s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  assert.deepStrictEqual(sans.map((r) => r.retardMs), [20, 40]);
+  const avec = s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1, retardPlancher: 250 });
+  assert.deepStrictEqual(avec.map((r) => r.retardMs), [270, 290]);
+});
+
 // --- absence de maitre -----------------------------------------------------
 
 // PIEGE VERIFIE, PAS SUPPOSE. Sans maitre choisi, this.maitre vaut null et
