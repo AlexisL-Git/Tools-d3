@@ -570,6 +570,7 @@ async function envoyerEtat() {
     sansMaitre: superviseur.maitre === null,
     erreurComptes,
     delai: favoris.delai(),
+    combats: favoris.combats().length,
     avisBascule: avisCourant(),
     lignes,
   });
@@ -895,6 +896,14 @@ ipcMain.handle('reglerTouche', async (_e, idCompte, accelerateur) => {
   if (accelerateur !== null && typeof accelerateur !== 'string') return;
   favoris.reglerTouche(idCompte, accelerateur);
   poserRaccourcis();
+  await envoyerEtat();
+});
+
+// LE SEUL RECOURS quand OMNI a retenu a tort qu'une action lance un combat.
+// La liste est faite de numeros: personne ne peut deviner quelle entree est
+// fautive, donc on vide tout. Le delai continue de proteger apres l'oubli.
+ipcMain.handle('oublierCombats', async () => {
+  favoris.oublierCombats();
   await envoyerEtat();
 });
 

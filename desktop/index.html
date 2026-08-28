@@ -450,6 +450,7 @@
   <span class="avis-nav" id="avisNav"></span>
   <label class="champ-delai">Délai <input id="delai" type="number" min="0" step="0.1" value="0"> s</label>
   <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;color:var(--alerte)"></span>
+  <button class="coupe" id="boubli" title="oublier les actions connues pour lancer un combat" hidden>Oublier les combats</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
 </div>
 
@@ -767,6 +768,10 @@
     }, 3000);
   });
 
+  document.getElementById('boubli').addEventListener('click', () => {
+    window.app.oublierCombats();
+  });
+
   // ==========================================================================
   // LE RENDU NE DETRUIT PLUS RIEN.
   //
@@ -1011,6 +1016,13 @@
 
     const champDelai = document.getElementById('delai');
     if (document.activeElement !== champDelai) champDelai.value = etat.delai;
+
+    // Le bouton ne parait que s'il y a quelque chose a oublier: un bouton qui
+    // ne peut rien faire est une promesse fausse.
+    const oubli = document.getElementById('boubli');
+    oubli.hidden = !etat.combats;
+    oubli.textContent = etat.combats === 1
+      ? 'Oublier 1 combat' : `Oublier ${etat.combats} combats`;
 
     document.getElementById('erreur').textContent = etat.erreurComptes || '';
     document.getElementById('sansmaitre').textContent = etat.sansMaitre
