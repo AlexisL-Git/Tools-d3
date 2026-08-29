@@ -102,7 +102,9 @@ ouvrir une fenêtre où une invitation étrangère aurait des chances d'être co
 1. `ixf` sortant d'un client piloté → on note l'instant, pour n'importe lequel de nos
    clients : c'est l'application qui pilote, la notion de maître n'entre pas ici.
 2. `iyd` entrant sur un client :
-   - réglage éteint → on sort, sans compte rendu (comme les autres politiques éteintes) ;
+   - réglage éteint → **refus explicite** `songe ignoré : interrupteur éteint`. Corrigé
+     après relecture : `src/echange.js` rend bien un refus dans ce cas, et la règle du
+     projet est qu'aucun chemin ne mène au silence ;
    - aucun `ixf` récent → **refus**, compte rendu `songe ignoré : aucun lancement de songe de nos clients` ;
    - sinon → on planifie l'envoi de `TRAME_ACCEPTATION` après un tirage dans `DELAI_REACTION`.
 3. À l'échéance, on relit l'état : réglage toujours actif, client toujours présent, et
@@ -121,9 +123,16 @@ présenté quatre fois.
 
 ## Interface
 
-Un interrupteur propre, dans le panneau, à côté du passe-tour, de l'invitation de groupe
-et de l'échange. **Éteint par défaut**, comme les autres. Réglage `{ actif: false }` posé
-avant la fenêtre, composé dans `superviseur.onTrame` via `composer()`.
+**Pas d'interrupteur propre.** Corrigé après relecture du code : `desktop/main.js:246-252`
+documente la suppression délibérée des interrupteurs par fonction — « ils formaient un
+second niveau que rien ne reliait aux cases par compte, et une case cochée sous un général
+éteint ne faisait rien sans que ça se voie ». Un interrupteur **unique** (`appliquerActif`)
+pilote déjà les quatre autres politiques ; celle-ci le suit.
+
+Concrètement : un réglage `reglagesSonge = { actif: false }` posé avant la fenêtre, mis à
+jour par `appliquerActif`, et la politique composée dans `superviseur.onTrame` via
+`composer()`. Aucune case par compte : l'utilisateur veut que **toutes** ses mules
+rejoignent, pas les choisir une par une.
 
 ## Tests
 
