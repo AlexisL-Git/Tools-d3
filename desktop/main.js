@@ -242,7 +242,7 @@ async function clientsRecents() {
 
 let minuteurProcess = null;
 let minuteurVue = null;
-// Ces quatre objets sont relus a chaque trame par les politiques: modifier le
+// Ces cinq objets sont relus a chaque trame par les politiques: modifier le
 // champ suffit, sans rien reconstruire.
 //
 // LEUR `actif` NE SE REGLE PLUS UN PAR UN. Les cinq interrupteurs generaux ont
@@ -777,6 +777,16 @@ app.whenReady().then(async () => {
       onCompteRendu: ({ pid, ok, raison, retardMs }) => {
         if (ok) journal(pid, `songe : invitation acceptee apres ${retardMs} ms`);
         else journal(pid, `songe : ${raison}`);
+        // journal() ne s'ecrit que sous OMNI_JOURNAL=complet: en usage normal
+        // ni le succes ni le refus n'y seraient jamais vus. `messages` est le
+        // canal qui atterrit dans le panneau, sur la ligne du compte -- les
+        // deux sont complementaires, ni l'un ni l'autre ne remplace l'autre.
+        //
+        // Cette Map est PARTAGEE avec le duplicateur (rejeu, plus haut): un
+        // refus de songe peut donc ecraser brievement un refus de rejeu
+        // affiche sur la meme ligne. Accepte, parce que les songes sont rares.
+        if (ok) messages.delete(pid);
+        else messages.set(pid, raison);
       },
     }),
     noterTrafic(),
@@ -787,7 +797,7 @@ app.whenReady().then(async () => {
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
   );
 
-  // L'etat enregistre de l'interrupteur unique, applique aux cinq politiques
+  // L'etat enregistre de l'interrupteur unique, applique aux six politiques
   // d'un coup.
   appliquerActif(favoris.actif());
 
