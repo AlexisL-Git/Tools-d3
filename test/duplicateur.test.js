@@ -283,3 +283,36 @@ test('une demande d infos de carte n est jamais rejouée', () => {
   assert.strictEqual(s.appels.length, 0, 'rejouer() ne doit pas être appelé');
   assert.strictEqual(comptesRendus.length, 0);
 });
+
+// LA DEMANDE, verrouillee au niveau de la DECISION et pas seulement de la
+// table: acheter au marchand PNJ, jamais a l'hotel de vente. Mesure du 29/08,
+// detaillee dans test/duplication.test.js — l'achat au marchand est `kea`,
+// celui de l'HDV est `kbm`, et ce sont deux types distincts.
+test('l achat au marchand PNJ est rejoué', () => {
+  const s = faux();
+  const comptesRendus = [];
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'kea', payload: [] } }));
+
+  assert.strictEqual(s.appels.length, 1, "l'achat au marchand doit partir chez les mules");
+  assert.strictEqual(s.appels[0].type, 'kea');
+  // Aucun plancher: le plancher ne protege que des actions qui ouvrent un
+  // combat, et acheter n'en ouvre aucun.
+  assert.strictEqual(s.appels[0].retardPlancher, 0);
+  assert.strictEqual(comptesRendus.length, 1);
+});
+
+// Le refus tient a une ABSENCE — `kbm` n'est pas dans la table — donc il est
+// SILENCIEUX, comme tout type hors table. Il n'y a rien a signaler: la mule ne
+// rate pas une action, elle n'a jamais eu a en faire une.
+test('l achat en hôtel de vente n est jamais rejoué, et sans un mot', () => {
+  const s = faux();
+  const comptesRendus = [];
+  const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'kbm', payload: [] } }));
+
+  assert.strictEqual(s.appels.length, 0, "les mules ne doivent PAS acheter a l'HDV");
+  assert.strictEqual(comptesRendus.length, 0);
+});

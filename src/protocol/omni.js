@@ -8,11 +8,16 @@
 // chaque action, le nom obfusque, le nom reel et les champs decodes: la table
 // n'a pas ete deduite, elle a ete lue.
 //
-// PERIMETRE. Huit types, et ce total n'a pas bouge de la 6e a la 20e minute.
-// OMNI ne duplique pas le combat, les metiers, l'inventaire ni les
-// echanges: il duplique les interactions. La banque elle-meme ne produit aucun
-// message propre — l'ouvrir revient a parler a un PNJ, donc au triplet
+// PERIMETRE. Huit types a l'origine, et ce total n'avait pas bouge de la 6e a
+// la 20e minute de la recolte. OMNI ne duplique pas le combat, les metiers ni
+// l'inventaire: il duplique les interactions. La banque elle-meme ne produit
+// aucun message propre — l'ouvrir revient a parler a un PNJ, donc au triplet
 // NpcGenericActionRequest / NpcDialogReplyRequest / DialogLeaveRequest.
+//
+// UNE EXCEPTION, mesuree le 29/08 et ajoutee a la demande de l'utilisateur:
+// `kea`, l'achat chez un marchand PNJ. Elle ne remet pas en cause la regle —
+// l'achat A L'HOTEL DE VENTE (`kbm`) reste dehors, volontairement, et le
+// commentaire de `kea` explique pourquoi cette absence est le mecanisme.
 //
 // NATURE DES CHAMPS. Rejouer une action sur un second compte suppose de savoir
 // quoi recopier et quoi reconstruire:
@@ -88,7 +93,10 @@ const MESSAGES = {
   iov: {
     name: 'NpcGenericActionRequest',
     fields: {
-      npcActionId: { nature: 'monde', sur: 'mesure', note: 'toujours 3 sur 21 occurrences' },
+      // 3 sur les 21 occurrences de la recolte du 19/08 — mais la valeur 1 a
+      // ete mesuree le 29/08: c'est « acheter/vendre » la ou 3 est « parler ».
+      // Le champ decrit le monde dans les deux cas, il se recopie tel quel.
+      npcActionId: { nature: 'monde', sur: 'mesure', note: '3 = parler, 1 = acheter/vendre (mesure 29/08)' },
       npcMapId: { nature: 'monde', sur: 'mesure', note: 'suit toujours le mapId du contexte' },
       npcId: { nature: 'monde', sur: 'mesure', note: 'instance de PNJ sur la carte: -20000, -20001…' },
     },
@@ -104,6 +112,46 @@ const MESSAGES = {
   kla: {
     name: 'DialogLeaveRequest',
     fields: {},
+    verbatim: true,
+  },
+  // L'ACHAT CHEZ UN MARCHAND PNJ — celui dont le dialogue offre « parler » ou
+  // « acheter/vendre ». Mesure du 29/08, deux sessions (17:41 et 19:58), memes
+  // deux clients, meme marchand (npcId -20000, carte 192413696):
+  //
+  //     --> iov { 1=1 2=192413696 3=-20000 }   ouvre la boutique
+  //         rejeu iov ecrit (+272 ms)          elle s'ouvre AUSSI chez la mule
+  //     --> kea { 1=6765 2=1 }                 l'achat d'un Lailait a 4 kamas
+  //     <-- lqn { 2=252 4=6765 4=386757953 }   l'objet entre dans le sac
+  //     <-- ivf { 1=3941470 }                  3941474 -> 3941470, soit -4
+  //
+  // LE CHAMP 1 EST UN TYPE D'OBJET, PAS UN EXEMPLAIRE. Deux preuves: il vaut
+  // 6765 dans les DEUX sessions pour le meme article, et le serveur le renvoie
+  // tel quel dans sa confirmation `lqn`, a cote de 386757953 — celui-la est
+  // l'exemplaire cree dans le sac du maitre, et il n'apparait QUE dans la
+  // reponse. La requete ne porte donc rien qui appartienne au maitre: ni
+  // identifiant de personnage, ni uid de session. D'ou verbatim.
+  //
+  // LA CONDITION QUE LA TRAME NE PORTE PAS — celle qui a tue `jqk` — est ici
+  // DEJA REMPLIE: le serveur exige que la boutique soit ouverte, et elle l'est
+  // chez la mule, prouve par le `kbd` qu'elle recoit 30 ms apres le rejeu du
+  // `iov`. C'est ce qui distingue ce cas de `jqk` et de `jrh`.
+  //
+  // CE QUI N'EST PAS ICI COMPTE AUTANT: `kbm`, l'achat a l'HOTEL DE VENTE,
+  // mesure dans la meme session (`kbm { 1=1116 2=67 3=1 }`, -67 kamas pour une
+  // Graine de Sesame). L'utilisateur veut acheter au marchand et JAMAIS a
+  // l'HDV. Comme l'HDV a son propre type, il suffit de ne pas le repertorier:
+  // un type hors table n'est jamais rejoue. La contrainte tient a une ABSENCE,
+  // pas a une regle. Ne pas ajouter `kbm` sans le lui demander.
+  //
+  // LE NOM EST LE NOTRE. Les neuf premieres entrees tenaient le leur du canal
+  // de krm35; ce type-la n'y figurait pas, il a ete identifie par la mesure.
+  // Les noms de champs aussi sont de nous, d'ou `sur: 'mesure'` sans nom reel.
+  kea: {
+    name: 'AchatMarchandRequest',
+    fields: {
+      objetType: { no: 1, nature: 'monde', sur: 'mesure', note: 'type d article (6765 = Lailait), identique dans les deux sessions et renvoye par lqn' },
+      quantite: { no: 2, nature: 'monde', sur: 'mesure', note: 'valait 1 sur les deux achats mesures' },
+    },
     verbatim: true,
   },
   // Releve lors de la premiere capture courte, absent de la recolte de 20 min
