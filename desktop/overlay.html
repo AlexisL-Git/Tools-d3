@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>OMNI</title>
+<style>
+  /* La palette du panneau, a l'identique. Une couleur, un role:
+     cyan = ce qui est arme, orange = qui commande, rouge = une anomalie. */
+  :root {
+    --fond: #0F1418;
+    --releve: #171E24;
+    --filet: #2C3740;
+    --bord: #3E4B56;
+    --texte: #E8EEF2;
+    --attenue: #93A1AC;
+    --arme: #2FD4C4;
+    --arme-encre: #061C19;
+    --commande: #FF9F1C;
+    --alerte: #F2545B;
+    /* Ou l'on est en ce moment. Un vert franc, pas un cyan verdatre: il se
+       pose a cote des pastilles cyan et doit s'en distinguer sans hesitation.
+       Teinte a 95 degres contre 175 pour l'arme, soit 80 degres d'ecart. */
+    --ici: #8BD442;
+    --ui: Karla, "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+
+  /* La fenetre est transparente: la marge de 8 px laisse passer l'ombre
+     portee. Elle fait partie de la taille mesuree et envoyee au principal. */
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+  body {
+    font-family: var(--ui); color: var(--texte); font-size: 14px;
+    padding: 8px; display: inline-block;
+    /* Rien dans cette fenetre ne se selectionne: c'est une barre d'outils,
+       pas un document. Un glissement qui surligne du texte au lieu de
+       deplacer la fenetre est le premier defaut qu'on remarque. */
+    user-select: none; cursor: default;
+  }
+
+  .barre {
+    display: flex; align-items: center; gap: 9px; padding: 8px 10px;
+    border-radius: 9px; background: rgba(15, 20, 24, .95);
+    border: 1px solid var(--filet); box-shadow: 0 8px 22px rgba(0,0,0,.55);
+    width: max-content;
+  }
+  .barre.vertical { flex-direction: column; }
+
+  /* --- la poignee ------------------------------------------------------- */
+  .poignee {
+    width: 5px; height: 24px; border-radius: 3px; flex: none; cursor: grab;
+    background: repeating-linear-gradient(to bottom, var(--bord) 0 2px, transparent 2px 4px);
+  }
+  .barre.vertical .poignee {
+    width: 24px; height: 5px;
+    background: repeating-linear-gradient(to right, var(--bord) 0 2px, transparent 2px 4px);
+  }
+  .poignee:hover { background-color: rgba(255,255,255,.04); }
+  .poignee.tenue { cursor: grabbing; }
+
+  /* --- un picto de classe ----------------------------------------------- */
+  .picto {
+    width: 36px; height: 36px; border-radius: 7px; flex: none; position: relative;
+    display: grid; place-items: center; background: #10171b;
+    border: 1px solid var(--bord); cursor: pointer;
+  }
+  .picto:hover { border-color: var(--attenue); }
+  .picto img { width: 25px; height: 25px; display: block; }
+  /* Le repli quand l'embleme n'est pas encore en cache: l'abreviation de la
+     classe tient la place. Un embleme absent n'est pas une panne. */
+  .picto .abrege { font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--attenue); }
+  .picto.commande { border-color: var(--commande); box-shadow: 0 0 0 1px var(--commande); }
+
+  /* LA FENETRE DEVANT LAQUELLE ON EST. Un encadre pose EN DEHORS du picto,
+     par `outline`, et non par la bordure ni l'ombre: ces deux-la portent deja
+     le commandement, et un compte peut tres bien commander pendant qu'on
+     regarde un autre. Les deux marquages doivent pouvoir coexister sur le
+     meme picto sans se recouvrir.
+
+     outline ne prend AUCUNE place dans la mise en page: la barre garde sa
+     largeur quand on passe d'une fenetre a l'autre, et les pictos ne se
+     decalent pas sous le curseur. Les 4 px que l'anneau occupe visuellement
+     tiennent dans l'ecart de 9 px entre deux pictos. */
+  .picto.ici { outline: 2px solid var(--ici); outline-offset: 2px; }
+  /* Un client sans identifiant de compte occupe une vraie fenetre mais ne
+     peut porter aucun ordre: il s'affiche, il ne se clique pas. */
+  .picto.inerte { cursor: default; opacity: .5; }
+  .picto.inerte:hover { border-color: var(--bord); }
+
+  .picto .touche {
+    position: absolute; bottom: -5px; right: -5px; line-height: 13px;
+    font-size: 9px; font-weight: 700; padding: 0 3px; border-radius: 3px;
+    background: var(--bord); color: var(--fond);
+  }
+  .picto.commande .touche { background: var(--commande); color: #211504; }
+
+  .picto .pastille {
+    position: absolute; top: -3px; left: -3px; width: 8px; height: 8px;
+    border-radius: 50%; border: 1.5px solid var(--fond);
+  }
+  .pastille.suit { background: var(--arme); }
+  .pastille.attente { background: var(--attenue); }
+  .pastille.souci { background: var(--alerte); }
+
+  /* --- separateur et interrupteur --------------------------------------- */
+  .sep { width: 1px; height: 28px; background: var(--filet); flex: none; }
+  .barre.vertical .sep { width: 28px; height: 1px; }
+
+  /* L'ACTION GROUPEE DE LA COLONNE « Répl. », la meme que le clic sur son
+     titre dans le panneau: elle coche ou decoche « suit le meneur » pour tous
+     les comptes en jeu. Ce n'est pas un second interrupteur cache, ce sont les
+     memes cases par compte, ecrites d'ici.
+
+     Le losange est celui du titre de colonne, jauge comprise: plein quand tous
+     suivent, a moitie quand seuls certains le font, creux quand personne ne
+     suit. C'est ce rappel des boutons du panneau qui a ete demande. */
+  .inter {
+    display: inline-flex; align-items: center; gap: 8px; flex: none; cursor: pointer;
+    padding: 5px 11px 5px 9px; border-radius: 999px;
+    border: 1px solid var(--bord); background: var(--fond);
+    font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--attenue);
+  }
+  .barre.vertical .inter { padding: 5px 8px; }
+  .barre.vertical .inter .mot { display: none; }
+  .temoin {
+    width: 9px; height: 9px; flex: none; transform: rotate(45deg); border-radius: 5px;
+    border: 1.5px solid var(--bord); background: transparent;
+  }
+
+  /* Tous suivent: losange plein, cyan. */
+  .inter.tous { color: var(--arme); border-color: var(--arme); }
+  .inter.tous .temoin {
+    background: var(--arme); border-color: var(--arme);
+    box-shadow: 0 0 8px rgba(47,212,196,.65);
+  }
+
+  /* Certains seulement: la diagonale du losange une fois redresse, donc une
+     moitie franche et lisible meme a 9 px. Identique au titre de colonne. */
+  .inter.partiel { color: var(--arme); border-color: var(--bord); }
+  .inter.partiel .temoin {
+    border-color: var(--arme);
+    background: linear-gradient(to right, var(--arme) 50%, transparent 50%);
+  }
+
+  /* PERSONNE ne suit: rouge, losange creux. Demande le 2026-08-29 pour que la
+     coupure se voie d'un coup d'oeil en jouant. C'est le seul endroit d'OMNI
+     ou le rouge ne dit pas « anomalie » mais « arrete »; le losange creux, lui,
+     dit la meme chose que partout ailleurs, sans dependre de la couleur. */
+  .inter.aucun { color: var(--alerte); border-color: var(--alerte); }
+  .inter.aucun .temoin { border-color: var(--alerte); }
+
+  /* --- les deux petits boutons de fin ----------------------------------- */
+  .fin { display: flex; gap: 2px; flex: none; }
+  .barre.vertical .fin { flex-direction: column; }
+  .fin button {
+    width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px;
+    background: transparent; color: var(--attenue); cursor: pointer;
+    font-family: var(--ui); font-size: 12px; line-height: 1; display: grid; place-items: center;
+  }
+  .fin button:hover { background: rgba(255,255,255,.07); color: var(--texte); }
+  .fin button.fermer:hover { background: var(--alerte); color: #fff; }
+
+  /* --- aucun compte en jeu ---------------------------------------------- */
+  .vide {
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--attenue); padding: 0 4px; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="barre" id="barre">
+  <div class="poignee" id="poignee" title="Glisser pour déplacer"></div>
+  <div id="pictos" style="display:contents"></div>
+  <div class="sep"></div>
+  <div class="inter" id="inter" title="Suspendre ou relancer le réplicate">
+    <span class="temoin"></span><span class="mot">RÉPL.</span>
+  </div>
+  <div class="sep"></div>
+  <div class="fin">
+    <button id="sens" title="Basculer horizontale / verticale">⇄</button>
+    <button id="fermer" class="fermer" title="Fermer l'overlay">✕</button>
+  </div>
+</div>
+
+<script>
+  'use strict';
+
+  const barre = document.getElementById('barre');
+  const zone = document.getElementById('pictos');
+  const inter = document.getElementById('inter');
+
+  // Le dernier etat recu, pour ne pas redessiner a l'identique toutes les 2 s:
+  // un rendu qui recree les noeuds pendant qu'on vise un picto ferait rater le
+  // clic. On compare une empreinte, pas les objets.
+  let empreinte = null;
+
+  function empreinteDe(etat) {
+    return JSON.stringify([
+      etat.repl, etat.actif, etat.sansMaitre, etat.sens,
+      etat.pictos.map((p) => [p.id, p.pid, p.embleme !== null, p.abrege, p.touche, p.commande, p.ici, p.pastille, p.cliquable, p.peutCommander]),
+    ]);
+  }
+
+  function dessinerPictos(pictos) {
+    zone.textContent = '';
+    if (pictos.length === 0) {
+      const vide = document.createElement('span');
+      vide.className = 'vide';
+      vide.textContent = 'aucun compte en jeu';
+      zone.appendChild(vide);
+      return;
+    }
+
+    for (const p of pictos) {
+      const el = document.createElement('div');
+      el.className = 'picto'
+        + (p.commande ? ' commande' : '')
+        + (p.ici ? ' ici' : '')
+        + (p.cliquable ? '' : ' inerte');
+      el.title = p.titre
+        + (p.ici ? ' — tu es dessus' : '')
+        + (p.commande ? ' — commande' : '')
+        + (p.touche ? ' — ' + p.touche : '');
+
+      const pastille = document.createElement('span');
+      pastille.className = 'pastille ' + p.pastille;
+      el.appendChild(pastille);
+
+      if (p.embleme) {
+        const img = document.createElement('img');
+        img.src = p.embleme;
+        img.alt = p.classe || '';
+        el.appendChild(img);
+      } else {
+        const abrege = document.createElement('span');
+        abrege.className = 'abrege';
+        abrege.textContent = p.abrege;
+        el.appendChild(abrege);
+      }
+
+      if (p.touche) {
+        const touche = document.createElement('span');
+        touche.className = 'touche';
+        touche.textContent = p.touche;
+        el.appendChild(touche);
+      }
+
+      // Clic gauche: passer sur la fenetre de ce compte. C'est l'ordre que
+      // portent deja les raccourcis F2 a F5.
+      if (p.cliquable) {
+        el.addEventListener('click', () => window.overlay.basculerVersCompte(p.id));
+      }
+
+      // Clic droit: donner la commande. Offert seulement a un compte que la
+      // vue declare eligible — identifiant connu, pas d'erreur, trafic prouve.
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (p.peutCommander && !p.commande) window.overlay.definirMaitre(p.id);
+      });
+
+      zone.appendChild(el);
+    }
+  }
+
+  window.overlay.surEtat((etat) => {
+    const neuve = empreinteDe(etat);
+    if (neuve === empreinte) return;
+    empreinte = neuve;
+
+    barre.classList.toggle('vertical', etat.sens === 'vertical');
+    dessinerPictos(etat.pictos);
+
+    // TROIS ETATS, ceux du titre de colonne: tous, partiel, aucun. On n'en
+    // invente pas un quatrieme ici — le calcul est fait cote principal par
+    // src/comptes/colonnes.js, le meme qui peint le losange du panneau.
+    inter.classList.toggle('tous', etat.repl === 'tous');
+    inter.classList.toggle('partiel', etat.repl === 'partiel');
+    inter.classList.toggle('aucun', etat.repl === 'aucun');
+    inter.title = etat.repl === 'tous'
+      ? 'Tous les comptes suivent le meneur — cliquer pour les détacher'
+      : (etat.repl === 'partiel'
+        ? 'Certains comptes seulement suivent le meneur — cliquer pour aligner tout le monde'
+        : 'Aucun compte ne suit le meneur — cliquer pour les rattacher');
+
+    mesurer();
+  });
+
+  // LE MEME GESTE que le clic sur le titre de colonne « Répl. » du panneau: il
+  // coche ou decoche « suit le meneur » pour tous les comptes en jeu, dans les
+  // memes cases que les clics individuels. Depuis 'partiel' il COMPLETE plutot
+  // que de tout eteindre, parce que c'est le geste qui demande le moins de
+  // clics quand on veut aligner l'equipe. La cible est calculee cote principal,
+  // pas ici: deux clics rapides ne doivent pas partir de deux lectures
+  // differentes de l'affichage.
+  inter.addEventListener('click', () => {
+    window.overlay.basculerReplGroupe();
+  });
+
+  document.getElementById('sens').addEventListener('click', () => window.overlay.basculerSens());
+  document.getElementById('fermer').addEventListener('click', () => window.overlay.fermer());
+
+  // --- la taille, mesuree ---------------------------------------------------
+  //
+  // La barre change de largeur des qu'un client se ferme. Une fenetre plus
+  // large que son contenu laisserait une zone transparente qui avale les clics
+  // destines au jeu; plus etroite, elle couperait le dernier picto. On mesure
+  // le rendu reel, marge d'ombre comprise, et on laisse le principal
+  // redimensionner.
+  let derniere = '';
+  function mesurer() {
+    const r = barre.getBoundingClientRect();
+    const l = Math.ceil(r.width) + 16;
+    const h = Math.ceil(r.height) + 16;
+    const cle = l + 'x' + h;
+    if (cle === derniere) return;
+    derniere = cle;
+    window.overlay.taille(l, h);
+  }
+  new ResizeObserver(mesurer).observe(barre);
+
+  // --- le deplacement, code a la main ---------------------------------------
+  //
+  // Mesure du 2026-08-29 sur une fenetre `focusable: false`: les clics
+  // arrivent, et ce glissement-la fonctionne. On retient l'ecart entre le
+  // curseur et le coin de la fenetre au moment de la prise, sans quoi elle
+  // sauterait pour coller son coin au curseur.
+  const poignee = document.getElementById('poignee');
+  let glisse = false;
+
+  poignee.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    glisse = true;
+    poignee.classList.add('tenue');
+    window.overlay.prendre({ x: e.screenX - window.screenX, y: e.screenY - window.screenY });
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', () => { if (glisse) window.overlay.bouger(); });
+
+  window.addEventListener('mouseup', () => {
+    if (!glisse) return;
+    glisse = false;
+    poignee.classList.remove('tenue');
+    // C'est le lacher qui enregistre la position, pas chaque mouvement: on
+    // ecrirait le fichier de reglages cent fois par glissement.
+    window.overlay.lacher();
+  });
+</script>
+</body>
+</html>

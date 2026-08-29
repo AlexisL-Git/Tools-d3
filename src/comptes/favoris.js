@@ -54,7 +54,23 @@ class Favoris {
     // Les actions vues lancer un combat chez le maitre. Rejouer l'une d'elles
     // ferait ouvrir a chaque esclave SON PROPRE combat — mesure le 28/08.
     this._combats = new Set();
+    // LA PETITE FENETRE FLOTTANTE. Trois choses seulement: si elle etait
+    // ouverte, dans quel sens, et ou elle etait posee.
+    //
+    // Elle repart FERMEE si le fichier ne dit rien. Le fichier d'un ami qui
+    // passe de la 0.2.6 a cette version n'a pas la cle: il ne doit pas voir
+    // apparaitre une fenetre qu'il n'a pas demandee, au milieu de son ecran.
+    //
+    // La position vaut null tant qu'elle n'a pas ete choisie: c'est main.js
+    // qui pose alors la fenetre en haut a droite de l'ecran courant. Retenir
+    // un couple 0,0 par defaut la collerait dans un coin sur une machine dont
+    // on ne connait pas la definition.
+    this._overlay = { ouvert: false, sens: 'horizontal', x: null, y: null };
   }
+
+  // Le seul sens autre qu'horizontal. Ecrit une fois ici plutot que teste a
+  // trois endroits.
+  static get SENS() { return ['horizontal', 'vertical']; }
 
   charger() {
     try {
@@ -96,6 +112,17 @@ class Favoris {
           if (typeof c === 'string' && c.length) this._combats.add(c);
         }
       }
+      // Meme discipline que les touches: chaque champ est repris seulement si
+      // sa forme est connue. Un sens inconnu ou une position qui n'est pas un
+      // entier retombe sur le defaut, sans faire echouer le chargement — perdre
+      // la place d'une fenetre est benin, perdre les reglages ne l'est pas.
+      if (json.overlay !== null && typeof json.overlay === 'object' && !Array.isArray(json.overlay)) {
+        const o = json.overlay;
+        if (typeof o.ouvert === 'boolean') this._overlay.ouvert = o.ouvert;
+        if (Favoris.SENS.includes(o.sens)) this._overlay.sens = o.sens;
+        if (Number.isInteger(o.x)) this._overlay.x = o.x;
+        if (Number.isInteger(o.y)) this._overlay.y = o.y;
+      }
     } catch (e) {
       // Fichier absent ou corrompu: on repart d'une liste vide plutot que de
       // faire echouer le demarrage de l'application.
@@ -110,6 +137,7 @@ class Favoris {
       this._touches = new Map();
       this._ordre = [];
       this._combats = new Set();
+      this._overlay = { ouvert: false, sens: 'horizontal', x: null, y: null };
     }
     return this;
   }
@@ -270,6 +298,26 @@ class Favoris {
     this._ecrire();
   }
 
+  // Une COPIE: modifier ce qui est rendu changerait le reglage sans passer par
+  // l'ecriture du fichier, et la place de la fenetre serait perdue au
+  // redemarrage sans que rien ne le signale.
+  overlay() {
+    return { ...this._overlay };
+  }
+
+  // Reglage PARTIEL: on n'ecrit que les champs presents. La position part a
+  // chaque lacher de souris, le sens seulement quand on bascule, l'ouverture
+  // seulement au bouton. Un remplacement complet ferait perdre les deux autres
+  // a chaque geste.
+  reglerOverlay(reglage) {
+    if (reglage === null || typeof reglage !== 'object' || Array.isArray(reglage)) return;
+    if (typeof reglage.ouvert === 'boolean') this._overlay.ouvert = reglage.ouvert;
+    if (Favoris.SENS.includes(reglage.sens)) this._overlay.sens = reglage.sens;
+    if (Number.isInteger(reglage.x)) this._overlay.x = reglage.x;
+    if (Number.isInteger(reglage.y)) this._overlay.y = reglage.y;
+    this._ecrire();
+  }
+
   _ecrire() {
     try {
       fs.mkdirSync(path.dirname(this.chemin), { recursive: true });
@@ -285,6 +333,7 @@ class Favoris {
         touches: this.touches(),
         ordre: this._ordre,
         combats: this.combats(),
+        overlay: this.overlay(),
       };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
     } catch (e) {

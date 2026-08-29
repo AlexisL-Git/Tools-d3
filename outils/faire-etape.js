@@ -23,7 +23,7 @@ const DOSSIERS = ['amorceur', 'src'];
 // faire-paquet-code.js emporte desktop/ en entier, mais il travaille sur le
 // dossier d'etape, deja filtre ici. Un fichier oublie ici ne part pas, en
 // silence. test/paquet-fichiers.test.js garde le rapprochement.
-const FICHIERS_DESKTOP = ['main.js', 'preload.js', 'index.html', 'devlog.js', 'devlog.json'];
+const FICHIERS_DESKTOP = ['main.js', 'preload.js', 'index.html', 'devlog.js', 'devlog.json', 'overlay.html', 'overlay-preload.js'];
 // Les sous-dossiers de desktop/ a emporter. Sans cette liste, index.html
 // partait chez les amis SANS SES POLICES: elles sont embarquees dans le depot
 // justement pour qu OMNI demarre sans reseau, et l interface retombait sur la

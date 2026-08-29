@@ -182,6 +182,7 @@
   .maitre-inter:hover { color: var(--texte); border-color: var(--attenue); }
   .maitre-inter.on:hover { color: var(--arme); filter: brightness(1.15); }
 
+
   .champ-delai {
     display: inline-flex; align-items: center; gap: 7px;
     font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
@@ -199,6 +200,18 @@
     font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
   }
   .coupe.confirme { background: var(--alerte); color: #1F0B0C; }
+
+  /* Le bouton de l'overlay. Il n'est PAS `.coupe`: cette classe est rouge, et
+     le rouge dit « anomalie » partout ailleurs dans le panneau. Ouvrir une
+     fenetre ne detruit rien. Il passe au cyan quand elle est ouverte, comme
+     tout ce qui est arme. */
+  .pose {
+    padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
+    font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  }
+  .pose:hover { border-color: var(--attenue); color: var(--texte); }
+  .pose.ouvert { border-color: var(--arme); color: var(--arme); }
 
   .avis { padding: 9px 15px; font-size: 13px; border-bottom: 1px solid var(--filet); }
   .avis:empty { display: none; }
@@ -451,6 +464,7 @@
   <label class="champ-delai">Délai <input id="delai" type="number" min="0" step="0.1" value="0"> s</label>
   <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;color:var(--alerte)"></span>
   <button class="coupe" id="boubli" title="oublier les actions connues pour lancer un combat" hidden>Oublier les combats</button>
+  <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
 </div>
 
@@ -768,6 +782,10 @@
     }, 3000);
   });
 
+  document.getElementById('boverlay').addEventListener('click', () => {
+    window.app.basculerOverlay();
+  });
+
   document.getElementById('boubli').addEventListener('click', () => {
     window.app.oublierCombats();
   });
@@ -1023,6 +1041,13 @@
     oubli.hidden = !etat.combats;
     oubli.textContent = etat.combats === 1
       ? 'Oublier 1 combat' : `Oublier ${etat.combats} combats`;
+
+    // Le bouton dit ce qu'il VA faire, et son cyan dit ce qui est. Un bouton
+    // « Overlay » qui reste identique ouverte ou fermee laisserait chercher
+    // pourquoi le clic « ne fait rien » quand la barre est hors de l'ecran.
+    const bov = document.getElementById('boverlay');
+    bov.classList.toggle('ouvert', Boolean(etat.overlayOuvert));
+    bov.textContent = etat.overlayOuvert ? 'Masquer l’overlay' : 'Overlay';
 
     document.getElementById('erreur').textContent = etat.erreurComptes || '';
     document.getElementById('sansmaitre').textContent = etat.sansMaitre
