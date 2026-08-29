@@ -24,16 +24,36 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // inconnu n'est precedee de rien. On filtre donc par le TEMPS: pas de
 // lancement recent de chez nous, pas d'acceptation.
 //
+// L'ARMEMENT NE LIT PAS reglages.actif, ET C'EST VOULU. Allumer
+// l'interrupteur juste apres un songe lance a la main hors reglage herite
+// donc d'une fenetre deja ouverte: la premiere invitation qui suit est
+// acceptee. Sert le cas « j'allume en cours de route », qu'on ne veut pas
+// punir d'un refus juste parce que l'interrupteur etait encore eteint au
+// moment du lancement.
+//
+// LIMITE CONNUE. Si le client MAITRE (celui qui lance ou rejoint le songe)
+// n'est pas lui-meme attache a OMNI, aucun ixf ni ixk sortant n'est jamais vu
+// ici: dernierLancement ne s'arme jamais, et toutes les invitations sont
+// refusees, meme legitimes.
+//
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur, comme l'accepteur d'echange.
 
 const TYPE_LANCEMENT = 'ixf';
 const TYPE_INVITATION = 'iyd';
+// Le type de trame de l'acceptation, distinct de URL_ACCEPTATION (l'url
+// complete portee DANS la trame): sert a reconnaitre un ixk SORTANT emis par
+// un de nos clients, pour l'armement -- voir plus bas.
+const TYPE_ACCEPTATION = 'ixk';
 const URL_ACCEPTATION = 'type.ankama.com/ixk';
 
-// Large devant les 34 ms mesures: absorbe un serveur lent sans ouvrir une
-// fenetre ou l'invitation d'un inconnu aurait des chances d'etre confondue.
-const FENETRE_SONGE = 10000;
+// Decision utilisateur du 29/08, apres coup: 10 000 ms ramene a 2 000 ms.
+// Toujours large devant les 34 ms mesures -- 60 fois la marge -- mais le
+// songe est une activite de GROUPE: si un AUTRE joueur lance son propre songe
+// peu apres le notre, la trame d'acceptation `ixk { 1: 1 }` ne designe aucune
+// invitation en particulier et accepterait la sienne a la place. Reduire la
+// fenetre reduit d'autant ce risque, sans mordre sur la marge de securite.
+const FENETRE_SONGE = 2000;
 
 // Meme raison que pour l'echange: une acceptation partie a la milliseconde ou
 // l'invitation arrive n'est pas un comportement qu'un joueur produit.
@@ -85,14 +105,29 @@ function creerAccepteurSonge({
   return function onTrame({ pid, dir, frame }) {
     if (frame === null || frame === undefined) return;
 
-    // Le lancement, par N'IMPORTE LEQUEL de nos clients: c'est l'application
-    // qui pilote, la notion de maitre n'entre pas ici.
-    if (dir === 'out' && frame.kind === 'request' && frame.type === TYPE_LANCEMENT) {
+    // Le lancement (ixf), par N'IMPORTE LEQUEL de nos clients: c'est
+    // l'application qui pilote, la notion de maitre n'entre pas ici.
+    //
+    // TYPE_ACCEPTATION (ixk) arme aussi. REJOINDRE le songe d'un autre ne
+    // passe pas par ixf: seul celui qui LANCE l'emet. Sans cette entree, un
+    // utilisateur qui rejoint le songe d'un tiers (son maitre emet ixk, pas
+    // ixf) verrait ses propres mules refuser l'invitation qui suit -- alors
+    // qu'il attend qu'elles le suivent, comme pour un songe lance par lui.
+    //
+    // PAS DE RISQUE DE BOUCLE: les trames qu'OMNI injecte via
+    // superviseur.emettre() sont ecrites directement sur la socket amont et
+    // ne repassent pas par l'ecoute qui alimente onTrame. Le TRAME_ACCEPTATION
+    // qu'une mule emet ici ne se voit donc jamais reinjectee dans ce onTrame.
+    if (dir === 'out' && frame.kind === 'request'
+        && (frame.type === TYPE_LANCEMENT || frame.type === TYPE_ACCEPTATION)) {
       dernierLancement = maintenant();
       return;
     }
 
-    if (dir !== 'in' || frame.type !== TYPE_INVITATION) return;
+    // Meme exigence de kind que l'armement: iyd mesuree est un event, et une
+    // eventuelle response de meme type ne doit pas etre prise pour
+    // l'invitation.
+    if (dir !== 'in' || frame.kind !== 'event' || frame.type !== TYPE_INVITATION) return;
 
     // Une invitation a un songe est un evenement rare: dire pourquoi on ne
     // l'accepte pas ne coute rien et repond a la seule question que
@@ -115,5 +150,5 @@ function creerAccepteurSonge({
 
 module.exports = {
   creerAccepteurSonge, TRAME_ACCEPTATION, DELAI_REACTION, FENETRE_SONGE,
-  TYPE_LANCEMENT, TYPE_INVITATION,
+  TYPE_LANCEMENT, TYPE_INVITATION, TYPE_ACCEPTATION,
 };
