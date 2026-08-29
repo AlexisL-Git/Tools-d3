@@ -378,13 +378,34 @@ function connectAgentSource({
       }
 
       // recv n'ecoute qu'UNE fois: on se replace apres chaque message, sinon
-      // la premiere bascule serait aussi la derniere.
+      // la premiere bascule serait aussi la derniere. On se replace AVANT de
+      // repondre, parce que la reponse peut desormais etre differee: un second
+      // ordre arrive pendant l'attente serait sinon perdu.
       function ecouter() {
         recv('premierPlan', function () {
+          ecouter();
+
           let fait = false;
           try { fait = auPremierPlan(); } catch (e) { fait = false; }
-          send({ premierPlanFait: fait });
-          ecouter();
+          if (fait) { send({ premierPlanFait: true }); return; }
+
+          // LA VERIFICATION IMMEDIATE MENT, et elle a menti dix fois de suite
+          // le 2026-08-29: SetForegroundWindow et SwitchToThisWindow ne sont
+          // pas instantanes, la fenetre arrive bien devant mais quelques
+          // millisecondes apres le controle. On rendait donc « sans effet »
+          // sur une bascule qui avait parfaitement marche.
+          //
+          // Tant que rien ne lisait cette reponse, le mensonge ne coutait
+          // qu'une ligne de journal. Il eteint maintenant l'encadre de
+          // l'overlay, qui dit devant quelle fenetre on est.
+          setTimeout(function () {
+            let tardif = false;
+            try {
+              const moi = maFenetre();
+              tardif = moi !== null && !moi.isNull() && estDevant(moi);
+            } catch (e) { tardif = false; }
+            send({ premierPlanFait: tardif });
+          }, 150);
         });
       }
       ecouter();

@@ -44,6 +44,10 @@ contextBridge.exposeInMainWorld('app', {
   // Vide la liste des actions connues pour lancer un combat.
   oublierCombats: () => ipcRenderer.invoke('oublierCombats'),
 
+  // Ouvre ou ferme la petite fenetre flottante posee sur le jeu. Elle a son
+  // propre preload, plus etroit: desktop/overlay-preload.js.
+  basculerOverlay: () => ipcRenderer.invoke('basculerOverlay'),
+
   // Un appui de bouton fait DANS la fenetre d'OMNI. Les appuis faits sur un
   // client Dofus remontent par son agent, sans passer par ici.
   boutonSouris: (clic) => ipcRenderer.invoke('boutonSouris', clic),

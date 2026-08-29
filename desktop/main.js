@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, dialog, screen } = require('electron');
 
 const { Superviseur } = require('../src/superviseur');
 const { creerDuplicateur, ETALEMENT_REJEU } = require('../src/duplicateur');
@@ -18,7 +18,8 @@ const { construireVue } = require('../src/comptes/vue');
 const { resoudreMaitre } = require('../src/comptes/maitre');
 const { creerEmblemes } = require('../src/comptes/emblemes');
 const { ordonner } = require('../src/comptes/ordre');
-const { COLONNES, parNom, cibleBascule } = require('../src/comptes/colonnes');
+const { pourOverlay } = require('../src/comptes/overlay');
+const { COLONNES, parNom, cibleBascule, etatColonne } = require('../src/comptes/colonnes');
 const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
 const { lireDevlog, CHEMIN: CHEMIN_DEVLOG } = require('./devlog');
@@ -40,6 +41,16 @@ const DELAI_PREUVE_TRAFIC = 10000;
 const FRAICHEUR_CLIENTS = 1000;
 
 let fenetre = null;
+// LA PETITE FENETRE FLOTTANTE, posee sur le jeu. Elle n'existe que si
+// l'utilisateur l'a ouverte: null est son etat normal.
+let overlay = null;
+// L'ecart entre le curseur et le coin de l'overlay pendant un glissement. Null
+// quand personne ne la deplace.
+let priseOverlay = null;
+// Les lignes du dernier envoi d'etat. Elles servent a rafraichir l'overlay
+// sans tout recalculer -- reconstruire la vue demande un listerClients(), qui
+// passe par powershell -- et a l'action groupee de sa colonne « Répl. ».
+let dernieresLignes = [];
 let superviseur = null;
 let favoris = null;
 let emblemes = null;
@@ -258,6 +269,7 @@ const reglagesSonge = { actif: false };
 
 // Suspendre n'efface rien: les cases par compte restent ou elles sont, et on
 // reprend exactement dans l'etat d'avant.
+//
 function appliquerActif(actif) {
   const v = Boolean(actif);
   superviseur.arme = v;
@@ -575,7 +587,39 @@ async function envoyerEtat() {
     delai: favoris.delai(),
     combats: favoris.combats().length,
     avisBascule: avisCourant(),
+    // Pour que le bouton de la barre du bas dise s'il ouvre ou s'il ferme.
+    overlayOuvert: overlay !== null && !overlay.isDestroyed(),
     lignes,
+  });
+
+  // Les lignes du dernier envoi, retenues pour deux usages qui ne peuvent pas
+  // se permettre de tout recalculer: le rafraichissement immediat de l'overlay
+  // au changement de fenetre, et l'action groupee de sa colonne « Répl. ».
+  // Reconstruire la vue demande un listerClients(), qui passe par powershell.
+  dernieresLignes = lignes;
+  rafraichirOverlay();
+}
+
+// L'overlay recoit une vue REDUITE des memes lignes, jamais l'etat du panneau
+// tel quel: la reduction est ecrite et testee dans src/comptes/overlay.js,
+// hors d'Electron. La page ne decide de rien.
+//
+// Appele au tick d'etat ET a chaque changement de fenetre au premier plan.
+function rafraichirOverlay() {
+  if (overlay === null || overlay.isDestroyed()) return;
+  overlay.webContents.send('etat', {
+    // L'etat d'ENSEMBLE de la colonne « Répl. »: 'tous', 'partiel' ou 'aucun'.
+    // C'est le meme calcul que le losange du titre de colonne, fait ici pour
+    // que les deux fenetres montrent la meme chose sans que la page ait a le
+    // refaire — et sans qu'elles puissent en donner deux versions.
+    repl: etatColonne(dernieresLignes, 'repl'),
+    actif: favoris.actif(),
+    sansMaitre: superviseur.maitre === null,
+    sens: favoris.overlay().sens,
+    // `enAvant` est le pid de la fenetre au premier plan, alimente par les
+    // agents. Il sert a ENCADRER le picto correspondant, jamais a decider qui
+    // commande: voir src/comptes/overlay.js.
+    pictos: pourOverlay(dernieresLignes, superviseur.enAvant),
   });
 }
 
@@ -645,6 +689,107 @@ function creerFenetre() {
   fenetre.removeMenu();
   fenetre.once('ready-to-show', () => fenetre.show());
   fenetre.loadFile(path.join(__dirname, 'index.html'));
+
+  // L'OVERLAY PART AVEC LE PANNEAU. Sans cela, fermer le panneau ne
+  // declencherait pas window-all-closed tant que l'overlay vit: OMNI resterait
+  // en memoire, sans fenetre visible dans la barre des taches — l'overlay est
+  // skipTaskbar — et le relancer donnerait deux instances. Le meme piege que
+  // la fermeture bornee plus bas, par un autre chemin.
+  fenetre.on('closed', () => { fermerOverlay(); });
+}
+
+// --- l'overlay --------------------------------------------------------------
+//
+// Une deuxieme fenetre, sans cadre, posee sur le jeu: un picto de classe par
+// compte EN JEU, et l'interrupteur du replicate. Elle n'invente aucun
+// comportement — basculerVersCompte, definirMaitre et basculerActif sont les
+// ordres du panneau, appeles depuis un autre endroit. C'est ce qui garantit
+// que les deux fenetres ne peuvent pas se contredire.
+//
+// TROIS CHOIX PAYES D'UNE MESURE, faite le 2026-08-29 sur une fenetre d'essai
+// chargee par le binaire packagee (voir la conception):
+//
+//   focusable: false — 12 clics gauches et 8 clics droits recus, tous avec
+//     document.hasFocus() a faux, et pas un evenement 'focus' sur la fenetre.
+//     On peut donc couper le replicate en plein combat sans que Dofus perde la
+//     main. C'est toute la raison d'etre de cette fenetre.
+//
+//   showInactive() plutot que show() — show() donnerait le focus a l'ouverture,
+//     ce que la ligne precedente cherche precisement a eviter.
+//
+//   le deplacement code a la main — le glissement natif (-webkit-app-region)
+//     s'appuie sur le focus et n'a PAS ete verifie dans cet etat; celui-ci l'a
+//     ete, trois glissements enregistres. On garde ce qui est prouve.
+//
+// La taille n'est pas ecrite ici: la barre change de largeur des qu'un client
+// se ferme, et c'est la page qui mesure son propre rendu (canal overlayTaille).
+// Une fenetre plus large que sa barre laisserait une zone transparente qui
+// avale les clics destines au jeu.
+function creerOverlay() {
+  if (overlay !== null && !overlay.isDestroyed()) {
+    overlay.showInactive();
+    return;
+  }
+
+  const place = favoris.overlay();
+  overlay = new BrowserWindow({
+    width: 320,
+    height: 60,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    // Elle n'a pas sa place dans la barre des taches: ce n'est pas une
+    // application de plus, c'est une poignee sur celle-ci.
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    show: false,
+    title: 'OMNI',
+    webPreferences: {
+      preload: path.join(__dirname, 'overlay-preload.js'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      devTools: false,
+    },
+  });
+
+  // 'screen-saver' est le niveau le plus haut qu'Electron expose, le seul qui
+  // ait une chance de tenir au-dessus d'un jeu. Reste a verifier en jeu: c'est
+  // la troisieme inconnue de la conception, encore ouverte. Repli connu si
+  // elle tombe: jouer en fenetre, ce qui est deja le cas en multi-compte.
+  overlay.setAlwaysOnTop(true, 'screen-saver');
+  overlay.removeMenu();
+
+  // La position enregistree, ou le coin haut droit de l'ecran de travail. On
+  // ne retient pas 0,0 par defaut: sur une machine dont on ne connait pas la
+  // definition, ca collerait la barre dans un angle.
+  if (Number.isInteger(place.x) && Number.isInteger(place.y)) {
+    overlay.setPosition(place.x, place.y);
+  } else {
+    const zone = screen.getPrimaryDisplay().workArea;
+    overlay.setPosition(zone.x + zone.width - 360, zone.y + 40);
+  }
+
+  overlay.once('ready-to-show', () => {
+    overlay.showInactive();
+    // Le premier etat ne doit pas attendre le tick de 2 s: la barre resterait
+    // vide au moment ou l'utilisateur vient de cliquer pour l'ouvrir.
+    envoyerEtat();
+  });
+  overlay.on('closed', () => { overlay = null; priseOverlay = null; });
+  overlay.loadFile(path.join(__dirname, 'overlay.html'));
+}
+
+function fermerOverlay() {
+  if (overlay === null || overlay.isDestroyed()) { overlay = null; return; }
+  overlay.destroy();
+  overlay = null;
+  priseOverlay = null;
 }
 
 app.whenReady().then(async () => {
@@ -673,6 +818,15 @@ app.whenReady().then(async () => {
     // des minuteurs Windows — voir la constante, partagee avec le CLI.
     etalementRejeu: ETALEMENT_REJEU,
     onJournal: journal,
+    // L'encadre de l'overlay doit suivre le regard, pas le minuteur. Sans ce
+    // rappel, il n'apparaissait qu'au tick d'etat suivant — jusqu'a deux
+    // secondes de retard, et l'air de ne pas s'actualiser du tout quand on
+    // enchaine les bascules plus vite que ca.
+    //
+    // On ne renvoie QUE l'etat de l'overlay: reconstruire la vue complete
+    // demande un listerClients(), qui passe par powershell. Le faire a chaque
+    // changement de fenetre serait hors de proportion.
+    onEnAvant: () => rafraichirOverlay(),
     transformerEntrant: creerTransformateurFlux({
       reglages: reglagesNoAnim,
       // CRITICAL de revue finale: sans ce predicat, le transformateur ne
@@ -802,6 +956,10 @@ app.whenReady().then(async () => {
   appliquerActif(favoris.actif());
 
   creerFenetre();
+  // L'overlay revient s'il etait ouvert au dernier arret, et seulement dans ce
+  // cas: un ami qui passe de la 0.2.6 a cette version n'a pas la cle dans son
+  // fichier, il ne doit pas voir surgir une fenetre qu'il n'a pas demandee.
+  if (favoris.overlay().ouvert) creerOverlay();
   poserRaccourcis();
   minuteurProcess = setInterval(balayerProcess, PERIODE_PROCESS);
   minuteurVue = setInterval(envoyerEtat, PERIODE_VUE);
@@ -987,6 +1145,94 @@ ipcMain.handle('basculerActif', async (_e, actif) => {
   await envoyerEtat();
 });
 
+// L'ACTION GROUPEE DE LA COLONNE « Répl. », declenchee depuis l'overlay.
+//
+// C'est le MEME geste que le clic sur le titre de colonne dans le panneau: il
+// pose la meme valeur pour tous les comptes affiches, en ecrivant dans les
+// memes cases que les clics individuels. Il n'y a donc aucun second etat
+// cache, et les deux fenetres ne peuvent pas se contredire.
+//
+// La difference avec basculerColonne: la cible n'est pas fournie par le
+// renderer. L'overlay ne tient pas la liste des lignes, et de toute facon le
+// fichier de reglages fait foi — deux clics rapides ne doivent pas partir de
+// deux lectures differentes de l'affichage.
+ipcMain.handle('basculerReplGroupe', async () => {
+  // carteComptes ne porte QUE les comptes affiches qui ont un client en cours
+  // et un identifiant: exactement ceux que l'overlay montre.
+  const ids = [...carteComptes.keys()];
+  if (ids.length === 0) return;
+  await basculerColonneAvec('repl', ids);
+});
+
+// --- les ordres propres a l'overlay -----------------------------------------
+//
+// Aucun de ces canaux ne touche au replicate, au maitre ni aux cases par
+// compte: pour cela l'overlay appelle les canaux DU PANNEAU. Ici on ne regle
+// que la fenetre elle-meme.
+
+// Le bouton de la barre du bas. Il bascule: ouvrir si fermee, fermer sinon.
+ipcMain.handle('basculerOverlay', async () => {
+  if (overlay !== null && !overlay.isDestroyed()) {
+    fermerOverlay();
+    favoris.reglerOverlay({ ouvert: false });
+  } else {
+    favoris.reglerOverlay({ ouvert: true });
+    creerOverlay();
+  }
+  await envoyerEtat();
+});
+
+// La croix de l'overlay. Elle enregistre la fermeture: rouvrir OMNI ne doit
+// pas ramener une fenetre qu'on vient d'ecarter.
+ipcMain.handle('overlayFermer', async () => {
+  fermerOverlay();
+  favoris.reglerOverlay({ ouvert: false });
+  await envoyerEtat();
+});
+
+ipcMain.handle('overlayBasculerSens', async () => {
+  const sens = favoris.overlay().sens === 'vertical' ? 'horizontal' : 'vertical';
+  favoris.reglerOverlay({ sens });
+  await envoyerEtat();
+});
+
+// La taille MESUREE sur la page. On borne ce qui arrive du renderer: il est
+// sandboxe mais reste hors de notre controle, et setBounds accepterait une
+// fenetre de 30 000 px sans broncher.
+ipcMain.handle('overlayTaille', (_e, largeur, hauteur) => {
+  if (overlay === null || overlay.isDestroyed()) return;
+  if (!Number.isFinite(largeur) || !Number.isFinite(hauteur)) return;
+  const l = Math.min(2000, Math.max(60, Math.round(largeur)));
+  const h = Math.min(2000, Math.max(40, Math.round(hauteur)));
+  const [x, y] = overlay.getPosition();
+  overlay.setBounds({ x, y, width: l, height: h });
+});
+
+ipcMain.handle('overlayPrendre', (_e, ecart) => {
+  if (overlay === null || overlay.isDestroyed()) return;
+  if (ecart === null || typeof ecart !== 'object') return;
+  if (!Number.isFinite(ecart.x) || !Number.isFinite(ecart.y)) return;
+  priseOverlay = { dx: ecart.x, dy: ecart.y };
+});
+
+// Appele en continu pendant le glissement. On lit la position REELLE du
+// curseur a l'ecran plutot que celle rapportee par la page: la fenetre bouge
+// sous le curseur, ce qui fausse toute coordonnee relative a elle.
+ipcMain.handle('overlayBouger', () => {
+  if (overlay === null || overlay.isDestroyed() || priseOverlay === null) return;
+  const p = screen.getCursorScreenPoint();
+  overlay.setPosition(Math.round(p.x - priseOverlay.dx), Math.round(p.y - priseOverlay.dy));
+});
+
+// C'est le LACHER qui enregistre, pas chaque mouvement: autrement le fichier
+// de reglages serait reecrit cent fois par glissement.
+ipcMain.handle('overlayLacher', () => {
+  priseOverlay = null;
+  if (overlay === null || overlay.isDestroyed()) return;
+  const [x, y] = overlay.getPosition();
+  favoris.reglerOverlay({ x, y });
+});
+
 // L'ACTION GROUPEE d'un titre de colonne: elle pose la meme valeur pour tous
 // les comptes de la liste. Ce n'est pas un second etat cache, c'est un geste
 // qui ecrit dans les memes cases que les clics individuels.
@@ -997,7 +1243,14 @@ ipcMain.handle('basculerActif', async (_e, actif) => {
 ipcMain.handle('basculerColonne', async (_e, nom, ids) => {
   if (!parNom.has(nom)) return;
   if (!Array.isArray(ids) || !ids.every((n) => Number.isInteger(n))) return;
+  await basculerColonneAvec(nom, ids);
+});
 
+// Le corps est EXTRAIT pour que l'overlay l'appelle aussi, sans que le geste
+// existe en deux copies. Deux copies de cette logique divergeraient un jour, et
+// le titre de colonne et l'overlay se mettraient a faire deux choses
+// differentes sous le meme nom.
+async function basculerColonneAvec(nom, ids) {
   const clients = await clientsRecents();
   const etatDe = (id) => {
     const pid = compteVersPid(id, clients);
@@ -1042,7 +1295,7 @@ ipcMain.handle('basculerColonne', async (_e, nom, ids) => {
     }
   }
   await envoyerEtat();
-});
+}
 
 ipcMain.handle('fermerUnClient', async (_e, idCompte) => {
   if (!Number.isInteger(idCompte)) return;

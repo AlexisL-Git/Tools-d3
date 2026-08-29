@@ -51,8 +51,10 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
   // Depuis les extensions au passe-tour et a l'invitation, le fichier porte
   // aussi passeTour, invitation et delai (vides/nuls ici): voir le test
-  // dedie plus bas pour le contenu complet.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'passeTour', 'touches']);
+  // dedie plus bas pour le contenu complet. `overlay` s'y est ajoute le
+  // 2026-08-29: une position d'ecran, un sens et un booleen, rien qui
+  // designe une personne.
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -103,7 +105,7 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'passeTour', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
@@ -473,4 +475,90 @@ test('les entrees qui ne sont pas des chaines sont ecartees', (t) => {
   const chemin = fichierTemporaire(t);
   fs.writeFileSync(chemin, JSON.stringify({ combats: ['ioy:1', 42, null, 'iwo:2'] }), 'utf8');
   assert.deepStrictEqual(new Favoris(chemin).charger().combats(), ['ioy:1', 'iwo:2']);
+});
+
+// --- l'overlay -------------------------------------------------------------
+//
+// La petite fenetre flottante retient trois choses: si elle etait ouverte, son
+// sens, et ou elle etait posee. Rien d'autre, et rien qui touche aux reglages
+// PAR COMPTE: les amis qui passeront a cette version gardent leurs cases.
+
+test('sans fichier, l overlay est fermé, horizontal, sans position', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  assert.deepStrictEqual(f.overlay(), { ouvert: false, sens: 'horizontal', x: null, y: null });
+});
+
+test('un réglage d overlay survit à un rechargement', (t) => {
+  const p = fichierTemporaire(t);
+  const a = new Favoris(p);
+  a.charger();
+  a.reglerOverlay({ ouvert: true, sens: 'vertical', x: 803, y: 458 });
+
+  const b = new Favoris(p);
+  b.charger();
+  assert.deepStrictEqual(b.overlay(), { ouvert: true, sens: 'vertical', x: 803, y: 458 });
+});
+
+// Un reglage partiel ne doit pas effacer les autres: la position est ecrite a
+// chaque lacher de souris, le sens seulement quand on bascule.
+test('un réglage partiel garde ce qui n est pas mentionné', (t) => {
+  const p = fichierTemporaire(t);
+  const f = new Favoris(p);
+  f.charger();
+  f.reglerOverlay({ ouvert: true, sens: 'vertical', x: 10, y: 20 });
+  f.reglerOverlay({ x: 300, y: 400 });
+  assert.deepStrictEqual(f.overlay(), { ouvert: true, sens: 'vertical', x: 300, y: 400 });
+});
+
+// Meme discipline que le reste du fichier: on ne retient que ce dont on
+// connait la forme, et une valeur douteuse retombe sur le defaut plutot que de
+// faire echouer le chargement.
+test('un sens inconnu retombe sur horizontal', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({ overlay: { sens: 'diagonal', ouvert: true } }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.strictEqual(f.overlay().sens, 'horizontal');
+  assert.strictEqual(f.overlay().ouvert, true);
+});
+
+test('une position qui n est pas entière est ignorée', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({ overlay: { x: 'gauche', y: 12.5 } }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.strictEqual(f.overlay().x, null);
+  assert.strictEqual(f.overlay().y, null);
+});
+
+test('une clé overlay d un mauvais type est ignorée', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({ overlay: 'oui' }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.deepStrictEqual(f.overlay(), { ouvert: false, sens: 'horizontal', x: null, y: null });
+});
+
+// Le fichier d'un ami en 0.2.6 n'a pas cette cle. Il ne doit rien perdre.
+test('un fichier sans clé overlay garde ses réglages par compte', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({
+    invitation: [167399627, 165868513], maitre: 167399627, actif: true,
+    touches: { 167399627: 'F2' },
+  }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.strictEqual(f.invitationActive(167399627), true);
+  assert.strictEqual(f.maitre(), 167399627);
+  assert.deepStrictEqual(f.overlay(), { ouvert: false, sens: 'horizontal', x: null, y: null });
+});
+
+// Ce que rend overlay() ne doit pas etre l'objet interne: le modifier de
+// l'exterieur changerait le reglage sans passer par l'ecriture du fichier.
+test('overlay() rend une copie', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  f.overlay().sens = 'vertical';
+  assert.strictEqual(f.overlay().sens, 'horizontal');
 });
