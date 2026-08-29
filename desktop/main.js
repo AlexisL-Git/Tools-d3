@@ -9,6 +9,7 @@ const { creerGardeCombat } = require('../src/garde-combat');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
+const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/songes');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
@@ -241,7 +242,7 @@ async function clientsRecents() {
 
 let minuteurProcess = null;
 let minuteurVue = null;
-// Ces quatre objets sont relus a chaque trame par les politiques: modifier le
+// Ces cinq objets sont relus a chaque trame par les politiques: modifier le
 // champ suffit, sans rien reconstruire.
 //
 // LEUR `actif` NE SE REGLE PLUS UN PAR UN. Les cinq interrupteurs generaux ont
@@ -253,6 +254,7 @@ const reglagesPasseTour = { actif: false, delaiMs: 0 };
 const reglagesInvitation = { actif: false };
 const reglagesNoAnim = { actif: false };
 const reglagesEchange = { actif: false };
+const reglagesSonge = { actif: false };
 
 // Suspendre n'efface rien: les cases par compte restent ou elles sont, et on
 // reprend exactement dans l'etat d'avant.
@@ -263,6 +265,7 @@ function appliquerActif(actif) {
   reglagesInvitation.actif = v;
   reglagesNoAnim.actif = v;
   reglagesEchange.actif = v;
+  reglagesSonge.actif = v;
 }
 
 const DEPART = Date.now();
@@ -767,6 +770,25 @@ app.whenReady().then(async () => {
         else journal(pid, `echange : ${raison}`);
       },
     }),
+    creerAccepteurSonge({
+      superviseur,
+      reglages: reglagesSonge,
+      delai: DELAI_SONGE,
+      onCompteRendu: ({ pid, ok, raison, retardMs }) => {
+        if (ok) journal(pid, `songe : invitation acceptee apres ${retardMs} ms`);
+        else journal(pid, `songe : ${raison}`);
+        // journal() ne s'ecrit que sous OMNI_JOURNAL=complet: en usage normal
+        // ni le succes ni le refus n'y seraient jamais vus. `messages` est le
+        // canal qui atterrit dans le panneau, sur la ligne du compte -- les
+        // deux sont complementaires, ni l'un ni l'autre ne remplace l'autre.
+        //
+        // Cette Map est PARTAGEE avec le duplicateur (rejeu, plus haut): un
+        // refus de songe peut donc ecraser brievement un refus de rejeu
+        // affiche sur la meme ligne. Accepte, parce que les songes sont rares.
+        if (ok) messages.delete(pid);
+        else messages.set(pid, raison);
+      },
+    }),
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -775,7 +797,7 @@ app.whenReady().then(async () => {
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
   );
 
-  // L'etat enregistre de l'interrupteur unique, applique aux cinq politiques
+  // L'etat enregistre de l'interrupteur unique, applique aux six politiques
   // d'un coup.
   appliquerActif(favoris.actif());
 

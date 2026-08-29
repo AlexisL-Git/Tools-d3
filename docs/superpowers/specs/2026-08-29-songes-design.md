@@ -91,21 +91,40 @@ Constantes du module :
 | `TYPE_INVITATION` | `'iyd'` | événement entrant : l'invitation reçue par la mule |
 | `URL_ACCEPTATION` | `type.ankama.com/ixk` | la requête d'acceptation |
 | `TRAME_ACCEPTATION` | constante | `ixk { 1: 1 }`, construite une fois par `encodeRaw` |
-| `FENETRE_SONGE` | 10 000 ms | durée de validité d'un `ixf` pour autoriser une acceptation |
-| `DELAI_REACTION` | réutilisé de `echange.js` (150–600 ms) | délai de réaction humaine |
+| `TYPE_ACCEPTATION` | `'ixk'` | requête sortante : un de nos clients rejoint (ou accepte) un songe |
+| `FENETRE_SONGE` | 2 000 ms | durée de validité d'un `ixf`/`ixk` pour autoriser une acceptation |
+| `DELAI_REACTION` | 150–600 ms, **redéfini** dans `songes.js` | délai de réaction humaine |
 
-`FENETRE_SONGE` est large devant les 34 ms mesurés : elle absorbe un serveur lent sans
-ouvrir une fenêtre où une invitation étrangère aurait des chances d'être confondue.
+`FENETRE_SONGE` valait 10 000 ms, large devant les 34 ms mesurés. **Révisée à 2 000 ms**
+(décision utilisateur du 29/08, après la première mesure en jeu) : le songe est une
+activité de **groupe** — si un autre joueur lance son propre songe peu après le nôtre, la
+trame d'acceptation `ixk { 1: 1 }` ne désigne aucune invitation en particulier et
+accepterait la sienne à la place. 2 000 ms laisse encore 60 fois la marge mesurée tout en
+réduisant d'autant ce risque de collision.
+
+`DELAI_REACTION` n'est **pas** réutilisé de `echange.js` : `songes.js` le redéfinit
+localement, à l'identique (150–600 ms), pour ne pas dépendre d'un autre module de
+politique.
 
 ## Flux
 
-1. `ixf` sortant d'un client piloté → on note l'instant, pour n'importe lequel de nos
-   clients : c'est l'application qui pilote, la notion de maître n'entre pas ici.
+1. `ixf` **ou `ixk`** sortant d'un client piloté → on note l'instant, pour n'importe lequel
+   de nos clients : c'est l'application qui pilote, la notion de maître n'entre pas ici.
+   **`ixk` arme aussi** (ajout du 29/08, décision utilisateur) : REJOINDRE le songe d'un
+   autre ne passe pas par `ixf` — seul celui qui LANCE l'émet — donc sans cette entrée, les
+   mules d'un utilisateur qui rejoint (plutôt que lance) un songe refuseraient toujours de
+   le suivre. Pas de risque de boucle : les trames qu'OMNI injecte via
+   `superviseur.emettre()` sont écrites directement sur la socket amont et ne repassent pas
+   par l'écoute qui alimente `onTrame`.
 2. `iyd` entrant sur un client :
    - réglage éteint → **refus explicite** `songe ignoré : interrupteur éteint`. Corrigé
      après relecture : `src/echange.js` rend bien un refus dans ce cas, et la règle du
      projet est qu'aucun chemin ne mène au silence ;
-   - aucun `ixf` récent → **refus**, compte rendu `songe ignoré : aucun lancement de songe de nos clients` ;
+   - compte inconnu du superviseur → **refus**, `songe ignoré : compte inconnu du
+     superviseur` ;
+   - aucun `ixf`/`ixk` récent → **refus**, compte rendu `songe refusé : aucun lancement de
+     songe par nos clients` (le code dit bien *refusé*, pas *ignoré* : c'est une décision
+     active, pas un silence) ;
    - sinon → on planifie l'envoi de `TRAME_ACCEPTATION` après un tirage dans `DELAI_REACTION`.
 3. À l'échéance, on relit l'état : réglage toujours actif, client toujours présent, et
    **identité de l'objet d'état inchangée** — même garde que `src/echange.js` et
@@ -120,6 +139,14 @@ Aucun chemin ne mène au silence, sauf le réglage éteint. Un refus est toujour
 journalisée sous `OMNI_JOURNAL=complet`. C'est le mode d'échec le plus coûteux du projet
 — une chose qui « ne fait rien » sans que rien ne le relie à sa cause — et il s'est déjà
 présenté quatre fois.
+
+**Le compte rendu passe par la Map `messages`** (`desktop/main.js`), pas seulement par
+`journal()` — qui ne s'écrit que sous `OMNI_JOURNAL=complet`, donc jamais en usage normal.
+Sur refus, `messages.set(pid, raison)` ; sur succès, `messages.delete(pid)`. C'est cette Map
+qui s'affiche sur la ligne du compte dans le panneau ; les deux canaux sont complémentaires.
+Elle est partagée avec le duplicateur (rejeu) : un refus de songe peut donc écraser
+brièvement un refus de rejeu affiché sur la même ligne, accepté parce que les songes sont
+rares.
 
 ## Interface
 
