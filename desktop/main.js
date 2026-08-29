@@ -9,6 +9,7 @@ const { creerGardeCombat } = require('../src/garde-combat');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
+const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/songes');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
@@ -253,6 +254,7 @@ const reglagesPasseTour = { actif: false, delaiMs: 0 };
 const reglagesInvitation = { actif: false };
 const reglagesNoAnim = { actif: false };
 const reglagesEchange = { actif: false };
+const reglagesSonge = { actif: false };
 
 // Suspendre n'efface rien: les cases par compte restent ou elles sont, et on
 // reprend exactement dans l'etat d'avant.
@@ -263,6 +265,7 @@ function appliquerActif(actif) {
   reglagesInvitation.actif = v;
   reglagesNoAnim.actif = v;
   reglagesEchange.actif = v;
+  reglagesSonge.actif = v;
 }
 
 const DEPART = Date.now();
@@ -765,6 +768,15 @@ app.whenReady().then(async () => {
       onCompteRendu: ({ pid, ok, raison, validation, retardMs }) => {
         if (ok) journal(pid, `echange : ${validation ? 'valide' : 'accepte'} apres ${retardMs} ms`);
         else journal(pid, `echange : ${raison}`);
+      },
+    }),
+    creerAccepteurSonge({
+      superviseur,
+      reglages: reglagesSonge,
+      delai: DELAI_SONGE,
+      onCompteRendu: ({ pid, ok, raison, retardMs }) => {
+        if (ok) journal(pid, `songe : invitation acceptee apres ${retardMs} ms`);
+        else journal(pid, `songe : ${raison}`);
       },
     }),
     noterTrafic(),
