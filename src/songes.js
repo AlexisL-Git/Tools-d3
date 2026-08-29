@@ -7,10 +7,24 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // lance par le maitre et accepte A LA MAIN sur la mule. Detail dans
 // docs/superpowers/specs/2026-08-29-songes-design.md.
 //
-//   out request ixf { 1: {...} }   le maitre lance le songe
+//   out request ixf { 2: {...} }   le maitre lance le songe
 //   in  event   iyd { 1: <2o>, 2: -300 }   l'invitation, chez la mule
 //   out request ixk { 1: 1 }       l'acceptation
 //   in  event   jru { 2: carte }   la mule arrive dans le songe du maitre
+//
+// VERIFIE EN JEU le 29/08 a 22:24, APRES le correctif — ce sont les lignes
+// d'un vrai songe, maitre 29428 et mule 25460, pas un test:
+//
+//   1363493ms [29428] --> request ixf { 2={...} }        le maitre lance
+//   1363527ms [29428] <-- event   jru { 2=237897728 }    il arrive dans le songe
+//   1363529ms [25460] <-- event   iyd { 1=<2o> 2=-300 }  l'invitation, 2 ms apres
+//   1363777ms [25460] songe : invitation acceptee apres 236 ms
+//   1363806ms [25460] <-- event   jru { 2=237897728 }    LA MULE ARRIVE
+//
+// La carte de la mule est LA MEME que celle du maitre, et c'est le SERVEUR qui
+// l'envoie: l'acceptation fabriquee ici est donc acceptee. Les deux hypotheses
+// que le design portait sont levees — `iyd` EST l'invitation, et les octets de
+// `ixk` sont les bons.
 //
 // LA MULE N'A PAS BESOIN D'ENTRER DANS LA ZONE. Mesure: son rejeu de `iwo` a
 // ete REFUSE (elle ne connaissait pas son skillInstanceUid pour l'element
