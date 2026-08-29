@@ -3,9 +3,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { MESSAGES, lookup, lookupByName, needsRewrite, accountFields, estRejouable } = require('../src/protocol/omni');
 
-test('les neuf types répliqués sont présents', () => {
-  assert.strictEqual(Object.keys(MESSAGES).length, 9);
-  for (const k of ['hjc', 'jqk', 'jrh', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw']) {
+test('les dix types répliqués sont présents', () => {
+  assert.strictEqual(Object.keys(MESSAGES).length, 10);
+  for (const k of ['hjc', 'jqk', 'jrh', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw', 'kea']) {
     assert.notStrictEqual(lookup(k), null, `${k} manquant`);
   }
 });
@@ -72,7 +72,7 @@ test('chaque champ déclare sa nature et son niveau de preuve', () => {
 test('le changement de carte est répertorié mais jamais rejoué', () => {
   assert.notStrictEqual(lookup('jqk'), null, 'la mesure reste documentée');
   assert.strictEqual(estRejouable('jqk'), false);
-  for (const k of ['hjc', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw']) {
+  for (const k of ['hjc', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw', 'kea']) {
     assert.strictEqual(estRejouable(k), true, k);
   }
   assert.strictEqual(estRejouable('inconnu'), null, 'un type hors table ne se juge pas');
@@ -93,4 +93,44 @@ test('le changement de carte est répertorié mais jamais rejoué', () => {
 test('la demande d infos de carte est répertoriée mais jamais rejouée', () => {
   assert.notStrictEqual(lookup('jrh'), null, 'la mesure reste documentée');
   assert.strictEqual(estRejouable('jrh'), false);
+});
+
+// MESURE du 29/08, deux sessions (17:41 et 19:58 locales), memes deux clients,
+// meme marchand (npcId -20000, carte 192413696). L'utilisateur a achete un
+// Lailait a 4 kamas au marchand, puis une Graine de Sesame a 67 kamas a
+// l'hotel de vente, dans la MEME session — de quoi comparer les deux achats
+// sur le meme serveur a deux minutes d'ecart.
+//
+//   MARCHAND PNJ
+//     --> iov { 1=1 2=192413696 3=-20000 }    ouvre la boutique
+//         rejeu iov ecrit (+272 ms)           la boutique s'ouvre chez la mule
+//     --> kea { 1=6765 2=1 }                  L'ACHAT
+//     <-- ivf { 1=3941470 }                   3941474 -> 3941470, soit -4 kamas
+//
+//   HOTEL DE VENTE
+//     --> iwo { 1=22985 2=515220 }            ouvre l'HDV: un ELEMENT, pas un PNJ
+//         rejeu iwo refuse : manque skillInstanceUid
+//     --> kbm { 1=1116 2=67 3=1 }             L'ACHAT, avec le prix en champ 2
+//     <-- ivf { 1=3941403 }                   3941470 -> 3941403, soit -67 kamas
+//
+// Les deux prix collent au kama pres, ce qui identifie chaque message sans
+// ambiguite. `kea` et `kbm` sont DEUX TYPES DISTINCTS.
+//
+// C'EST CE QUI REND LA DEMANDE REALISABLE SANS UNE LIGNE DE CONDITION.
+// L'utilisateur veut que ses mules achetent au marchand mais JAMAIS a l'HDV.
+// Comme l'HDV a son propre type, il suffit de ne pas le repertorier: ce qui
+// n'est pas dans la table n'est jamais rejoue (src/duplicateur.js). La
+// contrainte est tenue par une ABSENCE, pas par une regle qu'on pourrait
+// oublier d'appliquer.
+//
+// Ce test garde donc les deux moities: `kea` present, `kbm` absent. Ajouter
+// `kbm` un jour ferait acheter les mules a l'HDV — le test le dira.
+test('l achat au marchand est répliqué, celui de l hôtel de vente n existe pas dans la table', () => {
+  assert.notStrictEqual(lookup('kea'), null, 'kea: achat au marchand PNJ');
+  assert.strictEqual(estRejouable('kea'), true);
+  assert.strictEqual(needsRewrite('kea'), false, 'ni identifiant de personnage ni uid de session');
+  assert.deepStrictEqual(accountFields('kea'), []);
+
+  assert.strictEqual(lookup('kbm'), null, "l'achat en HDV ne doit JAMAIS entrer dans la table");
+  assert.strictEqual(estRejouable('kbm'), null, 'hors table: ni connu, ni juge');
 });
