@@ -8,6 +8,14 @@ const { connectAgentSource } = require('./il2cpp/connectAgent');
 const { Comptes } = require('./protocol/compte');
 const { lookup, needsRewrite } = require('./protocol/omni');
 
+// Delai avant d'admettre que plus AUCUNE fenetre de client n'est devant.
+//
+// Les agents sondent le premier plan toutes les 250 ms, chacun de son cote.
+// En passant d'un client a l'autre, le depart de l'un arrive donc jusqu'a un
+// tour de sondage avant l'arrivee de l'autre. Attendre un peu plus qu'un tour
+// evite d'afficher « personne n'est devant » a chaque bascule.
+const DELAI_EFFACEMENT_AVANT = 400;
+
 // Pilote 1 a 8 clients Dofus simultanes.
 //
 // Un proxy PAR client, chacun sur son propre port: la ligne CONNECT ne dit pas
@@ -54,17 +62,28 @@ class Superviseur {
   constructor({
     onTrame = () => {}, onJournal = () => {}, arme = false, transformerEntrant = null,
     etalementRejeu = null, alea = Math.random, planifier = setTimeout, onSouris = () => {},
+    onEnAvant = () => {},
   } = {}) {
     this.comptes = new Comptes();
     this.clients = new Map();
     this.maitre = null;
-    // Le dernier client qu'on a REELLEMENT mis au premier plan, confirme par
-    // son agent. Ce n'est pas « qui est devant »: personne ne le surveille
-    // plus.
+    // Le client dont la fenetre est devant, tel que son propre agent le
+    // rapporte. Depuis le 2026-08-29 la surveillance est de nouveau allumee
+    // (reportFocus), pour que l'overlay encadre la fenetre ou l'on est.
     //
     // IL NE DECERNE RIEN. Le maitre est epingle: confondre le focus et le
     // commandement est exactement ce qu'on a retire.
     this.enAvant = null;
+    // Prevenu a chaque CHANGEMENT de enAvant, jamais a chaque message.
+    //
+    // Sans lui, l'encadre de l'overlay n'apparaissait qu'au tick d'etat
+    // suivant: jusqu'a deux secondes de retard, et l'impression qu'il ne
+    // s'actualise pas quand on enchaine les bascules plus vite que ca.
+    this.onEnAvant = onEnAvant;
+    // Compteur de generation, incremente a chaque pose. Il sert a abandonner
+    // un effacement differe que les evenements ont depasse: voir
+    // _effacerPlusTard.
+    this._genEnAvant = 0;
     this.arme = arme;
     this.onTrame = onTrame;
     this.onJournal = onJournal;
@@ -165,17 +184,24 @@ class Superviseur {
       proxyPort: client.port,
       onlyPorts: [],           // tout sauf les exclusions
       excludePorts: [26116],   // le launcher Ankama: le detourner coupe la session
-      // La surveillance du premier plan est DE NOUVEAU eteinte, et cette fois
-      // plus rien n'en depend. Elle etait revenue pour dire d'ou partait
-      // « personnage suivant »; ce raccourci a disparu avec le cycle de
-      // navigation -- chaque compte a desormais sa propre touche ou son
-      // propre bouton de souris, qui vise le client voulu directement, sans
-      // avoir besoin de savoir lequel etait devant.
+      // RALLUMEE le 2026-08-29, pour l'overlay. Elle avait ete eteinte quand
+      // le cycle « personnage suivant » a disparu: plus personne ne demandait
+      // d'ou l'on partait, et une boucle setInterval de 250 ms tournait A
+      // L'INTERIEUR de chaque client Dofus pour repondre a une question qu'on
+      // ne posait plus. Ce cout n'a pas change, il est simplement redevenu
+      // justifie: l'overlay encadre le picto de la fenetre devant laquelle on
+      // est, et rien d'autre ne peut le savoir. Un sondage depuis le
+      // superviseur devrait interroger le systeme au lieu d'etre notifie du
+      // changement, ce qui coute plus cher pour un resultat moins juste.
       //
-      // Ce que ca economise n'est pas symbolique: une boucle setInterval de
-      // 250 ms tournait A L'INTERIEUR de chaque client Dofus, uniquement pour
-      // repondre a une question qu'on ne pose plus.
-      reportFocus: false,
+      // L'agent ne parle QUE sur changement, pas a chaque tour de boucle.
+      //
+      // Ce que ca ne fait PAS: decerner le commandement. `premierPlan`
+      // alimente `enAvant`, jamais `maitre` -- c'est le gestionnaire de
+      // _recevoirMessageAgent qui le garantit, et un test le couvre. Le focus
+      // a decerne le role de maitre pendant tout un temps, et cliquer sur un
+      // alt envoyait ses actions a toute l'equipe.
+      reportFocus: true,
     }));
     client.script.message.connect((m) => {
       if (m.type === 'error') return this.journal(pid, `agent: ${m.description}`);
@@ -390,14 +416,48 @@ class Superviseur {
   // a toute l'equipe. enAvant est ecrit ici et remis a null a la deconnexion
   // (retirer()), mais rien d'autre ne le lit: plus aucun consommateur ne s'en
   // sert. Le gestionnaire reste, garde par prudence -- un test le couvre.
+  // Ecrit enAvant et ne previent QUE si la valeur a change. Les agents parlent
+  // deja sur changement, mais deux clients se croisent a chaque bascule —
+  // l'ancien annonce qu'il part, le nouveau qu'il arrive — et sans ce filtre
+  // l'overlay serait redessine deux fois pour un seul mouvement.
+  //
+  // Toute pose ANNULE un effacement en attente, par le jeton de generation.
+  _poserEnAvant(pid) {
+    this._genEnAvant += 1;
+    if (this.enAvant === pid) return;
+    this.enAvant = pid;
+    try { this.onEnAvant(pid); } catch (e) { /* un affichage ne casse pas le suivi */ }
+  }
+
+  // L'EFFACEMENT EST DIFFERE, et c'est ce qui evite le clignotement.
+  //
+  // En passant du client A au client B, A annonce son depart avant que B
+  // n'annonce son arrivee: les deux sondages tournent chacun de leur cote,
+  // toutes les 250 ms, sans se concerter. Effacer tout de suite laisserait
+  // « personne n'est devant » pendant un quart de seconde a chaque bascule.
+  //
+  // On attend donc un tour de sondage complet. Si quelqu'un se declare devant
+  // entre-temps, le jeton de generation a change et l'effacement est abandonne.
+  _effacerPlusTard(pid) {
+    const gen = this._genEnAvant;
+    this.planifier(() => {
+      if (gen !== this._genEnAvant) return;   // quelqu'un a parle depuis
+      if (this.enAvant !== pid) return;
+      this._poserEnAvant(null);
+    }, DELAI_EFFACEMENT_AVANT);
+  }
+
   _recevoirMessageAgent(pid, p, port) {
     if (p.premierPlan !== undefined) {
-      if (p.premierPlan) this.enAvant = pid;
-      else if (this.enAvant === pid) this.enAvant = null;
+      // L'ORDRE D'ARRIVEE N'EST PAS GARANTI. Quand on passe de A a B, le
+      // « je pars » de A peut arriver apres le « j'arrive » de B. On n'efface
+      // donc que si c'est bien le client courant qui annonce son depart.
+      if (p.premierPlan) this._poserEnAvant(pid);
+      else if (this.enAvant === pid) this._effacerPlusTard(pid);
       return;
     }
     if (p.premierPlanFait !== undefined) {
-      if (p.premierPlanFait) this.enAvant = pid;
+      if (p.premierPlanFait) this._poserEnAvant(pid);
       else this.journal(pid, 'bascule de fenetre sans effet');
       return;
     }
@@ -481,7 +541,7 @@ class Superviseur {
     // fermer.
     this._annulerRejeuxPid(pid);
     if (this.maitre === pid) this.maitre = null;
-    if (this.enAvant === pid) this.enAvant = null;
+    if (this.enAvant === pid) this._poserEnAvant(null);
     await (c.script ? c.script.unload().catch(() => {}) : Promise.resolve());
     await (c.session ? c.session.detach().catch(() => {}) : Promise.resolve());
     await (c.proxy ? c.proxy.close().catch(() => {}) : Promise.resolve());

@@ -601,9 +601,10 @@ test('sans maître, le duplicateur ne rejoue chez personne', () => {
 // deux est exactement ce qui faisait partir les actions d'un alt chez toute
 // l'equipe des qu'on cliquait sa fenetre.
 //
-// Le superviseur ne DEMANDE plus cette surveillance (reportFocus est eteint),
-// mais le gestionnaire reste: l'option existe toujours, et si elle est
-// rallumee un jour elle ne doit surtout pas se remettre a decerner le
+// Le superviseur redemande cette surveillance depuis le 2026-08-29
+// (reportFocus est rallume), pour que l'overlay encadre la fenetre devant
+// laquelle on est. C'est exactement le « si elle est rallumee un jour » que ce
+// test attendait: elle ne doit surtout pas se remettre a decerner le
 // commandement.
 //
 // L'assertion porte desormais sur le COMPORTEMENT et non sur le source: elle
@@ -618,14 +619,21 @@ test('le premier plan alimente enAvant, jamais le rôle de maître', () => {
   assert.strictEqual(s.maitre, 2, 'le maître épinglé ne doit pas bouger');
 });
 
+// L'effacement est DIFFERE depuis le 2026-08-29 — voir _effacerPlusTard — mais
+// ce qu'il protege n'a pas change: quitter une fenetre ne touche pas au maitre,
+// ni avant l'echeance ni apres.
 test('quitter le premier plan efface le point de départ, sans toucher au maître', () => {
-  const s = superviseurAvecComptes([1, 2]);
+  const differes = [];
+  const s = new Superviseur({ planifier: (fn) => { differes.push(fn); return null; } });
+  for (const pid of [1, 2]) s.comptes.ajouter({ pid, port: 8300 + pid });
   s.maitre = 2;
   s._recevoirMessageAgent(1, { premierPlan: true });
   s._recevoirMessageAgent(1, { premierPlan: false });
+  assert.strictEqual(s.maitre, 2, 'avant l échéance');
 
+  for (const f of differes.splice(0)) f();
   assert.strictEqual(s.enAvant, null);
-  assert.strictEqual(s.maitre, 2);
+  assert.strictEqual(s.maitre, 2, 'après l échéance');
 });
 
 // --- bascule de fenetre ----------------------------------------------------
@@ -734,4 +742,118 @@ test('un client sans script ne fait pas lever reglerSouris, ni journaliser', () 
   s.clients.set(2, { pid: 2, script: null });
   assert.doesNotThrow(() => s.reglerSouris(true));
   assert.deepStrictEqual(lignes, [], 'un client sans script ne doit produire aucune ligne de journal');
+});
+
+// --- le rappel de changement de fenetre -------------------------------------
+//
+// L'overlay encadre le picto de la fenetre devant laquelle on est. Sans ce
+// rappel il n'apprenait le changement qu'au tick d'etat suivant: jusqu'a deux
+// secondes de retard, et l'air de ne pas s'actualiser du tout quand on
+// enchaine les bascules plus vite que ca.
+
+// `planifier` capture au lieu d'attendre: l'effacement differe se teste sans
+// dormir 400 ms, et on choisit le moment ou il tombe.
+function superviseurQuiNote(pids) {
+  const vus = [];
+  const differes = [];
+  const s = new Superviseur({
+    onEnAvant: (pid) => vus.push(pid),
+    planifier: (fn) => { differes.push(fn); return null; },
+  });
+  for (const pid of pids) s.comptes.ajouter({ pid, port: 8300 + pid });
+  return { s, vus, differes, echeance: () => { for (const f of differes.splice(0)) f(); } };
+}
+
+test('un changement de fenêtre prévient tout de suite', () => {
+  const { s, vus } = superviseurQuiNote([1, 2]);
+  s._recevoirMessageAgent(1, { premierPlan: true });
+  assert.deepStrictEqual(vus, [1]);
+});
+
+// Les agents ne parlent que sur changement, mais rien n'empeche un doublon.
+// Redessiner l'overlay pour une valeur identique est du travail pour rien.
+test('deux fois la même fenêtre ne prévient qu une fois', () => {
+  const { s, vus } = superviseurQuiNote([1, 2]);
+  s._recevoirMessageAgent(1, { premierPlan: true });
+  s._recevoirMessageAgent(1, { premierPlan: true });
+  assert.deepStrictEqual(vus, [1]);
+});
+
+// L'EFFACEMENT EST DIFFERE. Les agents sondent chacun de leur cote toutes les
+// 250 ms: en passant de 1 a 2, le depart de 1 arrive jusqu'a un tour de
+// sondage avant l'arrivee de 2. Effacer tout de suite afficherait « personne
+// n'est devant » a chaque bascule.
+test('quitter une fenêtre n efface pas tout de suite', () => {
+  const { s, vus } = superviseurQuiNote([1, 2]);
+  s._recevoirMessageAgent(1, { premierPlan: true });
+  s._recevoirMessageAgent(1, { premierPlan: false });
+  assert.strictEqual(s.enAvant, 1, 'rien ne doit bouger avant l échéance');
+  assert.deepStrictEqual(vus, [1]);
+});
+
+test('sans personne d autre, l échéance efface bien', () => {
+  const { s, vus, echeance } = superviseurQuiNote([1, 2]);
+  s._recevoirMessageAgent(1, { premierPlan: true });
+  s._recevoirMessageAgent(1, { premierPlan: false });
+  echeance();
+  assert.strictEqual(s.enAvant, null);
+  assert.deepStrictEqual(vus, [1, null]);
+});
+
+// LE CROISEMENT, et c'est le cas qui eteignait l'encadre. En passant de 1 a 2,
+// le « je pars » de 1 arrive avant ou apres le « j'arrive » de 2, sans ordre
+// garanti. Dans les deux sens, l'encadre doit finir sur 2.
+test('une arrivée avant l échéance annule l effacement', () => {
+  const { s, vus, echeance } = superviseurQuiNote([1, 2]);
+  s._recevoirMessageAgent(1, { premierPlan: true });
+  s._recevoirMessageAgent(1, { premierPlan: false });
+  s._recevoirMessageAgent(2, { premierPlan: true });
+  echeance();
+  assert.strictEqual(s.enAvant, 2, 'la fenêtre arrivée depuis doit rester');
+  assert.deepStrictEqual(vus, [1, 2], 'aucun passage par « personne »');
+});
+
+test('le départ d une fenêtre déjà remplacée n efface rien', () => {
+  const { s, vus, echeance } = superviseurQuiNote([1, 2]);
+  s._recevoirMessageAgent(1, { premierPlan: true });
+  s._recevoirMessageAgent(2, { premierPlan: true });
+  s._recevoirMessageAgent(1, { premierPlan: false });
+  echeance();
+  assert.strictEqual(s.enAvant, 2, 'la fenêtre courante doit rester');
+  assert.deepStrictEqual(vus, [1, 2]);
+});
+
+// Une bascule confirmee APRES coup doit aussi annuler l'effacement en attente:
+// c'est le cas de la reponse differee de l'agent, qui met 150 ms a arriver.
+test('une bascule confirmée tardivement annule l effacement', () => {
+  const { s, vus, echeance } = superviseurQuiNote([1, 2]);
+  s._recevoirMessageAgent(1, { premierPlan: true });
+  s._recevoirMessageAgent(1, { premierPlan: false });
+  s._recevoirMessageAgent(2, { premierPlanFait: true });
+  echeance();
+  assert.strictEqual(s.enAvant, 2);
+  assert.deepStrictEqual(vus, [1, 2]);
+});
+
+// La bascule demandee par OMNI passe par premierPlanFait, pas par premierPlan.
+test('une bascule confirmée prévient aussi', () => {
+  const { s, vus } = superviseurQuiNote([1, 2]);
+  s._recevoirMessageAgent(2, { premierPlanFait: true });
+  assert.strictEqual(s.enAvant, 2);
+  assert.deepStrictEqual(vus, [2]);
+});
+
+test('une bascule sans effet ne prévient personne', () => {
+  const { s, vus } = superviseurQuiNote([1, 2]);
+  s._recevoirMessageAgent(2, { premierPlanFait: false });
+  assert.deepStrictEqual(vus, []);
+  assert.strictEqual(s.enAvant, null);
+});
+
+// Un rappel qui leve ne doit pas emporter le suivi: c'est un affichage.
+test('un rappel qui lève ne casse pas le suivi', () => {
+  const s = new Superviseur({ onEnAvant: () => { throw new Error('boum'); } });
+  s.comptes.ajouter({ pid: 1, port: 8301 });
+  assert.doesNotThrow(() => s._recevoirMessageAgent(1, { premierPlan: true }));
+  assert.strictEqual(s.enAvant, 1);
 });
