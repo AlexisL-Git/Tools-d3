@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.2.7",
+    "le": "2026-08-31",
+    "notes": [
+      "Une barre flottante posée sur le jeu : une icône par compte en jeu, et l'interrupteur du replicate à portée de clic.",
+      "Basculer vers un compte, par la barre ou par F2 à F5, donne enfin le clavier et la souris : plus besoin de cliquer dans la fenêtre.",
+      "Les achats chez un marchand PNJ sont répliqués sur les autres comptes. L'hôtel de vente reste volontairement à l'écart.",
+      "Les autres comptes acceptent seuls l'invitation à un Songe lancé depuis l'un des tiens."
+    ]
+  },
+  {
     "version": "0.2.6",
     "le": "2026-08-28",
     "notes": [
