@@ -204,3 +204,25 @@ test('le source reste du JavaScript valide avec le bloc souris', () => {
   const src = connectAgentSource({ proxyPort: 8105, fakeDeviceId: 'abc', neutralizeCache: true });
   assert.doesNotThrow(() => new Function(src));
 });
+
+// AttachThreadInput lie la file d'entree du fil QUI APPELLE. Or l'appelant
+// n'est pas le fil qui possede la fenetre du jeu: c'est celui de Frida, un fil
+// de plus dans le process. Attacher le fil de la fenetre ne donne donc aucun
+// droit a l'appel qui suit, SetForegroundWindow est refuse, et BringWindowToTop
+// remonte quand meme la fenetre dans l'ordre d'affichage: elle a l'air d'etre
+// venue devant alors que le clavier et la souris sont restes sur l'autre
+// client, jusqu'a ce qu'on clique dedans.
+//
+// MESURE DU 2026-08-31, banc de bascules entre deux fenetres Win32 de deux
+// process, l'agent injecte dans la seconde, scene reposee par un vrai clic
+// avant chaque essai: 1 reussite sur 14 en attachant le fil de la fenetre,
+// 14 sur 14 en attachant le fil appelant. Voir outils/banc-premier-plan/.
+test('le fil rattaché est celui qui appelle, pas celui de la fenêtre', () => {
+  const src = connectAgentSource({ proxyPort: 8000 });
+  assert.match(src, /const filAppelant = GetCurrentThreadId\(\);/,
+    'le fil appelant doit être lu');
+  assert.match(src, /AttachThreadInput\(filAppelant, filDevant, 1\)/,
+    'c est lui qu on rattache au premier plan');
+  assert.doesNotMatch(src, /AttachThreadInput\(filMoi,/,
+    'rattacher le fil de la fenêtre ne donne aucun droit à l appelant');
+});

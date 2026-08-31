@@ -238,9 +238,9 @@ function connectAgentSource({
     // POURQUOI DEPUIS L'AGENT. SetForegroundWindow est bride: Windows n'y
     // autorise qu'un processus qui a recu le dernier evenement d'entree, ou
     // qui est deja au premier plan. Le contournement documente par Microsoft
-    // est AttachThreadInput: on rattache le fil de NOTRE fenetre a celui du
-    // premier plan courant, le temps de l'appel. Cela demande d'etre dans la
-    // place, donc dans le process du jeu — l'agent y est deja.
+    // est AttachThreadInput: on rattache la file d'entree du fil QUI APPELLE
+    // a celle du premier plan courant, le temps de l'appel. Cela demande
+    // d'etre dans la place, donc dans le process du jeu — l'agent y est deja.
     //
     // Ces fonctions user32, l'agent les appelait deja pour surveiller le
     // premier plan: aucune surface nouvelle.
@@ -331,18 +331,33 @@ function connectAgentSource({
         if (estDevant(moi)) return true;
 
         // --- 1. le contournement documente ---
+        //
+        // LE FIL RATTACHE EST CELUI QUI APPELLE, pas celui qui possede la
+        // fenetre. AttachThreadInput lie la file d'entree de l'APPELANT, et
+        // l'appelant est le fil de Frida, un fil de plus dans le process du
+        // jeu. Rattacher le fil de la fenetre ne donnait donc aucun droit a
+        // l'appel qui suit: SetForegroundWindow etait refuse, BringWindowToTop
+        // remontait quand meme la fenetre dans l'ordre d'affichage, et la
+        // bascule avait l'air faite alors que le clavier et la souris
+        // restaient sur le client precedent, jusqu'a ce qu'on clique dedans.
+        //
+        // Mesure du 2026-08-31 sur un banc de bascules entre deux fenetres
+        // Win32 de deux process, l'agent injecte dans la seconde et la scene
+        // reposee par un vrai clic avant chaque essai: 1 reussite sur 14 en
+        // rattachant le fil de la fenetre, 14 sur 14 en rattachant celui-ci,
+        // et la verification immediate cesse de mentir.
         const devant = GetForegroundWindow2();
         const filDevant = devant.isNull() ? 0 : filDe(devant);
-        const filMoi = filDe(moi);
-        const rattache = filDevant !== 0 && filDevant !== filMoi
-          && AttachThreadInput(filMoi, filDevant, 1) !== 0;
+        const filAppelant = GetCurrentThreadId();
+        const rattache = filDevant !== 0 && filDevant !== filAppelant
+          && AttachThreadInput(filAppelant, filDevant, 1) !== 0;
         try {
           SetForegroundWindow(moi);
           BringWindowToTop(moi);
         } finally {
           // Le detachement est OBLIGATOIRE: deux fils dont les entrees restent
           // liees se bloquent mutuellement au premier incident.
-          if (rattache) AttachThreadInput(filMoi, filDevant, 0);
+          if (rattache) AttachThreadInput(filAppelant, filDevant, 0);
         }
         if (estDevant(moi)) return true;
 
