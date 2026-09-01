@@ -258,6 +258,39 @@ test('sans action sensible recente, une mule en combat ne fait rien retenir', ()
   assert.deepStrictEqual(apprises, []);
 });
 
+// OMNI NE REPARE QUE CE QU'IL A CAUSE, ENCORE: comptes.esclaves() filtre deja
+// les comptes EXCLUS de la duplication (src/protocol/compte.js), et le
+// duplicateur comme creerAbandonGroupe le respectent. Un pid qui n'est pas
+// dans cette liste n'a rejoue aucune action du maitre: son combat, quel qu'il
+// soit, ne peut pas venir d'OMNI.
+test('un pid exclu de la duplication ne fait rien retenir', () => {
+  const sup = fauxSuperviseur([2, 3]); // esclaves reels : 2 et 3, pas 99
+  const apprises = [];
+  const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: 99, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, []);
+});
+
+// LE SILENCE EST LE MODE D'ECHEC LE PLUS COUTEUX DE CE PROJET
+// (src/composer.js) : characterId n'est appris que d'un `kvw` sortant
+// (src/protocol/compte.js), et OMNI attache a des process deja lances peut ne
+// jamais le voir. Sans cette ligne, la politique s'eteint pour toute la
+// session sans qu'aucune trace ne le dise.
+test('un characterId de maitre inconnu se journalise au lieu de s eteindre en silence', () => {
+  const sup = fauxSuperviseur();
+  sup.comptes.get = (pid) => (pid === MAITRE ? { pid, characterId: null } : { pid, characterId: ID_MULE });
+  const apprises = [];
+  const lignes = [];
+  const garde = creerGardeCombat({
+    superviseur: sup, onApprendre: (c) => apprises.push(c), onJournal: (pid, texte) => lignes.push(texte),
+  });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, []);
+  assert.ok(lignes.some((l) => l.includes('characterId') && l.includes('inconnu')), 'la panne est dite');
+});
+
 // LE DEFAUT CORRIGE, ecrit en toutes lettres: le maitre qui entre en combat
 // est un evenement de jeu ordinaire. Il annule les rejeux en attente, et c'est
 // tout ce qu'il fait.
@@ -269,6 +302,22 @@ test('le ieb du maitre annule les rejeux mais ne retient RIEN', () => {
   garde({ pid: MAITRE, dir: 'in', frame: trame('ieb', { 1: 1642, 2: 9828 }), estMaitre: true });
   assert.strictEqual(sup.annulations, 1, 'les rejeux en attente sont annules');
   assert.deepStrictEqual(apprises, [], 'mais rien n est retenu');
+});
+
+// L'ORDRE REEL EN JEU, epingle: ioy du maitre, puis son ieb ~30 ms plus tard
+// (l'annulation), puis la kmk de la mule quelques centaines de ms apres. La
+// retention depend de ce que la branche ieb NE CONSOMME PAS derniereAction --
+// un changement qui "restaurerait la symetrie" avec l'annulation tuerait la
+// politique en silence, tous les autres tests restant verts.
+test('la sequence reelle ioy puis ieb du maitre puis kmk de la mule retient et annule', () => {
+  const sup = fauxSuperviseur();
+  const apprises = [];
+  const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'in', frame: trame('ieb', { 1: 1642, 2: 9828 }), estMaitre: true });
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, ['ioy:25088']);
+  assert.strictEqual(sup.annulations, 1);
 });
 
 test('deux mules dans deux combats distincts ne font qu une entree', () => {
@@ -312,6 +361,22 @@ test('le dialogue des esclaves est ferme apres un dialogue recent', () => {
   g(entreeCombat());
   assert.deepStrictEqual(sup.emis.map((e) => e.pid), [2, 3]);
   assert.deepStrictEqual(sup.emis[0].octets, TRAME_FERMER_DIALOGUE);
+});
+
+// dernierDialogue est CONSOMMEE apres la premiere fermeture (voir
+// "Consommee: un second ieb..." dans src/garde-combat.js): un second ieb sur
+// le meme combat ne doit rien reenvoyer. Couverture perdue quand le plan a
+// supprime le seul test qui envoyait deux ieb de suite.
+test('un second ieb sur le meme combat ne referme pas un dialogue deja ferme', () => {
+  const sup = fauxSuperviseur([2, 3]);
+  const { g } = garde(sup);
+  g(sortante('ioy', { 1: 25088 }));
+  g(entreeCombat());
+  const emisApresLePremier = sup.emis.length;
+  g(entreeCombat());
+  assert.strictEqual(emisApresLePremier > 0, true, 'le premier combat doit avoir ferme les dialogues');
+  assert.strictEqual(sup.emis.length, emisApresLePremier,
+    'le second combat ne doit pas refermer un dialogue deja ferme');
 });
 
 test('aucun dialogue n est ferme si le dernier remonte a trop longtemps', () => {

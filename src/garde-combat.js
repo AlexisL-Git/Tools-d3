@@ -156,13 +156,29 @@ function creerGardeCombat({
       if (dir !== 'in' || frame.type !== TYPE_COMBATTANTS) return;
       if (derniereAction.cle === null) return;
       if (maintenant() - derniereAction.instant >= FENETRE_APPRENTISSAGE_MS) return;
+      // OMNI NE REPARE QUE CE QU'IL A CAUSE, ENCORE: un compte EXCLU de la
+      // duplication (comptes.esclaves() le filtre deja, voir
+      // src/protocol/compte.js) n'a rejoue aucune action du maitre. Son
+      // combat, quel qu'il soit, ne nous regarde pas -- meme s'il s'ouvre
+      // dans la fenetre. Sans cette garde, exclure un compte de la
+      // duplication ne l'excluait pas de la retention.
+      if (!superviseur.comptes.esclaves(derniereAction.pidMaitre).some((e) => e.pid === pid)) return;
       const siens = combattantsDe(frame);
       // null: une liste de carte, personne ne combat.
       if (siens === null) return;
       const etatMaitre = superviseur.comptes.get(derniereAction.pidMaitre);
       const idMaitre = etatMaitre === null || etatMaitre === undefined
         ? null : etatMaitre.characterId;
-      if (idMaitre === null || idMaitre === undefined) return;
+      if (idMaitre === null || idMaitre === undefined) {
+        // Le characterId n'est appris que d'un `kvw` sortant (voir
+        // src/protocol/compte.js); OMNI attache a des process deja lances
+        // peut donc ne jamais le voir. LE SILENCE EST LE MODE D'ECHEC LE
+        // PLUS COUTEUX DE CE PROJET (voir src/composer.js): sans cette
+        // ligne, la politique s'eteint pour toute la session sans qu'aucune
+        // trace ne le dise.
+        onJournal(pid, 'garde combat : characterId du maitre inconnu, rien ne sera retenu');
+        return;
+      }
       // Le maitre est dans la liste: la mule l'a rejoint, tout va bien.
       if (siens.has(String(idMaitre))) return;
 
