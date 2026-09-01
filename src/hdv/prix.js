@@ -30,6 +30,36 @@
 // C'est delibere — RENONCER EST REVERSIBLE, BRADER NE L'EST PAS.
 const TAILLES = [1, 10, 100, 1000];
 
+// LE CRENEAU NON VIDE LE PLUS PROCHE, en CRANS de TAILLES et non en ecart de
+// quantite: les voisins immediats se ressemblent (19, 19, 27 et 18 kamas
+// l'unite sur la Pierre medicinale) bien plus que les extremes. A distance
+// egale on prend le plus petit, parce qu'un creneau de petite taille se vend
+// plus souvent et que son prix unitaire est donc mieux etabli.
+//
+// Rend -1 quand aucun creneau n'est servi. Les deux regles s'en servent, mais
+// elles en tirent des conclusions differentes: decider() renonce, deciderPose
+// retombe sur le prix moyen.
+function voisinServi(marche, i) {
+  for (let d = 1; d < TAILLES.length; d += 1) {
+    if (i - d >= 0 && Number(marche[i - d]) > 0) return i - d;
+    if (i + d < TAILLES.length && Number(marche[i + d]) > 0) return i + d;
+  }
+  return -1;
+}
+
+// LE GARDE-FOU, DANS LES DEUX SENS. Une extrapolation reste une supposition:
+// au-dessus du double du prix moyen le lot ne part pas, en dessous de la
+// moitie on brule la marchandise. Sans prix moyen il n'y a pas de filet, donc
+// on refuse plutot que de deduire a l'aveugle.
+function extrapoler({ marche, voisin, taille, moyenUnitaire }) {
+  const unitaire = Number(marche[voisin]) / TAILLES[voisin];
+  const deduit = Math.max(1, Math.floor(unitaire * taille));
+  const moyen = (Number(moyenUnitaire) || 0) * taille;
+  if (moyen <= 0) return null;
+  if (deduit < moyen / 2 || deduit > moyen * 2) return null;
+  return deduit;
+}
+
 // marche        — les quatre minimums, dans l'ordre de TAILLES. 0 = personne.
 // nos           — nos lots du MEME GID: [{ taille, prix }].
 // taille        — la taille du lot qu'on veut reposer.
@@ -57,37 +87,55 @@ function decider({ marche, nos, taille, moyenUnitaire }) {
     return minimum - 1;
   }
 
-  // CRENEAU VIDE. On deduit du creneau non vide le plus proche, ramene a
-  // l'unite. La proximite se compte EN CRANS de TAILLES, pas en ecart de
-  // quantite: les voisins immediats se ressemblent (19, 19, 27 et 18 kamas
-  // l'unite sur la Pierre medicinale) bien plus que les extremes.
-  //
-  // A DISTANCE EGALE, LE PLUS PETIT: un creneau de petite taille se vend plus
-  // souvent, donc son prix unitaire est mieux etabli.
-  let voisin = -1;
-  for (let d = 1; d < TAILLES.length && voisin === -1; d += 1) {
-    if (i - d >= 0 && Number(marche[i - d]) > 0) voisin = i - d;
-    else if (i + d < TAILLES.length && Number(marche[i + d]) > 0) voisin = i + d;
-  }
+  // CRENEAU VIDE. Rien a sous-coter: on deduit du voisin, ou on renonce. Le
+  // detail des deux regles est remonte dans voisinServi() et extrapoler(),
+  // partages avec deciderPose().
+  const voisin = voisinServi(marche, i);
   if (voisin === -1) return null;
-
-  const unitaire = Number(marche[voisin]) / TAILLES[voisin];
-  const deduit = Math.max(1, Math.floor(unitaire * taille));
-
-  // LE GARDE-FOU, DANS LES DEUX SENS. Une extrapolation reste une supposition:
-  // au-dessus du double du prix moyen le lot ne partira pas, en dessous de la
-  // moitie on brule la marchandise. Le second sens est le dangereux, mais
-  // refuser les deux evite aussi d'occuper un emplacement pour rien.
-  //
-  // Le prix moyen vient d'ivi, livre au login pour 9861 objets. Sans lui, le
-  // garde-fou ne peut pas s'appliquer: on refuse plutot que de deduire sans
-  // filet. Cette exigence ne vaut QUE pour l'extrapolation — un marche servi se
-  // sous-cote sans connaitre le prix moyen.
-  const moyen = (Number(moyenUnitaire) || 0) * taille;
-  if (moyen <= 0) return null;
-  if (deduit < moyen / 2 || deduit > moyen * 2) return null;
-
-  return deduit;
+  return extrapoler({ marche, voisin, taille, moyenUnitaire });
 }
 
-module.exports = { decider, TAILLES };
+// POSER UN LOT NEUF, la regle de « mettre en vente ».
+//
+// Memes entrees que decider(), et elle partage son extrapolation. Deux
+// differences, et chacune vient d'un raisonnement mesure:
+//
+// 1. QUAND LE MINIMUM EST DEJA LE NOTRE, ON S'ALIGNE au lieu de renoncer. Des
+//    qu'on a pose le premier lot d'un paquet, le minimum du creneau est le
+//    notre: renoncer ferait sauter tous les lots suivants, et la fonction
+//    poserait un seul lot par objet et par taille, sans rien dire. S'aligner
+//    n'erode rien — sous-coter d'un kama a chaque lot serait exactement
+//    l'auto-sous-cotation que decider() interdit, bornee par la pile plutot
+//    qu'infinie, ce qui n'est pas la meme chose que gratuite.
+//
+// 2. SANS AUCUN CRENEAU SERVI, ON POSE AU PRIX MOYEN. Il n'y a rien a
+//    extrapoler, et decider() renonce parce qu'un lot deja en vente peut
+//    attendre. Un lot qu'on n'a pas encore pose, lui, ne rapporte rien.
+//
+// L'ORDRE DES CAS COMPTE ICI, alors qu'il est indifferent chez decider(): le
+// garde-fou « minimum a 1 » passe AVANT le test « est-ce le notre », sans quoi
+// notre propre lot a 1 kama nous ferait poser a 1 kama.
+function deciderPose({ marche, nos, taille, moyenUnitaire }) {
+  if (!Array.isArray(marche) || marche.length !== TAILLES.length) return null;
+  const i = TAILLES.indexOf(taille);
+  if (i === -1) return null;
+
+  const minimum = Number(marche[i]) || 0;
+
+  if (minimum > 0) {
+    // Un minimum a 1 ne se sous-cote pas: 0 est aussi la valeur qui signifie
+    // « creneau vide » dans kgp, donc un lot pose a 0 disparaitrait du tableau.
+    if (minimum <= 1) return null;
+    const nous = (nos || []).some((l) => l.taille === taille && Number(l.prix) === minimum);
+    if (nous) return minimum;
+    return minimum - 1;
+  }
+
+  const voisin = voisinServi(marche, i);
+  if (voisin !== -1) return extrapoler({ marche, voisin, taille, moyenUnitaire });
+
+  const moyen = Math.floor((Number(moyenUnitaire) || 0) * taille);
+  return moyen > 0 ? moyen : null;
+}
+
+module.exports = { decider, deciderPose, TAILLES };

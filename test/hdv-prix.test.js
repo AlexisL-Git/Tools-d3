@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { decider, TAILLES } = require('../src/hdv/prix');
+const { decider, deciderPose, TAILLES } = require('../src/hdv/prix');
 
 // Les chiffres de ces tests ne sont pas invents: ils viennent de la mesure du
 // 01/09 sur la Pierre medicinale (GID 13731, prix moyen 32 kamas l'unite),
@@ -105,4 +105,75 @@ test('un minimum a 1 kama ne se sous-cote pas', () => {
 
 test('les quatre tailles du jeu, dans l ordre', () => {
   assert.deepStrictEqual(TAILLES, [1, 10, 100, 1000]);
+});
+
+// --- deciderPose : poser un lot NEUF ------------------------------------
+//
+// La regle de la mise en vente. Elle partage l'extrapolation avec decider()
+// et differe sur deux points, mesures et tranches en conception:
+// docs/superpowers/specs/2026-09-01-mise-en-vente-design.md.
+
+test('deciderPose sous-cote un concurrent d un kama, comme decider', () => {
+  assert.strictEqual(
+    deciderPose({ marche: [19, 190, 1222, 18000], nos: [], taille: 100, moyenUnitaire: 12 }),
+    1221,
+  );
+});
+
+// LA DIFFERENCE QUI FAIT EXISTER LA FONCTION. decider() rend null ici pour ne
+// pas se sous-coter soi-meme. deciderPose s'ALIGNE: sans cela, des qu'on a
+// pose le premier lot d'un paquet le minimum est le notre, et tous les lots
+// suivants seraient sautes en silence.
+test('deciderPose s aligne quand le minimum est deja le notre', () => {
+  const marche = [19, 190, 1222, 18000];
+  const nos = [{ taille: 100, prix: 1222 }];
+  assert.strictEqual(decider({ marche, nos, taille: 100, moyenUnitaire: 12 }), null);
+  assert.strictEqual(deciderPose({ marche, nos, taille: 100, moyenUnitaire: 12 }), 1222);
+});
+
+// L'ORDRE DES CAS. Chez decider les deux tests rendent null, leur ordre est
+// indifferent. Ici le test « est-ce le notre » rend un PRIX: le placer avant
+// le garde-fou du minimum a 1 ferait poser a 1 kama.
+test('deciderPose refuse un minimum a 1 meme quand ce lot est le notre', () => {
+  assert.strictEqual(
+    deciderPose({ marche: [1, 0, 0, 0], nos: [{ taille: 1, prix: 1 }], taille: 1, moyenUnitaire: 12 }),
+    null,
+  );
+});
+
+test('deciderPose extrapole du creneau voisin quand le sien est vide', () => {
+  assert.strictEqual(
+    deciderPose({ marche: [12, 122, 0, 0], nos: [], taille: 100, moyenUnitaire: 12 }),
+    1220,
+  );
+});
+
+test('deciderPose refuse une extrapolation hors du garde-fou', () => {
+  assert.strictEqual(
+    deciderPose({ marche: [100, 0, 0, 0], nos: [], taille: 10, moyenUnitaire: 1 }),
+    null,
+  );
+});
+
+// AUCUN CRENEAU SERVI: il n'y a rien a extrapoler, et decider() renonce. Poser
+// au prix moyen vaut mieux que ne rien poser — c'est le seul endroit ou une
+// pile sans marche du tout peut quand meme partir.
+test('deciderPose pose au prix moyen quand aucun creneau n est servi', () => {
+  const marche = [0, 0, 0, 0];
+  assert.strictEqual(decider({ marche, nos: [], taille: 10, moyenUnitaire: 32 }), null);
+  assert.strictEqual(deciderPose({ marche, nos: [], taille: 10, moyenUnitaire: 32 }), 320);
+});
+
+test('deciderPose renonce si le prix moyen est inconnu et le marche vide', () => {
+  assert.strictEqual(
+    deciderPose({ marche: [0, 0, 0, 0], nos: [], taille: 10, moyenUnitaire: 0 }),
+    null,
+  );
+});
+
+test('deciderPose refuse une taille qui n est pas un creneau', () => {
+  assert.strictEqual(
+    deciderPose({ marche: [19, 190, 1222, 18000], nos: [], taille: 50, moyenUnitaire: 12 }),
+    null,
+  );
 });
