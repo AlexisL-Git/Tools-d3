@@ -334,13 +334,21 @@ const CAPTURE = process.env.OMNI_CAPTURE === '1';
 // Les champs de premier niveau, en une ligne courte. Un champ imbrique ou
 // binaire est resume: sa taille suffit a le reconnaitre, son contenu noierait
 // le journal.
-function champsCourts(payload) {
+// PROFONDEUR. Un champ imbrique etait resume par {…}, sa taille seule. La
+// mesure du 01/09 a montre ce que ce resume coutait: la liste des combattants
+// (`kmk`) est entierement imbriquee, et elle est restee invisible tant que la
+// capture s'arretait au premier niveau. Deux niveaux et 600 caracteres la
+// rendent lisible sans noyer le journal.
+function champsCourts(payload, profondeur = 2, budget = 600) {
   const out = [];
   for (const f of payload || []) {
-    if (f.kind === 'message') out.push(`${f.no}={…}`);
+    if (f.kind === 'message') {
+      if (profondeur > 0) out.push(`${f.no}={${champsCourts(f.value, profondeur - 1, budget)}}`);
+      else out.push(`${f.no}={…}`);
+    }
     else if (f.kind === 'bytes') out.push(`${f.no}=<${(f.raw || f.value || '').length}o>`);
     else out.push(`${f.no}=${f.value}`);
-    if (out.join(' ').length > 140) { out.push('…'); break; }
+    if (out.join(' ').length > budget) { out.push('…'); break; }
   }
   return out.join(' ');
 }

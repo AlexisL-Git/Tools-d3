@@ -1,7 +1,18 @@
 # Quand le maître abandonne, les mules du même combat abandonnent aussi
 
 **Date :** 2026-09-01
-**Statut :** conception validée, **non implémentée, et non mesurée**.
+**Statut :** conception validée, **mesurée le 2026-09-01**, non implémentée.
+
+> **MISE À JOUR APRÈS MESURE — le critère a changé.** Le point d'arrêt prévu
+> plus bas s'est déclenché : **`ieb` n'existe pas** sur une attaque ordinaire,
+> il n'y a donc aucun identifiant de combat à y lire. L'utilisateur a arbitré le
+> 2026-09-01 : le critère devient **la liste des combattants (`kmk`)**, qui dit
+> directement « le maître combat avec moi » au lieu de faire comparer deux
+> numéros. Les mesures et les lignes de journal réelles sont dans
+> `docs/superpowers/specs/2026-09-01-trames-abandon.md`. Les sections
+> « Ce qu'il faut mesurer » et « Le critère » ci-dessous sont conservées telles
+> qu'elles ont été écrites avant la mesure — elles disent d'où l'on vient ; la
+> section « Le critère, après mesure » fait foi.
 
 ## Le besoin
 
@@ -79,6 +90,41 @@ dialogue apprendrait la même sorte de clé et bloquerait l'abandon à tort.
 **Écarté :** répliquer sans condition en comptant sur le refus du serveur pour
 les mules hors combat. Une mule engagée dans son propre combat abandonnerait
 avec le maître.
+
+## Le critère, après mesure — la liste des combattants
+
+**C'est cette section qui fait foi.** Elle remplace la précédente.
+
+Au démarrage d'un combat, chaque client reçoit **une** trame `kmk` portant la
+liste complète des combattants, **identique chez le maître et chez la mule** :
+
+```
+kmk { 2={1=428 2=7 3=-1}              type 7 = monstre
+      …
+      2={1=274 2=3 3=676438999334}    type 3 = joueur, 3 = son characterId
+      2={1=217 2=3 3=677048221990} }
+```
+
+Un client retient l'ensemble des `characterId` des entrées de type `2=3` de sa
+dernière `kmk` de combat. **Une mule abandonne avec le maître si cet ensemble
+contient le `characterId` du maître.**
+
+Une `kmk` sans aucune entrée de type `3` est une liste d'acteurs de carte : elle
+est ignorée et ne remplace rien.
+
+**Pourquoi c'est mieux que le numéro de combat.** Le numéro existe bien
+(`kau { 5=198 }`, reçu par les deux), mais il est aussi diffusé à qui *voit* un
+combat depuis sa carte — mesuré session 1, `93471 ms`, les deux clients
+reçoivent `kau { 5=90 }` en arrivant sur une carte sans être en combat. La
+`kmk`, elle, ne se reçoit que si on y est.
+
+**Le combat de quête reste couvert sans cas particulier :** le maître y est
+seul, sa `kmk` ne nomme que lui, la mule n'en reçoit aucune. Rien ne part.
+
+**L'état périmé reste sans danger, pour une raison nouvelle :** l'ensemble d'un
+client est **remplacé** à chaque `kmk` de combat. Un combat neuf écrase le
+précédent, sans qu'on ait besoin de savoir quand le combat d'avant s'est
+terminé — ce que la mesure n'a pas livré.
 
 ## Le module : `src/abandon-combat.js`
 

@@ -25,7 +25,23 @@
 
 ---
 
-### Tâche 1 : Mesurer les trames en jeu — POINT D'ARRÊT
+### Tâche 1 : Mesurer les trames en jeu — POINT D'ARRÊT — **FAITE le 2026-09-01**
+
+> **RÉSULTAT.** Mesures dans `docs/superpowers/specs/2026-09-01-trames-abandon.md`,
+> journaux `journal-dev.mesure1.log` et `journal-dev.mesure2.log`.
+>
+> - **Abandon = `kme`**, requête sortante **vide**. Les deux phases restent à
+>   distinguer en jeu ; une seule entrée dans `TYPES_ABANDON` pour l'instant.
+> - **`ieb` n'existe pas** sur une attaque ordinaire : le point d'arrêt s'est
+>   déclenché. L'utilisateur a arbitré — le critère devient la **liste des
+>   combattants `kmk`**, pas un identifiant de combat.
+> - **`CHAMP_COMBAT` n'existe plus.** Les constantes de la tâche 2 changent :
+>   voir la mise à jour en tête de la tâche 2.
+> - La capture (`champsCourts` dans `desktop/main.js`) **garde** sa profondeur
+>   de 2 niveaux : c'est elle qui a rendu `kmk` lisible. Changement conservé,
+>   pas reverté, actif seulement sous `OMNI_CAPTURE=1`.
+
+
 
 Rien de ce plan ne tient sans ces mesures. **Cette tâche se fait avec l'utilisateur devant le jeu**, elle ne peut pas être exécutée par un agent seul.
 
@@ -127,6 +143,14 @@ git commit -m "docs(abandon): les trames mesurees en jeu, et le champ de ieb qui
 ---
 
 ### Tâche 2 : Le module `src/abandon-combat.js`
+
+> **MISE À JOUR DU 2026-09-01, APRÈS MESURE.** Le critère n'est plus un
+> identifiant de combat lu dans `ieb` — `ieb` n'existe pas. C'est la **liste des
+> combattants `kmk`**. Les blocs de code ci-dessous (module et tests) sont donc
+> **périmés**. Le texte de référence pour cette tâche est le brief
+> `.superpowers/sdd/2026-09-01-abandon-groupe/task-2-brief.md`, qui porte le
+> code corrigé et les valeurs mesurées. Les interfaces, les contraintes globales
+> et les étapes 2, 4, 5 et 6 ci-dessous restent valables telles quelles.
 
 **Files :**
 - Create : `src/abandon-combat.js`
