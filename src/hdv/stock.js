@@ -23,8 +23,8 @@ function decouper(quantite) {
   return lots;
 }
 
-// LES LIGNES DE CARACTERISTIQUES SEPARENT L'EQUIPEMENT DE LA RESSOURCE, et
-// c'est ce qui evite d'avoir a demander une categorie par GID. La categorie
+// LES LIGNES D'EFFETS SEPARENT LA RESSOURCE DE TOUT LE RESTE, et c'est ce qui
+// evite d'avoir a demander une categorie par GID. La categorie
 // n'arrive que dans kbt.1, un objet a la fois: interroger un millier d'objets
 // pour savoir lesquels sont vendables serait exactement le flot que le rythme
 // cherche a eviter.
@@ -39,7 +39,7 @@ function decouper(quantite) {
 // LE TRI EST LE COEUR DE LA FONCTION. La passe n'ira jamais au bout — le
 // plafond de l'hotel de vente l'arretera apres quelques centaines de lots —
 // donc l'ordre ne decide pas de la sequence, il decide de CE QUI SERA VENDU.
-// A nombre d'emplacements egal, l'ordre par valeur pose 1,4 a 2,3 fois plus de
+// A nombre d'emplacements egal, l'ordre par valeur pose 2,2 a 2,8 fois plus de
 // valeur que le groupage par objet.
 //
 // Les departages apres la valeur ne servent qu'a rendre le tri deterministe,

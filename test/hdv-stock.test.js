@@ -78,8 +78,9 @@ test('candidats accepte un gid absent de la table des prix moyens', () => {
 
 // --- Sur les trames reellement mesurees ----------------------------------
 //
-// L'inventaire du compte de mesure: 219 piles, dont 204 portent des lignes de
-// caracteristiques (des equipements, qui relevent d'un autre hotel de vente).
+// L'inventaire du compte de mesure: 219 piles, dont 204 portent des lignes
+// d'effets — 179 d'entre elles a quantite 1, donc majoritairement de
+// l'equipement.
 test('candidats ne retient que les 15 piles fongibles de l inventaire mesure', () => {
   const piles = lireStock(fixture('hdv-ivx-inventaire.hex'));
   assert.strictEqual(piles.length, 219);
@@ -88,8 +89,8 @@ test('candidats ne retient que les 15 piles fongibles de l inventaire mesure', (
   assert.strictEqual(new Set(lots.map((l) => l.uidPile)).size, 15);
 });
 
-// La banque mesuree ne porte AUCUNE ligne de caracteristiques: 814 piles, 814
-// GID distincts, toutes fongibles.
+// La banque mesuree, elle, porte 57 piles a effets sur 814 — et 52 d'entre
+// elles ont une quantite superieure a 1. Ce ne sont donc pas des equipements.
 test('candidats retient les 757 piles fongibles de la banque mesuree', () => {
   const piles = lireStock(fixture('hdv-iwb.hex'));
   assert.strictEqual(piles.length, 814);
@@ -118,4 +119,41 @@ test('paquets regroupe les lots consecutifs de meme gid et meme taille', () => {
 test('paquets ne fusionne pas deux tailles du meme objet', () => {
   const p = paquets([{ gid: 1, taille: 100 }, { gid: 1, taille: 10 }]);
   assert.strictEqual(p.length, 2);
+});
+
+// --- Le tri est DETERMINISTE, et paquets en depend -----------------------
+//
+// Les departages apres la valeur ne sont pas cosmetiques: c'est eux qui
+// garantissent que deux lots de meme gid ET meme taille se retrouvent cote a
+// cote, sans quoi paquets() — qui ne regarde que le voisin precedent —
+// fragmenterait un groupe en plusieurs visites d'objet.
+//
+// Sans ces deux tests, retirer un departage laisserait toute la suite verte.
+
+test('a valeur egale, le tri departage par taille decroissante puis gid croissant', () => {
+  const piles = [
+    { uid: 1, gid: 100, qte: 100, avecEffets: false },
+    { uid: 2, gid: 200, qte: 10, avecEffets: false },
+    { uid: 3, gid: 50, qte: 10, avecEffets: false },
+  ];
+  // Trois lots de valeur 1000: 10x100, 100x10 et 100x10.
+  const lots = candidats({ piles, prixMoyens: new Map([[100, 10], [200, 100], [50, 100]]) });
+  assert.deepStrictEqual(lots.map((l) => l.valeur), [1000, 1000, 1000]);
+  assert.deepStrictEqual(lots.map((l) => [l.gid, l.taille]), [[100, 100], [50, 10], [200, 10]]);
+});
+
+test('deux piles du meme objet a valeur egale tombent dans UN SEUL paquet', () => {
+  const piles = [
+    { uid: 1, gid: 100, qte: 100, avecEffets: false },
+    { uid: 2, gid: 200, qte: 100, avecEffets: false },
+    { uid: 3, gid: 100, qte: 100, avecEffets: false },
+  ];
+  const lots = candidats({ piles, prixMoyens: new Map([[100, 10], [200, 10]]) });
+  const p = paquets(lots);
+  assert.deepStrictEqual(p.map((x) => [x.gid, x.taille, x.lots.length]), [
+    [100, 100, 2], [200, 100, 1],
+  ]);
+  // Les deux lots du gid 100 viennent de piles differentes: le paquet les
+  // groupe quand meme, et chacun garde son uid d'origine.
+  assert.deepStrictEqual(p[0].lots.map((l) => l.uidPile).sort(), [1, 3]);
 });
