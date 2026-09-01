@@ -250,7 +250,7 @@ git commit -m "feat(hdv): deciderPose, la regle de prix d un lot neuf"
 - Consumes: `TAILLES` de `src/hdv/trames.js`.
 - Produces, exportés par `src/hdv/stock.js` :
   - `decouper(quantite) -> number[]` — les tailles de lot, de la plus grande à la plus petite.
-  - `candidats({ piles, prixMoyens }) -> [{ uidPile, gid, taille, valeur }]` — trié par `valeur` décroissante. `piles` est un tableau de `{ uid, gid, qte, avecStats }` (ce que rend `lireStock`, Task 3), `prixMoyens` une `Map(gid -> prix moyen unitaire)`.
+  - `candidats({ piles, prixMoyens }) -> [{ uidPile, gid, taille, valeur }]` — trié par `valeur` décroissante. `piles` est un tableau de `{ uid, gid, qte, avecEffets }` (ce que rend `lireStock`, Task 3), `prixMoyens` une `Map(gid -> prix moyen unitaire)`.
   - `paquets(lots) -> [{ gid, taille, lots }]` — les lots consécutifs de même GID **et** même taille.
 
 - [ ] **Step 1 : écrire les tests qui échouent**
@@ -302,8 +302,8 @@ test('decouper ne rend rien sur une pile vide', () => {
 
 test('candidats ecarte les piles a lignes de caracteristiques', () => {
   const piles = [
-    { uid: 1, gid: 13731, qte: 100, avecStats: false },
-    { uid: 2, gid: 14162, qte: 1, avecStats: true },
+    { uid: 1, gid: 13731, qte: 100, avecEffets: false },
+    { uid: 2, gid: 14162, qte: 1, avecEffets: true },
   ];
   const lots = candidats({ piles, prixMoyens: new Map([[13731, 32], [14162, 5000]]) });
   assert.strictEqual(lots.length, 1);
@@ -312,8 +312,8 @@ test('candidats ecarte les piles a lignes de caracteristiques', () => {
 
 test('candidats trie par valeur de lot decroissante', () => {
   const piles = [
-    { uid: 1, gid: 100, qte: 10, avecStats: false },
-    { uid: 2, gid: 200, qte: 10, avecStats: false },
+    { uid: 1, gid: 100, qte: 10, avecEffets: false },
+    { uid: 2, gid: 200, qte: 10, avecEffets: false },
   ];
   const lots = candidats({ piles, prixMoyens: new Map([[100, 5], [200, 900]]) });
   assert.deepStrictEqual(lots.map((l) => l.gid), [200, 100]);
@@ -321,7 +321,7 @@ test('candidats trie par valeur de lot decroissante', () => {
 });
 
 test('candidats porte l uid de la pile d origine sur chaque lot', () => {
-  const piles = [{ uid: 84496683, gid: 8437, qte: 200, avecStats: false }];
+  const piles = [{ uid: 84496683, gid: 8437, qte: 200, avecEffets: false }];
   const lots = candidats({ piles, prixMoyens: new Map([[8437, 39]]) });
   assert.strictEqual(lots.length, 2);
   for (const l of lots) {
@@ -331,7 +331,7 @@ test('candidats porte l uid de la pile d origine sur chaque lot', () => {
 });
 
 test('candidats accepte un gid absent de la table des prix moyens', () => {
-  const lots = candidats({ piles: [{ uid: 1, gid: 999, qte: 5, avecStats: false }], prixMoyens: new Map() });
+  const lots = candidats({ piles: [{ uid: 1, gid: 999, qte: 5, avecEffets: false }], prixMoyens: new Map() });
   assert.strictEqual(lots.length, 5);
   assert.strictEqual(lots[0].valeur, 0);
 });
@@ -343,7 +343,7 @@ test('candidats accepte un gid absent de la table des prix moyens', () => {
 test('candidats ne retient que les 15 piles fongibles de l inventaire mesure', () => {
   const piles = lireStock(fixture('hdv-ivx-inventaire.hex'));
   assert.strictEqual(piles.length, 219);
-  assert.strictEqual(piles.filter((p) => !p.avecStats).length, 15);
+  assert.strictEqual(piles.filter((p) => !p.avecEffets).length, 15);
   const lots = candidats({ piles, prixMoyens: new Map() });
   assert.strictEqual(new Set(lots.map((l) => l.uidPile)).size, 15);
 });
@@ -355,7 +355,7 @@ test('candidats retient les 757 piles fongibles de la banque mesuree', () => {
   assert.strictEqual(piles.length, 814);
   // 57 piles de banque portent des effets — des consommables ou des runes,
   // empilables (jusqu'a 1349 exemplaires), PAS des equipements.
-  assert.strictEqual(piles.filter((p) => p.avecStats).length, 57);
+  assert.strictEqual(piles.filter((p) => p.avecEffets).length, 57);
   const lots = candidats({ piles, prixMoyens: new Map() });
   assert.strictEqual(new Set(lots.map((l) => l.uidPile)).size, 757);
 });
@@ -439,7 +439,7 @@ function candidats({ piles, prixMoyens }) {
   const table = prixMoyens instanceof Map ? prixMoyens : new Map();
   const lots = [];
   for (const pile of piles || []) {
-    if (pile === null || pile === undefined || pile.avecStats) continue;
+    if (pile === null || pile === undefined || pile.avecEffets) continue;
     const moyen = Number(table.get(pile.gid)) || 0;
     for (const taille of decouper(pile.qte)) {
       lots.push({ uidPile: pile.uid, gid: pile.gid, taille, valeur: moyen * taille });
@@ -493,7 +493,7 @@ git commit -m "feat(hdv): stock.js, du stock aux lots candidats tries par valeur
 - Consumes: `requete`, `v`, `champ`, `entier` (déjà internes à `trames.js`).
 - Produces, ajoutés aux exports de `src/hdv/trames.js` :
   - `trameMettreEnVente({ prix, uidPile, taille }) -> Buffer`
-  - `lireStock(frame) -> [{ uid, gid, qte, avecStats }]` — accepte `ivx` et `iwb`, rend `[]` pour tout autre type.
+  - `lireStock(frame) -> [{ uid, gid, qte, avecEffets }]` — accepte `ivx` et `iwb`, rend `[]` pour tout autre type.
   - `lirePileMaj(frame) -> { uid, qte } | null` — lit `ivj`.
   - `lirePileDisparue(frame) -> number | null` — lit `ium`.
 
@@ -584,7 +584,7 @@ test('lireStock rend les 219 piles de l inventaire mesure', () => {
 test('lireStock : la pile posee au sol figure dans l inventaire mesure', () => {
   const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
   const pile = lireStock(frame(hex)).find((p) => p.uid === 84495873);
-  assert.deepStrictEqual(pile, { uid: 84495873, gid: 13731, qte: 286, avecStats: false });
+  assert.deepStrictEqual(pile, { uid: 84495873, gid: 13731, qte: 286, avecEffets: false });
 });
 
 test('lireStock rend les 814 piles de la banque mesuree', () => {
@@ -601,8 +601,8 @@ test('lireStock rend les 814 piles de la banque mesuree', () => {
 test('lireStock marque les piles qui portent des effets', () => {
   const inv = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
   const banque = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-iwb.hex'), 'utf8').trim();
-  assert.strictEqual(lireStock(frame(inv)).filter((p) => p.avecStats).length, 204);
-  assert.strictEqual(lireStock(frame(banque)).filter((p) => p.avecStats).length, 57);
+  assert.strictEqual(lireStock(frame(inv)).filter((p) => p.avecEffets).length, 204);
+  assert.strictEqual(lireStock(frame(banque)).filter((p) => p.avecEffets).length, 57);
 });
 
 test('lireStock rend un tableau vide sur un type inconnu', () => {
@@ -640,12 +640,21 @@ Après `lireNosLots`, ajouter :
 // UNE PILE, telle qu'elle apparait dans ivx comme dans iwb: la meme forme, au
 // numero de champ de l'element pres.
 //
-//   { 1: <position>, 5: { 1: gid, 2: <stats>…, 3: quantite, 4: uid } }
+//   { 1: <position>, 5: { 1: gid, 2: <effets>…, 3: quantite, 4: uid } }
 //
-// LE CHAMP 2 DU DETAIL PORTE LES LIGNES DE CARACTERISTIQUES, et c'est lui qui
-// separe l'equipement de la ressource fongible. Un equipement est une piece
-// unique et releve d'un autre hotel de vente; sans ce tri il faudrait demander
-// la categorie de chaque GID, un aller-retour par objet.
+// LE CHAMP 2 DU DETAIL DIT QUE L'OBJET PORTE DES EFFETS. Il ne dit PAS que
+// c'est un equipement, et les confondre coute cher: 57 des 814 piles de banque
+// mesurees le portent, dont 52 a quantite superieure a 1 et jusqu'a 1349
+// exemplaires — des consommables ou des runes, empilables. Seul l'inventaire
+// est majoritairement de l'equipement, 179 de ses 204 piles a effets etant a
+// quantite 1.
+//
+// Ce qu'on en tire est donc « cet objet a des effets », et rien de plus. Une
+// RESSOURCE n'en a pas: c'est ce qui rend le champ utilisable pour garder
+// exactement ce que l'hotel de vente ressources accepte, en ecartant du meme
+// coup les equipements ET les consommables, qui relevent d'autres hotels. Sans
+// ce tri il faudrait demander la categorie de chaque GID, un aller-retour par
+// objet.
 function lirePile(el) {
   if (el.kind !== 'message') return null;
   const detail = champ(el.value, 5);
@@ -654,8 +663,8 @@ function lirePile(el) {
   const qte = entier(detail.value, 3);
   const uid = entier(detail.value, 4);
   if (gid === null || qte === null || uid === null) return null;
-  const avecStats = (detail.value || []).some((f) => f.no === 2);
-  return { uid, gid, qte, avecStats };
+  const avecEffets = (detail.value || []).some((f) => f.no === 2);
+  return { uid, gid, qte, avecEffets };
 }
 
 // ivx { 3: [ pile ] } — l'inventaire, et l'inventaire + la banque quand le
@@ -955,11 +964,11 @@ function rythmeObjet(compteur, hasard = Math.random) {
 
 function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
   // Ce que l'ecoute permanente retient, par client.
-  const stocks = new Map();     // pid -> [{ uid, gid, qte, avecStats }]
+  const stocks = new Map();     // pid -> [{ uid, gid, qte, avecEffets }]
   const prixMoyens = new Map(); // pid -> Map(gid -> prix moyen unitaire)
   const passes = new Map();     // pid -> la passe en cours
 
-  const pilesConnues = (pid) => (stocks.get(pid) || []).filter((p) => !p.avecStats).length;
+  const pilesConnues = (pid) => (stocks.get(pid) || []).filter((p) => !p.avecEffets).length;
   const enCours = (pid) => passes.has(pid);
 
   function onTrame({ pid, dir, frame }) {
@@ -1475,7 +1484,7 @@ Dans `src/hdv/vente.js`, supprimer les `demarrer` et `terminer` provisoires et i
   function demarrer(pid, etat, piles, lots) {
     const groupes = paquets(lots);
     const quantites = new Map();
-    for (const p of piles) if (!p.avecStats) quantites.set(p.uid, p.qte);
+    for (const p of piles) if (!p.avecEffets) quantites.set(p.uid, p.qte);
     const passe = {
       etatArme: etat,
       paquets: groupes,
