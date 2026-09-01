@@ -1188,6 +1188,16 @@ ipcMain.handle('basculerReplGroupe', async () => {
 // compte: pour cela l'overlay appelle les canaux DU PANNEAU. Ici on ne regle
 // que la fenetre elle-meme.
 
+// LE BOUTON HDV EST UN JALON, pas une fonction. Le protocole de l'hotel de
+// vente a ete mesure le 01/09 (docs/superpowers/specs/2026-09-01-trames-hdv.md)
+// mais rien n'est ecrit. Le bouton existe a la demande de l'utilisateur, pour
+// tenir sa place dans la barre; il repond ce qu'il est, et c'est tout ce qu'il
+// doit faire jusqu'a ce que la fonction arrive.
+ipcMain.handle('avisHdv', async () => {
+  noterAvis('HDV : le protocole est mesuré, la fonction n’est pas encore écrite');
+  await envoyerEtat();
+});
+
 // Le bouton de la barre du bas. Il bascule: ouvrir si fermee, fermer sinon.
 ipcMain.handle('basculerOverlay', async () => {
   if (overlay !== null && !overlay.isDestroyed()) {
