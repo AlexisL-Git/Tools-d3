@@ -26,6 +26,13 @@ const { candidats, paquets } = require('./stock');
 // client, au moment ou le joueur ouvrait ou filtrait son panneau. Rien ne dit
 // que le serveur accepte un itr isole, et on n'acheterait que la fraicheur
 // d'un stock deja frais.
+//
+// LA PASSE S'ARRETE AU PREMIER kge NON CONFIRME. On ne sait distinguer ni le
+// plafond de lots de l'hotel de vente, ni le manque de kamas pour la taxe, ni
+// un simple hoquet — et on n'a pas a le faire: les trois demandent la meme
+// chose, s'arreter. C'est aussi ce qui dispense de mesurer le plafond et la
+// taxe. S'arreter a tort coute un clic; continuer a tort coute des centaines
+// d'emissions inutiles.
 
 // LE RYTHME, A DEUX ECHELLES.
 //
@@ -97,6 +104,233 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
   const pilesConnues = (pid) => (stocks.get(pid) || []).filter((p) => !p.avecEffets).length;
   const enCours = (pid) => passes.has(pid);
 
+  // Des delais explicites court-circuitent le rythme: c'est ce qui rend les
+  // tests synchrones. En usage reel ils ne sont jamais fournis.
+  const delaiObjetMs = (passe) => {
+    const r = reglages.delaiObjetMs;
+    if (Number.isFinite(r)) return r;
+    const { ms, compteur } = rythmeVisite(passe.avantPause);
+    passe.avantPause = compteur;
+    return ms;
+  };
+  const delaiRafaleMs = () => {
+    const r = reglages.delaiRafaleMs;
+    return Number.isFinite(r) ? r : rythmeRafale();
+  };
+  const delaiReponseMs = () => {
+    const r = reglages.delaiReponseMs;
+    return Number.isFinite(r) ? r : DELAI_REPONSE;
+  };
+
+  // Un delai nul s'execute TOUT DE SUITE plutot qu'au tour de boucle suivant:
+  // les tests avancent alors de facon synchrone, et chaque assertion porte sur
+  // un etat stable plutot que sur une course.
+  function plusTard(passe, fn, ms) {
+    if (ms <= 0) { fn(); return null; }
+    const t = setTimeout(() => { passe.minuteurs.delete(t); fn(); }, ms);
+    passe.minuteurs.add(t);
+    return t;
+  }
+
+  // LES DEUX DELAIS NE SE LISENT PAS PAREIL A ZERO. Un delai d'envoi nul veut
+  // dire « tout de suite »; un delai d'expiration nul voudrait dire « la
+  // reponse est deja en retard ». Zero desarme donc le minuteur.
+  function expirer(passe, fn, ms) {
+    if (ms <= 0) return null;
+    return plusTard(passe, fn, ms);
+  }
+
+  function annulerMinuteurs(passe) {
+    for (const t of passe.minuteurs) clearTimeout(t);
+    passe.minuteurs.clear();
+  }
+
+  // LA GARDE D'IDENTITE, reprise de passeur.js. On compare l'OBJET d'etat, pas
+  // le pid: Windows recycle les numeros, et un client relance pendant la passe
+  // rendrait un autre etat sous le meme pid. Herite de la passe du precedent,
+  // il recevrait des kge portant les uid de piles de quelqu'un d'autre.
+  function vivant(pid, passe) {
+    return superviseur.comptes.get(pid) === passe.etatArme;
+  }
+
+  function envoyer(pid, passe, octets) {
+    const res = superviseur.emettre(pid, octets);
+    if (res && res.ok === false) {
+      terminer(pid, passe, res.raison || 'envoi refuse', false);
+      return false;
+    }
+    return true;
+  }
+
+  function terminer(pid, passe, raison, seDesabonner = true) {
+    annulerMinuteurs(passe);
+    passes.delete(pid);
+    // On ne parle pas a un client disparu: `seDesabonner` est faux quand c'est
+    // precisement lui qui a disparu, ou quand l'envoi vient d'echouer.
+    if (seDesabonner && passe.gid !== null) superviseur.emettre(pid, trameDesabonner(passe.gid));
+    onCompteRendu({ pid, fini: true, bilan: passe.bilan, raison: raison || null });
+  }
+
+  // Passe au paquet suivant, en se desabonnant du precedent. Tant qu'on reste
+  // abonne, le serveur continue de pousser des kgp pour rien.
+  //
+  // ON SE DESABONNE MEME QUAND LE GID NE CHANGE PAS. Un paquet est une visite,
+  // et deux paquets du meme objet portent des tailles differentes: relire le
+  // marche entre les deux est precisement ce que la regle « un lot par kgp »
+  // conserve de sens.
+  function paquetSuivant(pid, passe) {
+    annulerMinuteurs(passe);
+    if (passe.gid !== null && !envoyer(pid, passe, trameDesabonner(passe.gid))) return;
+    passe.gid = null;
+    passe.paquet = null;
+    passe.prix = null;
+    passe.attentePile = null;
+
+    if (passe.paquets.length === 0) { terminer(pid, passe, null, false); return; }
+
+    const paquet = passe.paquets.shift();
+
+    // L'ouverture de l'objet suivant EST DIFFEREE. Entre les deux, passe.gid
+    // vaut null: les kbt et kgp qui trainent encore sont donc ignores, ce qui
+    // est exactement ce qu'on veut — ils portent sur l'objet qu'on quitte.
+    plusTard(passe, () => {
+      if (!passes.has(pid)) return;
+      if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
+      passe.gid = paquet.gid;
+      passe.paquet = paquet;
+      passe.file = paquet.lots.slice();
+      passe.objetsFaits += 1;
+      if (!envoyer(pid, passe, trameAbonner(paquet.gid))) return;
+      if (!envoyer(pid, passe, trameStats(paquet.gid))) return;
+
+      // Si kbt n'arrive jamais, on abandonne CE paquet et on continue. Une
+      // passe pendue ressemblerait trait pour trait a une passe qui travaille.
+      expirer(passe, () => {
+        if (!passes.has(pid)) return;
+        passe.bilan.objetsAbandonnes += 1;
+        passe.file = [];
+        paquetSuivant(pid, passe);
+      }, delaiReponseMs());
+    }, delaiObjetMs(passe));
+  }
+
+  // Les lots DEJA POSES pendant cette passe pour ce gid et cette taille. C'est
+  // ce que deciderPose compare au minimum du marche pour savoir si le minimum
+  // est deja le notre — et donc s'aligner au lieu de sous-coter.
+  function nosDuPaquet(passe) {
+    return passe.poses.filter((l) => l.gid === passe.gid);
+  }
+
+  // LE PRIX DU PAQUET, DECIDE UNE FOIS. Un paquet sans prix decidable — le
+  // marche est a 1 kama, ou l'extrapolation sort du garde-fou — n'emet rien du
+  // tout: ses lots sont comptes sautes et on passe a l'objet suivant.
+  function decidePaquet(pid, passe, marche) {
+    const moyens = prixMoyens.get(pid);
+    const prix = deciderPose({
+      marche,
+      nos: nosDuPaquet(passe),
+      taille: passe.paquet.taille,
+      moyenUnitaire: (moyens && moyens.get(passe.gid)) || 0,
+    });
+    if (prix === null) {
+      passe.bilan.sautes += passe.file.length;
+      passe.file = [];
+      paquetSuivant(pid, passe);
+      return;
+    }
+    passe.prix = prix;
+    passe.premier = true;
+    poserSuivant(pid, passe);
+  }
+
+  // Le prix du paquet est decide UNE FOIS, a l'arrivee de kbt. Ensuite on pose
+  // en rafale: tous les lots partent au meme prix, donc il n'y a rien a
+  // relire. Si un concurrent passe dessous pendant la rafale, nos derniers
+  // lots sont un cran trop haut — et c'est exactement ce que « mettre a jour
+  // les prix » rattrape.
+  function poserSuivant(pid, passe) {
+    if (!passes.has(pid)) return;
+
+    while (passe.file.length > 0) {
+      const lot = passe.file[0];
+      const reste = passe.quantites.get(lot.uidPile);
+      // ivj FAIT AUTORITE. Notre decoupage date du lancement; si la pile a
+      // fondu entre-temps, emettre dessus poserait un lot qu'on n'a plus.
+      if (reste === undefined || reste < lot.taille) {
+        passe.file.shift();
+        passe.bilan.sautes += 1;
+        continue;
+      }
+      passe.file.shift();
+      passe.attentePile = lot.uidPile;
+      const envoi = trameMettreEnVente({ prix: passe.prix, uidPile: lot.uidPile, taille: lot.taille });
+      plusTard(passe, () => {
+        if (!passes.has(pid)) return;
+        if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
+        if (!envoyer(pid, passe, envoi)) return;
+        passe.enVol = lot;
+        // LE SERVEUR N'A JAMAIS ETE OBSERVE EN TRAIN DE REFUSER UN kge.
+        // L'absence de confirmation est donc le seul signal disponible — et
+        // c'est aussi ce qui implemente « jusqu'a ce qu'il n'y ait plus de
+        // place ou plus de kamas » sans connaitre ni le plafond ni la taxe.
+        expirer(passe, () => {
+          if (!passes.has(pid) || passe.attentePile !== lot.uidPile) return;
+          passe.bilan.echecs += 1;
+          terminer(pid, passe, 'refus du serveur — plus de place ou plus de kamas', true);
+        }, delaiReponseMs());
+      // LE PREMIER LOT D'UN PAQUET NE PAIE PAS LA RAFALE: le delai d'objet
+      // vient deja d'etre servi par paquetSuivant, et kbt d'arriver. Ajouter
+      // la rafale par-dessus compterait deux fois le meme geste, 1530 fois sur
+      // le stock de mesure.
+      }, passe.premier ? 0 : delaiRafaleMs());
+      passe.premier = false;
+      return;
+    }
+
+    paquetSuivant(pid, passe);
+  }
+
+  // Un kge confirme: la pile a fondu de la taille du lot, ou elle a disparu.
+  function confirmer(pid, passe, uid, reste) {
+    if (passe.attentePile !== uid) return;
+    annulerMinuteurs(passe);
+    passe.attentePile = null;
+    if (reste === null) passe.quantites.delete(uid);
+    else passe.quantites.set(uid, reste);
+    passe.bilan.poses += 1;
+    passe.poses.push({ gid: passe.gid, taille: passe.enVol.taille, prix: passe.prix });
+    onCompteRendu({
+      pid, poses: passe.bilan.poses, objetsFaits: passe.objetsFaits, objets: passe.bilan.objets,
+    });
+    poserSuivant(pid, passe);
+  }
+
+  function demarrer(pid, etat, piles, lots) {
+    const groupes = paquets(lots);
+    const quantites = new Map();
+    for (const p of piles) if (!p.avecEffets) quantites.set(p.uid, p.qte);
+    const passe = {
+      etatArme: etat,
+      paquets: groupes,
+      paquet: null,
+      file: [],
+      gid: null,
+      prix: null,
+      premier: true,
+      attentePile: null,
+      enVol: null,
+      quantites,
+      poses: [],
+      objetsFaits: 0,
+      minuteurs: new Set(),
+      // Tire au depart pour que deux passes ne pausent pas au meme rang.
+      avantPause: auHasard(AVANT_PAUSE_MIN, AVANT_PAUSE_MAX),
+      bilan: { objets: groupes.length, poses: 0, sautes: 0, echecs: 0, objetsAbandonnes: 0 },
+    };
+    passes.set(pid, passe);
+    paquetSuivant(pid, passe);
+  }
+
   function onTrame({ pid, dir, frame }) {
     if (frame === null || frame === undefined || dir !== 'in') return;
 
@@ -111,6 +345,45 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       const table = lirePrixMoyens(frame);
       if (table.size > 0) prixMoyens.set(pid, table);
       return;
+    }
+
+    const passe = passes.get(pid);
+    if (passe === undefined) return;
+
+    if (!vivant(pid, passe)) {
+      terminer(pid, passe, 'le client a disparu pendant la passe', false);
+      return;
+    }
+
+    if (frame.type === 'kbt') {
+      const stats = lireStatsPrix(frame);
+      // Le kbt SANS champ 3 est l'accuse du desabonnement precedent, et il
+      // arrive juste avant la vraie reponse: lireStatsPrix rend null dessus.
+      if (stats === null || stats.gid !== passe.gid || passe.prix !== null) return;
+      annulerMinuteurs(passe);
+      decidePaquet(pid, passe, stats.prix);
+      return;
+    }
+
+    if (frame.type === 'kgp') {
+      // On lit kgp pour tenir le marche a jour, mais on NE REDECIDE PAS: le
+      // prix du paquet est arrete une fois pour toutes.
+      const marche = lirePrixMarche(frame);
+      if (marche === null || marche.gid !== passe.gid || passe.prix !== null) return;
+      annulerMinuteurs(passe);
+      decidePaquet(pid, passe, marche.prix);
+      return;
+    }
+
+    if (frame.type === 'ivj') {
+      const maj = lirePileMaj(frame);
+      if (maj !== null) confirmer(pid, passe, maj.uid, maj.qte);
+      return;
+    }
+
+    if (frame.type === 'ium') {
+      const uid = lirePileDisparue(frame);
+      if (uid !== null) confirmer(pid, passe, uid, null);
     }
   }
 
@@ -141,16 +414,6 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
     const passe = passes.get(pid);
     if (passe === undefined) return;
     terminer(pid, passe, 'arret demande', true);
-  }
-
-  // Remplace en Task 5 par l'automate complet.
-  function demarrer(pid, etat, piles, lots) {
-    passes.set(pid, { etatArme: etat, piles, lots, minuteurs: new Set() });
-    superviseur.emettre(pid, trameAbonner(lots[0].gid));
-  }
-  function terminer(pid, passe) {
-    passes.delete(pid);
-    onCompteRendu({ pid, fini: true, bilan: { poses: 0, sautes: 0, echecs: 0, objetsAbandonnes: 0 }, raison: null });
   }
 
   return { onTrame, lancer, arreter, pilesConnues, enCours };
