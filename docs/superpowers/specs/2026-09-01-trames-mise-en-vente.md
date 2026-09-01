@@ -23,26 +23,42 @@ Tous les décodages ont été vérifiés avec `decodeFrameRaw` du dépôt.
 La mesure s'est faite à quatre mains : l'utilisateur joue et décrit ses gestes,
 la lecture se fait dans le journal.
 
-## Le résultat : le stock vendable, c'est la banque
+## Le résultat : le stock s'énumère à la demande
 
 La première mesure concluait que « mettre en vente » n'avait pas de source de
-stock, parce que `kge` exige un UID de pile et que l'inventaire ne transite sur
-aucun canal.
+stock, parce que `kge` exige un UID de pile et que **l'inventaire ne transiterait
+sur aucun canal**.
 
-**L'inventaire ne transite toujours pas** — revérifié ici sur une capture non
-tronquée, avec un UID obtenu dans la session même. Mais la conclusion qu'on en
-tirait était trop large : **le contenu de la banque, lui, transite en entier**,
-et `kge` accepte une pile de banque directement.
+**Cette conclusion est fausse.** L'inventaire transite, et il se demande :
+`itr` rend `ivx`, une liste de piles avec leur GID, leur quantité et leur UID,
+pour les rangements qu'on nomme. Voir la section `itr` / `ivx` ci-dessous.
 
-La première mesure notait qu'afficher la banque depuis l'HDV ne produit rien, et
-en déduisait que le client la détenait déjà. C'était exact ; ce qui manquait,
-c'est **quand** il l'a reçue. Il l'a reçue en ouvrant la banque chez le
-banquier, bien avant d'arriver à l'HDV. La mesure regardait le bon endroit au
-mauvais moment.
+La banque transite elle aussi, par une seconde voie — `iwb`, à l'ouverture chez
+le banquier. Elle reste documentée ici parce qu'elle est mesurée et qu'elle
+valide le décodage, mais **elle n'est pas nécessaire** : `itr { 2=[2,3] }` rend
+la banque et l'inventaire d'un coup, sans taxe.
+
+### Pourquoi la première mesure s'est trompée
+
+Elle avait vu ces trames et les avait écartées explicitement : « les seuls pics
+sont des `ivx`, et leur compte égale exactement leur nombre de cases de carte —
+des faux positifs ». La coïncidence a tenu : 219 éléments dans la `ivx` du
+login, 219 cases sur la carte.
+
+C'est aussi ce qui explique sa note sur la banque affichée depuis l'HDV, qui « ne
+produit rien sur le réseau ». Exact, mais pour une autre raison que celle
+retenue : le client avait déjà reçu la liste, en réponse à son propre `itr`.
+
+**La leçon de méthode :** un compte d'éléments qui tombe juste n'identifie pas
+une trame. Il fallait ouvrir `ivx` et lire ses champs, ce que la borne de dump à
+2048 rendait alors impossible — la plus grosse fait 31 977 octets.
 
 ## La séquence
 
 ```
+out request itr { 2=[2,3]  3=1 }                     DEMANDER LE STOCK
+in  event   ivx { 3={…} × N }                        LES PILES, GID/QTE/UID
+
 out request iov { 1=3  2=<idPNJ>  3=-20000 }         parler au banquier
 in  event   ios { 1=48375  2={1=64367 …}  3="814" }  ses options, ET LE PRIX
 out request ioy { 1=64367 }                          payer et ouvrir
@@ -55,10 +71,61 @@ in  event   ivj { 3={2=UIDpile  3=quantitéRestante} }          pile entamée
 in  event   ium { 1=UIDpile }                                  OU pile vidée
 ```
 
-## `iwb` — le contenu de la banque
+## `itr` et `ivx` — demander le stock, et le recevoir
 
-**C'est la trame qui débloque la fonction.** 13 704 octets, émise une fois, à
-l'ouverture de la banque.
+**C'est le couple qui débloque la fonction.** Il se déclenche à la demande, sans
+PNJ, sans taxe et sans attendre un geste du joueur.
+
+```
+out request itr { 2=<rangements>  3=1 }
+    122a0a1d0a13747970652e616e6b616d612e636f6d2f697472
+    120612020203180110ffffffffffffffffff01
+
+in  event   ivx { 1=<idVue>  3={1=63 5={1=GID … 3=quantité 4=UIDpile …}} × N }
+```
+
+`itr.2` est une **suite d'octets, un par rangement demandé**. Deux valeurs
+mesurées, et leur effet est net :
+
+| `itr.2` | éléments rendus | dont de la banque |
+|---|---:|---:|
+| `03` | 283 | **0** |
+| `02 03` | 1096 | **813** |
+
+**Rangement 2 = la banque, rangement 3 = l'inventaire.** Les 283 piles hors
+banque sont les mêmes dans les deux réponses ; la seconde y ajoute exactement le
+contenu de `iwb`, moins la pile qu'on venait d'en retirer.
+
+Les éléments de `ivx` portent **la même forme de pile que `iwb`** — `{1=63,
+5={1=GID, 3=quantité, 4=UID}}` — avec des champs de plus pour les objets à
+caractéristiques : `5.2` répété porte les lignes de stats d'un équipement, `5.5`
+une position. Un décodeur qui lit `5.1`, `5.3` et `5.4` et ignore le reste lit
+les deux trames.
+
+### La preuve
+
+À la connexion, sans aucun `itr`, une `ivx` de 9 179 octets porte **219 piles**,
+toutes hors banque. Son UID le plus haut est `84495873` — et c'est exactement la
+pile que le joueur a ensuite posée au sol :
+
+```
+in  event   ivx { … {1=13731  3=286  4=84495873} … }   au login
+out request iur { 1={2=84495873  3=286} }              posée au sol
+in  event   itl { 1={1=13731  4=470} }                 GID confirmé
+```
+
+GID, quantité et UID concordent sur les trois trames. **`ivx` est bien
+l'inventaire.**
+
+Cette trame-là est figée dans `test/fixtures/hdv-ivx-inventaire.hex`, 9 179
+octets, 219 piles.
+
+## `iwb` — le contenu de la banque, par l'autre voie
+
+13 704 octets, émise une fois, à l'ouverture de la banque. **Elle n'est pas
+nécessaire à la fonction** — `itr { 2=[2,3] }` rend le même contenu sans taxe —
+mais elle est mesurée, validée contre le jeu, et c'est elle qui a permis
+d'identifier le rangement 2.
 
 ```
 in event iwb { 1={1=63 5={1=2628 3=171 4=84495874}} × 814 }
@@ -192,10 +259,13 @@ in event ios { 1=48375  2={1=64367 3={1=196}}  2={1=64368}  3="814" }
 `ios.3` est une **chaîne**, `"814"` — et 814 est le nombre de piles. La taxe
 d'ouverture vaut le nombre de piles en banque.
 
-**Conséquence directe : `iwb` ne se redemande pas.** On la lit une fois, à
-l'ouverture que le joueur fait lui-même, et on tient la liste à jour au fil des
-`ivj` et des `ium`, qui sont gratuits. Une fonction qui rouvrirait la banque
-pour rafraîchir son stock facturerait le joueur à chaque passe.
+**Conséquence directe : on ne passe pas par le banquier.** `itr { 2=[2,3] }`
+rend le même contenu sans rien coûter ni déplacer personne. Une fonction qui
+ouvrirait la banque pour lire son stock facturerait le joueur à chaque passe,
+pour une liste qu'elle peut demander gratuitement.
+
+C'est aussi la seule taxe de cette fonction dont on connaisse le montant : celle
+du dépôt en HDV n'a pas été mesurée.
 
 ## Les gestes d'inventaire, mesurés au passage
 
@@ -228,9 +298,15 @@ C'est la disparition d'une pile, quelle qu'en soit la cause.
 
 ## Ce qui n'a pas été mesuré
 
-* **L'inventaire.** Toujours pas de liste, sur aucun canal. Ce n'est plus un
-  point à mesurer, c'est une contrainte : la fonction couvrira le stock de
-  banque, pas le sac.
+* **Les autres valeurs de `itr.2`.** Seuls `03` et `02 03` ont été observés.
+  Le havre-sac et le coffre de guilde ont vraisemblablement leur numéro, jamais
+  vu.
+* **Ce que `itr` coûte, s'il coûte quelque chose.** Aucune taxe observée, mais
+  les kamas n'ont pas été suivis.
+* **Si `itr` est émettable hors du panneau de vente.** Les quatre `itr` mesurés
+  ont tous été émis par le client au moment où le joueur ouvrait ou filtrait ce
+  panneau. Rien ne dit que le serveur le refuse ailleurs — rien ne dit non plus
+  qu'il l'accepte.
 * **La taxe de dépôt en HDV.** Les kamas n'ont pas été suivis pendant les deux
   ventes.
 * **Le plafond de lots en vente**, et le refus du serveur quand il est atteint.
@@ -246,12 +322,13 @@ C'est la disparition d'une pile, quelle qu'en soit la cause.
 
 ## Conséquences pour la conception
 
-1. **La source de stock est `iwb`**, mémorisée par une écoute permanente,
-   exactement comme `kby` l'est pour la mise à jour des prix. Même mécanisme,
-   même condition d'IHM : « ouvre ta banque une fois pour que je voie ton
-   stock ».
-2. **`kge` se pose directement sur une pile de banque.** Pas de retrait, pas de
-   déplacement, pas de second PNJ.
+1. **La source de stock est `itr` / `ivx`, demandée au moment voulu.** Pas
+   d'écoute permanente à tenir, pas de « ouvre ta banque une fois » à afficher,
+   pas de taxe. C'est plus simple que pour la mise à jour des prix, où `kby`
+   n'arrive qu'à l'ouverture de l'HDV et doit être guettée.
+2. **`kge` se pose directement sur une pile de banque comme d'inventaire.** Pas
+   de retrait, pas de déplacement, pas de second PNJ. Les deux origines sont
+   prouvées, une vente chacune.
 3. **La confirmation se lit dans `ivj` / `ium`, jamais dans `kes`.**
 4. **La liste de stock se corrige au fil des réponses.** Une vente partielle
    garde l'UID et annonce la quantité restante ; une pile vidée disparaît.

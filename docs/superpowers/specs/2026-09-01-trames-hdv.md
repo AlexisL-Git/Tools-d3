@@ -1,5 +1,12 @@
 # Les trames de l'hôtel de vente
 
+> **CORRECTION du 2026-09-01, même jour.** La section « L'inventaire ne transite
+> JAMAIS » de ce document **est fausse**. L'inventaire transite, et il se
+> demande : `itr` rend `ivx`, une liste de piles avec GID, quantité et UID.
+> Les `ivx` avaient été vues et écartées ici comme des faux positifs, sur une
+> coïncidence de comptage. Voir `2026-09-01-trames-mise-en-vente.md`, qui
+> l'établit trame par trame. Tout le reste de ce document tient.
+
 **Date de mesure :** 2026-09-01, un seul client derrière notre proxy, hôtel de
 vente **ressources**.
 
@@ -298,7 +305,7 @@ prix déduit qui s'écarte de plus de 100 % du moyen — n'a donc besoin d'aucun
 aller-retour. `kcq` reste utile pour la fraîcheur, pas pour l'existence de la
 donnée.
 
-## L'inventaire ne transite JAMAIS, et c'est prouvé
+## ~~L'inventaire ne transite JAMAIS, et c'est prouvé~~ — FAUX, voir la correction en tête
 
 **Le contenu de l'inventaire, de la banque et du havre-sac n'est envoyé sur
 aucun canal.** Ce n'est pas une lacune de mesure, c'est un résultat.

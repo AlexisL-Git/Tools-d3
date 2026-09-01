@@ -324,7 +324,10 @@ un lot qui existait déjà, elle n'en crée pas.
 
 * **« Mettre en vente ».** `kge` est mesurée et comprise, mais elle exige un UID
   de pile d'inventaire, et l'inventaire ne transite sur aucun canal — prouvé sur
-  54 666 trames. Fonction remise à plus tard, avec son propre spike. **Son
+  54 666 trames. Fonction remise à plus tard, avec son propre spike.
+  **CORRECTION du même jour : cette dernière affirmation est fausse.**
+  L'inventaire se demande par `itr` et arrive par `ivx`. Le spike a eu lieu,
+  voir `2026-09-01-trames-mise-en-vente.md`. Rien d'autre ne change ici. **Son
   entrée de menu existe pourtant dès maintenant**, et répond ce qu'elle est : ne
   pas l'afficher cacherait qu'elle est prévue.
 * **Toute périodicité.** Pas de minuterie, pas de passe de fond. Un bouton.
