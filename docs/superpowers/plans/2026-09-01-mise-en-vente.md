@@ -845,7 +845,8 @@ test('l ecoute retient aussi la banque, et remplace la liste precedente', () => 
   const vente = creerVente({ superviseur });
   vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-ivx-inventaire.hex') });
   vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-iwb.hex') });
-  assert.strictEqual(vente.pilesConnues(42), 814);
+  // 814 piles en banque, dont 57 a effets: 757 fongibles.
+  assert.strictEqual(vente.pilesConnues(42), 757);
 });
 
 // UNE TRAME QUI NE REND AUCUNE PILE N'EFFACE PAS CE QU'ON SAIT. ivx n'a ete
@@ -864,7 +865,7 @@ test('une ivx sans pile lisible n efface pas la liste memorisee', () => {
     ] },
   ]));
   vente.onTrame({ pid: 42, dir: 'in', frame: vide });
-  assert.strictEqual(vente.pilesConnues(42), 814);
+  assert.strictEqual(vente.pilesConnues(42), 757);
 });
 
 test('l ecoute ignore le sens sortant', () => {
