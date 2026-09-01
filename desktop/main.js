@@ -6,6 +6,7 @@ const { app, BrowserWindow, ipcMain, globalShortcut, dialog, screen } = require(
 const { Superviseur } = require('../src/superviseur');
 const { creerDuplicateur, ETALEMENT_REJEU } = require('../src/duplicateur');
 const { creerGardeCombat } = require('../src/garde-combat');
+const { creerAbandonGroupe } = require('../src/abandon-combat');
 const { creerPasseur } = require('../src/passeur');
 const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
@@ -904,6 +905,23 @@ app.whenReady().then(async () => {
         n === 1 ? 'combat : 1 rejeu en attente annulé' : `combat : ${n} rejeux en attente annulés`,
       ),
       onJournal: journal,
+    }),
+    creerAbandonGroupe({
+      superviseur,
+      // Les deux canaux, pour deux raisons differentes. `journal()` ne s'ecrit
+      // que sous OMNI_JOURNAL=complet et sert la mesure; `messages` est ce que
+      // l'utilisateur voit sur la ligne du compte. Une politique qui ne parle
+      // qu'a journal() est muette en usage normal -- le piege paye le 29/08
+      // sur les songes.
+      //
+      // Le succes efface le message precedent, comme le fait le duplicateur au
+      // rejeu suivant: une mule qui a bien abandonne n'a rien a signaler.
+      onCompteRendu: ({ pid, ok, raison }) => {
+        if (ok) journal(pid, 'abandon : replique chez la mule');
+        else journal(pid, `abandon : ${raison}`);
+        if (ok) messages.delete(pid);
+        else messages.set(pid, `abandon : ${raison}`);
+      },
     }),
     creerPasseur({
       superviseur,
