@@ -174,22 +174,52 @@ d'orientation (voir la correction en section 4). Ni les 16 tests unitaires ni
 deux revues de code n'auraient pu la contredire : ils validaient fidèlement une
 mauvaise lecture du protocole. **Seul l'essai en jeu pouvait la détruire.**
 
-## 7. CE QUI RESTE À VÉRIFIER
+## 7. Le combat de quête, vérifié en jeu — et `ieb` retrouvé
 
-**Le combat de quête n'a pas été essayé.** Une seule trame `kme` figure dans le
-journal de vérification : le maître n'a abandonné qu'une fois, dans un combat
-ordinaire. Le cas qui porte la demande de l'utilisateur — « que ça ne morde pas
-sur les combats de quête » — **n'a donc pas de preuve en jeu**.
+Essayé le 2026-09-01, même session. **Le cas mesuré est plus dur que celui
+attendu** : la mule n'était pas oisive, elle était dans **son propre** combat de
+quête, ouvert 6,5 s après celui du maître.
 
-Le raisonnement dit qu'il est couvert : le maître y est seul, sa liste de
-combattants ne nomme que lui, la mule n'en reçoit aucune. C'est un raisonnement,
-pas une mesure.
+```
+745026ms [10360 maitre] <-- kmk { 2={1=469 2=5 3=676438999334} 2={1=327 2=1 3=-1} }
+751506ms [17788 mule]   <-- kmk { 2={1=469 2=5 3=677048221990} 2={1=327 2=1 3=-1} }
+760433ms [10360 maitre] --> request kme {  }        le maitre abandonne
+                                                    AUCUNE ligne « abandon : »
+766395ms [17788 mule]   --> request kme {  }        a la main, 6 s plus tard
+```
 
-**`ieb` reste introuvable** — zéro occurrence dans les trois sessions du 01/09.
-C'est la trame dont dépend `src/garde-combat.js`. Elle n'a jamais été mesurée
-que sur des combats de quête, et aucun n'a été joué sous capture ce soir. **Tant
-qu'un combat de quête n'aura pas été capturé, on ne sait pas si cette garde a
-encore un signal.** Rien n'a été touché dans `src/garde-combat.js`.
+Deux combats, deux listes, **et le maître n'est pas dans celle de la mule**. Le
+critère a donc écarté la mule pour la bonne raison : un fait mesuré, pas une
+supposition sur la nature du combat. Rien n'est parti.
 
-Les deux questions se règlent en une seule manche : un combat de quête, sous
-`OMNI_CAPTURE=1`, avec le maître qui abandonne.
+**`ieb` EXISTE, et la garde combat marche toujours.** Il ne se montre que sur un
+combat de quête — ce qui explique son absence des trois sessions précédentes,
+toutes des attaques ordinaires :
+
+```
+744997ms [10360] garde combat : 1 rejeu(x) annule(s)
+744998ms [10360] garde combat : ioy:25088 retenue (+29 ms)
+744998ms [10360] cap :  <-- event ieb { 1=1642 2=9828 }
+```
+
+Le doute levé : `src/garde-combat.js` a bien son signal. Sa limite connue reste
+visible dans le même journal — un rejeu de `ioy` était **déjà parti** à
+`744892 ms` avant que la garde n'annule le suivant à `744997 ms`. C'est la
+première occurrence qui passe, et c'est précisément ce que l'apprentissage
+(`ioy:25088 retenue`) empêche de se reproduire.
+
+**Note sur `ieb { 1=1642 2=9828 }` :** les deux clients reçoivent les **mêmes**
+valeurs alors qu'ils sont dans **deux combats différents**. Ce ne sont donc pas
+des identifiants de combat, contrairement à ce que supposait la note du 28/08
+(« champ 2 incrémenté d'un combat à l'autre ») — `9828` est réapparu tel quel
+quatre jours plus tard. Sans conséquence ici : la garde combat ne lit pas ces
+champs, elle se contente du type `ieb`.
+
+## 8. Ce qui reste sans preuve
+
+- **La sortie pendant la phase de placement** : jamais essayée. L'hypothèse est
+  que c'est la même `kme`, `TYPES_ABANDON` n'a qu'une entrée.
+- **La fin normale d'un combat** (victoire, défaite) : aucune trame de fin
+  mesurée, et aucune utilisée — chaque `kmk` de combat remplace la précédente.
+- **Un combat joueur contre joueur**, sans monstre : par construction, l'abandon
+  groupé ne s'y déclenchera pas.
