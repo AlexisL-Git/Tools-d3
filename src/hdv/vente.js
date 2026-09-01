@@ -68,15 +68,15 @@ function rythmeRafale(hasard = Math.random) {
 }
 
 // Le temps d'une visite d'objet a la suivante, avec la pause quand le compteur
-// tombe. Rend le delai ET le compteur pour la visite suivante.
+// tombe. Rend le delai ET le compteur pour la visite suivante: LE COMPTEUR EST
+// REARME en meme temps que la pause est servie, sans quoi il resterait a zero
+// et toutes les visites suivantes pauseraient aussi.
 //
 // ELLE NE S'APPELLE PAS rythmeObjet, ET C'EST VOLONTAIRE. reprix.js exporte
 // deja un rythmeObjet(hasard) qui rend un NOMBRE et ne pause pas; celle-ci
 // prend un compteur et rend { ms, compteur }. Deux modules freres, deux
 // signatures, un seul nom: la confusion serait garantie au premier qui lit les
-// deux. — le compteur est REARME en
-// meme temps que la pause est servie, sans quoi il resterait a zero et toutes
-// les visites suivantes pauseraient aussi.
+// deux.
 function rythmeVisite(compteur, hasard = Math.random) {
   const entre = (min, max) => min + Math.floor(hasard() * (max - min + 1));
   let ms = entre(DELAI_OBJET_MIN, DELAI_OBJET_MAX);

@@ -116,9 +116,15 @@ test('l ecoute retient les prix moyens d ivi', () => {
   // d'envois ne prouverait rien: la passe demarre dans les deux cas.
   const abonnement = decodeFrameRaw(superviseur.envois[0].octets);
   assert.strictEqual(abonnement.type, 'keh');
-  assert.strictEqual(Number(abonnement.payload.find((f) => f.no === 1).value), 8437);
+  // Un champ absent doit ECHOUER comme une assertion, pas lever un TypeError:
+  // « undefined n'est pas 8437 » nomme l'attendu, « cannot read .value » non.
+  const valeur = (no) => {
+    const f = (abonnement.payload || []).find((x) => x.no === no);
+    return f === undefined ? null : Number(f.value);
+  };
+  assert.strictEqual(valeur(1), 8437);
   // Le champ 2 distingue l'abonnement du DESABONNEMENT, qui est le meme
   // message sans lui. Sans cette assertion, confondre les deux passerait.
-  assert.strictEqual(Number(abonnement.payload.find((f) => f.no === 2).value), 1);
+  assert.strictEqual(valeur(2), 1);
   vente.arreter(42);
 });
