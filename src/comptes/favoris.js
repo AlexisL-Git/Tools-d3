@@ -9,6 +9,16 @@ const path = require('node:path');
 //
 // Le fichier ne contient QUE des identifiants numeriques de compte. Ni login,
 // ni jeton, rien qui pose probleme s'il est partage ou sauvegarde.
+
+// Au-dela, une entree retenue ne protege plus de rien.
+//
+// Les actions dangereuses sont pour l'essentiel des combats de quete, faits
+// une fois: passe un mois, l'entree ne fait plus que bloquer. Si l'action est
+// encore dangereuse, le degat se reproduit UNE fois et elle est retenue de
+// nouveau. C'est le prix, il est assume — il n'y a plus de bouton pour
+// oublier, et une entree fausse eternelle est le defaut qu'on corrige.
+const MS_OUBLI = 30 * 24 * 60 * 60 * 1000;
+
 class Favoris {
   constructor(chemin) {
     this.chemin = chemin;
@@ -53,7 +63,8 @@ class Favoris {
     this._ordre = [];
     // Les actions vues lancer un combat chez le maitre. Rejouer l'une d'elles
     // ferait ouvrir a chaque esclave SON PROPRE combat — mesure le 28/08.
-    this._combats = new Set();
+    // cle -> date d'apprentissage en millisecondes, pour l'expiration.
+    this._combats = new Map();
     // LA PETITE FENETRE FLOTTANTE. Trois choses seulement: si elle etait
     // ouverte, dans quel sens, et ou elle etait posee.
     //
@@ -73,6 +84,9 @@ class Favoris {
   static get SENS() { return ['horizontal', 'vertical']; }
 
   charger() {
+    // Doit rester visible apres le catch: c'est la qu'on decide de reecrire
+    // le fichier une fois les entrees perimees ecartees.
+    let reecrire = false;
     try {
       const json = JSON.parse(fs.readFileSync(this.chemin, 'utf8'));
       if (Array.isArray(json.favoris)) {
@@ -107,10 +121,23 @@ class Favoris {
       }
       // Un booleen, ou rien: toute autre forme vaut « au repos ».
       if (typeof json.actif === 'boolean') this._actif = json.actif;
+      // LES ANCIENNES ENTREES SONT DES CHAINES, ET ON LES JETTE. Elles ont
+      // ete apprises par une regle qu'on sait fausse — le maitre entrant en
+      // combat, c'est-a-dire jouer normalement. Les convertir reviendrait a
+      // conserver exactement les blocages qu'on veut supprimer. La forme
+      // suffit a reconnaitre la migration, aucun drapeau de version n'est
+      // necessaire.
       if (Array.isArray(json.combats)) {
+        const limite = Date.now() - MS_OUBLI;
         for (const c of json.combats) {
-          if (typeof c === 'string' && c.length) this._combats.add(c);
+          if (c === null || typeof c !== 'object') continue;
+          if (typeof c.cle !== 'string' || c.cle.length === 0) continue;
+          if (!Number.isFinite(c.le) || c.le < limite) continue;
+          this._combats.set(c.cle, c.le);
         }
+        // Reecrire tout de suite ce qui a ete ecarte: sans cela une liste
+        // jetee reviendrait a chaque lecture jusqu'au prochain reglage touche.
+        if (this._combats.size !== json.combats.length) reecrire = true;
       }
       // Meme discipline que les touches: chaque champ est repris seulement si
       // sa forme est connue. Un sens inconnu ou une position qui n'est pas un
@@ -136,9 +163,10 @@ class Favoris {
       this._actif = false;
       this._touches = new Map();
       this._ordre = [];
-      this._combats = new Set();
+      this._combats = new Map();
       this._overlay = { ouvert: false, sens: 'horizontal', x: null, y: null };
     }
+    if (reecrire) this._ecrire();
     return this;
   }
 
@@ -272,12 +300,12 @@ class Favoris {
   }
 
   combats() {
-    return [...this._combats];
+    return [...this._combats.keys()];
   }
 
   apprendreCombat(cle) {
     if (typeof cle !== 'string' || cle.length === 0) return;
-    this._combats.add(cle);
+    this._combats.set(cle, Date.now());
     this._ecrire();
   }
 
@@ -338,7 +366,7 @@ class Favoris {
         actif: this._actif,
         touches: this.touches(),
         ordre: this._ordre,
-        combats: this.combats(),
+        combats: [...this._combats].map(([cle, le]) => ({ cle, le })),
         overlay: this.overlay(),
       };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
@@ -349,4 +377,4 @@ class Favoris {
   }
 }
 
-module.exports = { Favoris };
+module.exports = { Favoris, MS_OUBLI };

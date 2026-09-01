@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { Favoris } = require('../src/comptes/favoris');
+const { Favoris, MS_OUBLI } = require('../src/comptes/favoris');
 
 function fichierTemporaire(t) {
   const p = path.join(os.tmpdir(), `favoris-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
@@ -471,10 +471,14 @@ test('une liste d un mauvais type dans le fichier est ignoree', (t) => {
   assert.strictEqual(f.delai(), 3);
 });
 
-test('les entrees qui ne sont pas des chaines sont ecartees', (t) => {
+// Ce test verifiait autrefois qu'un melange de chaines et de valeurs
+// invalides ne gardait que les chaines. Depuis la migration, TOUTE entree de
+// l'ancien format (une chaine) est jetee, valide ou non: voir la migration
+// plus bas.
+test('les entrees de l ancien format sont toutes ecartees, valides ou non', (t) => {
   const chemin = fichierTemporaire(t);
   fs.writeFileSync(chemin, JSON.stringify({ combats: ['ioy:1', 42, null, 'iwo:2'] }), 'utf8');
-  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), ['ioy:1', 'iwo:2']);
+  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), []);
 });
 
 // --- l'overlay -------------------------------------------------------------
@@ -561,4 +565,63 @@ test('overlay() rend une copie', (t) => {
   f.charger();
   f.overlay().sens = 'vertical';
   assert.strictEqual(f.overlay().sens, 'horizontal');
+});
+
+// --- expiration des actions retenues, et migration de l ancienne liste -----
+
+// LA MIGRATION EST LE REMEDE. Les entrees d'avant le 2026-09-01 sont des
+// chaines, apprises par une regle qu'on sait fausse: les convertir
+// reviendrait a conserver les blocages qu'on veut supprimer.
+test('une ancienne liste de chaines est jetee au chargement', (t) => {
+  const chemin = fichierTemporaire(t);
+  fs.writeFileSync(chemin, JSON.stringify({ combats: ['ioy:25088', 'iov:1:2'] }), 'utf8');
+  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), []);
+});
+
+test('une entree jetee est effacee du fichier, pas seulement de la memoire', (t) => {
+  const chemin = fichierTemporaire(t);
+  fs.writeFileSync(chemin, JSON.stringify({ combats: ['ioy:25088'] }), 'utf8');
+  new Favoris(chemin).charger();
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(chemin, 'utf8')).combats, []);
+});
+
+test('une entree datee de moins de 30 jours est conservee', (t) => {
+  const chemin = fichierTemporaire(t);
+  const le = Date.now() - (MS_OUBLI - 60000);
+  fs.writeFileSync(chemin, JSON.stringify({ combats: [{ cle: 'ioy:25088', le }] }), 'utf8');
+  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), ['ioy:25088']);
+});
+
+test('une entree datee de plus de 30 jours est ecartee', (t) => {
+  const chemin = fichierTemporaire(t);
+  const le = Date.now() - (MS_OUBLI + 60000);
+  fs.writeFileSync(chemin, JSON.stringify({ combats: [{ cle: 'ioy:25088', le }] }), 'utf8');
+  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), []);
+});
+
+test('une entree sans date ou mal formee est ecartee', (t) => {
+  const chemin = fichierTemporaire(t);
+  fs.writeFileSync(chemin, JSON.stringify({ combats: [
+    { cle: 'ioy:1' }, { le: Date.now() }, { cle: '', le: Date.now() },
+    { cle: 'ioy:2', le: 'hier' }, null, 42,
+  ] }), 'utf8');
+  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), []);
+});
+
+test('une entree apprise survit a un rechargement et reste datee', (t) => {
+  const chemin = fichierTemporaire(t);
+  new Favoris(chemin).charger().apprendreCombat('ioy:25088');
+  const ecrit = JSON.parse(fs.readFileSync(chemin, 'utf8')).combats;
+  assert.strictEqual(ecrit.length, 1);
+  assert.strictEqual(ecrit[0].cle, 'ioy:25088');
+  assert.ok(Number.isFinite(ecrit[0].le), 'l entree porte une date');
+  assert.deepStrictEqual(new Favoris(chemin).charger().combats(), ['ioy:25088']);
+});
+
+test('apprendre deux fois la meme cle ne fait qu une entree', (t) => {
+  const chemin = fichierTemporaire(t);
+  const f = new Favoris(chemin).charger();
+  f.apprendreCombat('ioy:25088');
+  f.apprendreCombat('ioy:25088');
+  assert.deepStrictEqual(f.combats(), ['ioy:25088']);
 });
