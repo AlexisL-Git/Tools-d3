@@ -217,8 +217,12 @@ champs, elle se contente du type `ieb`.
 
 ## 8. Ce qui reste sans preuve
 
-- **La sortie pendant la phase de placement** : jamais essayée. L'hypothèse est
-  que c'est la même `kme`, `TYPES_ABANDON` n'a qu'une entrée.
+- **La sortie pendant la phase de placement** : jamais essayée, et **l'utilisateur
+  a dit le 2026-09-01 qu'il n'en avait pas besoin**. Le cas est donc clos, pas en
+  attente : ne pas rouvrir de mesure là-dessus sans qu'il le demande. Si un jour
+  il quitte en placement et que les mules ne suivent pas, c'est ici qu'il faudra
+  regarder — `TYPES_ABANDON` n'a qu'une entrée, `kme`, et rien ne dit que la
+  sortie de placement passe par elle.
 - **La fin normale d'un combat** (victoire, défaite) : aucune trame de fin
   mesurée, et aucune utilisée — chaque `kmk` de combat remplace la précédente.
 - **Un combat joueur contre joueur**, sans monstre : par construction, l'abandon
