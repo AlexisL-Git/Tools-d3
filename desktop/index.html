@@ -210,8 +210,13 @@
     border: 1px solid var(--bord); background: transparent; color: var(--attenue);
     font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
   }
-  .pose:hover { border-color: var(--attenue); color: var(--texte); }
+  .pose:hover:not(:disabled) { border-color: var(--attenue); color: var(--texte); }
   .pose.ouvert { border-color: var(--arme); color: var(--arme); }
+  /* Sans cette regle le bouton reste visuellement actif une fois `disabled`
+     pose par surEtat(): la regle generale `button { cursor: pointer; }` et
+     les couleurs d'auteur ecrasent le style par defaut du navigateur. Meme
+     traitement que .hdv:disabled plus bas. */
+  .pose:disabled { opacity: .3; cursor: not-allowed; }
 
   .avis { padding: 9px 15px; font-size: 13px; border-bottom: 1px solid var(--filet); }
   .avis:empty { display: none; }
@@ -773,6 +778,9 @@
   }
 
   let dernieresLignes = [];
+  // Ce que cette cle a le droit d utiliser, tel que le processus principal
+  // vient de le dire. Lue par majRang(), qui ne recoit pas l etat.
+  let droitsCourants = [];
   for (const b of document.querySelectorAll('[data-colonne]')) {
     b.addEventListener('click', () => {
       const ids = pertinentes(dernieresLignes).map((l) => l.id);
@@ -1065,13 +1073,16 @@
     if (!aUneFenetre) r.fermerUn.classList.remove('confirme');
     if (!r.fermerUn.title) r.fermerUn.title = 'fermer ce client';
 
-    // Le menu n'a de sens que sur un client en jeu. `hdvLots` a zero veut dire
-    // que kby n'est jamais passee: le HDV n'a pas ete ouvert de la session.
-    const hdvPossible = l.pid !== null && l.pid !== undefined && l.etat !== 'hors-ligne';
+    // Le menu n'a de sens que sur un client en jeu, et seulement si la cle a
+    // le droit. `hdvLots` a zero veut dire que kby n'est jamais passee.
+    const droitHdv = droitsCourants.includes('hdv');
+    const hdvPossible = droitHdv && l.pid !== null && l.pid !== undefined && l.etat !== 'hors-ligne';
     r.hdv.disabled = !hdvPossible;
     if (!hdvPossible) r.menuHdv.hidden = true;
     r.hdv.classList.toggle('tourne', Boolean(l.hdvEnCours));
-    r.hdv.title = l.hdvEnCours ? 'une mise à jour des prix est en cours' : 'hôtel de vente';
+    r.hdv.title = !droitHdv
+      ? 'pas activé sur ta clé'
+      : (l.hdvEnCours ? 'une mise à jour des prix est en cours' : 'hôtel de vente');
     if (l.hdvEnCours) {
       r.majPrix.textContent = 'Arrêter la mise à jour';
       r.majPrix.classList.remove('inerte');
@@ -1088,6 +1099,7 @@
   }
 
   window.app.surEtat((etat) => {
+    droitsCourants = etat.droits || [];
     dernieresLignes = etat.lignes;
 
     interActif.classList.toggle('on', etat.actif);
@@ -1126,6 +1138,11 @@
     const bov = document.getElementById('boverlay');
     bov.classList.toggle('ouvert', Boolean(etat.overlayOuvert));
     bov.textContent = etat.overlayOuvert ? 'Masquer l’overlay' : 'Overlay';
+    const droitOverlay = droitsCourants.includes('overlay');
+    bov.disabled = !droitOverlay;
+    // Recalcule a chaque etat, pas seulement au retrait: sans ca, un droit
+    // rendu apres coupure laisserait le titre bloque sur le refus perime.
+    bov.title = droitOverlay ? 'la barre de pictos posée par-dessus le jeu' : 'pas activé sur ta clé';
 
     document.getElementById('erreur').textContent = etat.erreurComptes || '';
     document.getElementById('sansmaitre').textContent = etat.sansMaitre
