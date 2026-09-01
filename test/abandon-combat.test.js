@@ -2,8 +2,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const {
-  creerAbandonGroupe, joueursDe,
-  TYPES_ABANDON, TYPE_COMBATTANTS, TYPE_JOUEUR,
+  creerAbandonGroupe, combattantsDe,
+  TYPES_ABANDON, TYPE_COMBATTANTS,
 } = require('../src/abandon-combat');
 
 // Les characterId mesures le 2026-09-01. Le decodeur rend des BigInt sur ces
@@ -12,25 +12,41 @@ const MAITRE = 676438999334n;
 const MULE = 677048221990n;
 const ETRANGER = 123456789012n;
 
-// Un combattant, tel qu'il apparait dans kmk: type au champ 2, identifiant au
-// champ 3. Type 7 = monstre, 3 = joueur, 1 = acteur de carte.
-const combattant = (type, id) => ({
+// Un combattant, tel qu'il apparait dans kmk: cellule au champ 1, ORIENTATION
+// (0 a 7, sans rapport avec le role de l'acteur) au champ 2, identifiant au
+// champ 3. Un identifiant negatif est un monstre, un identifiant positif un
+// characterId -- voir la ronde de correction 1 dans src/abandon-combat.js.
+const combattant = (orientation, id) => ({
   no: 2, kind: 'message',
-  value: [{ no: 1, value: 400n }, { no: 2, value: type }, { no: 3, value: id }],
+  value: [{ no: 1, value: 400n }, { no: 2, value: orientation }, { no: 3, value: id }],
 });
 
+// Un combat contre des monstres: toujours au moins un identifiant negatif.
+// Les orientations sont volontairement variees (7, 5, 1, 5...) comme mesure
+// en jeu cette nuit -- le champ 2 ne joue aucun role dans le tri, seul le
+// signe du champ 3 en joue un.
 const listeCombat = (...ids) => ({
   kind: 'event', type: TYPE_COMBATTANTS,
   payload: [
-    combattant(7n, -1n), combattant(7n, -2n),
-    ...ids.map((id) => combattant(BigInt(TYPE_JOUEUR), id)),
+    combattant(7n, -1n), combattant(5n, -2n),
+    ...ids.map((id, i) => combattant(i % 2 === 0 ? 1n : 5n, id)),
   ],
 });
 
-// Une kmk d'acteurs de carte: personne n'est de type 3.
+// Un combat JOUEUR CONTRE JOUEUR: uniquement des identifiants positifs,
+// aucun monstre donc aucun negatif. C'est le cas assume ou l'abandon groupe
+// ne se declenche pas -- voir la ronde de correction 1.
+const listeCombatSansMonstre = (...ids) => ({
+  kind: 'event', type: TYPE_COMBATTANTS,
+  payload: ids.map((id, i) => combattant(i % 2 === 0 ? 3n : 6n, id)),
+});
+
+// Une kmk d'acteurs de carte: uniquement des identifiants positifs, aucun
+// negatif. Rien au champ 2 ne la distingue plus d'un combat -- c'est
+// justement l'absence de negatif qui la designe depuis la correction.
 const listeCarte = () => ({
   kind: 'event', type: TYPE_COMBATTANTS,
-  payload: [combattant(1n, MAITRE), combattant(1n, MULE)],
+  payload: [combattant(0n, MAITRE), combattant(2n, MULE)],
 });
 
 const recu = (pid, frame) => ({
@@ -69,18 +85,28 @@ function politique(sup, rendu = []) {
   return f;
 }
 
-test('la liste de combat rend les joueurs, pas les monstres', () => {
-  const joueurs = joueursDe(listeCombat(MAITRE, MULE));
-  assert.deepStrictEqual([...joueurs].sort(), [String(MAITRE), String(MULE)].sort());
+test('la liste de combat rend tous les identifiants, monstres compris', () => {
+  // combattantsDe ne trie plus par role: elle rend TOUT le monde. C'est la
+  // presence d'un negatif qui fait qu'elle rend quelque chose du tout --
+  // voir le test suivant.
+  const vus = combattantsDe(listeCombat(MAITRE, MULE));
+  assert.deepStrictEqual([...vus].sort(), ['-1', '-2', String(MAITRE), String(MULE)].sort());
 });
 
-test('une liste d acteurs de carte ne rend aucun joueur', () => {
-  assert.strictEqual(joueursDe(listeCarte()), null);
+test('une liste d acteurs de carte ne rend aucun combattant', () => {
+  assert.strictEqual(combattantsDe(listeCarte()), null);
 });
 
-test('une trame malformee ne rend aucun joueur', () => {
-  assert.strictEqual(joueursDe(null), null);
-  assert.strictEqual(joueursDe({ kind: 'event', type: TYPE_COMBATTANTS }), null);
+// RONDE DE CORRECTION 1 -- consequence assumee: sans le moindre monstre, rien
+// ne fait lever de negatif, et combattantsDe rend null comme pour une liste
+// de carte. Un abandon rate, jamais un abandon de trop.
+test('un combat joueur contre joueur, sans monstre, ne rend aucun combattant', () => {
+  assert.strictEqual(combattantsDe(listeCombatSansMonstre(MAITRE, MULE)), null);
+});
+
+test('une trame malformee ne rend aucun combattant', () => {
+  assert.strictEqual(combattantsDe(null), null);
+  assert.strictEqual(combattantsDe({ kind: 'event', type: TYPE_COMBATTANTS }), null);
 });
 
 test('une mule du meme combat abandonne avec le maitre', () => {
@@ -212,4 +238,28 @@ test('une trame absente ne fait pas lever', () => {
   p({ pid: 1, dir: 'in', frame: null, brute: Buffer.alloc(0), estMaitre: true });
   p({ pid: 1, dir: 'out', frame: undefined, brute: Buffer.alloc(0), estMaitre: true });
   assert.strictEqual(sup.emis.length, 0);
+});
+
+// RONDE DE CORRECTION 1 -- ce test reproduit tel quel le kmk mesure en jeu
+// cette nuit (journal-dev.log, maitre 676438999334 a l'orientation 1, mule
+// 677048221990 a l'orientation 5, quatre monstres aux orientations 7,5,5,5).
+// AVANT LA CORRECTION il echouait: joueursDe filtrait sur le champ 2 comme si
+// c'etait un type d'acteur, alors que c'est l'ORIENTATION (0 a 7); comme
+// aucune orientation ne valait 3 ici, la mule n'etait jamais retenue et le
+// kme du maitre ne trouvait personne -- le silence total constate en jeu.
+// Sortie d'echec constatee avant correction: `0 !== 1` sur sup.emis.length.
+test('une liste de combat avec les orientations mesurees en jeu fait abandonner la mule', () => {
+  const combatMesure = () => ({
+    kind: 'event', type: TYPE_COMBATTANTS,
+    payload: [
+      combattant(7n, -1n), combattant(5n, -2n), combattant(5n, -3n), combattant(5n, -4n),
+      combattant(1n, MAITRE), combattant(5n, MULE),
+    ],
+  });
+  const sup = fauxSuperviseur();
+  const p = politique(sup);
+  p(recu(1, combatMesure()));
+  p(recu(2, combatMesure()));
+  p(abandon());
+  assert.strictEqual(sup.emis.length, 1);
 });

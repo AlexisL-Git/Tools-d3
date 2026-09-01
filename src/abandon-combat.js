@@ -37,6 +37,53 @@
 // `kmk` de combat, donc un combat neuf ecrase le precedent. Un pid retire
 // laisse une entree morte, sans effet.
 //
+// ------------------------------------------------------------------------
+// RONDE DE CORRECTION 1, 2026-09-01 (nuit). Branche en jeu: le maitre
+// abandonne, la mule ne bouge pas, aucune ligne `abandon :` au journal.
+//
+// LE DEFAUT: `TYPE_JOUEUR = 3` reposait sur une coincidence. Le champ 2 d'une
+// entree de `kmk` n'est PAS un type d'acteur — c'est son ORIENTATION sur la
+// carte (0 a 7). Le champ 1 est sa CELLULE (0 a 559). Dans la mesure
+// d'origine, les cinq monstres regardaient tous vers 7 et les deux joueurs
+// vers 3: d'ou la fausse lecture « 7 = monstre, 3 = joueur ».
+//
+// LA CONTRE-PREUVE, mesuree cette nuit (journal-dev.log, maitre pid 10352 =
+// 676438999334, mule pid 11024 = 677048221990):
+//
+//   40217ms [11024] <-- event kmk { 2={1=200 2=7 3=-1} 2={1=203 2=5 3=-2}
+//                                    2={1=262 2=5 3=-3} 2={1=303 2=5 3=-4}
+//                                    2={1=204 2=5 3=677048221990} }
+//   59422ms [11024] <-- event kmk { 2={1=200 2=7 3=-1} 2={1=203 2=5 3=-2}
+//                                    2={1=262 2=5 3=-3} 2={1=303 2=5 3=-4}
+//                                    2={1=188 2=1 3=676438999334}
+//                                    2={1=204 2=5 3=677048221990} }
+//   61130ms [10352] --> request kme {  }
+//
+// Des monstres a orientation 7 ET 5, la mule a l'orientation 5, le maitre a
+// l'orientation 1. Aucune entree a l'orientation 3: l'ancien filtre rendait
+// donc null pour la mule, rien n'etait retenu, et le kme du maitre ne
+// trouvait personne. Le silence total du journal s'explique entierement par
+// la.
+//
+// CE QUI DISTINGUE VRAIMENT UN JOUEUR D'UN MONSTRE: le SIGNE de l'identifiant
+// au champ 3, pas le champ 2. Les monstres d'un combat portent de petits
+// identifiants NEGATIFS (-1, -2, -3, -4); les joueurs portent leur
+// characterId, un grand entier positif.
+//
+// LA CORRECTION. `combattantsDe` (ex-`joueursDe`) retient desormais TOUS les
+// identifiants du champ 3, sans filtrer sur l'orientation — TYPE_JOUEUR et
+// CHAMP_TYPE decrivaient une chose qui n'existe pas, ils sont retires. Elle
+// ne rend un ensemble que si la liste porte AU MOINS UN identifiant negatif:
+// `kmk` sert aussi a lister les acteurs d'une CARTE, et une telle liste nomme
+// le maitre sans qu'il combatte avec qui que ce soit — un combat contre des
+// monstres, lui, porte toujours au moins un negatif.
+//
+// CONSEQUENCE ASSUMEE. Un combat JOUEUR CONTRE JOUEUR, sans le moindre
+// monstre, ne fait lever aucun negatif: `combattantsDe` y rend null comme
+// pour une liste de carte, et l'abandon groupe n'y declenche rien. Un
+// abandon rate, jamais un abandon de trop — le meme choix que pour l'etat
+// perime plus haut dans ce fichier.
+//
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur, comme src/invitation.js et src/passeur.js.
 
@@ -48,46 +95,47 @@ const TYPE_COMBATTANTS = 'kmk';
 const TYPES_ABANDON = ['kme'];
 
 // Dans kmk: une entree repetee par combattant au champ 2. Dans chaque entree,
-// le champ 2 porte le type et le champ 3 l'identifiant.
+// le champ 1 est la CELLULE (0 a 559), le champ 2 l'ORIENTATION (0 a 7, sans
+// rapport avec le role de l'acteur) et le champ 3 l'IDENTIFIANT.
 const CHAMP_COMBATTANT = 2;
-const CHAMP_TYPE = 2;
 const CHAMP_ID = 3;
 
-// 7 = monstre, 3 = joueur, 1 = acteur de carte hors combat.
-const TYPE_JOUEUR = 3;
-
-// Les characterId des joueurs d'une liste de combattants, ou null si la trame
-// n'en porte aucun.
+// Les identifiants (characterId ET identifiants de monstre) d'une liste de
+// combattants, ou null si la liste ne decrit pas un combat.
 //
 // NULL PLUTOT QU'UN ENSEMBLE VIDE, et la difference porte tout le mecanisme:
-// `kmk` sert aussi a lister les acteurs d'une CARTE, ou personne n'est de type
-// 3. Un ensemble vide ecraserait la liste du combat en cours et ferait rater
-// l'abandon; null la laisse en place.
-function joueursDe(frame) {
+// `kmk` sert aussi a lister les acteurs d'une CARTE, ou personne ne combat.
+// Un ensemble vide ecraserait la liste du combat en cours et ferait rater
+// l'abandon; null la laisse en place. Le signal qui distingue les deux n'est
+// pas un champ de type (voir la correction plus haut) mais la presence d'au
+// moins un identifiant NEGATIF: un monstre. Une liste de carte n'en porte
+// jamais; un combat contre des monstres en porte toujours au moins un.
+function combattantsDe(frame) {
   if (frame === null || typeof frame !== 'object') return null;
   const ids = new Set();
+  let auMoinsUnMonstre = false;
   for (const f of frame.payload || []) {
     if (f === null || f.no !== CHAMP_COMBATTANT || !Array.isArray(f.value)) continue;
-    const type = f.value.find((x) => x && x.no === CHAMP_TYPE);
     const id = f.value.find((x) => x && x.no === CHAMP_ID);
-    if (type === undefined || id === undefined) continue;
-    if (Number(type.value) !== TYPE_JOUEUR) continue;
-    if (id.value === undefined || id.value === null) continue;
+    if (id === undefined || id.value === undefined || id.value === null) continue;
     // Le decodeur rend des BigInt sur certains champs et des nombres sur
     // d'autres, et 676438999334n !== 676438999334. Tout passe en chaine, sans
     // quoi la comparaison serait toujours fausse et la politique inerte — sans
     // rien dire. Meme precaution que cleDe() dans src/garde-combat.js.
     ids.add(String(id.value));
+    // Number() sur un BigInt ne perd pas le signe, seule chose qui nous
+    // interesse ici — peu importe qu'il perde la precision au-dela de 2^53.
+    if (Number(id.value) < 0) auMoinsUnMonstre = true;
   }
-  return ids.size === 0 ? null : ids;
+  return auMoinsUnMonstre ? ids : null;
 }
 
 // superviseur   — porte `arme`, emettre(pid, octets), comptes.get(pid) et
 //                 comptes.esclaves(pid)
 // onCompteRendu — recoit { pid, ok, raison, octets }, un appel par esclave vise
 function creerAbandonGroupe({ superviseur, onCompteRendu = () => {} }) {
-  // pid -> ensemble des characterId (en chaines) qui combattent avec lui. Le
-  // maitre y figure comme les autres.
+  // pid -> ensemble des identifiants (characterId ET monstres, en chaines)
+  // qui combattent avec lui. Le maitre y figure comme les autres.
   const combattants = new Map();
 
   return function onTrame({ pid, dir, frame, brute, estMaitre }) {
@@ -98,8 +146,8 @@ function creerAbandonGroupe({ superviseur, onCompteRendu = () => {} }) {
     // mules, et c'est la raison d'etre de ce module.
     if (dir === 'in') {
       if (frame.type !== TYPE_COMBATTANTS) return;
-      const joueurs = joueursDe(frame);
-      if (joueurs !== null) combattants.set(pid, joueurs);
+      const vus = combattantsDe(frame);
+      if (vus !== null) combattants.set(pid, vus);
       return;
     }
 
@@ -135,7 +183,7 @@ function creerAbandonGroupe({ superviseur, onCompteRendu = () => {} }) {
 }
 
 module.exports = {
-  creerAbandonGroupe, joueursDe,
-  TYPE_COMBATTANTS, TYPES_ABANDON, TYPE_JOUEUR,
-  CHAMP_COMBATTANT, CHAMP_TYPE, CHAMP_ID,
+  creerAbandonGroupe, combattantsDe,
+  TYPE_COMBATTANTS, TYPES_ABANDON,
+  CHAMP_COMBATTANT, CHAMP_ID,
 };
