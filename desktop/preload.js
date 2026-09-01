@@ -45,7 +45,10 @@ contextBridge.exposeInMainWorld('app', {
 
   // Ouvre ou ferme la petite fenetre flottante posee sur le jeu. Elle a son
   // propre preload, plus etroit: desktop/overlay-preload.js.
-  avisHdv: () => ipcRenderer.invoke('avisHdv'),
+  // Le menu HDV de chaque ligne de compte. `majPrixHdv` lance la passe, ou
+  // l'arrete si elle tourne deja: une seule voie pour les deux gestes.
+  majPrixHdv: (pid) => ipcRenderer.invoke('majPrixHdv', pid),
+  avisVenteHdv: () => ipcRenderer.invoke('avisVenteHdv'),
   basculerOverlay: () => ipcRenderer.invoke('basculerOverlay'),
 
   // Un appui de bouton fait DANS la fenetre d'OMNI. Les appuis faits sur un

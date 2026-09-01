@@ -12,6 +12,7 @@ const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/songes');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
+const { creerReprix } = require('../src/hdv/reprix');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients, fermerClients } = require('../src/comptes/clients');
@@ -53,6 +54,10 @@ let priseOverlay = null;
 // passe par powershell -- et a l'action groupee de sa colonne « Répl. ».
 let dernieresLignes = [];
 let superviseur = null;
+// La mise a jour des prix en hotel de vente. Declaree ici, et pas seulement
+// dans le composer, parce qu'un BOUTON doit pouvoir la lancer: c'est le seul
+// module d'OMNI qui repond a autre chose qu'a une trame.
+let reprix = null;
 let favoris = null;
 let emblemes = null;
 let comptes = [];
@@ -332,6 +337,58 @@ function journal(pid, texte) {
 // deluge, OMNI_CAPTURE=1 y ajoute le deluge quand il faut mesurer.
 const CAPTURE = process.env.OMNI_CAPTURE === '1';
 
+// LES OCTETS BRUTS, sur un troisieme interrupteur: OMNI_CAPTURE_OCTETS=1.
+//
+// Pose le 01/09 pour mesurer les trames de l'hotel de vente, et GARDE: la mise
+// en vente attend son propre spike, qui aura besoin exactement de ceci. Il ne
+// coute rien tant qu'on ne l'allume pas — son interrupteur lui est propre, et
+// aucun lanceur ordinaire ne le pose.
+//
+// `champsCourts` resume tout champ imbrique en `{…}`. Cela a suffi jusqu'ici
+// parce que les trames qui nous interessaient etaient plates: kfz porte deux
+// identifiants et un drapeau, jxy ne porte rien. Les trames du HDV ne le sont
+// pas — un contenu de banque et une liste de prix sont des listes de messages,
+// et c'est justement leur INTERIEUR qu'il faut lire. Sans les octets, la
+// capture dirait `2={…}` neuf fois de suite et n'apprendrait rien.
+//
+// En aout la mesure se faisait en deux passes, decouverte puis octets, parce
+// qu'elle se faisait EN COMBAT: plusieurs milliers de trames, illisibles si
+// chacune traine son hexadecimal. Le HDV est calme — hors combat le flux se
+// compte en dizaines de trames par minute — donc une passe unique suffit et
+// epargne une session de jeu.
+//
+// Le dump est borne PAR TRAME, et la borne est reglable: OMNI_CAPTURE_OCTETS_MAX.
+// Ce qui deborde est signale, jamais tronque en silence — une trame coupee sans
+// le dire se lirait comme une trame complete et ferait conclure sur des champs
+// absents.
+//
+// La borne a d'abord valu 2048, et c'etait trop court: la liste des lots en
+// vente fait 8908 octets, dont 2146 seulement etaient lisibles. Une borne qui
+// coupe la seule trame qu'on mesure ne protege de rien. Le defaut passe donc a
+// 256 Ko, ce qui couvre aussi le plus gros paquet du login (89 746 octets).
+// Regler plus bas reste possible pour une mesure en combat, ou le volume est
+// le vrai probleme.
+const CAPTURE_OCTETS = process.env.OMNI_CAPTURE_OCTETS === '1';
+const OCTETS_MAX = Number(process.env.OMNI_CAPTURE_OCTETS_MAX) > 0
+  ? Number(process.env.OMNI_CAPTURE_OCTETS_MAX)
+  : 262144;
+
+// L'hexadecimal par lignes de 32 octets, indente sous la ligne `cap :` qu'il
+// documente. Le format est celui de trames-echange.md, ou il s'est relu sans
+// outil.
+function hexDump(brute) {
+  if (!Buffer.isBuffer(brute) || brute.length === 0) return [];
+  const vus = brute.subarray(0, OCTETS_MAX);
+  const lignes = [];
+  for (let i = 0; i < vus.length; i += 32) {
+    lignes.push(`        ${String(i).padStart(4, '0')}  ${vus.subarray(i, i + 32).toString('hex')}`);
+  }
+  if (brute.length > OCTETS_MAX) {
+    lignes.push(`        ---- TRONQUE: ${brute.length} octets au total, ${OCTETS_MAX} montres`);
+  }
+  return lignes;
+}
+
 // Les champs de premier niveau, en une ligne courte. Un champ imbrique ou
 // binaire est resume: sa taille suffit a le reconnaitre, son contenu noierait
 // le journal.
@@ -356,7 +413,7 @@ function champsCourts(payload, profondeur = 2, budget = 600) {
 
 function diagnostic(sup) {
   const idsVus = new Map();   // pid -> characterId deja journalise
-  return function onTrame({ pid, dir, frame, estMaitre }) {
+  return function onTrame({ pid, dir, frame, brute, estMaitre }) {
     if (frame === null) return;
 
     // Une ligne par changement, hors capture: le characterId et les deux
@@ -373,6 +430,7 @@ function diagnostic(sup) {
     if (dir !== 'in') {
       journal(pid, `cap : --> ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
         + (frame.type === 'jxy' ? '   <<<<< PASSE A LA MAIN' : ''));
+      if (CAPTURE_OCTETS) for (const l of hexDump(brute)) journal(pid, l);
       return;
     }
 
@@ -383,6 +441,7 @@ function diagnostic(sup) {
     const tour = ['jzc', 'jyj', 'jxh'].includes(frame.type) ? ' *' : '  ';
     journal(pid, `cap :${tour}<-- ${frame.kind} ${frame.type} { ${champsCourts(frame.payload)} }`
       + `${moi ? '  <-- MOI' : ''}`);
+    if (CAPTURE_OCTETS) for (const l of hexDump(brute)) journal(pid, l);
   };
 }
 
@@ -552,6 +611,17 @@ async function envoyerEtat() {
   const rangees = ordonner(lignes, favoris.ordre());
   lignes.length = 0;
   lignes.push(...rangees);
+
+  // CE QUE LE MENU HDV DE CHAQUE LIGNE DOIT SAVOIR. Pose ici et pas dans
+  // construireVue: la vue est une fonction pure qui ne connait que des comptes
+  // et des clients, alors que le nombre de lots en vente est un etat du
+  // sequenceur. `hdvLots` a zero veut dire « le HDV n'a pas encore ete
+  // ouvert », et c'est ce qui desactive l'entree de menu -- avec sa raison.
+  for (const l of lignes) {
+    const aUnPid = l.pid !== null && l.pid !== undefined && reprix !== null;
+    l.hdvLots = aUnPid ? reprix.lotsConnus(l.pid).length : 0;
+    l.hdvEnCours = aUnPid ? reprix.enCours(l.pid) : false;
+  }
 
   // La carte des pids et la liste des pids affiches, tenues a jour ici:
   // c'est le seul endroit qui connaisse a la fois les comptes, les clients
@@ -859,6 +929,40 @@ app.whenReady().then(async () => {
   // Le superviseur n'accepte qu'un seul onTrame: le passe-tour, politique
   // independante du OMNI, se compose ici plutot que d'ajouter un second
   // point d'entree au superviseur.
+  // LA MISE A JOUR DES PRIX EN HOTEL DE VENTE.
+  //
+  // Elle ecoute EN PERMANENCE, meme quand aucune passe ne tourne: `kby` --
+  // la liste de nos lots en vente -- n'arrive qu'a l'ouverture du HDV. Un
+  // module qui ne se reveillerait qu'au clic du bouton aurait deja rate la
+  // seule trame qui dit ce qu'on vend.
+  reprix = creerReprix({
+    superviseur,
+    onCompteRendu: (r) => {
+      // Un refus au lancement: le bouton a ete clique et rien ne va partir.
+      // C'est exactement ce que l'utilisateur ne peut pas deviner.
+      if (r.ok === false) {
+        messages.set(r.pid, `HDV : ${r.raison}`);
+        journal(r.pid, `hdv refus : ${r.raison}`);
+        envoyerEtat();
+        return;
+      }
+      if (r.fini) {
+        const b = r.bilan;
+        messages.set(r.pid, r.raison
+          ? `HDV : arrêt — ${r.raison} (${b.maj} mis à jour)`
+          : `HDV : ${b.maj} mis à jour, ${b.laisses} déjà au meilleur prix, ${b.echecs} échoués`);
+        journal(r.pid, `hdv fin : ${b.maj} maj, ${b.laisses} laisses, ${b.echecs} echecs`
+          + (r.raison ? ` — ${r.raison}` : ''));
+        envoyerEtat();
+        return;
+      }
+      // L'AVANCEMENT NE DECLENCHE PAS D'ENVOI D'ETAT. envoyerEtat() lance
+      // powershell.exe par clientsRecents(): l'appeler a chaque lot ferait
+      // 376 lancements sur le compte de mesure. Le tick de 2 s l'affiche.
+      if (r.total) messages.set(r.pid, `HDV : ${r.avance} / ${r.total} lots`);
+    },
+  });
+
   superviseur.onTrame = composer(
     creerDuplicateur({
       superviseur,
@@ -968,6 +1072,7 @@ app.whenReady().then(async () => {
         else messages.set(pid, raison);
       },
     }),
+    reprix.onTrame,
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -1188,13 +1293,29 @@ ipcMain.handle('basculerReplGroupe', async () => {
 // compte: pour cela l'overlay appelle les canaux DU PANNEAU. Ici on ne regle
 // que la fenetre elle-meme.
 
-// LE BOUTON HDV EST UN JALON, pas une fonction. Le protocole de l'hotel de
-// vente a ete mesure le 01/09 (docs/superpowers/specs/2026-09-01-trames-hdv.md)
-// mais rien n'est ecrit. Le bouton existe a la demande de l'utilisateur, pour
-// tenir sa place dans la barre; il repond ce qu'il est, et c'est tout ce qu'il
-// doit faire jusqu'a ce que la fonction arrive.
-ipcMain.handle('avisHdv', async () => {
-  noterAvis('HDV : le protocole est mesuré, la fonction n’est pas encore écrite');
+// LES DEUX ENTREES DU MENU HDV, POSE SUR CHAQUE LIGNE DE COMPTE.
+//
+// Le jalon global de la barre du bas a disparu avec elles: il ne pouvait pas
+// designer « le compte de la ligne », qui est precisement la cible retenue.
+//
+// Une seule voie pour lancer ET arreter. Le menu affiche « Arrêter » pendant la
+// passe, donc le geste est sans ambiguite, et un second clic ne peut jamais
+// lancer une passe par-dessus une autre.
+ipcMain.handle('majPrixHdv', async (_e, pid) => {
+  if (reprix === null || !Number.isInteger(pid)) return;
+  if (reprix.enCours(pid)) reprix.arreter(pid);
+  else reprix.lancer(pid);
+  await envoyerEtat();
+});
+
+// LA MISE EN VENTE N'EXISTE PAS ENCORE, ET ELLE LE DIT.
+//
+// kge est mesuree et comprise, mais elle exige l'uid d'une pile d'inventaire —
+// et l'inventaire ne transite sur AUCUN canal. Verifie sur 54 666 trames le
+// 01/09 (docs/superpowers/specs/2026-09-01-trames-hdv.md). Cacher l'entree
+// serait pire que la montrer inerte: on ne saurait meme pas qu'elle est prevue.
+ipcMain.handle('avisVenteHdv', async () => {
+  noterAvis('Mise en vente : l’inventaire ne passe pas par le réseau, la fonction attend sa mesure');
   await envoyerEtat();
 });
 
