@@ -368,6 +368,75 @@ test('un client qui disparait arrete la passe', () => {
   assert.match(fin.raison, /disparu/);
 });
 
+// LA GARDE D'IDENTITE VAUT AUSSI POUR LES MINUTEURS. Ici personne n envoie de
+// kbt: c est l attente qui expire, jusqu a delaiReponseMs apres l abonnement —
+// largement de quoi laisser un autre client reprendre le pid sous Windows.
+// paquetSuivant emettrait un trameDesabonner des sa premiere ligne: sans la
+// garde, ce desabonnement partirait dans la session du nouveau client.
+test('un client qui disparait pendant l attente de kbt n envoie rien au suivant', async () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const vente = creerVente({
+    superviseur,
+    reglages: { delaiObjetMs: 0, delaiRafaleMs: 0, delaiReponseMs: 20 },
+    onCompteRendu: (r) => rendus.push(r),
+  });
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      vint(1, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 100), vint(4, 84496683)] },
+    ] },
+  ]) });
+  vente.lancer(42);
+  const kehAvant = typesEmis(superviseur).filter((t) => t === 'keh').length;
+  // Le client meurt et un autre reprend le meme pid, avant que kbt ne reponde.
+  superviseur.comptes.set(42, { nom: 'un autre client sous le meme pid' });
+  await new Promise((r) => setTimeout(r, 40));
+  const kehApres = typesEmis(superviseur).filter((t) => t === 'keh').length;
+  assert.strictEqual(kehApres, kehAvant, 'aucun desabonnement n est parti dans la session du nouveau client');
+  const fin = rendus.find((r) => r.fini);
+  assert.ok(fin, 'la passe se termine');
+  assert.match(fin.raison, /disparu/);
+});
+
+// MEME GARDE, MEME RAISON, SUR L'AUTRE MINUTEUR: l'attente de confirmation
+// dans poserSuivant. terminer() se desabonne quand il croit repondre a un
+// refus du serveur; sans la garde, ce desabonnement partirait dans la
+// session du client qui a repris le pid.
+test('un client qui disparait pendant l attente de confirmation n envoie rien au suivant', async () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const vente = creerVente({
+    superviseur,
+    reglages: { delaiObjetMs: 0, delaiRafaleMs: 0, delaiReponseMs: 20 },
+    onCompteRendu: (r) => rendus.push(r),
+  });
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      vint(1, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 100), vint(4, 84496683)] },
+    ] },
+  ]) });
+  vente.lancer(42);
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
+  // Le kge est deja parti (delaiRafaleMs: 0); on attend maintenant ivj ou ium.
+  const kehAvant = typesEmis(superviseur).filter((t) => t === 'keh').length;
+  // Le client meurt et un autre reprend le meme pid, avant que la pose ne
+  // soit confirmee.
+  superviseur.comptes.set(42, { nom: 'un autre client sous le meme pid' });
+  await new Promise((r) => setTimeout(r, 40));
+  const kehApres = typesEmis(superviseur).filter((t) => t === 'keh').length;
+  assert.strictEqual(kehApres, kehAvant, 'aucun desabonnement n est parti dans la session du nouveau client');
+  const fin = rendus.find((r) => r.fini);
+  assert.ok(fin, 'la passe se termine');
+  assert.match(fin.raison, /disparu/);
+  // La garde intercepte AVANT le compte des echecs: ce n'est pas un refus du
+  // serveur, c'est une disparition de client.
+  assert.strictEqual(fin.bilan.echecs, 0);
+});
+
 test('la passe se desabonne en partant', () => {
   const { superviseur, vente } = venteAvecPile({ qte: 100 });
   vente.lancer(42);
