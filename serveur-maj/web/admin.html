@@ -133,10 +133,16 @@
     // panneau reste utilisable, juste sans les cases a cocher.
     let fonctions = [];
     let lignesDroits = [];
+    let droitsIndisponibles = null;
     try {
       fonctions = await api('fonctions', {});
       lignesDroits = await api('droits', {});
-    } catch (e) { avis('cases a cocher indisponibles: ' + e.message); }
+    } catch (e) {
+      // #avis est unique et sans file: un bloc plus bas qui reussit (versions,
+      // refus) l'ecrase avec avis(''). Le motif doit donc vivre dans le
+      // tableau lui-meme, a la place des cases, pour rester visible.
+      droitsIndisponibles = 'cases a cocher indisponibles: ' + e.message;
+    }
     const accordes = new Map();
     for (const d of lignesDroits) {
       if (!accordes.has(d.cle)) accordes.set(d.cle, new Set());
@@ -188,29 +194,36 @@
       const trDroits = document.createElement('tr');
       const tdDroits = document.createElement('td');
       tdDroits.colSpan = 6;
-      const siens = accordes.get(a.cle) || new Set();
-      for (const f of fonctions) {
-        const label = document.createElement('label');
-        label.style.marginRight = '12px';
-        const c = document.createElement('input');
-        c.type = 'checkbox';
-        c.checked = siens.has(f.nom);
-        c.onchange = async () => {
-          c.disabled = true;
-          try { await api('droit', { cle: a.cle, fonction: f.nom, actif: c.checked }); }
-          finally { c.disabled = false; }
+      if (droitsIndisponibles) {
+        // Le motif vit ici, a la place des cases: il reste visible meme si
+        // un bloc plus bas (versions, refus) efface #avis avec son succes.
+        tdDroits.textContent = droitsIndisponibles;
+        tdDroits.className = 'retard';
+      } else {
+        const siens = accordes.get(a.cle) || new Set();
+        for (const f of fonctions) {
+          const label = document.createElement('label');
+          label.style.marginRight = '12px';
+          const c = document.createElement('input');
+          c.type = 'checkbox';
+          c.checked = siens.has(f.nom);
+          c.onchange = async () => {
+            c.disabled = true;
+            try { await api('droit', { cle: a.cle, fonction: f.nom, actif: c.checked }); }
+            finally { c.disabled = false; }
+          };
+          label.append(c, document.createTextNode(' ' + f.libelle));
+          tdDroits.append(label);
+        }
+        const tout = document.createElement('button');
+        tout.textContent = 'tout cocher';
+        tout.onclick = async () => {
+          // La cle de Draxus doit tout avoir sans sept clics.
+          for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
+          rafraichir();
         };
-        label.append(c, document.createTextNode(' ' + f.libelle));
-        tdDroits.append(label);
+        tdDroits.append(tout);
       }
-      const tout = document.createElement('button');
-      tout.textContent = 'tout cocher';
-      tout.onclick = async () => {
-        // La cle de Draxus doit tout avoir sans sept clics.
-        for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
-        rafraichir();
-      };
-      tdDroits.append(tout);
       trDroits.append(tdDroits);
       t.append(trDroits);
     }
