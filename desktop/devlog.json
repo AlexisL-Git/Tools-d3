@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.2.9",
+    "le": "2026-09-01",
+    "notes": [
+      "Nouveau bouton par compte : remettre tous ses lots en hôtel de vente au prix du marché, un cran sous le meilleur concurrent. Le personnage doit déjà être devant l'hôtel de vente et l'avoir ouvert une fois.",
+      "Le bouton ne touche jamais un lot dont on n'est pas sûr : si le meilleur prix pourrait être le nôtre, ou si le prix déduit s'écarte trop du prix moyen, le lot est laissé tel quel.",
+      "Rien n'est automatique : c'est un clic, sur le compte que tu choisis, quand tu le veux.",
+      "Cette fonction est neuve — regarde le premier passage avant de la lancer sur des centaines de lots."
+    ]
+  },
+  {
     "version": "0.2.8",
     "le": "2026-09-01",
     "notes": [
