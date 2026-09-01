@@ -55,6 +55,17 @@ dans `creerAbandonGroupe`.
    ete emise depuis moins de `FENETRE_APPRENTISSAGE_MS`.
 3. **Chaque entree est datee.**
 
+`FENETRE_APPRENTISSAGE_MS` reste a **2000 ms**, et la valeur n'est plus
+critique. Elle couvre largement la chaine reelle : le rejeu part au plus tot au
+plancher de 250 ms, le serveur annonce le combat en ~30 ms, la `kmk` de
+l'esclave suit. C'est desormais le CRITERE qui porte la precision, plus la
+fenetre — c'est tout l'objet de ce changement.
+
+`derniereAction` est **consommee** des le premier esclave qui declenche
+l'apprentissage, comme elle l'etait sur le `ieb` du maitre. Deux mules entrant
+chacune dans son combat ne produisent donc qu'une entree, et `estApprise`
+garde de toute facon l'idempotence.
+
 ## Ce qui ne change pas
 
 L'annulation des rejeux en attente reste declenchee par le `ieb` du MAITRE, au
