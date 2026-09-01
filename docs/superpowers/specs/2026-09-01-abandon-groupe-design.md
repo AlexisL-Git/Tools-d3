@@ -101,16 +101,24 @@ liste complète des combattants, **identique chez le maître et chez la mule** :
 ```
 kmk { 2={1=428 2=7 3=-1}              type 7 = monstre
       …
-      2={1=274 2=3 3=676438999334}    type 3 = joueur, 3 = son characterId
+      2={1=274 2=3 3=676438999334}    cellule, orientation, characterId
       2={1=217 2=3 3=677048221990} }
 ```
 
-Un client retient l'ensemble des `characterId` des entrées de type `2=3` de sa
-dernière `kmk` de combat. **Une mule abandonne avec le maître si cet ensemble
-contient le `characterId` du maître.**
+Un client retient l'ensemble des identifiants (champ 3) de sa dernière `kmk`
+**de combat**. **Une mule abandonne avec le maître si cet ensemble contient le
+`characterId` du maître.**
 
-Une `kmk` sans aucune entrée de type `3` est une liste d'acteurs de carte : elle
-est ignorée et ne remplace rien.
+Une `kmk` est une liste **de combat** si elle porte au moins un identifiant
+**négatif** — un monstre. Sinon c'est une liste d'acteurs de carte : elle est
+ignorée et ne remplace rien.
+
+> **Corrigé le 2026-09-01 après un premier essai en jeu raté.** Le champ 2
+> avait été pris pour un type d'acteur, avec « `3` = joueur ». C'était une
+> coïncidence d'orientation : les monstres du combat mesuré regardaient tous
+> dans la même direction. Le champ 2 est l'orientation, le champ 1 la cellule,
+> et ce qui distingue un joueur d'un monstre est le **signe** du champ 3.
+> Détail et contre-preuve dans `2026-09-01-trames-abandon.md`.
 
 **Pourquoi c'est mieux que le numéro de combat.** Le numéro existe bien
 (`kau { 5=198 }`, reçu par les deux), mais il est aussi diffusé à qui *voit* un

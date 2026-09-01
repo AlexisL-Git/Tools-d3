@@ -90,9 +90,34 @@ Un combattant par entrée répétée au champ 2 :
 
 | champ | sens |
 |---|---|
-| `1` | apparence / modèle, sans intérêt ici |
-| `2` | **le type** : `7` = monstre, `3` = joueur, `1` = acteur de carte (hors combat) |
-| `3` | l'identifiant : négatif pour un monstre, **le `characterId`** pour un joueur |
+| `1` | la **cellule** occupée sur la carte (0 à 559) |
+| `2` | l'**orientation** de l'acteur (0 à 7) |
+| `3` | l'identifiant : **négatif** pour un monstre, **le `characterId`** pour un joueur |
+
+> **CORRECTION DU 2026-09-01, APRÈS ESSAI EN JEU.** Ce tableau a d'abord été lu
+> de travers, et l'erreur a coûté un premier essai raté. Les champs 1 et 2
+> avaient été pris pour « apparence » et « type d'acteur », avec la règle
+> « `7` = monstre, `3` = joueur ». **C'était une coïncidence** : dans le combat
+> mesuré, les cinq monstres regardaient tous dans la direction 7 et les deux
+> joueurs dans la direction 3.
+>
+> La contre-preuve, deuxième séance, maître `676438999334` et mule
+> `677048221990` :
+>
+> ```
+>  40217ms [mule] <-- kmk { 2={1=200 2=7 3=-1} 2={1=203 2=5 3=-2}
+>                           2={1=262 2=5 3=-3} 2={1=303 2=5 3=-4}
+>                           2={1=204 2=5 3=677048221990} }
+>  59422ms [mule] <-- kmk { … 2={1=188 2=1 3=676438999334}
+>                             2={1=204 2=5 3=677048221990} }
+> ```
+>
+> Des monstres à `2=7` **et** à `2=5`, la mule à `2=5`, le maître à `2=1`.
+> Aucune entrée à `2=3`. Le champ 2 est une orientation, le champ 1 une cellule
+> — les deux tiennent dans les bornes qu'on attend d'eux (0-7 et 0-559) sur
+> toutes les mesures.
+>
+> **Ce qui distingue vraiment un joueur d'un monstre : le signe du champ 3.**
 
 **Une seule `kmk` pour tout le combat** (vérifié : aucune autre entre `87463` et
 l'abandon à `90873`), et elle porte la liste complète. Elle se reçoit **parce
@@ -100,12 +125,18 @@ qu'on est dans le combat**, pas parce qu'on le voit.
 
 D'où la règle retenue, décidée par l'utilisateur le 2026-09-01 :
 
-> Un client retient l'ensemble des `characterId` des entrées de type `2=3` de sa
-> dernière `kmk`. Une mule abandonne avec le maître si cet ensemble contient le
+> Un client retient l'ensemble des identifiants (champ 3) de sa dernière `kmk`
+> **de combat**. Une mule abandonne avec le maître si cet ensemble contient le
 > `characterId` du maître.
 
-Une `kmk` sans aucune entrée de type `3` (liste d'acteurs de carte) est ignorée
-et ne remplace rien.
+Une `kmk` est reconnue comme liste **de combat** si elle porte au moins un
+identifiant **négatif** — un monstre. Sinon elle est ignorée et ne remplace
+rien : `kmk` sert aussi à lister les acteurs d'une **carte**, et une telle liste
+nomme le maître sans qu'il combatte avec personne.
+
+**Limite assumée :** un combat joueur contre joueur, sans le moindre monstre,
+ne déclenchera pas l'abandon groupé. C'est un abandon raté, jamais un abandon
+de trop — la direction dans laquelle on préfère se tromper.
 
 **Le combat de quête est couvert sans cas particulier :** le maître y est seul,
 sa `kmk` ne nomme que lui, et la mule n'en reçoit aucune. Rien ne part.
