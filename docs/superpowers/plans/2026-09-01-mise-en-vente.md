@@ -910,10 +910,16 @@ test('l ecoute retient les prix moyens d ivi', () => {
   // d'envois ne prouverait rien: la passe demarre dans les deux cas.
   const abonnement = decodeFrameRaw(superviseur.envois[0].octets);
   assert.strictEqual(abonnement.type, 'keh');
-  assert.strictEqual(Number(abonnement.payload.find((f) => f.no === 1).value), 8437);
+  // Un champ absent doit ECHOUER comme une assertion, pas lever un TypeError:
+  // « undefined n'est pas 8437 » nomme l'attendu, « cannot read .value » non.
+  const valeur = (no) => {
+    const f = (abonnement.payload || []).find((x) => x.no === no);
+    return f === undefined ? null : Number(f.value);
+  };
+  assert.strictEqual(valeur(1), 8437);
   // Le champ 2 distingue l'abonnement du DESABONNEMENT, qui est le meme
   // message sans lui. Sans cette assertion, confondre les deux passerait.
-  assert.strictEqual(Number(abonnement.payload.find((f) => f.no === 2).value), 1);
+  assert.strictEqual(valeur(2), 1);
   vente.arreter(42);
 });
 ```
@@ -996,15 +1002,15 @@ function rythmeRafale(hasard = Math.random) {
 }
 
 // Le temps d'une visite d'objet a la suivante, avec la pause quand le compteur
-// tombe. Rend le delai ET le compteur pour la visite suivante.
+// tombe. Rend le delai ET le compteur pour la visite suivante: LE COMPTEUR EST
+// REARME en meme temps que la pause est servie, sans quoi il resterait a zero
+// et toutes les visites suivantes pauseraient aussi.
 //
 // ELLE NE S'APPELLE PAS rythmeObjet, ET C'EST VOLONTAIRE. reprix.js exporte
 // deja un rythmeObjet(hasard) qui rend un NOMBRE et ne pause pas; celle-ci
 // prend un compteur et rend { ms, compteur }. Deux modules freres, deux
 // signatures, un seul nom: la confusion serait garantie au premier qui lit les
-// deux. — le compteur est REARME en
-// meme temps que la pause est servie, sans quoi il resterait a zero et toutes
-// les visites suivantes pauseraient aussi.
+// deux.
 function rythmeVisite(compteur, hasard = Math.random) {
   const entre = (min, max) => min + Math.floor(hasard() * (max - min + 1));
   let ms = entre(DELAI_OBJET_MIN, DELAI_OBJET_MAX);
