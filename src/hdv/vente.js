@@ -268,12 +268,23 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         continue;
       }
       passe.file.shift();
-      passe.attentePile = lot.uidPile;
       const envoi = trameMettreEnVente({ prix: passe.prix, uidPile: lot.uidPile, taille: lot.taille });
       plusTard(passe, () => {
         if (!passes.has(pid)) return;
         if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
         if (!envoyer(pid, passe, envoi)) return;
+        // ON N'ATTEND UNE CONFIRMATION QU'APRES AVOIR DEMANDE. Armer
+        // attentePile avant l'envoi ouvrait une fenetre de 90 a 260 ms — le
+        // delai de rafale — pendant laquelle un ivj sur la MEME pile
+        // satisfaisait confirmer(). Or confirmer() annule les minuteurs: le
+        // kge en attente d'envoi etait supprime, et le lot compte comme pose
+        // sans jamais partir.
+        //
+        // Le cas n'est pas theorique: un paquet est fait de lots tires d'une
+        // MEME pile, le paquet median en compte quatre, et ivj se declenche
+        // pour tout mouvement de cette pile — y compris une vente faite a la
+        // main par le joueur, qui est precisement devant son hotel de vente.
+        passe.attentePile = lot.uidPile;
         passe.enVol = lot;
         // LE SERVEUR N'A JAMAIS ETE OBSERVE EN TRAIN DE REFUSER UN kge.
         // L'absence de confirmation est donc le seul signal disponible — et

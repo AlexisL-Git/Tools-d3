@@ -445,6 +445,48 @@ test('la passe se desabonne en partant', () => {
   assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'keh').length, 2);
 });
 
+// LA COURSE ENTRE LA CONFIRMATION ET L'ENVOI. attentePile ne doit s'armer
+// qu'APRES l'envoi reel du kge, jamais avant: sinon un ivj errant sur la
+// meme pile, pendant le delai de rafale, se fait passer pour la confirmation
+// d'un lot qui n'est jamais parti — confirmer() annule alors le minuteur
+// d'envoi, et le lot compte comme pose sans que son kge soit sorti.
+test('un ivj errant pendant la rafale ne compte pas un lot non envoye', async () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const vente = creerVente({
+    superviseur,
+    reglages: { delaiObjetMs: 0, delaiRafaleMs: 50, delaiReponseMs: 0 },
+    onCompteRendu: (r) => rendus.push(r),
+  });
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      vint(1, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 200), vint(4, 84496683)] },
+    ] },
+  ]) });
+  vente.lancer(42);
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
+  // Le premier lot du paquet ne paie pas la rafale: il est deja parti.
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 1);
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 100) });
+  // Le second lot est maintenant dans son delai de rafale de 50 ms: son kge
+  // n'est pas encore parti.
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 1);
+  // Un ivj errant sur la meme pile arrive PENDANT ce delai — une vente faite
+  // a la main par le joueur, precisement devant son hotel de vente. Il ne
+  // doit rien confirmer: aucun kge ne le justifie encore.
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 50) });
+  assert.strictEqual(
+    rendus.filter((r) => r.poses !== undefined).length, 1,
+    'le lot errant ne compte pas comme pose',
+  );
+  await new Promise((r) => setTimeout(r, 80));
+  // Le delai de rafale n'a pas ete annule a tort: le second kge finit par
+  // partir de lui-meme.
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 2);
+});
+
 // --- Les fonctions de rythme ---------------------------------------------
 
 test('rythmeRafale reste dans ses bornes', () => {
