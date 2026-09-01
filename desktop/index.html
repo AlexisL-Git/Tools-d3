@@ -463,6 +463,7 @@
   <span class="avis-nav" id="avisNav"></span>
   <label class="champ-delai">Délai <input id="delai" type="number" min="0" step="0.1" value="0"> s</label>
   <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;color:var(--alerte)"></span>
+  <button class="pose" id="bhdv" title="vente et mise à jour des prix en hôtel de vente">HDV</button>
   <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
 </div>
@@ -779,6 +780,13 @@
       b.classList.remove('confirme');
       b.textContent = 'Fermer les clients';
     }, 3000);
+  });
+
+  // LE BOUTON N'AGIT PAS ENCORE, et il le dit lui-meme plutot que de ne rien
+  // faire. Un bouton muet est une promesse fausse: on ne saurait pas s'il est
+  // casse, si le clic a rate, ou si la fonction n'existe pas.
+  document.getElementById('bhdv').addEventListener('click', () => {
+    window.app.avisHdv();
   });
 
   document.getElementById('boverlay').addEventListener('click', () => {

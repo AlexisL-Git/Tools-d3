@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('app', {
 
   // Ouvre ou ferme la petite fenetre flottante posee sur le jeu. Elle a son
   // propre preload, plus etroit: desktop/overlay-preload.js.
+  avisHdv: () => ipcRenderer.invoke('avisHdv'),
   basculerOverlay: () => ipcRenderer.invoke('basculerOverlay'),
 
   // Un appui de bouton fait DANS la fenetre d'OMNI. Les appuis faits sur un
