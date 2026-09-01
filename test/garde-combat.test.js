@@ -80,6 +80,11 @@ test('les valeurs de reglage sont celles de la conception', () => {
 
 const MAITRE = 1;
 
+// Les characterId mesures le 2026-09-01, repris de test/abandon-combat.test.js
+// pour que les deux modules se testent sur le meme trafic.
+const ID_MAITRE = 676438999334n;
+const ID_MULE = 677048221990n;
+
 function fauxSuperviseur(esclaves = [2, 3]) {
   const emis = [];
   let annulations = 0;
@@ -89,9 +94,29 @@ function fauxSuperviseur(esclaves = [2, 3]) {
     arme: true,
     annulerRejeux: () => { annulations += 1; return 2; },
     emettre: (pid, octets) => { emis.push({ pid, octets }); return { ok: true }; },
-    comptes: { esclaves: () => esclaves.map((pid) => ({ pid })) },
+    comptes: {
+      esclaves: () => esclaves.map((pid) => ({ pid })),
+      get: (pid) => (pid === MAITRE
+        ? { pid, characterId: ID_MAITRE }
+        : { pid, characterId: ID_MULE }),
+    },
   };
 }
+
+// Une kmk telle qu'elle arrive: un combattant par champ 2, cellule au champ 1,
+// ORIENTATION au champ 2, identifiant au champ 3. Un identifiant NEGATIF est
+// un monstre, et c'est lui seul qui distingue un combat d'une liste de carte.
+const combattant = (id) => ({
+  no: 2, kind: 'message',
+  value: [{ no: 1, value: 400n }, { no: 2, value: 3n }, { no: 3, value: id }],
+});
+const listeCombat = (...ids) => ({
+  kind: 'event', type: 'kmk',
+  payload: [combattant(-1n), ...ids.map(combattant)],
+});
+const listeCarte = (...ids) => ({
+  kind: 'event', type: 'kmk', payload: ids.map(combattant),
+});
 
 const sortante = (type, champs) => ({
   pid: MAITRE, dir: 'out', estMaitre: true, frame: {
@@ -154,53 +179,99 @@ test('onAnnulation n est pas appele si aucun rejeu n etait en attente', () => {
   assert.deepStrictEqual(appels, []);
 });
 
-test('l action qui precede le combat est retenue', () => {
+// LE COEUR DU CHANGEMENT. Ce qui compte n'est pas que le maitre se batte —
+// c'est jouer normalement — mais qu'une mule se soit ouvert SON combat.
+test('une mule en combat SANS le maitre fait retenir l action', () => {
   const sup = fauxSuperviseur();
-  const { g, retenues } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
-  g(entreeCombat());
-  assert.deepStrictEqual(retenues, ['ioy:25088']);
+  const apprises = [];
+  const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, ['ioy:25088']);
 });
 
-// UN MONSTRE AGRESSIF qui saute sur le maitre trois secondes apres un dialogue
-// anodin n'a pas a empoisonner la liste.
-test('une action trop ancienne n est pas retenue', () => {
+test('une mule en combat AVEC le maitre ne fait rien retenir', () => {
   const sup = fauxSuperviseur();
-  const { g, retenues, horloge } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
-  horloge.t += 2500;
-  g(entreeCombat());
-  assert.deepStrictEqual(retenues, []);
+  const apprises = [];
+  const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MAITRE, ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, []);
 });
 
-test('une action juste dans la fenetre est retenue', () => {
+// Une kmk sert aussi a lister les acteurs d'une CARTE, ou personne ne combat.
+test('une liste d acteurs de carte ne fait rien retenir', () => {
   const sup = fauxSuperviseur();
-  const { g, retenues, horloge } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
-  horloge.t += 1999;
-  g(entreeCombat());
-  assert.deepStrictEqual(retenues, ['ioy:25088']);
+  const apprises = [];
+  const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: 2, dir: 'in', frame: listeCarte(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, []);
+});
+
+test('hors de la fenetre d apprentissage, rien n est retenu', () => {
+  const sup = fauxSuperviseur();
+  const apprises = [];
+  let t = 1000;
+  const garde = creerGardeCombat({
+    superviseur: sup, onApprendre: (c) => apprises.push(c), maintenant: () => t,
+  });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  t += FENETRE_APPRENTISSAGE_MS + 1;
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, []);
+});
+
+test('sans action sensible recente, une mule en combat ne fait rien retenir', () => {
+  const sup = fauxSuperviseur();
+  const apprises = [];
+  const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, []);
+});
+
+// LE DEFAUT CORRIGE, ecrit en toutes lettres: le maitre qui entre en combat
+// est un evenement de jeu ordinaire. Il annule les rejeux en attente, et c'est
+// tout ce qu'il fait.
+test('le ieb du maitre annule les rejeux mais ne retient RIEN', () => {
+  const sup = fauxSuperviseur();
+  const apprises = [];
+  const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'in', frame: trame('ieb', { 1: 1642, 2: 9828 }), estMaitre: true });
+  assert.strictEqual(sup.annulations, 1, 'les rejeux en attente sont annules');
+  assert.deepStrictEqual(apprises, [], 'mais rien n est retenu');
+});
+
+test('deux mules dans deux combats distincts ne font qu une entree', () => {
+  const sup = fauxSuperviseur();
+  const apprises = [];
+  const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  garde({ pid: 3, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, ['ioy:25088']);
+});
+
+test('sans duplication armee, rien n est retenu', () => {
+  const sup = fauxSuperviseur();
+  sup.arme = false;
+  const apprises = [];
+  const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, []);
 });
 
 test('une action deja connue n est pas retenue deux fois', () => {
   const sup = fauxSuperviseur();
-  const { g, retenues } = garde(sup, { estApprise: () => true });
-  g(sortante('ioy', { 1: 25088 }));
-  g(entreeCombat());
-  assert.deepStrictEqual(retenues, []);
-});
-
-test('deux combats de suite ne retiennent pas la meme action deux fois', () => {
-  const sup = fauxSuperviseur([2, 3]);
-  const { g, retenues } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
-  g(entreeCombat());
-  const emisApresLePremier = sup.emis.length;
-  g(entreeCombat());
-  assert.deepStrictEqual(retenues, ['ioy:25088']);
-  assert.strictEqual(emisApresLePremier > 0, true, 'le premier combat doit avoir ferme les dialogues');
-  assert.strictEqual(sup.emis.length, emisApresLePremier,
-    'le second combat ne doit pas refermer un dialogue deja ferme');
+  const apprises = [];
+  const garde = creerGardeCombat({
+    superviseur: sup, estApprise: () => true, onApprendre: (c) => apprises.push(c),
+  });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, []);
 });
 
 // Les reponses precedentes de l'enchainement sont parties il y a plusieurs
@@ -227,12 +298,14 @@ test('aucun dialogue n est ferme si le dernier remonte a trop longtemps', () => 
 // Un combat ouvert par un element interactif n'a jamais ouvert de dialogue: il
 // n'y a rien a fermer, et un kla envoye pour rien est une trame de plus sans
 // raison.
+// La retention ne se verifie plus ici: depuis le 01/09 elle exige une kmk
+// d'esclave (voir plus haut), qu'aucun de ces deux tests n'envoie. Ce qu'ils
+// verifient reste entier: un iwo ne fait fermer aucun dialogue.
 test('un element interactif ne fait fermer aucun dialogue', () => {
   const sup = fauxSuperviseur();
-  const { g, retenues } = garde(sup);
+  const { g } = garde(sup);
   g(sortante('iwo', { 1: 1920, 2: 489565 }));
   g(entreeCombat());
-  assert.deepStrictEqual(retenues, ['iwo:489565'], 'mais l action est bien retenue');
   assert.deepStrictEqual(sup.emis, []);
 });
 
@@ -293,11 +366,10 @@ test('un refus de fermeture se journalise sans lever', () => {
 // combat entre les deux pour la consommer explicitement.
 test('un iwo precede d un dialogue ne fait fermer aucun dialogue', () => {
   const sup = fauxSuperviseur([2, 3]);
-  const { g, retenues } = garde(sup);
+  const { g } = garde(sup);
   g(sortante('ioy', { 1: 25088 }));
   g(sortante('iwo', { 1: 1920, 2: 489565 }));
   g(entreeCombat());
-  assert.deepStrictEqual(retenues, ['iwo:489565']);
   assert.deepStrictEqual(sup.emis, []);
 });
 
@@ -315,29 +387,21 @@ test('un esclave apparu apres le dialogue ne recoit rien', () => {
 });
 
 // onApprendre ecrit la liste apprise sur le disque dans l application: une
-// exception la-dedans ne doit pas laisser les esclaves bloques dans leur
-// dialogue, qui est exactement la panne que le garde existe pour reparer.
-test('une exception dans onApprendre n empeche pas la fermeture des dialogues', () => {
-  const sup = fauxSuperviseur([2]);
-  const { g, lignes } = garde(sup, {
-    onApprendre: () => { throw new Error('disque plein'); },
-  });
-  g(sortante('ioy', { 1: 25088 }));
-  assert.doesNotThrow(() => g(entreeCombat()));
-  assert.deepStrictEqual(sup.emis.map((e) => e.pid), [2]);
-  assert.deepStrictEqual(sup.emis[0].octets, TRAME_FERMER_DIALOGUE);
-  assert.ok(lignes.some((l) => /disque plein/.test(l.texte)));
-});
-
-// LES BORNES, EPINGLEES: rien aujourd'hui ne distingue < de <=, et les
-// elargir en <= ne ferait echouer aucun autre test.
-test('une action a exactement deux secondes n est pas retenue', () => {
+// exception la-dedans ne doit pas remonter jusqu'au superviseur, qui tourne
+// le garde sous un rappel sans personne pour la rattraper.
+test('une exception dans onApprendre est journalisee, pas propagee', () => {
   const sup = fauxSuperviseur();
-  const { g, retenues, horloge } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
-  horloge.t += FENETRE_APPRENTISSAGE_MS;
-  g(entreeCombat());
-  assert.deepStrictEqual(retenues, []);
+  const lignes = [];
+  const garde = creerGardeCombat({
+    superviseur: sup,
+    onApprendre: () => { throw new Error('disque plein'); },
+    onJournal: (pid, texte) => lignes.push(texte),
+  });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  assert.doesNotThrow(() => {
+    garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  });
+  assert.ok(lignes.some((l) => l.includes('disque plein')), 'la panne est dite');
 });
 
 test('un dialogue a exactement trente secondes ne fait fermer aucun dialogue', () => {

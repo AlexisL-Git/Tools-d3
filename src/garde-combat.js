@@ -1,5 +1,6 @@
 'use strict';
 const { encodeRaw, WIRE } = require('./codec/rawProto');
+const { combattantsDe, TYPE_COMBATTANTS } = require('./abandon-combat');
 
 // Le garde contre les combats dupliques, et lui seul.
 //
@@ -23,6 +24,23 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // kub, lqn) apparaissent aussi sur des changements de carte ordinaires.
 //
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme.
+//
+// LE SIGNAL A CHANGE LE 2026-09-01, et c'est tout l'objet de ce module.
+//
+// Il etait: le maitre entre en combat moins de 2 s apres une action sensible.
+// Mais entrer en combat apres avoir parle a un PNJ, C'EST JOUER NORMALEMENT.
+// Le garde confondait « le maitre se bat » avec « les mules ont chacune ouvert
+// SON combat ». Rapporte par un ami le 01/09: trois actions retenues, aucun
+// combat duplique. Sans bouton pour oublier, chaque entree fausse etait
+// definitive.
+//
+// Il est desormais: une mule recoit une liste de combattants qui NE CONTIENT
+// PAS le maitre. C'est le degat lui-meme, pas un indice. Meme critere que
+// src/abandon-combat.js, verifie en jeu deux fois le 01/09.
+//
+// L'ANNULATION, ELLE, NE CHANGE PAS. Le `ieb` du maitre continue d'annuler les
+// rejeux en attente au plancher de 250 ms: elle agit AVANT le degat, n'ecrit
+// rien sur le disque, et n'a jamais faute.
 
 const TYPE_ENTREE_COMBAT = 'ieb';
 
@@ -95,8 +113,9 @@ function cleDe(type, frame) {
   return parties.join(':');
 }
 
-// superviseur — porte arme, annulerRejeux(), emettre(pid, octets) et
-//   comptes.esclaves(pidMaitre)
+// superviseur — porte arme, annulerRejeux(), emettre(pid, octets),
+//   comptes.esclaves(pidMaitre) et comptes.get(pid), qui rend
+//   { pid, characterId }
 // estApprise   — dit si une cle est deja connue; faux par defaut
 // onApprendre  — recoit une cle a retenir
 // onAnnulation — recoit le nombre de rejeux annules, jamais appele a zero.
@@ -111,9 +130,10 @@ function creerGardeCombat({
   superviseur, estApprise = () => false, onApprendre = () => {},
   onAnnulation = () => {}, onJournal = () => {}, maintenant = Date.now,
 }) {
-  // La derniere action du maitre susceptible d'ouvrir un combat, datee. On ne
-  // sait pas encore si elle est dangereuse: c'est le combat qui le dira.
-  let derniereAction = { cle: null, instant: 0 };
+  // La derniere action du maitre susceptible d'ouvrir un combat, datee, avec
+  // le pid de qui l'a emise. Le pid sert a retrouver SON characterId quand la
+  // kmk d'un esclave arrive: c'est lui qu'on cherche dans la liste.
+  let derniereAction = { cle: null, instant: 0, pidMaitre: null };
   // Date et destinataires a part, parce que dernierDialogue repond a une
   // autre question: faut-il fermer le dialogue des esclaves? Un element
   // interactif n'en ouvre aucun. null tant qu'aucun dialogue n'a ete vu OU
@@ -127,12 +147,43 @@ function creerGardeCombat({
   return function onTrame({ pid, dir, frame, estMaitre }) {
     // OMNI NE REPARE QUE CE QU'IL A CAUSE: sans duplication armee, aucun
     // esclave n'a rejoue quoi que ce soit.
-    if (frame === null || !estMaitre || !superviseur.arme) return;
+    if (frame === null || !superviseur.arme) return;
+
+    // LE TRAFIC DES ESCLAVES, que ce module ignorait entierement. C'est la
+    // seule facon de voir le degat: le maitre, lui, ne sait pas dans quel
+    // combat sont ses mules.
+    if (!estMaitre) {
+      if (dir !== 'in' || frame.type !== TYPE_COMBATTANTS) return;
+      if (derniereAction.cle === null) return;
+      if (maintenant() - derniereAction.instant >= FENETRE_APPRENTISSAGE_MS) return;
+      const siens = combattantsDe(frame);
+      // null: une liste de carte, personne ne combat.
+      if (siens === null) return;
+      const etatMaitre = superviseur.comptes.get(derniereAction.pidMaitre);
+      const idMaitre = etatMaitre === null || etatMaitre === undefined
+        ? null : etatMaitre.characterId;
+      if (idMaitre === null || idMaitre === undefined) return;
+      // Le maitre est dans la liste: la mule l'a rejoint, tout va bien.
+      if (siens.has(String(idMaitre))) return;
+
+      const cle = derniereAction.cle;
+      // Consommee AVANT d'apprendre: deux mules entrant chacune dans son
+      // combat ne doivent produire qu'une entree, et onApprendre peut lever.
+      derniereAction = { cle: null, instant: 0, pidMaitre: null };
+      if (estApprise(cle)) return;
+      try {
+        onApprendre(cle);
+        onJournal(pid, `garde combat : ${cle} retenue — cette mule combat sans le maitre`);
+      } catch (e) {
+        onJournal(pid, `garde combat : apprentissage de ${cle} en erreur : ${e.message}`);
+      }
+      return;
+    }
 
     if (dir === 'out') {
       if (!estSensible(frame.type)) return;
       const cle = cleDe(frame.type, frame);
-      if (cle !== null) derniereAction = { cle, instant: maintenant() };
+      if (cle !== null) derniereAction = { cle, instant: maintenant(), pidMaitre: pid };
       if (frame.type === 'iov' || frame.type === 'ioy') {
         dernierDialogue = {
           instant: maintenant(),
@@ -155,28 +206,9 @@ function creerGardeCombat({
       onAnnulation(annules);
     }
 
-    // 2. Retenir, mais seulement si l'action est fraiche. Isolee dans son
-    // propre essai: onApprendre peut ecrire sur le disque, et une exception
-    // la-dedans ne doit pas empecher l'etape 3 de fermer les dialogues --
-    // composer.js protege deja le process, pas les etapes de CE garde entre
-    // elles.
-    const depuis = maintenant() - derniereAction.instant;
-    if (derniereAction.cle !== null && depuis < FENETRE_APPRENTISSAGE_MS) {
-      if (!estApprise(derniereAction.cle)) {
-        try {
-          onApprendre(derniereAction.cle);
-          onJournal(pid, `garde combat : ${derniereAction.cle} retenue (+${depuis} ms)`);
-        } catch (e) {
-          onJournal(pid, `garde combat : apprentissage de ${derniereAction.cle} en erreur : ${e.message}`);
-        }
-      }
-      // Consommee: un second ieb sur le meme combat ne doit pas la reprendre.
-      derniereAction = { cle: null, instant: 0 };
-    }
-
-    // 3. Fermer le dialogue des esclaves qui l'ont reellement recu, et qui
-    // sont toujours la -- chaque esclave isole du suivant, pour la meme
-    // raison qu'au 2.
+    // 2. Fermer le dialogue des esclaves qui l'ont reellement recu, et qui
+    // sont toujours la -- chaque esclave isole du suivant: une socket morte
+    // sur l'un ne doit pas priver les autres de leur fermeture.
     if (dernierDialogue !== null && maintenant() - dernierDialogue.instant < FENETRE_DIALOGUE_MS) {
       const { pids } = dernierDialogue;
       for (const etat of superviseur.comptes.esclaves(pid)) {
