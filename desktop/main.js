@@ -974,12 +974,22 @@ app.whenReady().then(async () => {
   // LES DROITS ACCORDES A CETTE CLE. Relus toutes les 60 s: Draxus coupe une
   // case au panneau, la fonction s arrete ici dans la minute.
   //
-  // app.getPath('userData') est %APPDATA%\OMNI: le meme dossier que cle.txt,
-  // impose par Windows a l application installee.
-  const dossierDonnees = app.getPath('userData');
+  // PAS app.getPath('userData'): package.json ne pose ni productName ni
+  // app.setName (name: "mm"), donc userData vaut %APPDATA%\mm, pas
+  // %APPDATA%\OMNI. cle.txt est ecrit par amorceur/cle.js dans
+  // %APPDATA%\OMNI -- meme expression que la RACINE de
+  // amorceur/principal.js, reprise ici pour lire le meme fichier.
+  const dossierDonnees = path.join(app.getPath('appData'), 'OMNI');
   veille = creerVeille({
     base: 'https://paquets-maj.vercel.app',
     lireCle: () => {
+      // OMNI_DEV distingue la machine de Draxus (le depot lance hors
+      // paquet, via outils/lancer-dev.vbs) d'un poste ami. Sans cet
+      // echappement, un cle.txt reel laisse dans %APPDATA%\OMNI par un
+      // test de l amorceur verrouillerait le depot: le mode developpement
+      // doit rester "tous les droits, aucune requete" quel que soit ce que
+      // ce dossier contient.
+      if (process.env.OMNI_DEV) return null;
       try { return fs.readFileSync(path.join(dossierDonnees, 'cle.txt'), 'utf8').trim() || null; }
       catch (e) { return null; }   // pas de cle = mode developpement = tous les droits
     },
@@ -993,6 +1003,12 @@ app.whenReady().then(async () => {
       if (perdus.includes('hdv')) {
         for (const etat of superviseur.comptes.tous) reprix.arreter(etat.pid);
       }
+      // Sans ca la barre flottante deja ouverte restait a l ecran apres un
+      // retrait de droit: la garde IPC de basculerOverlay ne couvre que la
+      // bascule, pas une fenetre deja la. PAS de reglerOverlay(false) ici:
+      // ce n est pas un choix de l ami, rendre le droit doit rendre la
+      // fenetre sans qu il ait a la rouvrir.
+      if (perdus.includes('overlay')) fermerOverlay();
       envoyerEtat();
     },
   });
@@ -1125,7 +1141,10 @@ app.whenReady().then(async () => {
   // L'overlay revient s'il etait ouvert au dernier arret, et seulement dans ce
   // cas: un ami qui passe de la 0.2.6 a cette version n'a pas la cle dans son
   // fichier, il ne doit pas voir surgir une fenetre qu'il n'a pas demandee.
-  if (favoris.overlay().ouvert) creerOverlay();
+  // Et seulement si le droit tient encore: sans ce garde-fou, le droit
+  // overlay coupe entre deux lancements serait contourne au demarrage
+  // suivant, avant meme que la veille n'ait eu la chance de le redire.
+  if (veille.droits().includes('overlay') && favoris.overlay().ouvert) creerOverlay();
   poserRaccourcis();
   minuteurProcess = setInterval(balayerProcess, PERIODE_PROCESS);
   minuteurVue = setInterval(envoyerEtat, PERIODE_VUE);
@@ -1339,8 +1358,14 @@ ipcMain.handle('basculerReplGroupe', async () => {
 // lancer une passe par-dessus une autre.
 ipcMain.handle('majPrixHdv', async (_e, pid) => {
   // Le bouton grise cote page, mais un bouton grise se contourne avec les
-  // outils de developpement d Electron: la vraie garde est ici.
-  if (!veille.droits().includes('hdv')) return { ok: false, raison: 'HDV : pas activé sur ta clé' };
+  // outils de developpement d Electron: la vraie garde est ici. noterAvis()
+  // pour que ce contournement ne soit pas un refus totalement muet -- meme
+  // symetrie que la garde overlay juste en dessous.
+  if (!veille.droits().includes('hdv')) {
+    noterAvis('HDV : pas activé sur ta clé');
+    envoyerEtat();
+    return { ok: false, raison: 'HDV : pas activé sur ta clé' };
+  }
   if (reprix === null || !Number.isInteger(pid)) return;
   if (reprix.enCours(pid)) reprix.arreter(pid);
   else reprix.lancer(pid);
