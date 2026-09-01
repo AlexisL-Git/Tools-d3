@@ -281,8 +281,14 @@ class Favoris {
     this._ecrire();
   }
 
-  // LE SEUL RECOURS quand OMNI a retenu a tort. La liste est faite de numeros:
+  // LE RECOURS quand OMNI a retenu a tort. La liste est faite de numeros:
   // personne ne peut deviner quelle entree est fautive, donc on vide tout.
+  //
+  // PLUS AUCUN APPELANT depuis le 2026-09-01: l'utilisateur a fait retirer le
+  // bouton « Oublier les combats » de la fenetre, en disant qu'il signalerait
+  // le probleme s'il se presentait. La methode reste, et le recours avec elle:
+  // vider le tableau `combats` de favoris.json revient exactement a l'appeler.
+  // Ne pas la supprimer comme du code mort sans reposer la question.
   oublierCombats() {
     this._combats.clear();
     this._ecrire();
