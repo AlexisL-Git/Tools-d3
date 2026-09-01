@@ -127,8 +127,16 @@
   async function rafraichir() {
     const amis = await api('lister');
     avis('');
-    const fonctions = await api('fonctions', {});
-    const lignesDroits = await api('droits', {});
+    // Comme paquet/lancements/lister-manifeste plus bas: une table pas encore
+    // migree ou une erreur transitoire sur les droits ne doit pas empecher le
+    // tableau des amis de se dessiner. Repli sur des listes vides — le
+    // panneau reste utilisable, juste sans les cases a cocher.
+    let fonctions = [];
+    let lignesDroits = [];
+    try {
+      fonctions = await api('fonctions', {});
+      lignesDroits = await api('droits', {});
+    } catch (e) { avis('cases a cocher indisponibles: ' + e.message); }
     const accordes = new Map();
     for (const d of lignesDroits) {
       if (!accordes.has(d.cle)) accordes.set(d.cle, new Set());
