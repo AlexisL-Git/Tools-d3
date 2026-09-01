@@ -97,10 +97,28 @@ banque sont les mêmes dans les deux réponses ; la seconde y ajoute exactement 
 contenu de `iwb`, moins la pile qu'on venait d'en retirer.
 
 Les éléments de `ivx` portent **la même forme de pile que `iwb`** — `{1=63,
-5={1=GID, 3=quantité, 4=UID}}` — avec des champs de plus pour les objets à
-caractéristiques : `5.2` répété porte les lignes de stats d'un équipement, `5.5`
-une position. Un décodeur qui lit `5.1`, `5.3` et `5.4` et ignore le reste lit
-les deux trames.
+5={1=GID, 3=quantité, 4=UID}}` — avec des champs de plus quand l'objet porte des
+effets : `5.2` répété porte ses lignes d'effets, `5.5` une position. Un décodeur
+qui lit `5.1`, `5.3` et `5.4` et ignore le reste lit les deux trames.
+
+### `5.2` dit « cet objet porte des effets », pas « c'est un équipement »
+
+La distinction a coûté une erreur, et elle est mesurée :
+
+| | piles | avec `5.2` | dont quantité 1 | dont quantité > 1 |
+|---|---:|---:|---:|---:|
+| inventaire | 219 | 204 | 179 | 25 |
+| banque | 814 | **57** | 5 | **52** |
+
+Les 57 piles de banque concernées vont jusqu'à **1349 exemplaires**. Un
+équipement est une pièce unique : ce sont donc des **consommables ou des runes**,
+empilables et porteurs d'un effet. Côté inventaire, à l'inverse, 179 des 204 sont
+bien à quantité 1.
+
+**Ce qui se déduit de `5.2` est donc « l'objet a des effets », et rien de plus.**
+Une ressource n'en a pas — c'est ce qui rend le champ utilisable pour trier ce
+que l'hôtel de vente **ressources** accepte — mais lire « équipement » dans ce
+champ est faux, et conduit à sous-estimer le stock écarté.
 
 ### La preuve
 

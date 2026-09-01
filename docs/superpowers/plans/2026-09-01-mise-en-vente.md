@@ -350,10 +350,14 @@ test('candidats ne retient que les 15 piles fongibles de l inventaire mesure', (
 
 // La banque mesuree ne porte AUCUNE ligne de caracteristiques: 814 piles, 814
 // GID distincts, toutes fongibles.
-test('candidats retient les 814 piles de la banque mesuree', () => {
+test('candidats retient les 757 piles fongibles de la banque mesuree', () => {
   const piles = lireStock(fixture('hdv-iwb.hex'));
   assert.strictEqual(piles.length, 814);
-  assert.strictEqual(piles.filter((p) => p.avecStats).length, 0);
+  // 57 piles de banque portent des effets — des consommables ou des runes,
+  // empilables (jusqu'a 1349 exemplaires), PAS des equipements.
+  assert.strictEqual(piles.filter((p) => p.avecStats).length, 57);
+  const lots = candidats({ piles, prixMoyens: new Map() });
+  assert.strictEqual(new Set(lots.map((l) => l.uidPile)).size, 757);
 });
 
 // --- Les paquets ---------------------------------------------------------
@@ -414,8 +418,14 @@ function decouper(quantite) {
 // c'est ce qui evite d'avoir a demander une categorie par GID. La categorie
 // n'arrive que dans kbt.1, un objet a la fois: interroger un millier d'objets
 // pour savoir lesquels sont vendables serait exactement le flot que le rythme
-// cherche a eviter. Mesure du 01/09: 204 des 219 piles d'inventaire portent
-// des stats, aucune des 814 de la banque.
+// cherche a eviter.
+//
+// LE CHAMP 2 DIT « CET OBJET PORTE DES EFFETS », PAS « C'EST UN EQUIPEMENT ».
+// Mesure du 01/09: 204 des 219 piles d'inventaire en portent, dont 179 a
+// quantite 1 — de l'equipement. Mais 57 des 814 piles de banque en portent
+// aussi, dont 52 a quantite superieure a 1, jusqu'a 1349: des consommables ou
+// des runes. Une RESSOURCE, elle, n'a pas d'effets — c'est ce qui rend le champ
+// utilisable pour trier ce que l'hotel de vente ressources accepte.
 //
 // LE TRI EST LE COEUR DE LA FONCTION. La passe n'ira jamais au bout — le
 // plafond de l'hotel de vente l'arretera apres quelques centaines de lots —
@@ -441,7 +451,7 @@ function candidats({ piles, prixMoyens }) {
 
 // UN PAQUET EST UNE VISITE D'OBJET. Deux lots de meme GID et de meme taille
 // ont la meme valeur, donc le tri les place cote a cote: le paquet tombe tout
-// seul. Sur le stock de mesure, 7013 lots forment 1655 paquets, de taille
+// seul. Sur le stock de mesure, 6495 lots forment 1530 paquets, de taille
 // mediane 4 — exactement le geste « Entree, Entree, Entree, Entree ».
 function paquets(lots) {
   const out = [];
@@ -584,13 +594,15 @@ test('lireStock rend les 814 piles de la banque mesuree', () => {
   assert.strictEqual(new Set(piles.map((p) => p.gid)).size, 814);
 });
 
-// Le champ 2 du detail porte les lignes de caracteristiques. 204 des 219 piles
-// d'inventaire en ont, aucune des 814 de la banque.
-test('lireStock marque les piles a lignes de caracteristiques', () => {
+// Le champ 2 du detail dit que l'objet PORTE DES EFFETS — et non qu'il est un
+// equipement. 204 des 219 piles d'inventaire en ont, et 57 des 814 de la
+// banque: ces dernieres montent a 1349 exemplaires, donc ce sont des
+// consommables ou des runes, pas des pieces uniques.
+test('lireStock marque les piles qui portent des effets', () => {
   const inv = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
   const banque = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-iwb.hex'), 'utf8').trim();
   assert.strictEqual(lireStock(frame(inv)).filter((p) => p.avecStats).length, 204);
-  assert.strictEqual(lireStock(frame(banque)).filter((p) => p.avecStats).length, 0);
+  assert.strictEqual(lireStock(frame(banque)).filter((p) => p.avecStats).length, 57);
 });
 
 test('lireStock rend un tableau vide sur un type inconnu', () => {
@@ -1435,7 +1447,7 @@ Dans `src/hdv/vente.js`, supprimer les `demarrer` et `terminer` provisoires et i
         }, delaiReponseMs());
       // LE PREMIER LOT D'UN PAQUET NE PAIE PAS LA RAFALE: le delai d'objet
       // vient deja d'etre servi par paquetSuivant, et kbt d'arriver. Ajouter
-      // la rafale par-dessus compterait deux fois le meme geste, 1655 fois sur
+      // la rafale par-dessus compterait deux fois le meme geste, 1530 fois sur
       // le stock de mesure.
       }, passe.premier ? 0 : delaiRafaleMs());
       passe.premier = false;
@@ -1635,8 +1647,8 @@ Dans `desktop/main.js`, juste après le bloc `reprix = creerReprix({ … });` :
       // L'AVANCEMENT NE DECLENCHE PAS D'ENVOI D'ETAT: envoyerEtat() lance
       // powershell.exe par clientsRecents(). Le tick de 2 s l'affiche.
       //
-      // PAS DE DENOMINATEUR EN LOTS. Le stock de mesure porte 7013 lots
-      // candidats et la passe s'arretera bien avant: afficher « 47 / 7013 »
+      // PAS DE DENOMINATEUR EN LOTS. Le stock de mesure porte 6495 lots
+      // candidats et la passe s'arretera bien avant: afficher « 47 / 6495 »
       // serait un chiffre faux.
       if (r.objets) messages.set(r.pid, `HDV : ${r.poses} lots posés — objet ${r.objetsFaits} sur ${r.objets}`);
     },

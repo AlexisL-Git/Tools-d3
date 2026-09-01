@@ -8,8 +8,8 @@ pendant — l'une pose, l'autre repose.
 
 ## Le besoin
 
-Un compte accumule du stock qu'il ne vend jamais, faute de temps : 829 piles de
-ressources sur le compte de mesure, dont 814 en banque. Les mettre en vente à la
+Un compte accumule du stock qu'il ne vend jamais, faute de temps : 772 piles de
+ressources sur le compte de mesure, dont 757 en banque. Les mettre en vente à la
 main, pile par pile et lot par lot, est un geste que personne ne fait deux fois.
 
 **Un bouton par ligne de compte.** On clique, le compte parcourt son stock et
@@ -43,16 +43,22 @@ Plus **`ivi`**, les 9861 prix moyens du catalogue, livrés au login.
 
 `ivx` mélange tout ce que le panneau de vente affiche. On n'en garde que le
 vendable en hôtel de vente **ressources**, et le tri se fait sur un signal
-présent dans la trame : **le champ `5.2`, les lignes de caractéristiques**.
+présent dans la trame : **le champ `5.2`, les lignes d'effets**.
 
-| | piles | avec `5.2` | quantité médiane |
+| | piles | avec `5.2` | fongibles |
 |---|---:|---:|---:|
-| banque | 814 | **0** | 57 |
-| inventaire | 219 | **204** | 1 |
+| banque | 814 | 57 | **757** |
+| inventaire | 219 | 204 | **15** |
 
-Un objet qui porte des lignes de stats est un **équipement** — pièce unique,
-quantité 1, et il relève d'un autre hôtel de vente. Un objet qui n'en porte pas
-est une **ressource fongible**. Sur le compte de mesure il reste **829 piles**.
+**`5.2` dit « cet objet porte des effets », pas « c'est un équipement ».** Les 57
+piles de banque concernées montent jusqu'à 1349 exemplaires : ce sont des
+consommables ou des runes, empilables. Seul l'inventaire est majoritairement de
+l'équipement, 179 de ses 204 étant à quantité 1.
+
+Une **ressource ne porte pas d'effets**, et c'est ce qui rend le champ
+utilisable : il sélectionne exactement ce que l'hôtel de vente ressources
+accepte, en écartant aussi bien les équipements que les consommables, qui
+relèvent d'autres hôtels. Sur le compte de mesure il reste **772 piles**.
 
 **On ne se sert donc pas d'une table GID → catégorie**, qu'on n'a pas : la
 catégorie n'arrive que dans `kbt.1`, un GID à la fois, et interroger 1096 objets
@@ -68,8 +74,8 @@ pile de 286   ->  100, 100, 10, 10, 10, 10, 10, 10, 10, 10, 1, 1, 1, 1, 1, 1
 pile de 1660  ->  1000, 100, 100, 100, 100, 100, 100, 10, 10, 10, 10, 10, 10
 ```
 
-Sur le compte de mesure : **7013 lots candidats**, dont 11 de 1000, 382 de 100,
-2999 de 10 et 3621 de 1.
+Sur le compte de mesure : **6495 lots candidats**, dont 6 de 1000, 331 de 100,
+2821 de 10 et 3337 de 1.
 
 ## La règle de prix
 
@@ -127,7 +133,7 @@ extrapoler et on pose au prix moyen plutôt que de ne rien poser.
 
 ## L'ordre de la passe
 
-**Par valeur de lot décroissante, sur les 7013 candidats.** La valeur d'un lot
+**Par valeur de lot décroissante, sur les 6495 candidats.** La valeur d'un lot
 est `prix moyen unitaire × taille`.
 
 Ce n'est pas un ordre de confort : **la passe n'ira jamais au bout.** Le plafond
@@ -139,22 +145,22 @@ Mesuré sur le stock réel, à nombre d'emplacements égal :
 
 | emplacements | valeur posée, ordre **valeur** | ordre par objet | rapport |
 |---:|---:|---:|---:|
-| 100 | 6 136 312 | 2 651 871 | **2,3×** |
-| 300 | 8 430 137 | 6 176 515 | **1,4×** |
-| 1000 | 11 612 598 | 8 615 860 | 1,3× |
+| 100 | 1 661 000 | 598 789 | **2,8×** |
+| 300 | 2 833 346 | 1 184 936 | **2,4×** |
+| 1000 | 5 536 492 | 2 541 092 | 2,2× |
 
-Grouper par objet pour économiser des visites poserait 1,4 à 2,3 fois moins de
-valeur, pour douze minutes gagnées sur une passe qui n'ira pas au bout. Le
-calcul est sans appel.
+Grouper par objet pour économiser des visites poserait 2,2 à 2,8 fois moins de
+valeur, pour une poignée de minutes gagnées sur une passe qui n'ira pas au bout.
+Le calcul est sans appel.
 
-Les 300 premiers lots par valeur : 11 lots de 1000, 168 de 100, 107 de 10 et
-seulement 14 de 1, répartis sur **154 objets** — environ deux lots par visite.
+Les 300 premiers lots par valeur : 6 lots de 1000, 153 de 100, 139 de 10 et
+seulement 2 de 1, répartis sur **162 objets** — environ deux lots par visite.
 
 ### Les paquets
 
 Deux lots de même GID **et** de même taille ont la même valeur : le tri les
 place côte à côte. Une visite d'objet traite donc naturellement un **paquet** de
-lots identiques. Sur le stock de mesure, 7013 lots forment **1655 paquets**, de
+lots identiques. Sur le stock de mesure, 6495 lots forment **1530 paquets**, de
 taille médiane **4**.
 
 Un objet peut être revisité plus tard pour ses lots plus petits, et on se
@@ -265,9 +271,9 @@ et s'était fait signaler d'un « ça met en vente un peu trop vite ».
 **C'est là qu'est le risque de cette fonction.** La rafale fait remonter la
 cadence moyenne :
 
-| rythme | 300 lots | tout (7013) |
+| rythme | 300 lots | tout (6495) |
 |---|---|---|
-| rafale + objet à 900–2600 ms | 5 min 43 s — **0,88/s** | 69 min — 1,70/s |
+| rafale + objet à 900–2600 ms | 5 min 35 s — **0,90/s** | 64 min — 1,70/s |
 | rafale + objet à 400–1400 ms | 3 min 21 s — 1,50/s | 45 min — **2,57/s** |
 | sans rafale | 9 min 12 s — 0,54/s | 209 min — 0,56/s |
 
@@ -312,8 +318,8 @@ avec la raison affichée : *« ouvre l'hôtel de vente une fois pour que je voie
 ton stock »*. Le mécanisme est celui de la carte `messages` de `main.js`, déjà
 en place pour « mettre à jour les prix ».
 
-Pendant la passe, la ligne affiche `47 lots posés — objet 12 sur 828`. **Pas de
-dénominateur en lots :** 7013 serait un chiffre faux, la passe s'arrêtera bien
+Pendant la passe, la ligne affiche `47 lots posés — objet 12 sur 771`. **Pas de
+dénominateur en lots :** 6495 serait un chiffre faux, la passe s'arrêtera bien
 avant.
 
 À la fin, quatre nombres et un motif : **posés**, **sautés** (`deciderPose` a
