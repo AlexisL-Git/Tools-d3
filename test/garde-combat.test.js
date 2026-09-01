@@ -222,6 +222,34 @@ test('hors de la fenetre d apprentissage, rien n est retenu', () => {
   assert.deepStrictEqual(apprises, []);
 });
 
+// LA BORNE, EPINGLEE: rien ici ne distingue < de <=, et la kmk d'une mule
+// arrivant pile a l'echeance ne doit rien retenir.
+test('une kmk d une mule a exactement la fenetre d apprentissage ne retient rien', () => {
+  const sup = fauxSuperviseur();
+  const apprises = [];
+  let t = 1000;
+  const garde = creerGardeCombat({
+    superviseur: sup, onApprendre: (c) => apprises.push(c), maintenant: () => t,
+  });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  t += FENETRE_APPRENTISSAGE_MS;
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, []);
+});
+
+test('une kmk d une mule juste avant l echeance retient l action', () => {
+  const sup = fauxSuperviseur();
+  const apprises = [];
+  let t = 1000;
+  const garde = creerGardeCombat({
+    superviseur: sup, onApprendre: (c) => apprises.push(c), maintenant: () => t,
+  });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  t += FENETRE_APPRENTISSAGE_MS - 1;
+  garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
+  assert.deepStrictEqual(apprises, ['ioy:25088']);
+});
+
 test('sans action sensible recente, une mule en combat ne fait rien retenir', () => {
   const sup = fauxSuperviseur();
   const apprises = [];
