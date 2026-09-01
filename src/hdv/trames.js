@@ -199,12 +199,21 @@ function lireNosLots(frame) {
 // UNE PILE, telle qu'elle apparait dans ivx comme dans iwb: la meme forme, au
 // numero de champ de l'element pres.
 //
-//   { 1: <position>, 5: { 1: gid, 2: <stats>…, 3: quantite, 4: uid } }
+//   { 1: <position>, 5: { 1: gid, 2: <effets>…, 3: quantite, 4: uid } }
 //
-// LE CHAMP 2 DU DETAIL PORTE LES LIGNES DE CARACTERISTIQUES, et c'est lui qui
-// separe l'equipement de la ressource fongible. Un equipement est une piece
-// unique et releve d'un autre hotel de vente; sans ce tri il faudrait demander
-// la categorie de chaque GID, un aller-retour par objet.
+// LE CHAMP 2 DU DETAIL DIT QUE L'OBJET PORTE DES EFFETS. Il ne dit PAS que
+// c'est un equipement, et les confondre coute cher: 57 des 814 piles de banque
+// mesurees le portent, dont 52 a quantite superieure a 1 et jusqu'a 1349
+// exemplaires — des consommables ou des runes, empilables. Seul l'inventaire
+// est majoritairement de l'equipement, 179 de ses 204 piles a effets etant a
+// quantite 1.
+//
+// Ce qu'on en tire est donc « cet objet a des effets », et rien de plus. Une
+// RESSOURCE n'en a pas: c'est ce qui rend le champ utilisable pour garder
+// exactement ce que l'hotel de vente ressources accepte, en ecartant du meme
+// coup les equipements ET les consommables, qui relevent d'autres hotels. Sans
+// ce tri il faudrait demander la categorie de chaque GID, un aller-retour par
+// objet.
 function lirePile(el) {
   if (el.kind !== 'message') return null;
   const detail = champ(el.value, 5);
@@ -213,8 +222,8 @@ function lirePile(el) {
   const qte = entier(detail.value, 3);
   const uid = entier(detail.value, 4);
   if (gid === null || qte === null || uid === null) return null;
-  const avecStats = (detail.value || []).some((f) => f.no === 2);
-  return { uid, gid, qte, avecStats };
+  const avecEffets = (detail.value || []).some((f) => f.no === 2);
+  return { uid, gid, qte, avecEffets };
 }
 
 // ivx { 3: [ pile ] } — l'inventaire, et l'inventaire + la banque quand le

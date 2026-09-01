@@ -232,7 +232,7 @@ test('lireStock rend les 219 piles de l inventaire mesure', () => {
 test('lireStock : la pile posee au sol figure dans l inventaire mesure', () => {
   const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
   const pile = lireStock(frame(hex)).find((p) => p.uid === 84495873);
-  assert.deepStrictEqual(pile, { uid: 84495873, gid: 13731, qte: 286, avecStats: false });
+  assert.deepStrictEqual(pile, { uid: 84495873, gid: 13731, qte: 286, avecEffets: false });
 });
 
 test('lireStock rend les 814 piles de la banque mesuree', () => {
@@ -249,10 +249,19 @@ test('lireStock rend les 814 piles de la banque mesuree', () => {
 test('lireStock marque les piles qui portent des effets', () => {
   const inv = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
   const banque = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-iwb.hex'), 'utf8').trim();
-  assert.strictEqual(lireStock(frame(inv)).filter((p) => p.avecStats).length, 204);
-  assert.strictEqual(lireStock(frame(banque)).filter((p) => p.avecStats).length, 57);
+  assert.strictEqual(lireStock(frame(inv)).filter((p) => p.avecEffets).length, 204);
+  assert.strictEqual(lireStock(frame(banque)).filter((p) => p.avecEffets).length, 57);
 });
 
 test('lireStock rend un tableau vide sur un type inconnu', () => {
   assert.deepStrictEqual(lireStock(frame('0a170a150a13747970652e616e6b616d612e636f6d2f6b7261')), []);
+});
+
+// LES TROIS LECTEURS ENCAISSENT UNE TRAME ABSENTE. Le decodage en amont peut
+// rendre null, et l ecoute passe alors ce null tel quel: les gardes sont
+// ecrites dans les trois fonctions, mais rien ne les figeait.
+test('les lecteurs encaissent une trame absente', () => {
+  assert.deepStrictEqual(lireStock(null), []);
+  assert.strictEqual(lirePileMaj(null), null);
+  assert.strictEqual(lirePileDisparue(null), null);
 });
