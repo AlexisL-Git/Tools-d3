@@ -7,6 +7,7 @@ const { decodeFrameRaw } = require('../src/codec/rawProto');
 const {
   trameMajPrix, trameAbonner, trameDesabonner, trameStats,
   lirePrixMarche, lireStatsPrix, lireNosLots, lireLotPose, lireLotRetire, lirePrixMoyens,
+  trameMettreEnVente, lireStock, lirePileMaj, lirePileDisparue,
 } = require('../src/hdv/trames');
 
 // Toutes les valeurs de ce fichier sont MESUREES, pas construites: elles
@@ -157,4 +158,101 @@ test('ivi rend une table gid -> prix moyen', () => {
   assert.strictEqual(table.get(13731), 32);
   assert.strictEqual(table.get(15169), 34);
   assert.strictEqual(table.get(20967), 827440);
+});
+
+// --- La mise en vente ----------------------------------------------------
+//
+// Les deux kge du journal du 01/09: une pile d'INVENTAIRE et une pile de
+// BANQUE. Les deux ont abouti, ce qui prouve que kge accepte les deux
+// origines sans retrait prealable.
+
+test('kge reproduit les octets de la vente depuis l inventaire', () => {
+  assert.strictEqual(
+    trameMettreEnVente({ prix: 2699, uidPile: 84571671, taille: 100 }).toString('hex'),
+    '122e0a210a13747970652e616e6b616d612e636f6d2f6b6765120a088b151097eca928186410ffffffffffffffffff01',
+  );
+});
+
+test('kge reproduit les octets de la vente depuis la banque', () => {
+  assert.strictEqual(
+    trameMettreEnVente({ prix: 29, uidPile: 84496683, taille: 1 }).toString('hex'),
+    '122d0a200a13747970652e616e6b616d612e636f6d2f6b67651209081d10aba2a528180110ffffffffffffffffff01',
+  );
+});
+
+test('kge se relit comme une requete de type kge, uid -1', () => {
+  const f = frame(trameMettreEnVente({ prix: 29, uidPile: 84496683, taille: 1 }).toString('hex'));
+  assert.strictEqual(f.kind, 'request');
+  assert.strictEqual(f.type, 'kge');
+  assert.strictEqual(f.uid, -1n);
+});
+
+// --- Les confirmations ---------------------------------------------------
+//
+// CE N'EST PAS kes QUI CONFIRME. Le journal porte 2 kge et 102 kes: les cent
+// autres sont des reposts de concurrents, recus parce qu'on est abonne a leur
+// GID. ivj et ium, eux, ne concernent que nos propres piles.
+
+test('ivj rend l uid de la pile et sa quantite restante', () => {
+  assert.deepStrictEqual(
+    lirePileMaj(frame('0a2a0a280a13747970652e616e6b616d612e636f6d2f69766a1211120508ba0110011a081097eca92818ba01')),
+    { uid: 84571671, qte: 186 },
+  );
+});
+
+test('ium rend l uid de la pile videe', () => {
+  assert.strictEqual(
+    lirePileDisparue(frame('0a1e0a1c0a13747970652e616e6b616d612e636f6d2f69756d120508aba2a528')),
+    84496683,
+  );
+});
+
+test('lirePileMaj et lirePileDisparue ignorent les autres types', () => {
+  const kes = frame('0a2b0a290a13747970652e616e6b616d612e636f6d2f6b657312120a0908bd937318f5412001101d2080d49301');
+  assert.strictEqual(lirePileMaj(kes), null);
+  assert.strictEqual(lirePileDisparue(kes), null);
+});
+
+// --- lireStock, sur les deux trames mesurees -----------------------------
+
+test('lireStock rend les 219 piles de l inventaire mesure', () => {
+  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
+  const piles = lireStock(frame(hex));
+  assert.strictEqual(piles.length, 219);
+  for (const p of piles) {
+    assert.ok(Number.isInteger(p.uid) && p.uid > 0, 'chaque pile a un uid');
+    assert.ok(Number.isInteger(p.gid) && p.gid > 0, 'chaque pile a un gid');
+    assert.ok(Number.isInteger(p.qte) && p.qte > 0, 'chaque pile a une quantite');
+  }
+});
+
+// LA PREUVE QUE ivx EST L'INVENTAIRE: son uid le plus haut est exactement la
+// pile que le joueur a ensuite posee au sol, avec le meme GID et la meme
+// quantite. Voir 2026-09-01-trames-mise-en-vente.md.
+test('lireStock : la pile posee au sol figure dans l inventaire mesure', () => {
+  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
+  const pile = lireStock(frame(hex)).find((p) => p.uid === 84495873);
+  assert.deepStrictEqual(pile, { uid: 84495873, gid: 13731, qte: 286, avecStats: false });
+});
+
+test('lireStock rend les 814 piles de la banque mesuree', () => {
+  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-iwb.hex'), 'utf8').trim();
+  const piles = lireStock(frame(hex));
+  assert.strictEqual(piles.length, 814);
+  assert.strictEqual(new Set(piles.map((p) => p.gid)).size, 814);
+});
+
+// Le champ 2 du detail dit que l'objet PORTE DES EFFETS — et non qu'il est un
+// equipement. 204 des 219 piles d'inventaire en ont, et 57 des 814 de la
+// banque: ces dernieres montent a 1349 exemplaires, donc ce sont des
+// consommables ou des runes, pas des pieces uniques.
+test('lireStock marque les piles qui portent des effets', () => {
+  const inv = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
+  const banque = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-iwb.hex'), 'utf8').trim();
+  assert.strictEqual(lireStock(frame(inv)).filter((p) => p.avecStats).length, 204);
+  assert.strictEqual(lireStock(frame(banque)).filter((p) => p.avecStats).length, 57);
+});
+
+test('lireStock rend un tableau vide sur un type inconnu', () => {
+  assert.deepStrictEqual(lireStock(frame('0a170a150a13747970652e616e6b616d612e636f6d2f6b7261')), []);
 });

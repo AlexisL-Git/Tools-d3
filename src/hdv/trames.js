@@ -71,6 +71,19 @@ function trameStats(gid) {
   return requete('kbz', [v(1, gid)]);
 }
 
+// kge { 1: prix DU LOT, 2: uid de la PILE, 3: taille du lot }
+//
+// LE CHAMP 2 EST L'UID D'UNE PILE, pas celui d'un lot en vente: c'est ce qui
+// distingue kge de kch. Prouve par deux poses consecutives sur la meme pile,
+// meme valeur au champ 2 et deux quantites differentes.
+//
+// LES DEUX ORIGINES MARCHENT. Une pile d'inventaire et une pile de banque ont
+// ete posees le 01/09, toutes deux acceptees: il n'y a donc rien a retirer de
+// la banque avant de vendre.
+function trameMettreEnVente({ prix, uidPile, taille }) {
+  return requete('kge', [v(1, prix), v(2, uidPile), v(3, taille)]);
+}
+
 // --- Ce qu'on lit --------------------------------------------------------
 
 const champ = (payload, no) => (payload || []).find((f) => f.no === no) || null;
@@ -183,6 +196,69 @@ function lireNosLots(frame) {
   return lots;
 }
 
+// UNE PILE, telle qu'elle apparait dans ivx comme dans iwb: la meme forme, au
+// numero de champ de l'element pres.
+//
+//   { 1: <position>, 5: { 1: gid, 2: <stats>…, 3: quantite, 4: uid } }
+//
+// LE CHAMP 2 DU DETAIL PORTE LES LIGNES DE CARACTERISTIQUES, et c'est lui qui
+// separe l'equipement de la ressource fongible. Un equipement est une piece
+// unique et releve d'un autre hotel de vente; sans ce tri il faudrait demander
+// la categorie de chaque GID, un aller-retour par objet.
+function lirePile(el) {
+  if (el.kind !== 'message') return null;
+  const detail = champ(el.value, 5);
+  if (detail === null || detail.kind !== 'message') return null;
+  const gid = entier(detail.value, 1);
+  const qte = entier(detail.value, 3);
+  const uid = entier(detail.value, 4);
+  if (gid === null || qte === null || uid === null) return null;
+  const avecStats = (detail.value || []).some((f) => f.no === 2);
+  return { uid, gid, qte, avecStats };
+}
+
+// ivx { 3: [ pile ] } — l'inventaire, et l'inventaire + la banque quand le
+// client a demande les deux rangements. iwb { 1: [ pile ] } — la banque seule,
+// a l'ouverture chez le banquier.
+//
+// LE CLIENT EMET LA DEMANDE LUI-MEME (itr) en ouvrant le panneau de vente:
+// OMNI n'a rien a demander, il lui suffit d'ecouter.
+function lireStock(frame) {
+  if (!frame) return [];
+  let no = null;
+  if (frame.type === 'ivx') no = 3;
+  else if (frame.type === 'iwb') no = 1;
+  if (no === null) return [];
+  const piles = [];
+  for (const el of frame.payload || []) {
+    if (el.no !== no) continue;
+    const pile = lirePile(el);
+    if (pile !== null) piles.push(pile);
+  }
+  return piles;
+}
+
+// ivj { 3: { 2: uid de la pile, 3: quantite restante } } — la pile a ete
+// entamee. C'est L'UNE DES DEUX SEULES CONFIRMATIONS d'un kge qui nous
+// appartienne: kes arrive aussi pour les lots des autres joueurs.
+function lirePileMaj(frame) {
+  if (!frame || frame.type !== 'ivj') return null;
+  const detail = champ(frame.payload, 3);
+  if (detail === null || detail.kind !== 'message') return null;
+  const uid = entier(detail.value, 2);
+  const qte = entier(detail.value, 3);
+  if (uid === null || qte === null) return null;
+  return { uid, qte };
+}
+
+// ium { 1: uid } — la pile a disparu. Elle sert deux fois: une pile posee au
+// sol, et une pile videe par une vente. C'est la disparition d'une pile,
+// quelle qu'en soit la cause.
+function lirePileDisparue(frame) {
+  if (!frame || frame.type !== 'ium') return null;
+  return entier(frame.payload, 1);
+}
+
 // kes { 1: {uid, gid, taille}, 2: prix, 4: duree }
 //
 // LE LOT REND UN UID NEUF. Une mise a jour est un retrait suivi d'une repose:
@@ -228,7 +304,8 @@ function lirePrixMoyens(frame) {
 
 module.exports = {
   TAILLES,
-  trameMajPrix, trameAbonner, trameDesabonner, trameStats,
+  trameMajPrix, trameAbonner, trameDesabonner, trameStats, trameMettreEnVente,
   lirePrixMarche, lireStatsPrix, lireNosLots, lireLotPose, lireLotRetire, lirePrixMoyens,
+  lireStock, lirePileMaj, lirePileDisparue,
   varintsPackes,
 };
