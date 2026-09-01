@@ -1465,6 +1465,12 @@ Dans `src/hdv/vente.js`, supprimer les `demarrer` et `terminer` provisoires et i
       // passe pendue ressemblerait trait pour trait a une passe qui travaille.
       expirer(passe, () => {
         if (!passes.has(pid)) return;
+        // LA GARDE D'IDENTITE VAUT AUSSI POUR LES MINUTEURS, et c'est le cas
+        // qu'on oublie: une expiration arrive jusqu'a quatre secondes apres
+        // l'envoi, largement de quoi laisser un autre client reprendre le pid.
+        // paquetSuivant emet un trameDesabonner des sa premiere ligne, donc
+        // sans cette garde on parle dans la session de quelqu'un d'autre.
+        if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
         passe.bilan.objetsAbandonnes += 1;
         passe.file = [];
         paquetSuivant(pid, passe);
@@ -1511,6 +1517,10 @@ Dans `src/hdv/vente.js`, supprimer les `demarrer` et `terminer` provisoires et i
         // place ou plus de kamas » sans connaitre ni le plafond ni la taxe.
         expirer(passe, () => {
           if (!passes.has(pid) || passe.attentePile !== lot.uidPile) return;
+          // Meme garde, meme raison: terminer() se desabonne, et un
+          // desabonnement envoye au client qui a repris le pid part dans sa
+          // session a lui.
+          if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
           passe.bilan.echecs += 1;
           terminer(pid, passe, 'refus du serveur — plus de place ou plus de kamas', true);
         }, delaiReponseMs());
