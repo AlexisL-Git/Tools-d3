@@ -7,6 +7,8 @@ const { listerAmis, creerAmi, basculerAmi } = require('../lib/amis');
 const { basculerService, ecrireUrlPaquet, lireUrlPaquet, lireManifeste } = require('../lib/manifeste');
 const { enregistrerVersion, listerVersions, activerVersion } = require('../lib/versions');
 const { listerRefus, compterLancements, lancementsDe, purgerLancements } = require('../lib/etat');
+const { listerDroits, accorder, retirer } = require('../lib/droits');
+const { FONCTIONS, estConnue } = require('../lib/fonctions');
 
 // Comparaison a temps constant: une comparaison ordinaire revele la longueur
 // et les prefixes du secret par le temps de reponse.
@@ -39,6 +41,22 @@ async function traiterAdmin({ motDePasse, action, corps = {}, sql, genererCle, m
       if (!corps.cle) return { statut: 400, corps: { erreur: 'cle requise' } };
       await basculerAmi(sql, corps.cle, Boolean(corps.actif));
       return { statut: 200, corps: { ok: true } };
+    case 'fonctions':
+      // La liste que le panneau dessine. Servie plutot que recopiee dans la
+      // page: une seule source, et le panneau suit une fonction ajoutee sans
+      // qu on touche au HTML.
+      return { statut: 200, corps: FONCTIONS };
+    case 'droits':
+      return { statut: 200, corps: await listerDroits(sql) };
+    case 'droit': {
+      if (!corps.cle) return { statut: 400, corps: { erreur: 'cle requise' } };
+      // Une fonction hors liste ecrirait une ligne que l application ne lit
+      // jamais: la case resterait cochee sans rien accorder.
+      if (!estConnue(corps.fonction)) return { statut: 400, corps: { erreur: 'fonction inconnue' } };
+      if (corps.actif) await accorder(sql, corps.cle, corps.fonction);
+      else await retirer(sql, corps.cle, corps.fonction);
+      return { statut: 200, corps: { ok: true } };
+    }
     case 'paquet': {
       // L'adresse du paquet complet, chez l'hebergeur de fichiers choisi.
       if (corps.url === undefined) return { statut: 200, corps: { url: await lireUrlPaquet(sql) } };

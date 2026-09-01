@@ -127,6 +127,13 @@
   async function rafraichir() {
     const amis = await api('lister');
     avis('');
+    const fonctions = await api('fonctions', {});
+    const lignesDroits = await api('droits', {});
+    const accordes = new Map();
+    for (const d of lignesDroits) {
+      if (!accordes.has(d.cle)) accordes.set(d.cle, new Set());
+      accordes.get(d.cle).add(d.fonction);
+    }
     try {
       const p = await api('paquet', {});
       if (p && p.url) document.getElementById('urlpaquet').value = p.url;
@@ -170,6 +177,34 @@
       b.textContent = a.actif ? 'desactiver' : 'activer';
       b.onclick = async () => { await api('basculer', { cle: a.cle, actif: !a.actif }); rafraichir(); };
       td.append(b); tr.append(td); t.append(tr);
+      const trDroits = document.createElement('tr');
+      const tdDroits = document.createElement('td');
+      tdDroits.colSpan = 6;
+      const siens = accordes.get(a.cle) || new Set();
+      for (const f of fonctions) {
+        const label = document.createElement('label');
+        label.style.marginRight = '12px';
+        const c = document.createElement('input');
+        c.type = 'checkbox';
+        c.checked = siens.has(f.nom);
+        c.onchange = async () => {
+          c.disabled = true;
+          try { await api('droit', { cle: a.cle, fonction: f.nom, actif: c.checked }); }
+          finally { c.disabled = false; }
+        };
+        label.append(c, document.createTextNode(' ' + f.libelle));
+        tdDroits.append(label);
+      }
+      const tout = document.createElement('button');
+      tout.textContent = 'tout cocher';
+      tout.onclick = async () => {
+        // La cle de Draxus doit tout avoir sans sept clics.
+        for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
+        rafraichir();
+      };
+      tdDroits.append(tout);
+      trDroits.append(tdDroits);
+      t.append(trDroits);
     }
     // Le coupe-circuit (dans #panneau) est le seul moyen d'arreter tout le
     // parc: son accessibilite ne doit jamais dependre du tableau des
