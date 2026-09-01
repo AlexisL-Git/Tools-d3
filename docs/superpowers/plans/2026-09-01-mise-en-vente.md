@@ -902,9 +902,18 @@ test('l ecoute retient les prix moyens d ivi', () => {
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32], [8437, 39]]) });
   vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-iwb.hex') });
   vente.lancer(42);
-  // La passe a demarre: le premier envoi est un abonnement, donc les prix
-  // moyens ont bien servi a trier.
+  // La passe a demarre: le premier envoi est un abonnement.
   assert.ok(superviseur.envois.length > 0);
+  // ET C'EST BIEN LA TABLE D'IVI QUI A DECIDE DE L'ORDRE. Sans elle tous les
+  // lots vaudraient zero et le tri retomberait sur le gid 1731; avec elle, le
+  // lot le plus cher est le gid 8437. Une assertion sur le seul nombre
+  // d'envois ne prouverait rien: la passe demarre dans les deux cas.
+  const abonnement = decodeFrameRaw(superviseur.envois[0].octets);
+  assert.strictEqual(abonnement.type, 'keh');
+  assert.strictEqual(Number(abonnement.payload.find((f) => f.no === 1).value), 8437);
+  // Le champ 2 distingue l'abonnement du DESABONNEMENT, qui est le meme
+  // message sans lui. Sans cette assertion, confondre les deux passerait.
+  assert.strictEqual(Number(abonnement.payload.find((f) => f.no === 2).value), 1);
   vente.arreter(42);
 });
 ```
@@ -986,11 +995,17 @@ function rythmeRafale(hasard = Math.random) {
   return DELAI_RAFALE_MIN + Math.floor(hasard() * (DELAI_RAFALE_MAX - DELAI_RAFALE_MIN + 1));
 }
 
-// Le temps d'un objet au suivant, avec la pause quand le compteur tombe. Rend
-// le delai ET le compteur pour la visite suivante — le compteur est REARME en
+// Le temps d'une visite d'objet a la suivante, avec la pause quand le compteur
+// tombe. Rend le delai ET le compteur pour la visite suivante.
+//
+// ELLE NE S'APPELLE PAS rythmeObjet, ET C'EST VOLONTAIRE. reprix.js exporte
+// deja un rythmeObjet(hasard) qui rend un NOMBRE et ne pause pas; celle-ci
+// prend un compteur et rend { ms, compteur }. Deux modules freres, deux
+// signatures, un seul nom: la confusion serait garantie au premier qui lit les
+// deux. — le compteur est REARME en
 // meme temps que la pause est servie, sans quoi il resterait a zero et toutes
 // les visites suivantes pauseraient aussi.
-function rythmeObjet(compteur, hasard = Math.random) {
+function rythmeVisite(compteur, hasard = Math.random) {
   const entre = (min, max) => min + Math.floor(hasard() * (max - min + 1));
   let ms = entre(DELAI_OBJET_MIN, DELAI_OBJET_MAX);
   let suivant = compteur - 1;
@@ -1060,7 +1075,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
 }
 
 module.exports = {
-  creerVente, rythmeRafale, rythmeObjet,
+  creerVente, rythmeRafale, rythmeVisite,
   DELAI_RAFALE_MIN, DELAI_RAFALE_MAX, DELAI_OBJET_MIN, DELAI_OBJET_MAX,
   PAUSE_MIN, PAUSE_MAX, DELAI_REPONSE,
 };
@@ -1322,15 +1337,15 @@ test('rythmeRafale reste dans ses bornes', () => {
   assert.strictEqual(rythmeRafale(() => 0.999999), DELAI_RAFALE_MAX);
 });
 
-test('rythmeObjet ajoute la pause et rearme le compteur', () => {
-  const { rythmeObjet, DELAI_OBJET_MIN, PAUSE_MIN, DELAI_OBJET_MAX, PAUSE_MAX } = require('../src/hdv/vente');
-  const sansPause = rythmeObjet(5, () => 0);
+test('rythmeVisite ajoute la pause et rearme le compteur', () => {
+  const { rythmeVisite, DELAI_OBJET_MIN, PAUSE_MIN, DELAI_OBJET_MAX, PAUSE_MAX } = require('../src/hdv/vente');
+  const sansPause = rythmeVisite(5, () => 0);
   assert.strictEqual(sansPause.ms, DELAI_OBJET_MIN);
   assert.strictEqual(sansPause.compteur, 4);
-  const avecPause = rythmeObjet(1, () => 0);
+  const avecPause = rythmeVisite(1, () => 0);
   assert.strictEqual(avecPause.ms, DELAI_OBJET_MIN + PAUSE_MIN);
   assert.ok(avecPause.compteur >= 20, 'le compteur est rearme, sinon toutes les visites suivantes pauseraient');
-  const haut = rythmeObjet(1, () => 0.999999);
+  const haut = rythmeVisite(1, () => 0.999999);
   assert.strictEqual(haut.ms, DELAI_OBJET_MAX + PAUSE_MAX);
 });
 ```
@@ -1348,7 +1363,7 @@ Dans `src/hdv/vente.js`, supprimer les `demarrer` et `terminer` provisoires et i
   const delaiObjetMs = (passe) => {
     const r = reglages.delaiObjetMs;
     if (Number.isFinite(r)) return r;
-    const { ms, compteur } = rythmeObjet(passe.avantPause);
+    const { ms, compteur } = rythmeVisite(passe.avantPause);
     passe.avantPause = compteur;
     return ms;
   };
