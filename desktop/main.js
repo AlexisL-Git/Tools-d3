@@ -13,6 +13,7 @@ const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/songes');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { creerReprix } = require('../src/hdv/reprix');
+const { creerVente } = require('../src/hdv/vente');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients, fermerClients } = require('../src/comptes/clients');
@@ -58,6 +59,7 @@ let superviseur = null;
 // dans le composer, parce qu'un BOUTON doit pouvoir la lancer: c'est le seul
 // module d'OMNI qui repond a autre chose qu'a une trame.
 let reprix = null;
+let vente = null;
 let favoris = null;
 let emblemes = null;
 let comptes = [];
@@ -621,6 +623,8 @@ async function envoyerEtat() {
     const aUnPid = l.pid !== null && l.pid !== undefined && reprix !== null;
     l.hdvLots = aUnPid ? reprix.lotsConnus(l.pid).length : 0;
     l.hdvEnCours = aUnPid ? reprix.enCours(l.pid) : false;
+    l.hdvPiles = aUnPid && vente !== null ? vente.pilesConnues(l.pid) : 0;
+    l.hdvVenteEnCours = aUnPid && vente !== null ? vente.enCours(l.pid) : false;
   }
 
   // La carte des pids et la liste des pids affiches, tenues a jour ici:
@@ -963,6 +967,41 @@ app.whenReady().then(async () => {
     },
   });
 
+  // LA MISE EN VENTE.
+  //
+  // Elle ecoute EN PERMANENCE, comme la mise a jour des prix et pour la meme
+  // raison: ivx — la liste des piles — arrive quand le joueur ouvre son
+  // panneau de vente, pas quand il clique sur le bouton. La difference est que
+  // c'est le CLIENT qui la demande, de lui-meme: OMNI n'emet aucun itr.
+  vente = creerVente({
+    superviseur,
+    onCompteRendu: (r) => {
+      if (r.ok === false) {
+        messages.set(r.pid, `HDV : ${r.raison}`);
+        journal(r.pid, `vente refus : ${r.raison}`);
+        envoyerEtat();
+        return;
+      }
+      if (r.fini) {
+        const b = r.bilan;
+        messages.set(r.pid, r.raison
+          ? `HDV : arrêt — ${r.raison} (${b.poses} lots posés)`
+          : `HDV : ${b.poses} lots posés, ${b.sautes} sautés, ${b.echecs} échoués`);
+        journal(r.pid, `vente fin : ${b.poses} poses, ${b.sautes} sautes, ${b.echecs} echecs, `
+          + `${b.objetsAbandonnes} objets abandonnes` + (r.raison ? ` — ${r.raison}` : ''));
+        envoyerEtat();
+        return;
+      }
+      // L'AVANCEMENT NE DECLENCHE PAS D'ENVOI D'ETAT: envoyerEtat() lance
+      // powershell.exe par clientsRecents(). Le tick de 2 s l'affiche.
+      //
+      // PAS DE DENOMINATEUR EN LOTS. Le stock de mesure porte 6495 lots
+      // candidats et la passe s'arretera bien avant: afficher « 47 / 6495 »
+      // serait un chiffre faux.
+      if (r.objets) messages.set(r.pid, `HDV : ${r.poses} lots posés — objet ${r.objetsFaits} sur ${r.objets}`);
+    },
+  });
+
   superviseur.onTrame = composer(
     creerDuplicateur({
       superviseur,
@@ -1073,6 +1112,7 @@ app.whenReady().then(async () => {
       },
     }),
     reprix.onTrame,
+    vente.onTrame,
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -1308,14 +1348,14 @@ ipcMain.handle('majPrixHdv', async (_e, pid) => {
   await envoyerEtat();
 });
 
-// LA MISE EN VENTE N'EXISTE PAS ENCORE, ET ELLE LE DIT.
-//
-// kge est mesuree et comprise, mais elle exige l'uid d'une pile d'inventaire —
-// et l'inventaire ne transite sur AUCUN canal. Verifie sur 54 666 trames le
-// 01/09 (docs/superpowers/specs/2026-09-01-trames-hdv.md). Cacher l'entree
-// serait pire que la montrer inerte: on ne saurait meme pas qu'elle est prevue.
-ipcMain.handle('avisVenteHdv', async () => {
-  noterAvis('Mise en vente : l’inventaire ne passe pas par le réseau, la fonction attend sa mesure');
+// LA MISE EN VENTE. Une seule voie pour lancer ET arreter, comme la mise a
+// jour des prix: le menu affiche « Arrêter » pendant la passe, donc le geste
+// est sans ambiguite et un second clic ne peut pas lancer une passe par-dessus
+// une autre.
+ipcMain.handle('mettreEnVenteHdv', async (_e, pid) => {
+  if (vente === null || !Number.isInteger(pid)) return;
+  if (vente.enCours(pid)) vente.arreter(pid);
+  else vente.lancer(pid);
   await envoyerEtat();
 });
 
