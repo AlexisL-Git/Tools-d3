@@ -87,6 +87,10 @@ class Superviseur {
     this.arme = arme;
     this.onTrame = onTrame;
     this.onJournal = onJournal;
+    // Les connexions hors du port du jeu, pour qu'elles cessent d'etre muettes.
+    // Voir _recevoir: c'est le second silence trouve le 01/09, et il est
+    // structurel — il ne coute qu'une ligne de journal par connexion.
+    this._horsJeu = new Map();
     // Les appuis de bouton remontes par les agents. Le superviseur ne juge
     // rien: il transporte, et desktop/main.js decide s'ils correspondent a un
     // raccourci.
@@ -216,7 +220,35 @@ class Superviseur {
   }
 
   _recevoir(client, dir, buf, conn) {
-    if (conn.port !== PORT_JEU) return;
+    // CE QUI N'EST PAS LE PORT DU JEU N'EST PAS SEULEMENT IGNORE: IL EST MUET.
+    //
+    // Le filtre ci-dessous est juste — on ne decode que le protocole de jeu —
+    // mais il produit le meme silence que le rejet de decodage: une connexion
+    // sur un autre port traverse le proxy sans laisser une seule ligne, donc
+    // sans qu'on puisse seulement savoir qu'elle existe.
+    //
+    // Mesure du 01/09: l'inventaire du personnage (753 lots) est introuvable
+    // sur le port 5555, sur trois captures completes. Un second canal est
+    // l'hypothese qui reste, et il fallait d'abord pouvoir la voir.
+    //
+    // Une ligne a la premiere apparition d'une connexion, puis une tous les
+    // 64 Ko: de quoi reconnaitre un canal qui transporte vraiment quelque
+    // chose sans transformer le journal en compteur d'octets.
+    if (conn.port !== PORT_JEU) {
+      const cle = `hors-jeu/${conn.id}`;
+      let vu = this._horsJeu.get(cle);
+      if (vu === undefined) {
+        vu = { octets: 0, palier: 0 };
+        this._horsJeu.set(cle, vu);
+        this.journal(client.pid, `canal HORS JEU : ${conn.host}:${conn.port} (conn ${conn.id})`);
+      }
+      vu.octets += buf.length;
+      if (vu.octets - vu.palier >= 65536) {
+        vu.palier = vu.octets;
+        this.journal(client.pid, `canal HORS JEU ${conn.host}:${conn.port} : ${vu.octets} o cumules`);
+      }
+      return;
+    }
     if (conn.amont) client.amont = conn.amont;
 
     const cle = `${conn.id}/${dir}`;
@@ -229,7 +261,22 @@ class Superviseur {
     for (const brute of trames) {
       const frame = decodeFrameRaw(brute);
       if (etat) etat.observer(frame);
-      if (frame === null) continue;
+      // UNE TRAME REJETEE NE DOIT PAS PARTIR EN SILENCE.
+      //
+      // decodeFrameRaw rend null sur une douzaine de chemins — cle a zero,
+      // varint trop long, longueur qui deborde du tampon. Jusqu'ici la trame
+      // etait simplement sautee, donc ABSENTE du journal meme sous
+      // OMNI_CAPTURE=1: une trame qu'on ne sait pas lire et une trame qui
+      // n'existe pas produisaient la meme ligne, c'est-a-dire aucune.
+      //
+      // C'est le mode d'echec que ce depot paie le plus cher, et il s'est
+      // encore presente le 01/09: l'inventaire du personnage est introuvable
+      // dans une capture pourtant complete, et rien ne permet de dire s'il
+      // n'est pas envoye ou s'il est rejete ici.
+      if (frame === null) {
+        this.journal(client.pid, `trame NON DECODEE (${dir}) : ${brute.length} o, debut ${brute.subarray(0, 24).toString('hex')}`);
+        continue;
+      }
       this.onTrame({ pid: client.pid, dir, frame, brute, estMaitre: client.pid === this.maitre });
     }
   }
