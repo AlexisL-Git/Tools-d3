@@ -151,3 +151,45 @@ sa `kmk` ne nomme que lui, et la mule n'en reçoit aucune. Rien ne part.
   `kme` ; à confirmer lors de la vérification en jeu.
 - **`hpy`**, reçue par la mule à l'entrée avec la composition du combat et le
   numéro `6=198`. Non exploitée : `kmk` dit la même chose plus simplement.
+
+## 6. Vérification en jeu du 2026-09-01
+
+Session OMNI de `01:05:41Z`, maître pid `10360` (`676438999334`), mule pid
+`17788` (`677048221990`), replicate armé.
+
+**Combat ordinaire — ça marche, et l'utilisateur l'a vu à l'écran :**
+
+```
+519602ms [17788] abandon : replique chez la mule
+519602ms [10360] cap : --> request kme {  }
+519632ms [10360] cap :  <-- event jzu { 2={3={2=-2}} 2={3={2=677048221990}}
+                                        2={3={2=-1}} }
+```
+
+La réplication part **dans la même milliseconde** que l'abandon du maître.
+
+**Le premier essai, lui, avait échoué** — et c'est lui qui a tout appris. Aucune
+ligne `abandon :`, parce que le critère reposait sur une coïncidence
+d'orientation (voir la correction en section 4). Ni les 16 tests unitaires ni
+deux revues de code n'auraient pu la contredire : ils validaient fidèlement une
+mauvaise lecture du protocole. **Seul l'essai en jeu pouvait la détruire.**
+
+## 7. CE QUI RESTE À VÉRIFIER
+
+**Le combat de quête n'a pas été essayé.** Une seule trame `kme` figure dans le
+journal de vérification : le maître n'a abandonné qu'une fois, dans un combat
+ordinaire. Le cas qui porte la demande de l'utilisateur — « que ça ne morde pas
+sur les combats de quête » — **n'a donc pas de preuve en jeu**.
+
+Le raisonnement dit qu'il est couvert : le maître y est seul, sa liste de
+combattants ne nomme que lui, la mule n'en reçoit aucune. C'est un raisonnement,
+pas une mesure.
+
+**`ieb` reste introuvable** — zéro occurrence dans les trois sessions du 01/09.
+C'est la trame dont dépend `src/garde-combat.js`. Elle n'a jamais été mesurée
+que sur des combats de quête, et aucun n'a été joué sous capture ce soir. **Tant
+qu'un combat de quête n'aura pas été capturé, on ne sait pas si cette garde a
+encore un signal.** Rien n'a été touché dans `src/garde-combat.js`.
+
+Les deux questions se règlent en une seule manche : un combat de quête, sous
+`OMNI_CAPTURE=1`, avec le maître qui abandonne.
