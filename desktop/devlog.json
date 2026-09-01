@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.2.8",
+    "le": "2026-09-01",
+    "notes": [
+      "Correction du garde-fou des combats : il retenait des actions parfaitement anodines et les refusait ensuite pour toujours. Il ne retient plus qu'un vrai combat ouvert en double.",
+      "Les actions retenues à tort sont effacées au premier lancement, sans rien avoir à faire.",
+      "Une action retenue s'oublie désormais toute seule au bout de 30 jours."
+    ]
+  },
+  {
     "version": "0.2.7",
     "le": "2026-08-31",
     "notes": [
