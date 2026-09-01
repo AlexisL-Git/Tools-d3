@@ -235,8 +235,19 @@ deux trames ne concernent que nos propres piles.
 
 Le découpage est fait au départ, mais si `ivj` annonce un reste plus bas que
 prévu — le joueur a bougé un objet, ou vendu à la main — **c'est `ivj` qui a
-raison**, et on recalcule les lots restants de cette pile. Faire confiance à
-notre arithmétique ferait émettre un `kge` sur une quantité qu'on n'a plus.
+raison**, et les lots de cette pile devenus impossibles sont abandonnés —
+comptés « sautés », pas redécoupés en lots plus petits. Faire confiance à notre
+arithmétique ferait émettre un `kge` sur une quantité qu'on n'a plus ; quelques
+unités restent donc invendues jusqu'à la passe suivante, et c'est le prix à
+payer.
+
+**Et on n'attend une confirmation qu'après avoir demandé.** `attentePile` est
+armé une fois le `kge` transmis, jamais avant : entre la décision et l'envoi il
+s'écoule le délai de rafale, et un `ivj` sur la même pile pendant cette fenêtre
+serait pris pour la confirmation d'un lot pas encore parti. Comme la
+confirmation annule les minuteurs, elle supprimerait l'envoi en attente — le lot
+serait compté posé sans jamais l'être. Un paquet étant fait de lots tirés d'une
+**même** pile, la fenêtre est étroite mais le tir est ajusté.
 
 ### Un paquet ne relit pas le marché entre chaque lot
 
