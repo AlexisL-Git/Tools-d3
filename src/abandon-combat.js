@@ -157,9 +157,12 @@ function creerAbandonGroupe({ superviseur, onCompteRendu = () => {} }) {
     if (!estMaitre || !superviseur.arme) return;
     if (!TYPES_ABANDON.includes(frame.type)) return;
 
-    // Consomme: un second abandon sur le meme combat ne renvoie rien.
-    combattants.delete(pid);
-
+    // L'entree du maitre n'est jamais relue: ce qu'on compare, c'est la liste
+    // de chaque ESCLAVE au characterId du maitre, lu dans le superviseur. Rien
+    // a effacer ici, donc; sa prochaine kmk de combat l'ecrasera de toute
+    // facon. Une ligne l'effacait, avec un commentaire qui s'attribuait le
+    // merite du « second abandon ne renvoie rien » — merite qui revient a la
+    // suppression faite dans la boucle ci-dessous. Revue du 01/09.
     const etat = superviseur.comptes.get(pid);
     const idMaitre = etat === null || etat === undefined ? null : etat.characterId;
     if (idMaitre === null || idMaitre === undefined) return;
@@ -168,6 +171,8 @@ function creerAbandonGroupe({ superviseur, onCompteRendu = () => {} }) {
     for (const esclave of superviseur.comptes.esclaves(pid)) {
       const siens = combattants.get(esclave.pid);
       if (siens === undefined || !siens.has(cleMaitre)) continue;
+      // Consomme: c'est CETTE suppression, et elle seule, qui fait qu'un
+      // second abandon sur le meme combat ne renvoie rien.
       combattants.delete(esclave.pid);
       // Chaque esclave dans son propre essai, comme les etapes de
       // src/garde-combat.js: une socket morte sur l'un ne doit pas priver les
