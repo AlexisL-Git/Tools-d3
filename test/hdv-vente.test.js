@@ -108,14 +108,17 @@ test('l ecoute retient les prix moyens d ivi', () => {
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32], [8437, 39]]) });
   vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-iwb.hex') });
   vente.lancer(42);
-  // La passe a demarre: le premier envoi est un abonnement, donc les prix
-  // moyens ont bien servi a trier.
+  // La passe a demarre: le premier envoi est un abonnement.
   assert.ok(superviseur.envois.length > 0);
-  // Et c'est bien la table d'ivi qui a decide de l'ordre. Sans elle tous les
+  // ET C'EST BIEN LA TABLE D'IVI QUI A DECIDE DE L'ORDRE. Sans elle tous les
   // lots vaudraient zero et le tri retomberait sur le gid 1731; avec elle, le
-  // lot le plus cher est le gid 8437, seul des deux a etre en banque.
+  // lot le plus cher est le gid 8437. Une assertion sur le seul nombre
+  // d'envois ne prouverait rien: la passe demarre dans les deux cas.
   const abonnement = decodeFrameRaw(superviseur.envois[0].octets);
   assert.strictEqual(abonnement.type, 'keh');
   assert.strictEqual(Number(abonnement.payload.find((f) => f.no === 1).value), 8437);
+  // Le champ 2 distingue l'abonnement du DESABONNEMENT, qui est le meme
+  // message sans lui. Sans cette assertion, confondre les deux passerait.
+  assert.strictEqual(Number(abonnement.payload.find((f) => f.no === 2).value), 1);
   vente.arreter(42);
 });
