@@ -42,6 +42,11 @@ function creerVeille({
   let courants = [];
   let minuteur = null;
   let arrete = false;
+  // Un seul demarrage. Sans cette garde, un deuxieme appel a demarrer()
+  // referme sa propre chaine planifier/reprogrammer par-dessus la premiere:
+  // `minuteur` n'en retient que la derniere, et arreter() ne coupe plus que
+  // celle-la -- l'autre continue d'interroger le service indefiniment.
+  let dejaDemarre = false;
 
   function appliquer(nouveaux) {
     // Une fonction que cette version ne connait pas est ignoree: le panneau
@@ -50,7 +55,19 @@ function creerVeille({
     const gagnes = apres.filter((n) => !courants.includes(n));
     const perdus = courants.filter((n) => !apres.includes(n));
     courants = apres;
-    if (gagnes.length || perdus.length) onChangement({ gagnes, perdus, droits: apres });
+    if (gagnes.length || perdus.length) {
+      // Meme regle que composer.js: une exception ici ne doit ni se
+      // propager (elle romprait la chaine interroger/reprogrammer et
+      // tuerait la boucle en silence) ni disparaitre sans laisser de trace
+      // (un onChangement mort ressemblerait alors a un onChangement qui n a
+      // rien a faire). Chez nous onChangement touche reprix et l etat de
+      // l ami: elle peut lever, et l ami ne doit pas en payer ses droits.
+      try {
+        onChangement({ gagnes, perdus, droits: apres });
+      } catch (e) {
+        console.error('veille droits: onChangement en echec, la boucle continue :', e);
+      }
+    }
   }
 
   async function interroger() {
@@ -66,20 +83,33 @@ function creerVeille({
     if (r.status === 404) { appliquer([]); cache.ecrire([]); return; }
     if (r.status !== 200) return; // 500 chez nous n est pas une revocation.
     let corps;
-    try { corps = await r.json(); } catch (e) { return; }
-    const liste = corps && Array.isArray(corps.droits) ? corps.droits : [];
-    appliquer(liste);
+    try { corps = await r.json(); } catch (e) { return; } // corps illisible: incident, pas une revocation.
+    // Un 200 dont le corps n a pas de tableau droits (bug transitoire du
+    // service, derive d API) n est pas non plus une revocation: seul un 404
+    // franc revoque. Sans ce garde-fou, un { } malforme viderait tout le
+    // monde exactement comme une vraie coupure de cle.
+    if (!corps || !Array.isArray(corps.droits)) return;
+    appliquer(corps.droits);
     cache.ecrire(courants);
   }
 
   function reprogrammer() {
     if (arrete) return;
-    minuteur = planifier(async () => { await interroger(); reprogrammer(); }, periodeMs);
+    minuteur = planifier(async () => {
+      // Le rappel peut avoir ete arme avant un arreter() -- notamment dans
+      // les tests, ou le faux minuteur n annule rien reellement. On revalide
+      // donc l etat au reveil, pas seulement avant de re-planifier.
+      if (arrete) return;
+      await interroger();
+      reprogrammer();
+    }, periodeMs);
   }
 
   return {
     droits() { return courants; },
     async demarrer() {
+      if (dejaDemarre) return; // une seule chaine, jamais deux en parallele.
+      dejaDemarre = true;
       // PAS DE CLE = MODE DEVELOPPEMENT. C est la machine de Draxus, lancee sur
       // le depot sans passer par l amorceur: tous les droits, aucune requete.
       // Une veille qui verrouillerait le depot rendrait le developpement

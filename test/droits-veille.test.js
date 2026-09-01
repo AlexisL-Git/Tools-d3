@@ -132,3 +132,91 @@ test('sans changement, onChangement ne dit rien', async () => {
   await t.tic();
   assert.strictEqual(vus.length, 1, 'un seul evenement: le premier');
 });
+
+test('demarrer() appele deux fois ne dedouble pas la boucle', async () => {
+  const t = fauxTemps();
+  let appels = 0;
+  const v = creerVeille({
+    base: 'https://x', lireCle: () => 'CLE', cache: fauxCache(null),
+    chercher: () => { appels += 1; return reponse(200, { droits: ['hdv'] }); },
+    planifier: t.planifier, arreterMinuteur: t.arreterMinuteur,
+  });
+  await v.demarrer();
+  await v.demarrer();
+  assert.strictEqual(appels, 1, 'un second demarrer() ne doit pas relancer une chaine de plus');
+  v.arreter();
+  await t.tic();
+  assert.strictEqual(appels, 1, 'apres arreter(), plus aucune chaine ne doit encore interroger');
+});
+
+test('une exception dans onChangement est signalee, pas avalee, et la boucle continue', async () => {
+  const t = fauxTemps();
+  let tour = 0;
+  const journal = [];
+  const original = console.error;
+  console.error = (...a) => journal.push(a);
+  try {
+    const v = creerVeille({
+      base: 'https://x', lireCle: () => 'CLE', cache: fauxCache(null),
+      chercher: () => {
+        tour += 1;
+        const droits = tour === 1 ? ['hdv'] : tour === 2 ? ['hdv', 'songe'] : ['songe'];
+        return reponse(200, { droits });
+      },
+      planifier: t.planifier, arreterMinuteur: t.arreterMinuteur,
+      onChangement: () => { throw new Error('boum'); },
+    });
+    await v.demarrer();
+    await t.tic(); // tour 2: hdv+songe, onChangement leve
+    assert.deepStrictEqual(v.droits(), ['hdv', 'songe'], 'l etat progresse malgre l exception');
+    assert.ok(journal.length >= 1, 'l exception doit etre signalee, pas avalee en silence');
+    await t.tic(); // tour 3: la boucle doit encore tourner apres l exception
+    assert.deepStrictEqual(v.droits(), ['songe'], 'une exception dans onChangement ne tue pas la boucle');
+  } finally {
+    console.error = original;
+  }
+});
+
+test('un 200 sans tableau droits est un incident, pas une revocation', async () => {
+  const t = fauxTemps();
+  let tour = 0;
+  const v = creerVeille({
+    base: 'https://x', lireCle: () => 'CLE', cache: fauxCache(null),
+    chercher: () => { tour += 1; return tour === 1 ? reponse(200, { droits: ['hdv'] }) : reponse(200, {}); },
+    planifier: t.planifier, arreterMinuteur: t.arreterMinuteur,
+  });
+  await v.demarrer();
+  assert.deepStrictEqual(v.droits(), ['hdv']);
+  await t.tic();
+  assert.deepStrictEqual(v.droits(), ['hdv'], 'un 200 sans droits ne revoque personne');
+});
+
+test('un corps illisible (json() qui rejette) ne change rien', async () => {
+  const t = fauxTemps();
+  let tour = 0;
+  const v = creerVeille({
+    base: 'https://x', lireCle: () => 'CLE', cache: fauxCache(null),
+    chercher: () => {
+      tour += 1;
+      if (tour === 1) return reponse(200, { droits: ['hdv'] });
+      return Promise.resolve({ status: 200, ok: true, json: async () => { throw new Error('json casse'); } });
+    },
+    planifier: t.planifier, arreterMinuteur: t.arreterMinuteur,
+  });
+  await v.demarrer();
+  await t.tic();
+  assert.deepStrictEqual(v.droits(), ['hdv'], 'un corps illisible ne revoque personne');
+});
+
+test('un 500 ne change rien', async () => {
+  const t = fauxTemps();
+  let tour = 0;
+  const v = creerVeille({
+    base: 'https://x', lireCle: () => 'CLE', cache: fauxCache(null),
+    chercher: () => { tour += 1; return tour === 1 ? reponse(200, { droits: ['hdv'] }) : reponse(500, null); },
+    planifier: t.planifier, arreterMinuteur: t.arreterMinuteur,
+  });
+  await v.demarrer();
+  await t.tic();
+  assert.deepStrictEqual(v.droits(), ['hdv'], 'un 500 chez nous n est pas une revocation');
+});
