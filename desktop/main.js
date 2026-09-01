@@ -594,7 +594,6 @@ async function envoyerEtat() {
     sansMaitre: superviseur.maitre === null,
     erreurComptes,
     delai: favoris.delai(),
-    combats: favoris.combats().length,
     avisBascule: avisCourant(),
     // Pour que le bouton de la barre du bas dise s'il ouvre ou s'il ferme.
     overlayOuvert: overlay !== null && !overlay.isDestroyed(),
@@ -1129,13 +1128,6 @@ ipcMain.handle('reglerTouche', async (_e, idCompte, accelerateur) => {
 });
 
 // LE SEUL RECOURS quand OMNI a retenu a tort qu'une action lance un combat.
-// La liste est faite de numeros: personne ne peut deviner quelle entree est
-// fautive, donc on vide tout. Le delai continue de proteger apres l'oubli.
-ipcMain.handle('oublierCombats', async () => {
-  favoris.oublierCombats();
-  await envoyerEtat();
-});
-
 // L'interface signale un appui quand c'est la fenetre d'OMNI qui a le focus:
 // l'agent, lui, ne voit que les appuis faits sur son client Dofus.
 ipcMain.handle('boutonSouris', (_e, clic) => {

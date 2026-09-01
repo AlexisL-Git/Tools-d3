@@ -42,7 +42,6 @@ contextBridge.exposeInMainWorld('app', {
   reglerTouche: (idCompte, accelerateur) => ipcRenderer.invoke('reglerTouche', idCompte, accelerateur),
 
   // Vide la liste des actions connues pour lancer un combat.
-  oublierCombats: () => ipcRenderer.invoke('oublierCombats'),
 
   // Ouvre ou ferme la petite fenetre flottante posee sur le jeu. Elle a son
   // propre preload, plus etroit: desktop/overlay-preload.js.
