@@ -111,11 +111,22 @@ désynchroniser ; le panneau lit la même liste, servie par l'API.
 Demande les droits au lancement, puis **toutes les 60 secondes**. Fabrique
 injectable (`chercher`, `planifier`) pour se tester sans réseau ni horloge.
 
+**Où elle prend la clé.** Aujourd'hui seul `amorceur/cle.js` lit
+`%APPDATA%\OMNI\cle.txt` ; l'application n'y touche jamais. La veille la relit
+depuis le même fichier — pas d'invention, pas de second exemplaire. La clé est
+en clair et c'est assumé (`cle.js:5`) : le levier de contrôle est la révocation
+côté serveur, pas ce fichier.
+
+**Le mode développement n'a pas de clé du tout.** Lancé sur le dépôt, OMNI ne
+passe pas par l'amorceur et `cle.txt` peut être absent. Dans ce cas :
+**tous les droits**, sans requête. C'est la machine de Draxus, et une veille qui
+verrouillerait le dépôt rendrait le développement impossible.
+
 | réponse du serveur | effet |
 |---|---|
 | la liste | on l'applique |
 | `injoignable` (réseau) | **on ne change rien**, on garde les derniers droits connus |
-| `404` (clé révoquée) | toutes les fonctions verrouillables tombent, dans la minute |
+| `404` (clé révoquée) | toutes les fonctions verrouillables tombent, dans la minute — **le replicate continue de tourner** jusqu'à la fermeture, c'est l'amorceur qui refusera le lancement suivant |
 
 Confondre `injoignable` et `404` ferait qu'une coupure de connexion retirerait
 ses fonctions à tout le monde. C'est la même erreur que `canal.js` évite déjà,
@@ -132,9 +143,18 @@ défaut fermé est le même que côté serveur.
 
 ### La porte
 
-Les modules restent assemblés comme aujourd'hui dans `composer()`. Chacun de
-ceux qui portent un nom de fonction passe par une porte qui lit les droits du
-moment : droit absent, la trame ne lui est pas remise, donc il n'émet rien.
+**Les fonctions ne se coupent pas toutes au même endroit**, et c'est la seule
+subtilité du dessin.
+
+*Celles qui écoutent le trafic* — `abandon`, `passe-tour`, `invitation`,
+`echange`, `songe` — restent assemblées comme aujourd'hui dans `composer()`,
+mais passent par une porte qui lit les droits du moment : droit absent, la
+trame ne leur est pas remise, donc elles n'émettent rien.
+
+*Celles qu'un bouton déclenche* — `overlay` et `hdv` — ne voient pas de trame :
+il n'y a rien à filtrer. Leur bouton est grisé, et la fabrique n'est pas
+branchée. Pour l'HDV, la porte reste utile en second rideau sur les trames
+qu'il écoute (`kby`, `kbt`).
 
 La porte est une fonction pure de `src/droits/`, pas du code ajouté à
 `desktop/main.js` — ce fichier fait déjà 1617 lignes.
