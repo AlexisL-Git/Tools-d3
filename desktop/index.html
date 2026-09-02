@@ -159,13 +159,6 @@
     font-variant-numeric: tabular-nums;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .qdn-maj button {
-    flex: none; padding: 5px 12px; border-radius: 999px;
-    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
-    font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-  }
-  .qdn-maj.retard button { border-color: var(--arme); background: var(--arme); color: var(--arme-encre); }
-  .qdn-maj button:disabled { opacity: .4; cursor: default; }
   .qdn-corps { overflow-y: auto; padding: 6px 15px 18px; }
   .qdn-version { padding: 12px 0; border-bottom: 1px solid var(--filet); }
   .qdn-version:last-child { border-bottom: 0; }
@@ -521,7 +514,6 @@
   </div>
   <div class="qdn-maj" id="qdnMaj" hidden>
     <span class="texte"><span class="quoi" id="qdnMajQuoi"></span><span class="refs" id="qdnMajRefs"></span></span>
-    <button id="qdnMajBouton" hidden>Mettre à jour</button>
   </div>
   <div class="qdn-corps" id="qdnCorps"></div>
 </div>
@@ -685,75 +677,47 @@
   // Dans la barre, un seul signal: le numero passe au cyan. Tout le reste vit
   // dans le panneau que ce numero ouvre, parce que la barre de titre etait
   // devenue illisible avec un texte et un bouton de plus.
+  // PAS DE BOUTON DE MISE A JOUR ICI, et c'est delibere. Il a existe le
+  // 2026-09-02 et il est parti le jour meme: en developpement le dossier de
+  // travail est presque toujours modifie, `merge --ff-only` refusait donc, et
+  // il ne restait a l'ecran qu'un pave d'erreur git en anglais. Ce bloc dit ou
+  // on en est et quelle commande taper. Mettre a jour reste un geste conscient.
   const elMajBloc = document.getElementById('qdnMaj');
   const elMajQuoi = document.getElementById('qdnMajQuoi');
   const elMajRefs = document.getElementById('qdnMajRefs');
-  const boutonMaj = document.getElementById('qdnMajBouton');
-  let dernierMajGit = null;
 
   function rendreMajGit(r) {
-    dernierMajGit = r;
     const retard = !!r && r.etat === 'en-retard';
     document.getElementById('versionBouton').classList.toggle('retard', retard);
     elMajBloc.classList.toggle('retard', retard);
     elMajBloc.hidden = false;
-    boutonMaj.disabled = false;
 
     if (!r || r.etat === 'inconnu') {
       elMajQuoi.textContent = 'Mise à jour non vérifiée';
       elMajRefs.textContent = (r && r.raison) || '';
-      boutonMaj.textContent = 'Réessayer';
-      boutonMaj.hidden = false;
       return;
     }
     if (r.etat === 'a-jour') {
       elMajQuoi.textContent = 'Code à jour';
       elMajRefs.textContent = r.branche + ' · ' + r.locale + ' · rien de neuf sur ' + r.reference;
-      boutonMaj.textContent = 'Revérifier';
-      boutonMaj.hidden = false;
       return;
     }
     elMajQuoi.textContent = r.retard + ' commit' + (r.retard > 1 ? 's' : '') + ' de retard sur ' + r.reference;
-    elMajRefs.textContent = r.branche + ' · ' + r.locale + ' → ' + r.distante;
-    boutonMaj.textContent = 'Mettre à jour';
-    boutonMaj.hidden = false;
+    // La commande, pas le geste: `--ff-only` refuse au lieu de fusionner, et
+    // git dira lui-meme ce qui bloque, dans un terminal ou on peut le lire.
+    elMajRefs.textContent = r.branche + ' · ' + r.locale + ' → ' + r.distante
+      + (r.propre === false ? ' · dossier de travail modifié' : '')
+      + ' · git pull --ff-only';
   }
 
   async function verifierMajGit() {
     try {
       rendreMajGit(await window.app.etatMajGit());
     } catch {
-      dernierMajGit = null;
       elMajBloc.hidden = true;     // pas de canal = mode ami: on n'affiche rien
       document.getElementById('versionBouton').classList.remove('retard');
     }
   }
-
-  boutonMaj.onclick = async () => {
-    // Le meme bouton porte les trois gestes: reessayer, reverifier, mettre a
-    // jour. Une seule voie, comme le bouton HDV qui lance ou arrete la passe.
-    if (!dernierMajGit || dernierMajGit.etat !== 'en-retard') {
-      boutonMaj.disabled = true;
-      boutonMaj.textContent = 'Vérification…';
-      await verifierMajGit();
-      return;
-    }
-    boutonMaj.disabled = true;
-    boutonMaj.textContent = 'Mise à jour…';
-    try {
-      const r = await window.app.lancerMajGit();
-      if (r.etat === 'ok' && r.relancable) { boutonMaj.textContent = 'Relance…'; return; }
-      // Un refus n'efface pas ce qu'on savait: le retard est toujours la, seule
-      // la tentative a echoue, et c'est ce qu'on ecrit.
-      elMajRefs.textContent = r.raison || 'mise à jour refusée';
-      boutonMaj.textContent = 'Réessayer';
-      boutonMaj.disabled = false;
-    } catch {
-      elMajRefs.textContent = 'mise à jour impossible';
-      boutonMaj.textContent = 'Réessayer';
-      boutonMaj.disabled = false;
-    }
-  };
 
   // APRES l'ouverture de la fenetre, jamais avant: un depot distant
   // injoignable ne doit pas retarder l'affichage d'une seule seconde.
@@ -1236,7 +1200,7 @@
       r.majPrix.textContent = 'Mettre à jour les prix (' + l.hdvLots + ' lots)';
       r.majPrix.classList.remove('inerte');
     } else {
-      r.majPrix.textContent = 'Mettre à jour — ouvre le HDV une fois';
+      r.majPrix.textContent = 'Mettre à jour — ouvre l’HDV une fois';
       r.majPrix.classList.add('inerte');
     }
     if (!droitVente) {
@@ -1249,7 +1213,7 @@
       r.vente.textContent = 'Mettre en vente (' + l.hdvPiles + ' piles)';
       r.vente.classList.remove('inerte');
     } else {
-      r.vente.textContent = 'Mettre en vente — ouvre le HDV une fois';
+      r.vente.textContent = 'Mettre en vente — ouvre l’HDV une fois';
       r.vente.classList.add('inerte');
     }
 

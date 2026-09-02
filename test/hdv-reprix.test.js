@@ -158,6 +158,41 @@ test('kes remplace l uid du lot dans la liste memorisee', () => {
   sup.emis.length = 0;
 });
 
+// LE PREMIER kch D'UNE PASSE NE PAIE PAS LE DELAI DE LOT, pour la meme raison
+// que le premier objet ne paie pas le delai d'objet: ce delai espace DEUX
+// envois, et au depart il n'y en a pas eu de precedent. Sans cette regle, le
+// clic restait suivi de 0,9 a 2,6 s pendant lesquelles rien ne changeait a
+// l'ecran — l'abonnement partait, mais aucun prix ne bougeait. Il faut un
+// delaiMs non nul pour que le test distingue les deux chemins.
+test('le premier kch d une passe ne paie pas le delai de lot', async () => {
+  const sup = fauxSuperviseur(1);
+  const r = creerReprix({
+    superviseur: sup,
+    reglages: { delaiMs: 50, delaiObjetMs: 0, delaiReponseMs: 0 },
+    onCompteRendu: () => {},
+  });
+  const dire = (f) => r.onTrame({ pid: 1, dir: 'in', frame: f, brute: Buffer.alloc(0) });
+  dire(kby([
+    { uid: 10, gid: 13731, taille: 100, prix: 5000 },
+    { uid: 11, gid: 13731, taille: 10, prix: 500 },
+  ]));
+  dire(ivi([[13731, 32]]));
+  r.lancer(1);
+  dire(kbt(13731, [19, 190, 2700, 18000]));
+
+  // Le premier lot part TOUT DE SUITE.
+  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['keh', 'kbz', 'kch']);
+
+  // Le second, lui, paie: le kgp l'autorise, mais il n'est pas encore parti.
+  dire(ken(10));
+  dire(kes(99, 13731, 100, 2699));
+  dire(kgp(13731, [19, 190, 2699, 18000]));
+  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['keh', 'kbz', 'kch']);
+  await new Promise((res) => setTimeout(res, 80));
+  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['keh', 'kbz', 'kch', 'kch']);
+  r.arreter(1);
+});
+
 // --- Le parcours des gid -------------------------------------------------
 
 test('elle se desabonne du gid termine avant de s abonner au suivant', () => {
@@ -349,6 +384,10 @@ test('consulter un objet va plus vite que reprendre un prix', () => {
 
 // La verification qui compte: le second objet ne doit PAS partir dans la foulee
 // du premier. Une constante bien nommee ne prouve pas qu'elle est appliquee.
+//
+// LE PREMIER, LUI, PART TOUT DE SUITE. Le delai espace DEUX objets, et au
+// depart il n'y a pas d'objet precedent: le geste qui vient d'avoir lieu,
+// c'est le clic. Meme regle que dans vente.js.
 test('le second objet attend, il ne suit pas le premier dans la foulee', async () => {
   const sup = fauxSuperviseur(1);
   const r = creerReprix({
@@ -364,9 +403,7 @@ test('le second objet attend, il ne suit pas le premier dans la foulee', async (
   dire(ivi([[13731, 32], [15169, 34]]));
   r.lancer(1);
 
-  // Rien n'est encore parti: meme le PREMIER objet attend son tour.
-  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), []);
-  await new Promise((res) => setTimeout(res, 70));
+  // Le PREMIER objet s'ouvre sans attendre.
   assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['keh', 'kbz']);
 
   // Le minimum est a nous: aucun kch, donc l'objet se termine tout de suite.

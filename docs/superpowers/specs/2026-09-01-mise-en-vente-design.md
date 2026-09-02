@@ -275,6 +275,14 @@ quatre fois.
 | deux objets | **900–2600 ms** | chercher, lire, saisir, valider |
 | toutes les 20–30 visites | pause de **2–7 s** | lever les yeux |
 
+**La première visite ne paie pas le délai d'objet**, pour la même raison que le
+premier lot d'un paquet ne paie pas la rafale : ce délai espace *deux* objets,
+et au départ il n'y en a pas de précédent — le geste qui vient d'avoir lieu,
+c'est le clic. La première version le servait quand même : 1,4 à 2,6 s de
+silence entre le clic et le premier `keh`, signalé en jeu comme « une grande
+attente au tout début ». La cadence moyenne, elle, ne bouge pas : c'est un
+délai par passe, pas par objet.
+
 Les deux dernières valeurs sont reprises telles quelles de `reprix.js`, où elles
 ont été **corrigées après essai en jeu** : la première version tenait 150–600 ms
 et s'était fait signaler d'un « ça met en vente un peu trop vite ».
