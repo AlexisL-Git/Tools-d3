@@ -1067,9 +1067,14 @@ app.whenReady().then(async () => {
       // d echec que ce depot documente quatre fois. Elle se dit.
       if (perdus.length) noterAvis(`Droits : ${perdus.join(', ')} — retiré`);
       else if (gagnes.length) noterAvis(`Droits : ${gagnes.join(', ')} — activé`);
-      // L HDV est le seul a avoir un travail qui dure: on l arrete net.
+      // Les deux travaux de l hotel de vente sont les seuls a durer, et
+      // chacun repond a son propre droit: retirer la mise a jour des prix
+      // ne doit pas arreter une mise en vente en cours, ni l inverse.
       if (perdus.includes('hdv')) {
         for (const etat of superviseur.comptes.tous) reprix.arreter(etat.pid);
+      }
+      if (perdus.includes('vente')) {
+        for (const etat of superviseur.comptes.tous) vente.arreter(etat.pid);
       }
       // Sans ca la barre flottante deja ouverte restait a l ecran apres un
       // retrait de droit: la garde IPC de basculerOverlay ne couvre que la
@@ -1193,7 +1198,7 @@ app.whenReady().then(async () => {
       },
     })),
     protege('hdv', reprix.onTrame),
-    vente.onTrame,
+    protege('vente', vente.onTrame),
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -1446,6 +1451,14 @@ ipcMain.handle('majPrixHdv', async (_e, pid) => {
 // est sans ambiguite et un second clic ne peut pas lancer une passe par-dessus
 // une autre.
 ipcMain.handle('mettreEnVenteHdv', async (_e, pid) => {
+  // Meme garde que majPrixHdv juste au-dessus: le bouton grise cote page se
+  // contourne avec les outils de developpement d Electron, la vraie garde est
+  // ici. noterAvis() pour que le refus ne soit pas muet.
+  if (!veille.droits().includes('vente')) {
+    noterAvis('Mise en vente : pas activé sur ta clé');
+    envoyerEtat();
+    return;
+  }
   if (vente === null || !Number.isInteger(pid)) return;
   if (vente.enCours(pid)) vente.arreter(pid);
   else vente.lancer(pid);

@@ -1081,8 +1081,10 @@
       const l = r.ligne;
       r.menuHdv.hidden = true;
       if (!l || l.pid === null || l.pid === undefined) return;
-      // Sans lots connus il n'y a rien a mettre a jour: l'entree est inerte, et
-      // le clic ne doit pas partir quand meme.
+      // Sans lots connus il n'y a rien a mettre a jour, et sans le droit rien
+      // a demander: l'entree est inerte dans les deux cas, et le clic ne doit
+      // pas partir quand meme. La vraie garde reste celle de main.js.
+      if (!droitsCourants.includes('hdv')) return;
       if (!l.hdvEnCours && !l.hdvLots) return;
       window.app.majPrixHdv(l.pid);
     });
@@ -1090,8 +1092,10 @@
       const l = r.ligne;
       r.menuHdv.hidden = true;
       if (!l || l.pid === null || l.pid === undefined) return;
-      // Sans stock connu il n'y a rien a vendre: l'entree est inerte, et le
-      // clic ne doit pas partir quand meme.
+      // Sans stock connu il n'y a rien a vendre, et sans le droit rien a
+      // demander: l'entree est inerte dans les deux cas, et le clic ne doit
+      // pas partir quand meme. La vraie garde reste celle de main.js.
+      if (!droitsCourants.includes('vente')) return;
       if (!l.hdvVenteEnCours && !l.hdvPiles) return;
       window.app.mettreEnVenteHdv(l.pid);
     });
@@ -1206,17 +1210,26 @@
     if (!r.fermerUn.title) r.fermerUn.title = 'fermer ce client';
 
     // Le menu n'a de sens que sur un client en jeu, et seulement si la cle a
-    // le droit. `hdvLots` a zero veut dire que kby n'est jamais passee.
+    // AU MOINS UN des deux droits: ses deux entrees se verrouillent
+    // separement. `hdvLots` a zero veut dire que kby n'est jamais passee.
     const droitHdv = droitsCourants.includes('hdv');
-    const hdvPossible = droitHdv && l.pid !== null && l.pid !== undefined && l.etat !== 'hors-ligne';
+    const droitVente = droitsCourants.includes('vente');
+    const enJeu = l.pid !== null && l.pid !== undefined && l.etat !== 'hors-ligne';
+    const hdvPossible = (droitHdv || droitVente) && enJeu;
     r.hdv.disabled = !hdvPossible;
     if (!hdvPossible) r.menuHdv.hidden = true;
     r.hdv.classList.toggle('tourne', Boolean(l.hdvEnCours || l.hdvVenteEnCours));
-    r.hdv.title = !droitHdv
+    r.hdv.title = !droitHdv && !droitVente
       ? 'pas activé sur ta clé'
       : l.hdvEnCours ? 'une mise à jour des prix est en cours'
       : l.hdvVenteEnCours ? 'une mise en vente est en cours' : 'hôtel de vente';
-    if (l.hdvEnCours) {
+    // Chaque entree sous son propre droit, inerte plutot que cachee -- meme
+    // raison qu'au stock inconnu: une entree absente ferait croire qu'elle
+    // n'est pas prevue, alors qu'elle est seulement pas accordee.
+    if (!droitHdv) {
+      r.majPrix.textContent = 'Mettre à jour — pas activé sur ta clé';
+      r.majPrix.classList.add('inerte');
+    } else if (l.hdvEnCours) {
       r.majPrix.textContent = 'Arrêter la mise à jour';
       r.majPrix.classList.remove('inerte');
     } else if (l.hdvLots) {
@@ -1226,7 +1239,10 @@
       r.majPrix.textContent = 'Mettre à jour — ouvre le HDV une fois';
       r.majPrix.classList.add('inerte');
     }
-    if (l.hdvVenteEnCours) {
+    if (!droitVente) {
+      r.vente.textContent = 'Mettre en vente — pas activé sur ta clé';
+      r.vente.classList.add('inerte');
+    } else if (l.hdvVenteEnCours) {
       r.vente.textContent = 'Arrêter la mise en vente';
       r.vente.classList.remove('inerte');
     } else if (l.hdvPiles) {

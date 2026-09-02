@@ -18,6 +18,7 @@ const FONCTIONS = [
   { nom: 'songe', libelle: 'acceptation d invitation a un songe' },
   { nom: 'overlay', libelle: 'barre flottante' },
   { nom: 'hdv', libelle: 'mise a jour des prix en hotel de vente' },
+  { nom: 'vente', libelle: 'mise en vente en hotel de vente' },
   { nom: 'no-anim', libelle: 'animations du jeu coupees' },
 ];
 
