@@ -10,7 +10,13 @@ const DELAI_MS = 5000;
 //
 // Un fichier absent ou casse vaut AUCUN DROIT, jamais une exception: le defaut
 // ferme est le meme que cote serveur.
-function creerCacheFichier(chemin) {
+function creerCacheFichier(chemin, { onJournal = console.error } = {}) {
+  // "se rattrape au prochain tour" suppose une panne passagere. Si elle ne
+  // l est pas (dossier en lecture seule, disque plein...), le fichier n existe
+  // jamais et chaque lancement hors ligne rendra zero droit sans un mot: on le
+  // signale une fois, pas a chaque tentative -- sinon le journal se remplirait
+  // d une ligne identique toutes les minutes sans rien dire de plus.
+  let dejaSignale = false;
   return {
     lire() {
       try {
@@ -22,7 +28,12 @@ function creerCacheFichier(chemin) {
     },
     ecrire(noms) {
       try { fs.writeFileSync(chemin, JSON.stringify(noms)); }
-      catch (e) { /* un cache non ecrit se rattrape au prochain tour */ }
+      catch (e) {
+        if (!dejaSignale) {
+          dejaSignale = true;
+          onJournal('droits', `cache droits: ecriture en echec, se rattrapera si la panne est passagere (${chemin}) : ${e.message}`);
+        }
+      }
     },
   };
 }
@@ -38,6 +49,11 @@ function creerVeille({
   base, lireCle, cache,
   chercher = globalThis.fetch, planifier = setTimeout, arreterMinuteur = clearTimeout,
   onChangement = () => {}, periodeMs = PERIODE_MS,
+  // Meme motif que garde-combat.js et superviseur.js: (pid, texte). Lance par
+  // outils/lancer-dev.vbs, OMNI n a pas de console attachee -- console.error
+  // ne reste un defaut valable qu au developpement. desktop/main.js branche
+  // ce rappel sur journal(), qui ecrit aussi dans un fichier.
+  onJournal = console.error,
 }) {
   let courants = [];
   let minuteur = null;
@@ -65,7 +81,7 @@ function creerVeille({
       try {
         onChangement({ gagnes, perdus, droits: apres });
       } catch (e) {
-        console.error('veille droits: onChangement en echec, la boucle continue :', e);
+        onJournal('droits', `veille droits: onChangement en echec, la boucle continue : ${e.stack}`);
       }
     }
   }
@@ -80,7 +96,18 @@ function creerVeille({
     } catch (e) {
       return; // injoignable: on ne change rien, surtout pas les droits.
     }
-    if (r.status === 404) { appliquer([]); cache.ecrire([]); return; }
+    if (r.status === 404) {
+      // Vercel rend 404 aussi bien pour une cle revoquee que pour une route
+      // qui n existe pas encore (version publiee avant `npx vercel --prod`).
+      // Confondre les deux viderait les droits de tous les amis pendant la
+      // fenetre de deploiement -- exactement l erreur que ce fichier existe
+      // pour eviter. serveur-maj/api/droits.js pose toujours un Content-Type
+      // JSON, meme sur son propre 404; une page d erreur de plateforme est du
+      // HTML. Donc: pas de JSON => pas notre route => injoignable, pas revoque.
+      const ct = r.headers && typeof r.headers.get === 'function' ? r.headers.get('content-type') : null;
+      if (!ct || !ct.includes('application/json')) return;
+      appliquer([]); cache.ecrire([]); return;
+    }
     if (r.status !== 200) return; // 500 chez nous n est pas une revocation.
     let corps;
     try { corps = await r.json(); } catch (e) { return; } // corps illisible: incident, pas une revocation.

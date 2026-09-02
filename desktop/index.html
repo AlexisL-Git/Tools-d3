@@ -333,6 +333,7 @@
     border-radius: 6px;
   }
   .tete-colonne:hover { background: rgba(255,255,255,.06); color: var(--texte); }
+  .tete-colonne:disabled { opacity: .3; cursor: not-allowed; }
   .jauge {
     width: 8px; height: 8px; flex: none; transform: rotate(45deg); border-radius: 4px;
     border: 1.5px solid var(--bord); background: transparent;
@@ -752,12 +753,14 @@
   // Les memes regles que src/comptes/colonnes.js, cote affichage. Le module
   // n'est pas importable ici (le renderer est sandboxe), il reste la reference,
   // et main.js recalcule la cible de son cote avant d'ecrire.
+  // `droit`: la fonction verrouillable que cette colonne commande, ou null si
+  // elle n en commande aucune (repl et l anim ne sont pas dans les sept).
   const COLONNES = {
-    repl: { champ: 'exclu', inverse: true },
-    tour: { champ: 'passeTour', inverse: false },
-    groupe: { champ: 'invitation', inverse: false },
-    anim: { champ: 'noAnim', inverse: false },
-    echange: { champ: 'echange', inverse: false },
+    repl: { champ: 'exclu', inverse: true, droit: null },
+    tour: { champ: 'passeTour', inverse: false, droit: 'passe-tour' },
+    groupe: { champ: 'invitation', inverse: false, droit: 'invitation' },
+    anim: { champ: 'noAnim', inverse: false, droit: null },
+    echange: { champ: 'echange', inverse: false, droit: 'echange' },
   };
 
   const valeurDe = (l, nom) => {
@@ -844,12 +847,14 @@
   // ligne de commande ne porte pas de -logFile n'a que lui.
   const cleDe = (l) => (l.id === null || l.id === undefined ? 'pid:' + l.pid : 'id:' + l.id);
 
+  // `droit`: la fonction verrouillable que cette case commande, ou null si
+  // elle n en commande aucune (repl et l anim ne sont pas dans les sept).
   const CASES = [
-    { champ: 'exclu', inverse: true, envoyer: (l, v) => window.app.exclureCompte(l.id, !v) },
-    { champ: 'passeTour', inverse: false, envoyer: (l, v) => window.app.basculerPasseTourCompte(l.id, v) },
-    { champ: 'invitation', inverse: false, envoyer: (l, v) => window.app.basculerInvitationCompte(l.id, v) },
-    { champ: 'noAnim', inverse: false, envoyer: (l, v) => window.app.basculerNoAnimCompte(l.id, v) },
-    { champ: 'echange', inverse: false, envoyer: (l, v) => window.app.basculerEchangeCompte(l.id, v) },
+    { champ: 'exclu', inverse: true, droit: null, envoyer: (l, v) => window.app.exclureCompte(l.id, !v) },
+    { champ: 'passeTour', inverse: false, droit: 'passe-tour', envoyer: (l, v) => window.app.basculerPasseTourCompte(l.id, v) },
+    { champ: 'invitation', inverse: false, droit: 'invitation', envoyer: (l, v) => window.app.basculerInvitationCompte(l.id, v) },
+    { champ: 'noAnim', inverse: false, droit: null, envoyer: (l, v) => window.app.basculerNoAnimCompte(l.id, v) },
+    { champ: 'echange', inverse: false, droit: 'echange', envoyer: (l, v) => window.app.basculerEchangeCompte(l.id, v) },
   ];
 
   const valeurCase = (l, c) => (c.inverse ? !l[c.champ] : Boolean(l[c.champ]));
@@ -1043,9 +1048,14 @@
 
     r.cases.forEach((b, i) => {
       const actif = valeurCase(l, CASES[i]);
+      // Une case dont le droit n est pas accorde reste cliquable sans ca: la
+      // porte bloquerait bien la trame plus loin, mais en silence -- ni le
+      // clic ni favoris.json ne diraient pourquoi rien ne se passe.
+      const bloque = CASES[i].droit && !droitsCourants.includes(CASES[i].droit);
       b.classList.toggle('on', actif);
-      b.disabled = !pilotable;
+      b.disabled = !pilotable || bloque;
       b.setAttribute('aria-pressed', String(actif));
+      b.title = bloque ? 'pas activé sur ta clé' : '';
     });
 
     // A DROITE: le bouton OU le verdict, jamais les deux. Un compte non
@@ -1110,11 +1120,18 @@
 
     // Le losange de chaque titre de colonne: plein, creux, ou a moitie.
     for (const b of document.querySelectorAll('[data-colonne]')) {
-      const e = etatColonne(etat.lignes, b.dataset.colonne);
+      const nom = b.dataset.colonne;
+      const e = etatColonne(etat.lignes, nom);
       const j = b.querySelector('.jauge');
       j.classList.toggle('tous', e === 'tous');
       j.classList.toggle('partiel', e === 'partiel');
-      b.title = e === 'tous' ? 'Actif pour tous — cliquer pour couper tout le monde'
+      // Meme piege que les cases par compte: un titre de colonne sans droit
+      // declenche quand meme basculerColonne() pour tout le monde, et la
+      // porte l'avale en silence pour chacun.
+      const bloque = COLONNES[nom].droit && !droitsCourants.includes(COLONNES[nom].droit);
+      b.disabled = bloque;
+      b.title = bloque ? 'pas activé sur ta clé'
+        : e === 'tous' ? 'Actif pour tous — cliquer pour couper tout le monde'
         : e === 'aucun' ? 'Éteint partout — cliquer pour activer tout le monde'
         : 'Actif pour certains — cliquer pour activer tout le monde';
     }

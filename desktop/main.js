@@ -993,7 +993,11 @@ app.whenReady().then(async () => {
       try { return fs.readFileSync(path.join(dossierDonnees, 'cle.txt'), 'utf8').trim() || null; }
       catch (e) { return null; }   // pas de cle = mode developpement = tous les droits
     },
-    cache: creerCacheFichier(path.join(dossierDonnees, 'droits.json')),
+    cache: creerCacheFichier(path.join(dossierDonnees, 'droits.json'), { onJournal: journal }),
+    // console.error par defaut ne se voit jamais chez un ami: lance par le
+    // vbs, OMNI n a pas de console attachee (voir plus haut). journal() ecrit
+    // aussi dans fichierJournal(), meme canal que le reste des politiques.
+    onJournal: journal,
     onChangement: ({ gagnes, perdus }) => {
       // UNE FONCTION QUI DISPARAIT EN SILENCE, c est exactement le mode
       // d echec que ce depot documente quatre fois. Elle se dit.
@@ -1655,6 +1659,9 @@ app.on('window-all-closed', async () => {
   if (minuteurVue !== null) clearInterval(minuteurVue);
   minuteurProcess = null;
   minuteurVue = null;
+  // Meme invariant pour la veille des droits: un reveil pendant le demontage
+  // appellerait onChangement sur un superviseur deja en train de disparaitre.
+  if (veille !== null) veille.arreter();
 
   // LA FERMETURE EST BORNEE. `arreter()` decharge les scripts Frida et detache
   // les sessions: ce sont des allers-retours avec des process Dofus qui

@@ -1014,7 +1014,7 @@ git commit -m "feat(droits): brancher la veille, la porte et les deux boutons"
 
 À faire avec un vrai ami (la clé `test` en base sert à vérifier sans toucher à un vrai compte) :
 
-- [ ] **Step 1: Le déploiement du serveur**
+- [ ] **Step 1: Le déploiement du serveur — TOUJOURS avant toute publication de version**
 
 ```bash
 cd serveur-maj && npx vercel --prod
@@ -1022,27 +1022,35 @@ cd serveur-maj && npx vercel --prod
 
 **Aucun dépôt git n'est connecté au projet Vercel `paquets-maj`** : pousser ne déploie rien.
 
-- [ ] **Step 2: Les cases apparaissent**
+**Ordre impératif, jamais l'inverse** : la table `droits` part vide, et Vercel rend 404 aussi bien pour une route pas encore déployée que pour une clé révoquée. `src/droits/veille.js` distingue les deux par le `Content-Type` de la réponse (un 404 sans JSON est traité comme injoignable, pas comme une révocation), mais rien ne protège contre l'ordre inverse : publier la version avant `npx vercel --prod` ferait interroger une route qui n'existe pas encore sur l'ancien déploiement, ou pire, laisserait la fenêtre ouverte à une vraie révocation si le déploiement suit de près. Ce Step doit donc être terminé, vérifié, avant de toucher au Step 8 (publication de la version).
+
+- [ ] **Step 2: Cocher tous les amis déjà installés, avant de publier**
+
+La table `droits` part vide : le jour de la publication, chaque ami déjà installé se retrouve à zéro droit jusqu'à ce que Draxus coche ses cases. Sans ce Step, la première conséquence visible de la branche serait que plus rien ne marche chez personne, silencieusement, jusqu'au prochain passage au panneau.
+
+Ouvrir `https://paquets-maj.vercel.app/api/admin` (une fois le Step 1 fait). Pour **chaque ami déjà installé** (pas seulement la clé `test`), tout cocher : les sept fonctions qu'il avait de fait avant cette branche (tout partait chez tout le monde). Vérifier qu'aucun ami existant ne reste avec une ligne vide.
+
+- [ ] **Step 3: Les cases apparaissent**
 
 Ouvrir `https://paquets-maj.vercel.app/api/admin`. Sous chaque ami, sept cases. Cocher `songe` pour la clé `test`, recharger : la case doit rester cochée.
 
-- [ ] **Step 3: Le mode développement n'est pas verrouillé**
+- [ ] **Step 4: Le mode développement n'est pas verrouillé**
 
 Lancer OMNI sur le dépôt (`outils/lancer-diag.vbs`). **Tous les boutons doivent être actifs**, et le journal ne doit montrer aucune requête vers `/api/droits`.
 
-- [ ] **Step 4: Un droit retiré se voit en moins d'une minute**
+- [ ] **Step 5: Un droit retiré se voit en moins d'une minute**
 
 Chez un ami en cours de session, décocher `hdv` au panneau. Chronométrer : le bouton doit se griser et le pied de page afficher « Droits : hdv — retiré » **en moins de 60 secondes**, sans qu'il relance quoi que ce soit.
 
-- [ ] **Step 5: Une coupure de réseau ne retire rien**
+- [ ] **Step 6: Une coupure de réseau ne retire rien**
 
 Couper le wifi de la machine de test pendant deux minutes avec des droits accordés. **Aucun bouton ne doit se griser.** C'est le cas que le dessin protège en premier.
 
-- [ ] **Step 6: Le paquet de 480 Mo n'est pas redemandé**
+- [ ] **Step 7: Le paquet de 480 Mo n'est pas redemandé**
 
-Publier la version au panneau, puis regarder `%APPDATA%\OMNI\amorceur.log` chez l'ami : il doit porter `version X installee` et rien d'autre. **Exigence explicite de Draxus.**
+Publier la version au panneau (le Step 1 doit déjà être fait — jamais l'inverse), puis regarder `%APPDATA%\OMNI\amorceur.log` chez l'ami : il doit porter `version X installee` et rien d'autre. **Exigence explicite de Draxus.**
 
-- [ ] **Step 7: Commit du compte rendu**
+- [ ] **Step 8: Commit du compte rendu**
 
 Ajouter les mesures en tête de `src/droits/veille.js` (les délais constatés, ce qui a été vu à l'écran), comme le font `src/songes.js` et `src/abandon-combat.js`.
 

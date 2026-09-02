@@ -208,9 +208,22 @@
           c.type = 'checkbox';
           c.checked = siens.has(f.nom);
           c.onchange = async () => {
+            // Le navigateur a deja bascule la case avant que onchange ne
+            // tourne: c.checked porte donc la valeur VOULUE, pas l ancienne.
+            const avant = !c.checked;
             c.disabled = true;
-            try { await api('droit', { cle: a.cle, fonction: f.nom, actif: c.checked }); }
-            finally { c.disabled = false; }
+            try {
+              await api('droit', { cle: a.cle, fonction: f.nom, actif: c.checked });
+            } catch (e) {
+              // Le decochage est le sens dangereux: si l ecriture echoue et
+              // qu on laisse la case decochee, elle MENT -- l ami garde le
+              // droit cote serveur alors que Draxus croit l avoir retire, en
+              // silence. On revient donc a l etat d avant le clic.
+              c.checked = avant;
+              throw e;
+            } finally {
+              c.disabled = false;
+            }
           };
           label.append(c, document.createTextNode(' ' + f.libelle));
           tdDroits.append(label);
