@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.3.1",
+    "le": "2026-09-02",
+    "notes": [
+      "Corrigé : tes mules pouvaient arrêter de te suivre sans raison, avec le message « rejeux en attente annulés » alors qu'aucun combat n'avait lieu. OMNI prenait une avancée de quête pour une entrée en combat — une simple récolte suffisait à couper tes mules. Il attend maintenant le vrai signal.",
+      "Sa protection contre les combats dupliqués n'a pas bougé : si une de tes mules ouvre son propre combat, l'action est retenue et ne sera plus rejouée.",
+      "Nouveau dans le menu HDV : « Mettre en vente », qui pose tes piles en hôtel de vente pour le compte choisi. Ouvre ton hôtel de vente une fois avant, pour qu'OMNI voie ce que tu as."
+    ]
+  },
+  {
     "version": "0.3.0",
     "le": "2026-09-02",
     "notes": [
