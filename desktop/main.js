@@ -1749,11 +1749,29 @@ if (process.env.OMNI_DEV) {
   const { etatDepot, mettreAJour } = require('../src/dev/maj-git');
   const racineDepot = process.env.OMNI_DEV;
 
-  ipcMain.handle('etatMajGit', () => etatDepot({ racine: racineDepot }));
+  // UN ECHEC NE DOIT PAS ETRE MUET, ET journal() SEUL EST UN PIEGE: il sort
+  // sur `if (!JOURNAL_COMPLET) return`, donc il n'ecrit rien sous
+  // outils/lancer-dev.vbs, qui ne pose pas OMNI_JOURNAL. Meme raisonnement et
+  // memes deux canaux que onJournalVeille pour les droits: journal() pour la
+  // mesure fine sous lancer-diag.vbs, noterAvis() pour que ce soit lisible a
+  // l'ecran. Le bloc du panneau affiche deja la raison, mais elle disparait au
+  // clic suivant; le bandeau, lui, reste.
+  function signalerMajGit(texte) {
+    journal(0, `maj git: ${texte}`);
+    noterAvis(`Mise à jour : ${texte}`);
+    envoyerEtat();
+  }
+
+  ipcMain.handle('etatMajGit', async () => {
+    const r = await etatDepot({ racine: racineDepot });
+    if (r.etat === 'inconnu') signalerMajGit(`vérification impossible — ${r.raison}`);
+    return r;
+  });
 
   ipcMain.handle('lancerMajGit', async () => {
     const r = await mettreAJour({ racine: racineDepot });
-    journal(0, `maj git: ${r.etat}${r.raison ? ' — ' + r.raison : ''}`);
+    if (r.etat !== 'ok') signalerMajGit(`refusée — ${r.raison}`);
+    else journal(0, `maj git: ok${r.raison ? ' — ' + r.raison : ''}`);
     // Le code versionne n'est lu qu'au demarrage: sans relance, un pull reussi
     // ne change rien a l'ecran. On laisse la reponse partir avant de couper.
     if (r.etat === 'ok' && r.relancable) {
