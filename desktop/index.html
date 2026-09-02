@@ -1056,8 +1056,8 @@
 
     // LE MENU HDV DE CETTE LIGNE.
     //
-    // Deux entrees des le depart: la mise a jour des prix, qui agit, et la mise
-    // en vente, qui dit pourquoi elle n'agit pas encore. Cacher la seconde
+    // Deux entrees: la mise a jour des prix et la mise en vente, chacune
+    // inerte tant que son stock n'est pas connu. Cacher une entree inerte
     // ferait croire qu'elle n'est pas prevue.
     r.hdv = document.createElement('button');
     r.hdv.className = 'hdv';
@@ -1067,8 +1067,6 @@
     r.menuHdv.hidden = true;
     r.majPrix = document.createElement('button');
     r.vente = document.createElement('button');
-    r.vente.className = 'inerte';
-    r.vente.textContent = 'Mettre en vente';
     r.menuHdv.append(r.majPrix, r.vente);
 
     // Un seul menu ouvert a la fois: deux menus superposes se recouvrent, et on
@@ -1089,8 +1087,13 @@
       window.app.majPrixHdv(l.pid);
     });
     r.vente.addEventListener('click', () => {
+      const l = r.ligne;
       r.menuHdv.hidden = true;
-      window.app.avisVenteHdv();
+      if (!l || l.pid === null || l.pid === undefined) return;
+      // Sans stock connu il n'y a rien a vendre: l'entree est inerte, et le
+      // clic ne doit pas partir quand meme.
+      if (!l.hdvVenteEnCours && !l.hdvPiles) return;
+      window.app.mettreEnVenteHdv(l.pid);
     });
     r.el.append(r.hdv, r.menuHdv);
 
@@ -1208,10 +1211,11 @@
     const hdvPossible = droitHdv && l.pid !== null && l.pid !== undefined && l.etat !== 'hors-ligne';
     r.hdv.disabled = !hdvPossible;
     if (!hdvPossible) r.menuHdv.hidden = true;
-    r.hdv.classList.toggle('tourne', Boolean(l.hdvEnCours));
+    r.hdv.classList.toggle('tourne', Boolean(l.hdvEnCours || l.hdvVenteEnCours));
     r.hdv.title = !droitHdv
       ? 'pas activé sur ta clé'
-      : (l.hdvEnCours ? 'une mise à jour des prix est en cours' : 'hôtel de vente');
+      : l.hdvEnCours ? 'une mise à jour des prix est en cours'
+      : l.hdvVenteEnCours ? 'une mise en vente est en cours' : 'hôtel de vente';
     if (l.hdvEnCours) {
       r.majPrix.textContent = 'Arrêter la mise à jour';
       r.majPrix.classList.remove('inerte');
@@ -1221,6 +1225,16 @@
     } else {
       r.majPrix.textContent = 'Mettre à jour — ouvre le HDV une fois';
       r.majPrix.classList.add('inerte');
+    }
+    if (l.hdvVenteEnCours) {
+      r.vente.textContent = 'Arrêter la mise en vente';
+      r.vente.classList.remove('inerte');
+    } else if (l.hdvPiles) {
+      r.vente.textContent = 'Mettre en vente (' + l.hdvPiles + ' piles)';
+      r.vente.classList.remove('inerte');
+    } else {
+      r.vente.textContent = 'Mettre en vente — ouvre le HDV une fois';
+      r.vente.classList.add('inerte');
     }
 
     r.motif.hidden = !l.message;

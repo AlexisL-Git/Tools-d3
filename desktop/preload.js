@@ -48,7 +48,7 @@ contextBridge.exposeInMainWorld('app', {
   // Le menu HDV de chaque ligne de compte. `majPrixHdv` lance la passe, ou
   // l'arrete si elle tourne deja: une seule voie pour les deux gestes.
   majPrixHdv: (pid) => ipcRenderer.invoke('majPrixHdv', pid),
-  avisVenteHdv: () => ipcRenderer.invoke('avisVenteHdv'),
+  mettreEnVenteHdv: (pid) => ipcRenderer.invoke('mettreEnVenteHdv', pid),
   basculerOverlay: () => ipcRenderer.invoke('basculerOverlay'),
 
   // Un appui de bouton fait DANS la fenetre d'OMNI. Les appuis faits sur un
