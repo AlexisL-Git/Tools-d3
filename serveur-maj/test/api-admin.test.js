@@ -270,3 +270,69 @@ test('sans le mot de passe, les droits ne se lisent pas', async () => {
   });
   assert.strictEqual(r.statut, 404);
 });
+
+test('supprimer-ami sans cle, 400', async () => {
+  const r = await traiterAdmin({
+    motDePasse: SECRET, action: 'supprimer-ami', corps: {}, sql: fauxSql([]), motDePasseAttendu: SECRET,
+  });
+  assert.strictEqual(r.statut, 400);
+});
+
+// L'ordre compte: droits, refus, lancements, puis amis en dernier -- la
+// ligne amis est la reference que les trois autres pointent.
+test('supprimer-ami efface dans les quatre tables, amis en dernier', async () => {
+  const requetes = [];
+  const sql = (chaines, ...valeurs) => { requetes.push({ texte: chaines.join(''), valeurs }); return Promise.resolve([]); };
+  const r = await traiterAdmin({
+    motDePasse: SECRET, action: 'supprimer-ami', corps: { cle: 'CLE' }, sql, motDePasseAttendu: SECRET,
+  });
+  assert.strictEqual(r.statut, 200);
+  assert.strictEqual(requetes.length, 4);
+  assert.ok(requetes[0].texte.includes('DELETE FROM droits'));
+  assert.ok(requetes[1].texte.includes('DELETE FROM refus'));
+  assert.ok(requetes[2].texte.includes('DELETE FROM lancements'));
+  assert.ok(requetes[3].texte.includes('DELETE FROM amis'));
+  for (const req of requetes) assert.deepStrictEqual(req.valeurs, ['CLE']);
+});
+
+// Le test qui compte: la garde interdit l'effacement AVANT toute requete
+// DELETE, pas apres coup sur un echec de contrainte.
+test('supprimer-version sur la version active, 409 et aucune requete DELETE', async () => {
+  const requetes = [];
+  const sql = (chaines, ...valeurs) => {
+    requetes.push(chaines.join(''));
+    return Promise.resolve([{ version: '0.2.9', sha256: 'x'.repeat(64), actif: true, message: null }]);
+  };
+  const r = await traiterAdmin({
+    motDePasse: SECRET, action: 'supprimer-version', corps: { version: '0.2.9' }, sql, motDePasseAttendu: SECRET,
+  });
+  assert.strictEqual(r.statut, 409);
+  assert.ok(!requetes.some((t) => t.includes('DELETE')));
+});
+
+test('supprimer-version sur une autre version, 200 et DELETE FROM versions', async () => {
+  const requetes = [];
+  const sql = (chaines, ...valeurs) => {
+    const texte = chaines.join('');
+    requetes.push(texte);
+    if (texte.includes('FROM config')) {
+      return Promise.resolve([{ version: '0.2.9', sha256: 'x'.repeat(64), actif: true, message: null }]);
+    }
+    return Promise.resolve([]);
+  };
+  const r = await traiterAdmin({
+    motDePasse: SECRET, action: 'supprimer-version', corps: { version: '0.2.6' }, sql, motDePasseAttendu: SECRET,
+  });
+  assert.strictEqual(r.statut, 200);
+  assert.ok(requetes.some((t) => t.includes('DELETE FROM versions')));
+});
+
+test('sans le mot de passe, supprimer-ami et supprimer-version rendent 404', async () => {
+  for (const action of ['supprimer-ami', 'supprimer-version']) {
+    const r = await traiterAdmin({
+      motDePasse: undefined, action, corps: { cle: 'CLE', version: '0.2.9' },
+      sql: fauxSql([]), motDePasseAttendu: SECRET,
+    });
+    assert.strictEqual(r.statut, 404, action + ' doit rendre 404');
+  }
+});

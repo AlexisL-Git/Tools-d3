@@ -3,9 +3,17 @@
   body { font: 14px system-ui; background:#16181d; color:#e6e8ec; margin:0; padding:20px; }
   input,button { font:inherit; padding:6px 10px; border-radius:6px; border:1px solid #3a3f4b; background:#22252c; color:#e6e8ec; }
   button { cursor:pointer; background:#2e5d8a; border:0; }
+  button.fantome { background:transparent; border:1px solid #3a3f4b; color:#8b93a3; }
+  button.fantome:hover { border-color:#5a6272; color:#e6e8ec; }
+  /* Deux temps pour ce qui ne se defait pas: le premier clic arme, le second
+     efface. Meme motif pour l'ami et pour la version. */
+  button.danger { border-color:#5a3030; color:#c06060; }
+  button.danger:hover { border-color:#e05555; color:#e05555; }
+  button.danger.arme { background:#3a1e1e; border-color:#e05555; color:#ff8080; }
+  button:disabled { opacity:.35; cursor:not-allowed; }
+  h1 { font-size:20px; margin:0 0 4px; }
   table { border-collapse:collapse; width:100%; margin-top:16px; }
   td,th { text-align:left; padding:8px; border-bottom:1px solid #22252c; }
-  .off { opacity:.5; }
   .cle { font-family:monospace; font-size:12px; color:#8b93a3; }
   .alerte-version { color:#ff6b6b; font-weight:600; background:#3a1e1e; }
   .retard { color:#e0a030; }
@@ -16,6 +24,43 @@
   .bloc h2 { font-size:14px; margin:0 0 10px; color:#8b93a3; font-weight:600; }
   .aide { color:#8b93a3; font-size:12px; margin:0 0 10px; max-width:60em; }
   #etatservice { margin-top:10px; color:#8b93a3; font-size:12px; }
+
+  .bandeau { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+
+  /* La barre d'actions groupees: ce que la vue en cartes ne montre pas
+     (qui a quoi, colonne par colonne), elle le rend au moins actionnable. */
+  .groupes { display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+             padding:10px 12px; border:1px solid #22252c; border-radius:8px;
+             background:#191c22; margin-bottom:16px; }
+  .groupes .etiquette { color:#8b93a3; font-size:12px; margin-right:4px; }
+  .groupes button { font-size:12px; padding:4px 9px; }
+
+  .carte { border:1px solid #2a2e37; border-radius:10px; background:#1a1d23;
+           padding:12px 14px; margin-bottom:12px; }
+  .carte.off { opacity:.45; }
+  .tete { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .tete .nom { font-weight:600; font-size:15px; }
+  .tete .meta { color:#8b93a3; font-size:12px; }
+  .tete .actions { margin-left:auto; display:flex; gap:6px; }
+  .tete .actions button { font-size:12px; padding:4px 9px; }
+
+  .pastilles { display:flex; gap:8px; flex-wrap:wrap; }
+  .p { display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+       padding:6px 12px; border-radius:999px; font-size:13px;
+       border:1px solid #3a3f4b; background:#22252c; color:#8b93a3;
+       user-select:none; }
+  .p .point { width:8px; height:8px; border-radius:50%; background:#4a5060; }
+  .p.on { border-color:#3f7bb8; background:#1e3448; color:#e6e8ec; }
+  .p.on .point { background:#5aa9f0; }
+  .p:hover { border-color:#5a6272; }
+
+  .pied { margin-top:10px; display:flex; gap:8px; align-items:center; }
+  .pied button { font-size:12px; padding:4px 9px; }
+  .motif { color:#e05555; font-size:12px; min-height:1.1em; margin-left:6px; }
+
+  details summary { cursor:pointer; color:#8b93a3; font-size:14px; font-weight:600; }
+  details[open] summary { margin-bottom:12px; }
+  .rare { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 </style>
 <h1>Amis</h1>
 <div id="connexion">
@@ -24,23 +69,15 @@
 </div>
 <div id="avis"></div>
 <div id="panneau" hidden>
-  <input id="nom" placeholder="nom du nouvel ami">
-  <button id="b-creer">nouvel ami</button>
-  <div class="bloc">
-    <h2>Lien de telechargement</h2>
-    <p class="aide">Adresse du paquet complet (480 Mo) chez ton hebergeur de fichiers. Les amis n'ont qu'un seul lien a connaitre : <a href="/api/telecharger" target="_blank" style="color:#7fb2e5">/api/telecharger</a> — ils y collent leur cle, et seule une cle valide obtient l'adresse.</p>
-    <input id="urlpaquet" placeholder="https://..." size="60">
-    <button id="b-url">enregistrer</button>
-    <div id="etaturl"></div>
+  <div class="bandeau">
+    <button id="tout-partout">tout accorder a tout le monde</button>
+    <span class="aide" style="margin:0">huit fonctions x tous les amis, en un clic</span>
   </div>
-  <div class="bloc">
-    <h2>Coupe-circuit</h2>
-    <p class="aide">Arrete TOUS les amis au prochain lancement, avec ce message. A utiliser le jour ou une mise a jour de Dofus rend l'outil dangereux.</p>
-    <input id="msgservice" placeholder="message affiche aux amis" size="50">
-    <button id="b-couper">couper le service</button>
-    <button id="b-rouvrir">rouvrir</button>
-    <div id="etatservice"></div>
-  </div>
+
+  <div class="groupes" id="groupes"></div>
+
+  <div id="cartes"></div>
+
   <div class="bloc">
     <h2>Publier une version</h2>
     <p class="aide">Depose l'archive de code produite par la fabrication (code-x.y.z.tar.gz). L'empreinte est calculee par le serveur — tu n'as rien a recopier. Televerser ne change rien pour les amis : c'est <em>activer</em> qui bascule le manifeste.</p>
@@ -55,7 +92,33 @@
       En rouge quand elle porte sur la version actuellement active.</p>
     <table id="refus"></table>
   </div>
-  <table id="liste"></table>
+
+  <div class="bloc">
+    <details>
+      <summary>Nouvel ami · lien de telechargement · coupe-circuit</summary>
+      <div class="rare" style="margin-bottom:14px">
+        <input id="nom" placeholder="nom du nouvel ami">
+        <button id="b-creer">nouvel ami</button>
+      </div>
+      <div style="margin-bottom:14px">
+        <p class="aide">Adresse du paquet complet (480 Mo) chez ton hebergeur de fichiers. Les amis n'ont qu'un seul lien a connaitre : <a href="/api/telecharger" target="_blank" style="color:#7fb2e5">/api/telecharger</a> — ils y collent leur cle, et seule une cle valide obtient l'adresse.</p>
+        <div class="rare">
+          <input id="urlpaquet" placeholder="https://..." size="60">
+          <button id="b-url">enregistrer</button>
+        </div>
+        <div id="etaturl"></div>
+      </div>
+      <div>
+        <p class="aide">Arrete TOUS les amis au prochain lancement, avec ce message. A utiliser le jour ou une mise a jour de Dofus rend l'outil dangereux.</p>
+        <div class="rare">
+          <input id="msgservice" placeholder="message affiche aux amis" size="50">
+          <button id="b-couper">couper le service</button>
+          <button id="b-rouvrir" class="fantome">rouvrir</button>
+        </div>
+        <div id="etatservice"></div>
+      </div>
+    </details>
+  </div>
 </div>
 <script>
   // Aucun dialogue natif (alert/prompt): ils bloquent la page et toute
@@ -82,12 +145,12 @@
     } catch (e) { avis('requete impossible: ' + e.message); throw e; }
     if (r.status === 404) { avis('mot de passe refuse'); throw new Error('404'); }
     if (!r.ok) {
-      // Sur un 400, le serveur explique le refus dans { erreur }: on le
-      // montre a la place du message generique. Corps absent, non-JSON, ou
-      // sans champ erreur: on retombe sur le message generique, sans lever
+      // Sur un 400 ou un 409, le serveur explique le refus dans { erreur }:
+      // on le montre a la place du message generique. Corps absent, non-JSON,
+      // ou sans champ erreur: on retombe sur le message generique, sans lever
       // une seconde exception depuis le gestionnaire d'erreur.
       let message = 'le serveur a repondu ' + r.status + ' — reessaie';
-      if (r.status === 400) {
+      if (r.status === 400 || r.status === 409) {
         try {
           const corpsErreur = await r.json();
           if (corpsErreur && corpsErreur.erreur) message = corpsErreur.erreur;
@@ -124,13 +187,30 @@
     if (classe) td.className = classe;
     return td;
   }
+  // Deux temps pour ce qui ne se defait pas: le premier clic arme le bouton
+  // (« confirmer ? »), le second declenche agir(); desarmement automatique
+  // apres 4 s si personne ne confirme. Partage entre "supprimer" (ami) et
+  // "supprimer" (version).
+  function armerOuAgir(bouton, agir) {
+    if (!bouton.classList.contains('arme')) {
+      bouton.classList.add('arme');
+      bouton.textContent = 'confirmer ?';
+      setTimeout(() => {
+        if (bouton.isConnected) { bouton.classList.remove('arme'); bouton.textContent = 'supprimer'; }
+      }, 4000);
+      return;
+    }
+    bouton.classList.remove('arme');
+    bouton.textContent = 'supprimer';
+    agir();
+  }
   async function rafraichir() {
     const amis = await api('lister');
     avis('');
     // Comme paquet/lancements/lister-manifeste plus bas: une table pas encore
-    // migree ou une erreur transitoire sur les droits ne doit pas empecher le
-    // tableau des amis de se dessiner. Repli sur des listes vides — le
-    // panneau reste utilisable, juste sans les cases a cocher.
+    // migree ou une erreur transitoire sur les droits ne doit pas empecher
+    // les cartes de se dessiner. Repli sur des listes vides — le panneau
+    // reste utilisable, juste sans les pastilles de droits.
     let fonctions = [];
     let lignesDroits = [];
     let droitsIndisponibles = null;
@@ -139,9 +219,9 @@
       lignesDroits = await api('droits', {});
     } catch (e) {
       // #avis est unique et sans file: un bloc plus bas qui reussit (versions,
-      // refus) l'ecrase avec avis(''). Le motif doit donc vivre dans le
-      // tableau lui-meme, a la place des cases, pour rester visible.
-      droitsIndisponibles = 'cases a cocher indisponibles: ' + e.message;
+      // refus) l'ecrase avec avis(''). Le motif doit donc vivre dans chaque
+      // carte, a la place des pastilles, pour rester visible.
+      droitsIndisponibles = 'pastilles indisponibles: ' + e.message;
     }
     const accordes = new Map();
     for (const d of lignesDroits) {
@@ -153,95 +233,22 @@
       if (p && p.url) document.getElementById('urlpaquet').value = p.url;
     } catch (e) { /* le lien n'est pas essentiel a l'affichage */ }
     // Les compteurs et le manifeste ne sont pas essentiels a l'affichage des
-    // amis: leur echec ne doit pas vider le tableau.
+    // cartes: leur echec ne doit pas les vider.
     let compteurs = {};
     try {
       for (const c of await api('lancements', {})) compteurs[c.cle] = c.n;
-    } catch (e) { /* tableau affiche sans la colonne 30 j */ }
+    } catch (e) { /* cartes affichees sans le compteur 30 j */ }
     let versionActive = null;
     try {
       const m = await api('lister-manifeste', {});
       versionActive = m && m.version ? m.version : null;
     } catch (e) { /* pas de mise en evidence du retard */ }
-    const t = document.getElementById('liste');
-    t.textContent = '';
-    const entete = document.createElement('tr');
-    for (const titre of ['nom', 'cle', 'version', '30 j', 'derniere vue', '']) {
-      const th = document.createElement('th');
-      th.textContent = titre;
-      entete.append(th);
-    }
-    t.append(entete);
-    for (const a of amis) {
-      const tr = document.createElement('tr');
-      if (!a.actif) tr.className = 'off';
-      const nom = cellule(a.nom);
-      nom.style.cursor = 'pointer';
-      nom.onclick = () => montrerLancements(a);
-      const enRetard = a.version_vue && versionActive && a.version_vue !== versionActive;
-      tr.append(
-        nom,
-        cellule(a.cle, 'cle'),
-        cellule(a.version_vue || '—', enRetard ? 'retard' : null),
-        cellule(compteurs[a.cle] === undefined ? '—' : String(compteurs[a.cle])),
-        cellule(a.derniere_vue || '—'),
-      );
-      const td = document.createElement('td');
-      const b = document.createElement('button');
-      b.textContent = a.actif ? 'desactiver' : 'activer';
-      b.onclick = async () => { await api('basculer', { cle: a.cle, actif: !a.actif }); rafraichir(); };
-      td.append(b); tr.append(td); t.append(tr);
-      const trDroits = document.createElement('tr');
-      const tdDroits = document.createElement('td');
-      tdDroits.colSpan = 6;
-      if (droitsIndisponibles) {
-        // Le motif vit ici, a la place des cases: il reste visible meme si
-        // un bloc plus bas (versions, refus) efface #avis avec son succes.
-        tdDroits.textContent = droitsIndisponibles;
-        tdDroits.className = 'retard';
-      } else {
-        const siens = accordes.get(a.cle) || new Set();
-        for (const f of fonctions) {
-          const label = document.createElement('label');
-          label.style.marginRight = '12px';
-          const c = document.createElement('input');
-          c.type = 'checkbox';
-          c.checked = siens.has(f.nom);
-          c.onchange = async () => {
-            // Le navigateur a deja bascule la case avant que onchange ne
-            // tourne: c.checked porte donc la valeur VOULUE, pas l ancienne.
-            const avant = !c.checked;
-            c.disabled = true;
-            try {
-              await api('droit', { cle: a.cle, fonction: f.nom, actif: c.checked });
-            } catch (e) {
-              // Le decochage est le sens dangereux: si l ecriture echoue et
-              // qu on laisse la case decochee, elle MENT -- l ami garde le
-              // droit cote serveur alors que Draxus croit l avoir retire, en
-              // silence. On revient donc a l etat d avant le clic.
-              c.checked = avant;
-              throw e;
-            } finally {
-              c.disabled = false;
-            }
-          };
-          label.append(c, document.createTextNode(' ' + f.libelle));
-          tdDroits.append(label);
-        }
-        const tout = document.createElement('button');
-        tout.textContent = 'tout cocher';
-        tout.onclick = async () => {
-          // La cle de Draxus doit tout avoir sans sept clics.
-          for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
-          rafraichir();
-        };
-        tdDroits.append(tout);
-      }
-      trDroits.append(tdDroits);
-      t.append(trDroits);
-    }
-    // Le coupe-circuit (dans #panneau) est le seul moyen d'arreter tout le
-    // parc: son accessibilite ne doit jamais dependre du tableau des
+
+    dessinerGroupes(amis, fonctions, droitsIndisponibles);
+    dessinerCartes(amis, fonctions, accordes, compteurs, versionActive, droitsIndisponibles);
+
+    // Le coupe-circuit (dans le <details>) est le seul moyen d'arreter tout
+    // le parc: son accessibilite ne doit jamais dependre du tableau des
     // versions. Un echec ici reste visible dans #avis, mais ne remonte
     // jamais jusqu'a entrer(), qui garderait sinon le panneau cache.
     try {
@@ -254,6 +261,183 @@
     // vue secondaire, son echec ne doit jamais rendre le reste du panneau
     // inutilisable.
     try { await rafraichirRefus(); } catch (e) { /* le reste du panneau reste utilisable */ }
+  }
+
+  // La barre d'actions groupees: un bouton par fonction (l'accorde a tous
+  // les amis charges), plus "tout accorder a tout le monde". Reconstruite a
+  // chaque rafraichissement pour rester alignee sur les amis et fonctions
+  // du moment.
+  function dessinerGroupes(amis, fonctions, droitsIndisponibles) {
+    const g = document.getElementById('groupes');
+    g.textContent = '';
+    const etiquette = document.createElement('span');
+    etiquette.className = 'etiquette';
+    etiquette.textContent = 'donner a tous :';
+    g.append(etiquette);
+    const toutPartout = document.getElementById('tout-partout');
+    if (droitsIndisponibles) {
+      toutPartout.disabled = true;
+      const note = document.createElement('span');
+      note.className = 'aide';
+      note.style.margin = '0';
+      note.textContent = droitsIndisponibles;
+      g.append(note);
+      return;
+    }
+    toutPartout.disabled = false;
+    toutPartout.onclick = async () => {
+      for (const a of amis) for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
+      rafraichir();
+    };
+    for (const f of fonctions) {
+      const b = document.createElement('button');
+      b.className = 'fantome';
+      b.textContent = f.nom;
+      b.title = 'donner « ' + f.libelle + ' » a tout le monde';
+      b.onclick = async () => {
+        for (const a of amis) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
+        rafraichir();
+      };
+      g.append(b);
+    }
+  }
+
+  // Une carte par ami, a la place de l'ancienne ligne de tableau: nom,
+  // version (avec alerte de retard), derniere vue, lancements sur 30 j, puis
+  // les actions et les pastilles de droits.
+  function dessinerCartes(amis, fonctions, accordes, compteurs, versionActive, droitsIndisponibles) {
+    const cartes = document.getElementById('cartes');
+    cartes.textContent = '';
+    for (const a of amis) {
+      const c = document.createElement('div');
+      c.className = 'carte' + (a.actif ? '' : ' off');
+
+      // Declare tot: repris par les gestionnaires de clic de la tete
+      // (bascule, suppression) et des pastilles, qui s'executent apres coup,
+      // jamais pendant la construction de la carte.
+      const motif = document.createElement('span');
+      motif.className = 'motif';
+
+      const tete = document.createElement('div');
+      tete.className = 'tete';
+      const nom = document.createElement('span');
+      nom.className = 'nom';
+      nom.textContent = a.nom;           // jamais innerHTML: le nom vient de la base
+      nom.style.cursor = 'pointer';
+      nom.onclick = () => montrerLancements(a);
+
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      const enRetard = a.version_vue && versionActive && a.version_vue !== versionActive;
+      meta.append(document.createTextNode((a.version_vue || '—') + ' '));
+      if (enRetard) {
+        const retard = document.createElement('span');
+        retard.className = 'retard';
+        retard.textContent = '⚠ en retard';
+        meta.append(retard, document.createTextNode(' '));
+      }
+      const vu = a.derniere_vue ? String(a.derniere_vue).replace('T', ' ').slice(0, 16) : 'jamais';
+      const n = compteurs[a.cle];
+      meta.append(document.createTextNode('· vu ' + vu + ' · ' + (n === undefined ? '—' : n) + ' lancements sur 30 j'));
+
+      const actions = document.createElement('span');
+      actions.className = 'actions';
+
+      // La cle (48 caracteres) ne s'affiche plus en clair: copie directe au
+      // presse-papiers, jamais posee dans le DOM.
+      const copier = document.createElement('button');
+      copier.className = 'fantome';
+      copier.textContent = 'copier la cle';
+      copier.onclick = async () => {
+        try { await navigator.clipboard.writeText(a.cle); copier.textContent = 'copiee'; }
+        catch (e) { copier.textContent = 'echec copie'; }
+        setTimeout(() => { copier.textContent = 'copier la cle'; }, 1200);
+      };
+
+      const bascule = document.createElement('button');
+      bascule.className = 'fantome';
+      bascule.textContent = a.actif ? 'desactiver' : 'reactiver';
+      bascule.onclick = async () => {
+        try {
+          await api('basculer', { cle: a.cle, actif: !a.actif });
+          rafraichir();
+        } catch (e) { motif.textContent = document.getElementById('avis').textContent; }
+      };
+
+      // SUPPRIMER EFFACE L'AMI ET TOUT CE QUI LUI APPARTIENT: sa cle, ses
+      // droits, ses refus, son historique de lancements. Deux temps, parce
+      // que ca ne se defait pas -- desactiver suffit dans presque tous les cas.
+      const sup = document.createElement('button');
+      sup.className = 'fantome danger';
+      sup.textContent = 'supprimer';
+      sup.title = 'efface la cle, les droits, les refus et l historique de ' + a.nom;
+      sup.onclick = () => armerOuAgir(sup, async () => {
+        try {
+          await api('supprimer-ami', { cle: a.cle });
+          await apresAction(rafraichir, a.nom + ' supprime');
+        } catch (e) { motif.textContent = document.getElementById('avis').textContent; }
+      });
+
+      actions.append(copier, bascule, sup);
+      tete.append(nom, meta, actions);
+
+      const past = document.createElement('div');
+      past.className = 'pastilles';
+      if (droitsIndisponibles) {
+        past.textContent = droitsIndisponibles;
+        past.classList.add('retard');
+      } else {
+        const siens = accordes.get(a.cle) || new Set();
+        for (const f of fonctions) {
+          const p = document.createElement('span');
+          p.className = 'p' + (siens.has(f.nom) ? ' on' : '');
+          p.title = f.libelle;
+          const pt = document.createElement('span');
+          pt.className = 'point';
+          p.append(pt, document.createTextNode(f.nom));
+          p.onclick = async () => {
+            const etaitOn = p.classList.contains('on');
+            p.classList.toggle('on', !etaitOn);
+            try {
+              await api('droit', { cle: a.cle, fonction: f.nom, actif: !etaitOn });
+            } catch (e) {
+              // Le decochage est le sens dangereux: si l ecriture echoue et
+              // qu on laisse la pastille eteinte, elle MENT -- l ami garde
+              // le droit cote serveur alors que Draxus croit l avoir retire,
+              // en silence. On revient donc a l etat d avant le clic.
+              p.classList.toggle('on', etaitOn);
+              motif.textContent = document.getElementById('avis').textContent;
+            }
+          };
+          past.append(p);
+        }
+      }
+
+      const pied = document.createElement('div');
+      pied.className = 'pied';
+      if (!droitsIndisponibles) {
+        const tout = document.createElement('button');
+        tout.className = 'fantome';
+        tout.textContent = 'tout';
+        tout.onclick = async () => {
+          // La cle de Draxus doit tout avoir sans huit clics.
+          for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
+          rafraichir();
+        };
+        const rien = document.createElement('button');
+        rien.className = 'fantome';
+        rien.textContent = 'rien';
+        rien.onclick = async () => {
+          for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: false });
+          rafraichir();
+        };
+        pied.append(tout, rien);
+      }
+      pied.append(motif);
+
+      c.append(tete, past, pied);
+      cartes.append(c);
+    }
   }
 
   async function montrerLancements(a) {
@@ -374,7 +558,7 @@
     const t = document.getElementById('versions');
     t.textContent = '';
     const entete = document.createElement('tr');
-    for (const titre of ['version', 'taille', 'publiee le', 'empreinte', '']) {
+    for (const titre of ['version', 'taille', 'publiee le', 'empreinte', '', '']) {
       const th = document.createElement('th');
       th.textContent = titre;
       entete.append(th);
@@ -387,7 +571,7 @@
     if (manifeste.version && !liste.some((v) => v.version === manifeste.version)) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 5;
+      td.colSpan = 6;
       td.className = 'alerte-version';
       td.textContent = 'attention: la version servie (' + manifeste.version + ') n est pas en base';
       tr.append(td);
@@ -404,8 +588,9 @@
       const td = document.createElement('td');
       if (v.version === manifeste.version) {
         // amis n'est fourni que par rafraichir() (qui l'a deja charge). Les
-        // appels depuis televerser()/activer() n'en disposent pas: on garde
-        // alors l'affichage simple plutot que de refaire un appel lister().
+        // appels depuis televerser()/activer()/supprimerVersion() n'en
+        // disposent pas: on garde alors l'affichage simple plutot que de
+        // refaire un appel lister().
         if (amis) {
           // Un ami desactive ne peut pas recevoir la version: il ne compte
           // ni au numerateur ni au denominateur, sinon le ratio n'atteint
@@ -423,6 +608,31 @@
         td.append(b);
       }
       tr.append(td);
+
+      const tdS = document.createElement('td');
+      const sup = document.createElement('button');
+      sup.className = 'fantome danger';
+      sup.textContent = 'supprimer';
+      const motifV = document.createElement('span');
+      motifV.className = 'motif';
+      if (v.version === manifeste.version) {
+        // LA VERSION ACTIVE NE SE SUPPRIME PAS. Le manifeste la designe: sans
+        // ses octets, /api/paquet rend 404 et plus personne ne peut installer.
+        // La vraie garde vit cote serveur (409) -- ce bouton desactive n'est
+        // qu'un confort, un onglet en retard ou un second admin peuvent
+        // quand meme declencher la requete.
+        sup.disabled = true;
+        sup.title = 'version active : active-en une autre avant de la supprimer';
+      } else {
+        sup.title = "efface l'archive du service ; les amis qui l'ont deja installee la gardent";
+        sup.onclick = () => armerOuAgir(sup, async () => {
+          try {
+            await api('supprimer-version', { version: v.version });
+            await apresAction(rafraichirVersions, v.version + ' supprimee');
+          } catch (e) { motifV.textContent = document.getElementById('avis').textContent; }
+        });
+      }
+      tdS.append(sup, motifV); tr.append(tdS);
       t.append(tr);
     }
   }

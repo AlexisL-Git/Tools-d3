@@ -3,9 +3,9 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { creerClient, appliquerSchema } = require('../lib/db');
-const { listerAmis, creerAmi, basculerAmi } = require('../lib/amis');
+const { listerAmis, creerAmi, basculerAmi, supprimerAmi } = require('../lib/amis');
 const { basculerService, ecrireUrlPaquet, lireUrlPaquet, lireManifeste } = require('../lib/manifeste');
-const { enregistrerVersion, listerVersions, activerVersion } = require('../lib/versions');
+const { enregistrerVersion, listerVersions, activerVersion, supprimerVersion } = require('../lib/versions');
 const { listerRefus, compterLancements, lancementsDe, purgerLancements } = require('../lib/etat');
 const { listerDroits, accorder, retirer } = require('../lib/droits');
 const { FONCTIONS, estConnue } = require('../lib/fonctions');
@@ -94,6 +94,25 @@ async function traiterAdmin({ motDePasse, action, corps = {}, sql, genererCle, m
     }
     case 'lister-manifeste':
       return { statut: 200, corps: await lireManifeste(sql) };
+    case 'supprimer-ami':
+      if (!corps.cle) return { statut: 400, corps: { erreur: 'cle requise' } };
+      await supprimerAmi(sql, String(corps.cle));
+      return { statut: 200, corps: { ok: true } };
+    case 'supprimer-version': {
+      if (!corps.version) return { statut: 400, corps: { erreur: 'version requise' } };
+      // LA VERSION ACTIVE NE SE SUPPRIME PAS: le manifeste la designe par son
+      // numero (config.version), et sans ses octets en base /api/paquet rend
+      // 404 -- plus aucun ami ne peut installer quoi que ce soit. C'est cette
+      // garde-la qui compte; le bouton desactive dans la page n'est qu'un
+      // confort, un second admin ou un onglet en retard peuvent quand meme
+      // arriver ici.
+      const manifeste = await lireManifeste(sql);
+      if (manifeste.version === String(corps.version)) {
+        return { statut: 409, corps: { erreur: 'version active : active-en une autre avant de la supprimer' } };
+      }
+      await supprimerVersion(sql, String(corps.version));
+      return { statut: 200, corps: { ok: true } };
+    }
     default:
       return { statut: 400, corps: { erreur: 'action inconnue' } };
   }

@@ -75,4 +75,12 @@ async function activerVersion(sql, version) {
   return { ok: true, version: lignes[0].version, sha256: lignes[0].sha256 };
 }
 
-module.exports = { enregistrerVersion, listerVersions, lireArchive, activerVersion, PLAFOND };
+// Efface l'archive d'une version. La garde qui empeche d'effacer la version
+// ACTIVE vit dans admin.js (elle doit lire config.version, que ce module
+// n'a pas de raison de connaitre) -- ici, on efface, un point c'est tout.
+async function supprimerVersion(sql, version) {
+  await sql`DELETE FROM versions WHERE version = ${version}`;
+  return { ok: true };
+}
+
+module.exports = { enregistrerVersion, listerVersions, lireArchive, activerVersion, supprimerVersion, PLAFOND };
