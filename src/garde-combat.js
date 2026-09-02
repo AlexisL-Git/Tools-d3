@@ -1,5 +1,4 @@
 'use strict';
-const { encodeRaw, WIRE } = require('./codec/rawProto');
 const { combattantsDe, TYPE_COMBATTANTS } = require('./abandon-combat');
 
 // Le garde contre les combats dupliques, et lui seul.
@@ -14,35 +13,46 @@ const { combattantsDe, TYPE_COMBATTANTS } = require('./abandon-combat');
 // Au moment de l'envoi, RIEN ne distingue une reponse qui declenche un combat
 // d'une reponse ordinaire: c'est un numero dans un arbre de dialogue.
 //
-// LA FENETRE. Le rejeu part 16 a 80 ms apres l'action du maitre, et le serveur
-// annonce le combat au maitre en 30 ms. Un rejeu retarde peut donc etre annule
-// avant d'etre ecrit. C'est tout le mecanisme.
-//
-// LE SIGNAL. `ieb` sur le flux entrant. Sur 58 changements de carte du journal
-// du 28/08, six seulement en portent un — et ce sont exactement les entrees en
-// combat. Tous les autres messages de la rafale d'entree (iom, kld, kml, kmp,
-// kub, lqn) apparaissent aussi sur des changements de carte ordinaires.
+// LA FENETRE. Le rejeu d'un type sensible ne part pas avant
+// DELAI_PLANCHER_MS + 16 ms, soit 266 ms, et le serveur annonce le combat au
+// maitre en 61 ms. Un rejeu retarde peut donc etre annule avant d'etre ecrit.
+// C'est tout le mecanisme.
 //
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme.
 //
-// LE SIGNAL A CHANGE LE 2026-09-01, et c'est tout l'objet de ce module.
+// UN SEUL SIGNAL, POUR LES DEUX MOITIES: `kmk`, la liste des combattants.
+// L'apprentissage l'utilise depuis le 01/09, l'annulation depuis le 02/09.
 //
-// Il etait: le maitre entre en combat moins de 2 s apres une action sensible.
-// Mais entrer en combat apres avoir parle a un PNJ, C'EST JOUER NORMALEMENT.
-// Le garde confondait « le maitre se bat » avec « les mules ont chacune ouvert
-// SON combat ». Rapporte par un ami le 01/09: trois actions retenues, aucun
-// combat duplique. Sans bouton pour oublier, chaque entree fausse etait
-// definitive.
+// CE QUE L'APPRENTISSAGE RETIENT: une mule recoit une liste de combattants qui
+// NE CONTIENT PAS le maitre. C'est le degat lui-meme, pas un indice. Verifie en
+// jeu deux fois le 01/09. Il ne suffisait pas que le maitre se batte: entrer en
+// combat apres avoir parle a un PNJ, C'EST JOUER NORMALEMENT.
 //
-// Il est desormais: une mule recoit une liste de combattants qui NE CONTIENT
-// PAS le maitre. C'est le degat lui-meme, pas un indice. Meme critere que
-// src/abandon-combat.js, verifie en jeu deux fois le 01/09.
+// CE QUI DECLENCHE L'ANNULATION: le maitre recoit une `kmk` de combat. Mesure
+// du 02/09 sur un combat de quete, `docs/superpowers/specs/
+// 2026-09-02-garde-combat-signal-kmk-design.md`:
 //
-// L'ANNULATION, ELLE, NE CHANGE PAS. Le `ieb` du maitre continue d'annuler les
-// rejeux en attente au plancher de 250 ms: elle agit AVANT le degat, n'ecrit
-// rien sur le disque, et n'a jamais faute.
-
-const TYPE_ENTREE_COMBAT = 'ieb';
+//   4386485 ms  --> ioy { 1=25088 }   l'action du maitre
+//   4386546 ms  <-- kmk { …3=-1 }     +61 ms, le combat est annonce
+//
+// LE SIGNAL PRECEDENT ETAIT FAUX, et c'est le defaut corrige le 02/09. Le garde
+// annulait sur un `ieb` entrant, jamais identifie, retenu sur une correlation
+// du 28/08. Deux mesures l'ont demonte: `ieb` n'existe pas sur une attaque
+// ordinaire (01/09), et il arrive SANS AUCUN COMBAT sur une simple recolte
+// (02/09). Ses deux champs valaient `1642/9828` sur un combat de quete le
+// 02/09 — identiques a ceux du 28/08 sur la meme etape, a cinq jours d'ecart —
+// et `1639/9815` sur un ramassage sans combat. Ce sont des identifiants de
+// PROGRESSION DE QUETE. Toute avancee de quete coupait les rejeux de toutes les
+// mules; c'est ce que voyait l'ami qui rapportait « 3 rejeux en attente
+// annules » sans jamais combattre.
+//
+// NE PAS REINTRODUIRE DE SIGNAL RAPIDE DEVINE. `kmk` a 61 ms laisse plus de
+// 200 ms de marge; c'est mesure, et ca suffit.
+//
+// LE GARDE N'EMET RIEN. La fermeture du dialogue des esclaves (un `kla`) est
+// partie le 02/09, a la demande de l'utilisateur: une mule dont le rejeu vient
+// d'etre annule n'a jamais ouvert le dialogue, et celle qui l'a ouvert peut le
+// garder.
 
 // Les seuls types rejoues qui peuvent ouvrir un combat. Les cinq autres —
 // teleportation, changement de carte, information de carte, havre-sac, sortie
@@ -59,33 +69,13 @@ const CHAMPS_CLE = {
 const TYPES_SENSIBLES = Object.keys(CHAMPS_CLE);
 
 // Plancher avant l'ecriture du premier esclave, contre 16 ms d'etalement seul.
-// Le signal a ete mesure a 30 ms; le facteur 8 couvre la gigue reseau sans
-// etre perceptible sur une interaction de quete.
+// Le signal a ete mesure a 61 ms le 02/09; le facteur 4 couvre la gigue reseau
+// sans etre perceptible sur une interaction de quete.
 const DELAI_PLANCHER_MS = 250;
 
 // Au-dela, on ne retient plus: un monstre agressif qui saute sur le maitre
 // trois secondes apres un dialogue anodin n'a pas a empoisonner la liste.
 const FENETRE_APPRENTISSAGE_MS = 2000;
-
-// Au-dela, on ne ferme plus le dialogue des esclaves: il n'y en a plus.
-const FENETRE_DIALOGUE_MS = 30000;
-
-const URL_FERMER_DIALOGUE = 'type.ankama.com/kla';
-
-// DialogLeaveRequest, constante et vide. Meme enveloppe que TRAME_PASSE dans
-// src/passeur.js: request { Any{ type_url }, uid: -1 }. kla ne porte aucun
-// champ (voir src/protocol/omni.js), donc rien n'y depend du destinataire.
-//
-// L'uid de -1 est repris de la trame jxy mesuree le 20/08, faute d'avoir
-// mesure celui d'un kla reel. A confirmer en conditions reelles.
-const TRAME_FERMER_DIALOGUE = encodeRaw([
-  { no: 2, wire: WIRE.LEN, kind: 'message', value: [
-    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      { no: 1, wire: WIRE.LEN, kind: 'string', value: URL_FERMER_DIALOGUE },
-    ] },
-    { no: 2, wire: WIRE.VARINT, value: -1n },
-  ] },
-]);
 
 function estSensible(type) {
   return Object.prototype.hasOwnProperty.call(CHAMPS_CLE, type);
@@ -134,15 +124,6 @@ function creerGardeCombat({
   // le pid de qui l'a emise. Le pid sert a retrouver SON characterId quand la
   // kmk d'un esclave arrive: c'est lui qu'on cherche dans la liste.
   let derniereAction = { cle: null, instant: 0, pidMaitre: null };
-  // Date et destinataires a part, parce que dernierDialogue repond a une
-  // autre question: faut-il fermer le dialogue des esclaves? Un element
-  // interactif n'en ouvre aucun. null tant qu'aucun dialogue n'a ete vu OU
-  // qu'une action plus recente et non-dialogue l'a supersede -- une ioy suivie
-  // d'un iwo cinq secondes plus tard n'a plus de dialogue a fermer, le iwo n'en
-  // ouvre pas et n'a pas hertie de celui d'avant. pids fige la liste des
-  // esclaves au moment du dialogue: un client connecte apres n'a jamais recu
-  // ce dialogue-la, et un kla envoye a vide n'est pas mesure.
-  let dernierDialogue = null;
 
   return function onTrame({ pid, dir, frame, estMaitre }) {
     // OMNI NE REPARE QUE CE QU'IL A CAUSE: sans duplication armee, aucun
@@ -200,51 +181,34 @@ function creerGardeCombat({
       if (!estSensible(frame.type)) return;
       const cle = cleDe(frame.type, frame);
       if (cle !== null) derniereAction = { cle, instant: maintenant(), pidMaitre: pid };
-      if (frame.type === 'iov' || frame.type === 'ioy') {
-        dernierDialogue = {
-          instant: maintenant(),
-          pids: new Set(superviseur.comptes.esclaves(pid).map((e) => e.pid)),
-        };
-      } else {
-        // Une action sensible non-dialogue (iwo) succede au dialogue
-        // precedent: le combat qui suivra ne lui doit plus rien.
-        dernierDialogue = null;
-      }
       return;
     }
 
-    if (frame.type !== TYPE_ENTREE_COMBAT) return;
+    // LE MAITRE ENTRE EN COMBAT: ce qui n'est pas encore ecrit ne partira pas.
+    //
+    // Meme trame et meme lecture que chez l'esclave, quinze lignes plus haut.
+    // combattantsDe() rend null sur une liste d'acteurs de CARTE, ou personne
+    // ne combat: c'est l'identifiant negatif d'un monstre, et lui seul, qui
+    // fait d'une kmk une liste de combat.
+    //
+    // derniereAction n'est PAS consommee ici, et c'est delibere: la kmk du
+    // maitre arrive avant celle de la mule (61 ms contre quelques centaines),
+    // et l'apprentissage a besoin de l'action pour la retenir. « Restaurer la
+    // symetrie » avec la branche esclave tuerait la retention en silence.
+    if (frame.type !== TYPE_COMBATTANTS) return;
+    if (combattantsDe(frame) === null) return;
 
-    // 1. Ce qui n'est pas encore ecrit ne partira pas.
     const annules = superviseur.annulerRejeux();
     if (annules > 0) {
       onJournal(pid, `garde combat : ${annules} rejeu(x) annule(s)`);
       onAnnulation(annules);
-    }
-
-    // 2. Fermer le dialogue des esclaves qui l'ont reellement recu, et qui
-    // sont toujours la -- chaque esclave isole du suivant: une socket morte
-    // sur l'un ne doit pas priver les autres de leur fermeture.
-    if (dernierDialogue !== null && maintenant() - dernierDialogue.instant < FENETRE_DIALOGUE_MS) {
-      const { pids } = dernierDialogue;
-      for (const etat of superviseur.comptes.esclaves(pid)) {
-        if (!pids.has(etat.pid)) continue;
-        try {
-          const r = superviseur.emettre(etat.pid, TRAME_FERMER_DIALOGUE);
-          if (!r.ok) onJournal(etat.pid, `garde combat : fermeture du dialogue refusee : ${r.raison}`);
-        } catch (e) {
-          onJournal(etat.pid, `garde combat : fermeture du dialogue en erreur : ${e.message}`);
-        }
-      }
-      // Consommee: un second ieb sur le meme combat ne doit pas la refermer.
-      dernierDialogue = null;
     }
   };
 }
 
 module.exports = {
   creerGardeCombat,
-  estSensible, cleDe, TRAME_FERMER_DIALOGUE,
-  TYPES_SENSIBLES, TYPE_ENTREE_COMBAT,
-  DELAI_PLANCHER_MS, FENETRE_APPRENTISSAGE_MS, FENETRE_DIALOGUE_MS,
+  estSensible, cleDe,
+  TYPES_SENSIBLES,
+  DELAI_PLANCHER_MS, FENETRE_APPRENTISSAGE_MS,
 };
