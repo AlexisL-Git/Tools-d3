@@ -754,12 +754,12 @@
   // n'est pas importable ici (le renderer est sandboxe), il reste la reference,
   // et main.js recalcule la cible de son cote avant d'ecrire.
   // `droit`: la fonction verrouillable que cette colonne commande, ou null si
-  // elle n en commande aucune (repl et l anim ne sont pas dans les sept).
+  // elle n en commande aucune (repl est l outil lui-meme, jamais verrouillable).
   const COLONNES = {
     repl: { champ: 'exclu', inverse: true, droit: null },
     tour: { champ: 'passeTour', inverse: false, droit: 'passe-tour' },
     groupe: { champ: 'invitation', inverse: false, droit: 'invitation' },
-    anim: { champ: 'noAnim', inverse: false, droit: null },
+    anim: { champ: 'noAnim', inverse: false, droit: 'no-anim' },
     echange: { champ: 'echange', inverse: false, droit: 'echange' },
   };
 
@@ -848,12 +848,12 @@
   const cleDe = (l) => (l.id === null || l.id === undefined ? 'pid:' + l.pid : 'id:' + l.id);
 
   // `droit`: la fonction verrouillable que cette case commande, ou null si
-  // elle n en commande aucune (repl et l anim ne sont pas dans les sept).
+  // elle n en commande aucune (repl est l outil lui-meme, jamais verrouillable).
   const CASES = [
     { champ: 'exclu', inverse: true, droit: null, envoyer: (l, v) => window.app.exclureCompte(l.id, !v) },
     { champ: 'passeTour', inverse: false, droit: 'passe-tour', envoyer: (l, v) => window.app.basculerPasseTourCompte(l.id, v) },
     { champ: 'invitation', inverse: false, droit: 'invitation', envoyer: (l, v) => window.app.basculerInvitationCompte(l.id, v) },
-    { champ: 'noAnim', inverse: false, droit: null, envoyer: (l, v) => window.app.basculerNoAnimCompte(l.id, v) },
+    { champ: 'noAnim', inverse: false, droit: 'no-anim', envoyer: (l, v) => window.app.basculerNoAnimCompte(l.id, v) },
     { champ: 'echange', inverse: false, droit: 'echange', envoyer: (l, v) => window.app.basculerEchangeCompte(l.id, v) },
   ];
 

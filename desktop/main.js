@@ -922,6 +922,18 @@ app.whenReady().then(async () => {
       // compte, sur l'etat vivant que balayerProcess()/envoyerEtat()
       // synchronisent depuis favoris.json.
       estArmePourCompte: (pid) => {
+        // Le droit se relit ici a chaque connexion evaluee, comme la porte le
+        // fait pour les politiques de composer(): un droit retire doit mordre
+        // dans la minute, pas a la prochaine fermeture d'OMNI.
+        //
+        // veille est encore null a la lecture de ce fichier (elle n'est
+        // affectee que plus bas, au chargement) mais estArmePourCompte est
+        // une fermeture: elle n'est appelee que bien plus tard, une fois
+        // veille construite. Le test veille === null n'est donc pas un filet
+        // pour cette fenetre de demarrage precise -- il ferme par defaut si
+        // jamais veille venait a manquer, comme partout ailleurs dans ce
+        // dessin.
+        if (veille === null || !veille.droits().includes('no-anim')) return false;
         const etat = superviseur.comptes.get(pid);
         return etat !== null && Boolean(etat.noAnim);
       },
@@ -1609,6 +1621,14 @@ ipcMain.handle('basculerInvitationCompte', async (_e, idCompte, actif) => {
 });
 
 ipcMain.handle('basculerNoAnimCompte', async (_e, idCompte, actif) => {
+  // Meme garde que majPrixHdv et basculerOverlay: le bouton grise cote page
+  // se contourne avec les outils de developpement d Electron, la vraie garde
+  // est ici.
+  if (!veille.droits().includes('no-anim')) {
+    noterAvis('Animations : pas activé sur ta clé');
+    envoyerEtat();
+    return;
+  }
   // La frontiere IPC est la frontiere de confiance: on ne laisse pas une
   // valeur non numerique atteindre le fichier de reglages.
   if (!Number.isInteger(idCompte)) return;
