@@ -1,13 +1,20 @@
 'use strict';
 const { execFile } = require('node:child_process');
 
-// SAVOIR, EN MODE DEV, QUE LE DEPOT A BOUGE.
+// SAVOIR, EN MODE DEV, QUE LE DEPOT A BOUGE. RIEN DE PLUS.
 //
 // Le mode developpement charge le code du depot tel quel: amorceur/principal.js
 // sort avant meme de construire son canal reseau. Aucun manifeste, aucune
 // version_vue, donc aucun signal quand origin/master a avance. Ce module est ce
-// signal, et rien d'autre: il LIT le depot et sait l'avancer en avance rapide.
-// Il n'ecrit jamais d'histoire dedans -- ni commit, ni push, ni stash.
+// signal, et rien d'autre.
+//
+// Il LIT le depot, un point c'est tout: ni commit, ni push, ni stash, ni meme
+// une avance rapide. Un bouton qui mettait a jour a existe ici le 2026-09-02;
+// il a ete retire le jour meme, a la premiere utilisation reelle. En
+// developpement le dossier de travail est presque toujours en cours de
+// modification, donc `merge --ff-only` refusait, et l'ami se retrouvait devant
+// un pave d'erreur git en anglais pour toute reponse. Dire ou on en est a de la
+// valeur; agir a la place de qui developpe n'en avait pas.
 //
 // Rien d'Electron ici, et aucun appel direct a git: la commande est injectee,
 // comme `chercher` l'est dans src/droits/veille.js. C'est ce qui permet de
@@ -96,50 +103,12 @@ async function etatDepot({ racine, executer = executeurGit() }) {
     locale: locale.ok ? locale.sortie : null,
     distante: distante.ok ? distante.sortie : null,
     branche: branche.ok ? branche.sortie : null,
-    // Un arbre sale n'empeche rien a priori: c'est --ff-only qui tranchera.
+    // Un arbre sale n'empeche rien: OMNI ne met plus a jour lui-meme, il
+    // dit ou tu en es. Le champ reste parce que l'interface l'affiche.
     propre: statut.ok ? statut.sortie === '' : null,
     reference: ref,
     raison: null,
   };
 }
 
-// L'AVANCE RAPIDE, ET ELLE SEULE. --ff-only refuse au lieu de fusionner: devant
-// des commits locaux ou une divergence, le dossier de travail ne bouge pas et
-// le message de git remonte tel quel.
-async function mettreAJour({ racine, executer = executeurGit() }) {
-  const avant = await executer(['rev-parse', 'HEAD'], racine);
-  if (!avant.ok) return { etat: 'refus', relancable: false, raison: avant.erreur || 'depot illisible' };
-
-  const ref = await refDistante(executer, racine);
-  if (ref === null) return { etat: 'refus', relancable: false, raison: 'aucune branche distante a laquelle se comparer' };
-
-  // fetch puis merge --ff-only plutot que pull: `pull` tout court exige un
-  // amont configure, ce qu'une branche creee en local n'a pas. Nommer la
-  // reference marche dans les deux cas, et c'est la meme que celle qu'on a
-  // affichee -- l'indicateur et le bouton ne peuvent pas parler de deux
-  // branches differentes.
-  const fetch = await executer(['fetch', '--quiet'], racine);
-  if (!fetch.ok) return { etat: 'refus', relancable: false, raison: fetch.erreur || 'depot distant injoignable' };
-
-  const avance = await executer(['merge', '--ff-only', ref], racine);
-  if (!avance.ok) return { etat: 'refus', relancable: false, raison: avance.erreur || 'avance rapide impossible' };
-
-  const apres = await executer(['rev-parse', 'HEAD'], racine);
-  if (!apres.ok) return { etat: 'refus', relancable: false, raison: apres.erreur || 'depot illisible' };
-
-  // RELANCER SANS npm install DONNERAIT UN ECRAN MORT. C'est exactement la
-  // panne du 29/08 qui a fait refuser la 0.2.6 chez un ami: « Cannot find
-  // module 'frida' », version ecartee pour toujours. Quand package.json a
-  // bouge, on le DIT et on laisse la main.
-  const touches = await executer(['diff', '--name-only', avant.sortie, apres.sortie], racine);
-  const listeTouches = touches.ok ? touches.sortie.split('\n').map((l) => l.trim()).filter(Boolean) : [];
-  const dependances = listeTouches.includes('package.json') || listeTouches.includes('package-lock.json');
-
-  return {
-    etat: 'ok',
-    relancable: !dependances,
-    raison: dependances ? 'package.json a change : lance npm install avant de relancer' : null,
-  };
-}
-
-module.exports = { etatDepot, mettreAJour, executeurGit, DELAI_MS };
+module.exports = { etatDepot, executeurGit, DELAI_MS };

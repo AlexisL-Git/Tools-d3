@@ -1746,7 +1746,7 @@ ipcMain.handle('devlog', () => {
 // pour ce que c'est et n'affiche rien. Meme forme que la garde des droits:
 // une fonction qui n'a rien a faire ici ne doit pas exister ici.
 if (process.env.OMNI_DEV) {
-  const { etatDepot, mettreAJour } = require('../src/dev/maj-git');
+  const { etatDepot } = require('../src/dev/maj-git');
   const racineDepot = process.env.OMNI_DEV;
 
   // UN ECHEC NE DOIT PAS ETRE MUET, ET journal() SEUL EST UN PIEGE: il sort
@@ -1768,17 +1768,6 @@ if (process.env.OMNI_DEV) {
     return r;
   });
 
-  ipcMain.handle('lancerMajGit', async () => {
-    const r = await mettreAJour({ racine: racineDepot });
-    if (r.etat !== 'ok') signalerMajGit(`refusée — ${r.raison}`);
-    else journal(0, `maj git: ok${r.raison ? ' — ' + r.raison : ''}`);
-    // Le code versionne n'est lu qu'au demarrage: sans relance, un pull reussi
-    // ne change rien a l'ecran. On laisse la reponse partir avant de couper.
-    if (r.etat === 'ok' && r.relancable) {
-      setTimeout(() => { app.relaunch(); app.exit(0); }, 400);
-    }
-    return r;
-  });
 }
 
 app.on('window-all-closed', async () => {

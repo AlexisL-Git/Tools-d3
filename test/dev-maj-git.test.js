@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { etatDepot, mettreAJour } = require('../src/dev/maj-git');
+const { etatDepot } = require('../src/dev/maj-git');
 
 // Un faux git: on lui donne ce que chaque commande doit rendre, il note ce
 // qu'on lui a demande. Aucun depot, aucun reseau -- meme motif que le faux
@@ -81,43 +81,6 @@ test('reseau coupe: inconnu, JAMAIS a-jour', async () => {
   assert.ok(!git.vues.some((v) => v.startsWith('rev-list')), 'on ne compte pas sur des refs perimees');
 });
 
-test('avance rapide refusee: le message de git remonte', async () => {
-  const git = faireGit([
-    ['rev-parse HEAD', OK('599d242')],
-    ['rev-parse --abbrev-ref @{upstream}', OK('origin/master')],
-    ['merge --ff-only', KO('fatal: Not possible to fast-forward, aborting.')],
-  ]);
-  const r = await mettreAJour({ racine: '/depot', executer: git });
-  assert.strictEqual(r.etat, 'refus');
-  assert.strictEqual(r.relancable, false);
-  assert.match(r.raison, /fast-forward/);
-});
-
-test('package.json touche par le pull: on ne relance pas', async () => {
-  const git = faireGit([
-    ['rev-parse HEAD', OK('599d242')],
-    ['rev-parse --abbrev-ref @{upstream}', OK('origin/master')],
-    ['merge --ff-only', OK('Updating 599d242..a1b2c3d')],
-    ['diff --name-only', OK('package.json\nsrc/superviseur.js')],
-  ]);
-  const r = await mettreAJour({ racine: '/depot', executer: git });
-  assert.strictEqual(r.etat, 'ok');
-  assert.strictEqual(r.relancable, false);
-  assert.match(r.raison, /npm install/);
-});
-
-test('pull propre: relance autorisee', async () => {
-  const git = faireGit([
-    ['rev-parse HEAD', OK('599d242')],
-    ['rev-parse --abbrev-ref @{upstream}', OK('origin/master')],
-    ['merge --ff-only', OK('Updating 599d242..a1b2c3d')],
-    ['diff --name-only', OK('desktop/index.html\nsrc/hdv/reprix.js')],
-  ]);
-  const r = await mettreAJour({ racine: '/depot', executer: git });
-  assert.strictEqual(r.etat, 'ok');
-  assert.strictEqual(r.relancable, true);
-  assert.strictEqual(r.raison, null);
-});
 
 test('branche locale sans amont: on se compare a la branche par defaut', async () => {
   const git = faireGit([

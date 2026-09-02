@@ -61,13 +61,12 @@ contextBridge.exposeInMainWorld('app', {
   // d'emettre un ordre.
   devlog: () => ipcRenderer.invoke('devlog'),
 
-  // Le retard sur le depot, et l'avance rapide. Ces deux-la n'ont d'ipcMain
-  // que sous OMNI_DEV: chez un ami l'invoke rejette, et l'interface n'affiche
-  // simplement rien. C'est la seule paire de la liste dont l'absence de
-  // handler est NORMALE, d'ou cette note -- sans elle, la regle du fichier
-  // ferait croire a un canal oublie.
+  // Le retard sur le depot, en lecture seule. Ce canal n'a d'ipcMain que sous
+  // OMNI_DEV: chez un ami l'invoke rejette, et l'interface n'affiche
+  // simplement rien. C'est le seul de la liste dont l'absence de handler est
+  // NORMALE, d'ou cette note -- sans elle, la regle du fichier ferait croire a
+  // un canal oublie.
   etatMajGit: () => ipcRenderer.invoke('etatMajGit'),
-  lancerMajGit: () => ipcRenderer.invoke('lancerMajGit'),
   fermerUnClient: (idCompte) => ipcRenderer.invoke('fermerUnClient', idCompte),
   fermerTousLesClients: () => ipcRenderer.invoke('fermerTousLesClients'),
 });
