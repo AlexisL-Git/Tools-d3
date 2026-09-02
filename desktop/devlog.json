@@ -5,7 +5,9 @@
     "notes": [
       "Corrigé : tes mules pouvaient arrêter de te suivre sans raison, avec le message « rejeux en attente annulés » alors qu'aucun combat n'avait lieu. OMNI prenait une avancée de quête pour une entrée en combat — une simple récolte suffisait à couper tes mules. Il attend maintenant le vrai signal.",
       "Sa protection contre les combats dupliqués n'a pas bougé : si une de tes mules ouvre son propre combat, l'action est retenue et ne sera plus rejouée.",
-      "Nouveau dans le menu HDV : « Mettre en vente », qui pose tes piles en hôtel de vente pour le compte choisi. Ouvre ton hôtel de vente une fois avant, pour qu'OMNI voie ce que tu as."
+      "Nouveau bouton dans le menu HDV : « Mettre en vente ». OMNI pose tes piles en hôtel de vente pour le compte choisi, une après l'autre, et s'arrête tout seul si le serveur refuse une pose. Ouvre ton hôtel de vente une fois avant, pour qu'OMNI voie ce que tu as.",
+      "C'est un droit à part, distinct de la mise à jour des prix : si le bouton dit « pas activé sur ta clé », demande-le. Mettre à jour des prix ne coûte rien ; mettre en vente engage ton inventaire.",
+      "Les deux boutons de l'hôtel de vente démarrent maintenant tout de suite. Avant, il ne se passait rien pendant 1 à 4 secondes après le clic : OMNI attendait entre deux gestes alors qu'il n'en avait encore fait aucun."
     ]
   },
   {
