@@ -980,6 +980,21 @@ app.whenReady().then(async () => {
   // %APPDATA%\OMNI -- meme expression que la RACINE de
   // amorceur/principal.js, reprise ici pour lire le meme fichier.
   const dossierDonnees = path.join(app.getPath('appData'), 'OMNI');
+  // REVUE FINALE (meme raisonnement que sur creerGardeCombat plus bas) :
+  // onJournal seul est un piege ici aussi. journal() ne s'ecrit que sous
+  // OMNI_JOURNAL=complet -- jamais chez un ami -- et onJournal est l'UNIQUE
+  // canal par lequel la veille signale un rappel onChangement qui leve ou
+  // une ecriture de cache en echec (voir src/droits/veille.js). Sans le
+  // second canal, ces deux pannes deviendraient invisibles precisement chez
+  // qui n'a pas de console attachee. Les deux canaux, donc : journal() pour
+  // la mesure fine (utile sous lancer-diag.vbs), noterAvis() + envoyerEtat()
+  // pour que l'ami devant OMNI le voie -- meme pied de page qui s'efface
+  // seul, deja le canal des evenements ponctuels sans destinataire unique.
+  const onJournalVeille = (pid, texte) => {
+    journal(pid, texte);
+    noterAvis(texte);
+    envoyerEtat();
+  };
   veille = creerVeille({
     base: 'https://paquets-maj.vercel.app',
     lireCle: () => {
@@ -993,11 +1008,10 @@ app.whenReady().then(async () => {
       try { return fs.readFileSync(path.join(dossierDonnees, 'cle.txt'), 'utf8').trim() || null; }
       catch (e) { return null; }   // pas de cle = mode developpement = tous les droits
     },
-    cache: creerCacheFichier(path.join(dossierDonnees, 'droits.json'), { onJournal: journal }),
-    // console.error par defaut ne se voit jamais chez un ami: lance par le
-    // vbs, OMNI n a pas de console attachee (voir plus haut). journal() ecrit
-    // aussi dans fichierJournal(), meme canal que le reste des politiques.
-    onJournal: journal,
+    cache: creerCacheFichier(path.join(dossierDonnees, 'droits.json'), { onJournal: onJournalVeille }),
+    // Meme onJournal que le cache juste au-dessus : voir la note REVUE
+    // FINALE ci-dessus.
+    onJournal: onJournalVeille,
     onChangement: ({ gagnes, perdus }) => {
       // UNE FONCTION QUI DISPARAIT EN SILENCE, c est exactement le mode
       // d echec que ce depot documente quatre fois. Elle se dit.
