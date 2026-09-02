@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.3.0",
+    "le": "2026-09-02",
+    "notes": [
+      "Chaque fonction d'OMNI peut maintenant être activée ou non pour ta clé. Ce que tu n'as pas se voit tout de suite : le bouton ou la case est grisé et dit « pas activé sur ta clé ».",
+      "Il te manque quelque chose ? Demande — ça s'active à distance, sans nouvelle version, et ton OMNI le voit en moins d'une minute sans que tu le relances.",
+      "Une coupure d'internet ne te retire rien : OMNI garde ce qu'il savait la dernière fois."
+    ]
+  },
+  {
     "version": "0.2.9",
     "le": "2026-09-01",
     "notes": [
