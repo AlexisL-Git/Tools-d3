@@ -26,6 +26,8 @@ const { Favoris } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
 const { lireDevlog, CHEMIN: CHEMIN_DEVLOG } = require('./devlog');
 const { estSouris, depuisBouton } = require('../src/comptes/raccourcis');
+const { creerVeille, creerCacheFichier } = require('../src/droits/veille');
+const { creerPorte } = require('../src/droits/porte');
 
 const PERIODE_PROCESS = 500;    // prise en charge des nouveaux clients
 const PERIODE_VUE = 2000;       // rafraichissement de la liste affichee
@@ -58,6 +60,10 @@ let superviseur = null;
 // dans le composer, parce qu'un BOUTON doit pouvoir la lancer: c'est le seul
 // module d'OMNI qui repond a autre chose qu'a une trame.
 let reprix = null;
+// LES DROITS ACCORDES A CETTE CLE. Relus par la veille toutes les 60 s: voir
+// sa creation dans app.whenReady(). null tant qu'elle n'existe pas encore --
+// jamais interroge avant, la fenetre n'est pas encore ouverte.
+let veille = null;
 let favoris = null;
 let emblemes = null;
 let comptes = [];
@@ -667,6 +673,8 @@ async function envoyerEtat() {
     avisBascule: avisCourant(),
     // Pour que le bouton de la barre du bas dise s'il ouvre ou s'il ferme.
     overlayOuvert: overlay !== null && !overlay.isDestroyed(),
+    // Ce que cette cle a le droit d utiliser. La page grise le reste.
+    droits: veille.droits(),
     lignes,
   });
 
@@ -963,6 +971,68 @@ app.whenReady().then(async () => {
     },
   });
 
+  // LES DROITS ACCORDES A CETTE CLE. Relus toutes les 60 s: Draxus coupe une
+  // case au panneau, la fonction s arrete ici dans la minute.
+  //
+  // PAS app.getPath('userData'): package.json ne pose ni productName ni
+  // app.setName (name: "mm"), donc userData vaut %APPDATA%\mm, pas
+  // %APPDATA%\OMNI. cle.txt est ecrit par amorceur/cle.js dans
+  // %APPDATA%\OMNI -- meme expression que la RACINE de
+  // amorceur/principal.js, reprise ici pour lire le meme fichier.
+  const dossierDonnees = path.join(app.getPath('appData'), 'OMNI');
+  // REVUE FINALE (meme raisonnement que sur creerGardeCombat plus bas) :
+  // onJournal seul est un piege ici aussi. journal() ne s'ecrit que sous
+  // OMNI_JOURNAL=complet -- jamais chez un ami -- et onJournal est l'UNIQUE
+  // canal par lequel la veille signale un rappel onChangement qui leve ou
+  // une ecriture de cache en echec (voir src/droits/veille.js). Sans le
+  // second canal, ces deux pannes deviendraient invisibles precisement chez
+  // qui n'a pas de console attachee. Les deux canaux, donc : journal() pour
+  // la mesure fine (utile sous lancer-diag.vbs), noterAvis() + envoyerEtat()
+  // pour que l'ami devant OMNI le voie -- meme pied de page qui s'efface
+  // seul, deja le canal des evenements ponctuels sans destinataire unique.
+  const onJournalVeille = (pid, texte) => {
+    journal(pid, texte);
+    noterAvis(texte);
+    envoyerEtat();
+  };
+  veille = creerVeille({
+    base: 'https://paquets-maj.vercel.app',
+    lireCle: () => {
+      // OMNI_DEV distingue la machine de Draxus (le depot lance hors
+      // paquet, via outils/lancer-dev.vbs) d'un poste ami. Sans cet
+      // echappement, un cle.txt reel laisse dans %APPDATA%\OMNI par un
+      // test de l amorceur verrouillerait le depot: le mode developpement
+      // doit rester "tous les droits, aucune requete" quel que soit ce que
+      // ce dossier contient.
+      if (process.env.OMNI_DEV) return null;
+      try { return fs.readFileSync(path.join(dossierDonnees, 'cle.txt'), 'utf8').trim() || null; }
+      catch (e) { return null; }   // pas de cle = mode developpement = tous les droits
+    },
+    cache: creerCacheFichier(path.join(dossierDonnees, 'droits.json'), { onJournal: onJournalVeille }),
+    // Meme onJournal que le cache juste au-dessus : voir la note REVUE
+    // FINALE ci-dessus.
+    onJournal: onJournalVeille,
+    onChangement: ({ gagnes, perdus }) => {
+      // UNE FONCTION QUI DISPARAIT EN SILENCE, c est exactement le mode
+      // d echec que ce depot documente quatre fois. Elle se dit.
+      if (perdus.length) noterAvis(`Droits : ${perdus.join(', ')} — retiré`);
+      else if (gagnes.length) noterAvis(`Droits : ${gagnes.join(', ')} — activé`);
+      // L HDV est le seul a avoir un travail qui dure: on l arrete net.
+      if (perdus.includes('hdv')) {
+        for (const etat of superviseur.comptes.tous) reprix.arreter(etat.pid);
+      }
+      // Sans ca la barre flottante deja ouverte restait a l ecran apres un
+      // retrait de droit: la garde IPC de basculerOverlay ne couvre que la
+      // bascule, pas une fenetre deja la. PAS de reglerOverlay(false) ici:
+      // ce n est pas un choix de l ami, rendre le droit doit rendre la
+      // fenetre sans qu il ait a la rouvrir.
+      if (perdus.includes('overlay')) fermerOverlay();
+      envoyerEtat();
+    },
+  });
+  veille.demarrer();
+  const protege = creerPorte({ droits: () => veille.droits() });
+
   superviseur.onTrame = composer(
     creerDuplicateur({
       superviseur,
@@ -1009,7 +1079,7 @@ app.whenReady().then(async () => {
       ),
       onJournal: journal,
     }),
-    creerAbandonGroupe({
+    protege('abandon', creerAbandonGroupe({
       superviseur,
       // Les deux canaux, pour deux raisons differentes. `journal()` ne s'ecrit
       // que sous OMNI_JOURNAL=complet et sert la mesure; `messages` est ce que
@@ -1025,8 +1095,8 @@ app.whenReady().then(async () => {
         if (ok) messages.delete(pid);
         else messages.set(pid, `abandon : ${raison}`);
       },
-    }),
-    creerPasseur({
+    })),
+    protege('passe-tour', creerPasseur({
       superviseur,
       reglages: reglagesPasseTour,
       onCompteRendu: ({ pid, ok, raison, declencheur }) => {
@@ -1035,16 +1105,16 @@ app.whenReady().then(async () => {
         if (ok) journal(pid, `passe-tour : jxy emis (sur ${declencheur})`);
         else journal(pid, `passe-tour : ${raison}`);
       },
-    }),
-    creerAccepteur({
+    })),
+    protege('invitation', creerAccepteur({
       superviseur,
       reglages: reglagesInvitation,
       onCompteRendu: ({ pid, ok, raison, groupe }) => {
         if (ok) journal(pid, `invitation : acceptee (groupe ${groupe})`);
         else journal(pid, `invitation : ${raison}`);
       },
-    }),
-    creerAccepteurEchange({
+    })),
+    protege('echange', creerAccepteurEchange({
       superviseur,
       reglages: reglagesEchange,
       delai: DELAI_REACTION,
@@ -1052,8 +1122,8 @@ app.whenReady().then(async () => {
         if (ok) journal(pid, `echange : ${validation ? 'valide' : 'accepte'} apres ${retardMs} ms`);
         else journal(pid, `echange : ${raison}`);
       },
-    }),
-    creerAccepteurSonge({
+    })),
+    protege('songe', creerAccepteurSonge({
       superviseur,
       reglages: reglagesSonge,
       delai: DELAI_SONGE,
@@ -1071,8 +1141,8 @@ app.whenReady().then(async () => {
         if (ok) messages.delete(pid);
         else messages.set(pid, raison);
       },
-    }),
-    reprix.onTrame,
+    })),
+    protege('hdv', reprix.onTrame),
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -1089,7 +1159,10 @@ app.whenReady().then(async () => {
   // L'overlay revient s'il etait ouvert au dernier arret, et seulement dans ce
   // cas: un ami qui passe de la 0.2.6 a cette version n'a pas la cle dans son
   // fichier, il ne doit pas voir surgir une fenetre qu'il n'a pas demandee.
-  if (favoris.overlay().ouvert) creerOverlay();
+  // Et seulement si le droit tient encore: sans ce garde-fou, le droit
+  // overlay coupe entre deux lancements serait contourne au demarrage
+  // suivant, avant meme que la veille n'ait eu la chance de le redire.
+  if (veille.droits().includes('overlay') && favoris.overlay().ouvert) creerOverlay();
   poserRaccourcis();
   minuteurProcess = setInterval(balayerProcess, PERIODE_PROCESS);
   minuteurVue = setInterval(envoyerEtat, PERIODE_VUE);
@@ -1302,6 +1375,15 @@ ipcMain.handle('basculerReplGroupe', async () => {
 // passe, donc le geste est sans ambiguite, et un second clic ne peut jamais
 // lancer une passe par-dessus une autre.
 ipcMain.handle('majPrixHdv', async (_e, pid) => {
+  // Le bouton grise cote page, mais un bouton grise se contourne avec les
+  // outils de developpement d Electron: la vraie garde est ici. noterAvis()
+  // pour que ce contournement ne soit pas un refus totalement muet -- meme
+  // symetrie que la garde overlay juste en dessous.
+  if (!veille.droits().includes('hdv')) {
+    noterAvis('HDV : pas activé sur ta clé');
+    envoyerEtat();
+    return { ok: false, raison: 'HDV : pas activé sur ta clé' };
+  }
   if (reprix === null || !Number.isInteger(pid)) return;
   if (reprix.enCours(pid)) reprix.arreter(pid);
   else reprix.lancer(pid);
@@ -1321,6 +1403,9 @@ ipcMain.handle('avisVenteHdv', async () => {
 
 // Le bouton de la barre du bas. Il bascule: ouvrir si fermee, fermer sinon.
 ipcMain.handle('basculerOverlay', async () => {
+  // Meme garde que majPrixHdv: le bouton grise se contourne avec les outils
+  // de developpement d Electron.
+  if (!veille.droits().includes('overlay')) { noterAvis('Barre flottante : pas activée sur ta clé'); envoyerEtat(); return; }
   if (overlay !== null && !overlay.isDestroyed()) {
     fermerOverlay();
     favoris.reglerOverlay({ ouvert: false });
@@ -1588,6 +1673,9 @@ app.on('window-all-closed', async () => {
   if (minuteurVue !== null) clearInterval(minuteurVue);
   minuteurProcess = null;
   minuteurVue = null;
+  // Meme invariant pour la veille des droits: un reveil pendant le demontage
+  // appellerait onChangement sur un superviseur deja en train de disparaitre.
+  if (veille !== null) veille.arreter();
 
   // LA FERMETURE EST BORNEE. `arreter()` decharge les scripts Frida et detache
   // les sessions: ce sont des allers-retours avec des process Dofus qui

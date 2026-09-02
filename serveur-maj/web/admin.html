@@ -127,6 +127,27 @@
   async function rafraichir() {
     const amis = await api('lister');
     avis('');
+    // Comme paquet/lancements/lister-manifeste plus bas: une table pas encore
+    // migree ou une erreur transitoire sur les droits ne doit pas empecher le
+    // tableau des amis de se dessiner. Repli sur des listes vides — le
+    // panneau reste utilisable, juste sans les cases a cocher.
+    let fonctions = [];
+    let lignesDroits = [];
+    let droitsIndisponibles = null;
+    try {
+      fonctions = await api('fonctions', {});
+      lignesDroits = await api('droits', {});
+    } catch (e) {
+      // #avis est unique et sans file: un bloc plus bas qui reussit (versions,
+      // refus) l'ecrase avec avis(''). Le motif doit donc vivre dans le
+      // tableau lui-meme, a la place des cases, pour rester visible.
+      droitsIndisponibles = 'cases a cocher indisponibles: ' + e.message;
+    }
+    const accordes = new Map();
+    for (const d of lignesDroits) {
+      if (!accordes.has(d.cle)) accordes.set(d.cle, new Set());
+      accordes.get(d.cle).add(d.fonction);
+    }
     try {
       const p = await api('paquet', {});
       if (p && p.url) document.getElementById('urlpaquet').value = p.url;
@@ -170,6 +191,54 @@
       b.textContent = a.actif ? 'desactiver' : 'activer';
       b.onclick = async () => { await api('basculer', { cle: a.cle, actif: !a.actif }); rafraichir(); };
       td.append(b); tr.append(td); t.append(tr);
+      const trDroits = document.createElement('tr');
+      const tdDroits = document.createElement('td');
+      tdDroits.colSpan = 6;
+      if (droitsIndisponibles) {
+        // Le motif vit ici, a la place des cases: il reste visible meme si
+        // un bloc plus bas (versions, refus) efface #avis avec son succes.
+        tdDroits.textContent = droitsIndisponibles;
+        tdDroits.className = 'retard';
+      } else {
+        const siens = accordes.get(a.cle) || new Set();
+        for (const f of fonctions) {
+          const label = document.createElement('label');
+          label.style.marginRight = '12px';
+          const c = document.createElement('input');
+          c.type = 'checkbox';
+          c.checked = siens.has(f.nom);
+          c.onchange = async () => {
+            // Le navigateur a deja bascule la case avant que onchange ne
+            // tourne: c.checked porte donc la valeur VOULUE, pas l ancienne.
+            const avant = !c.checked;
+            c.disabled = true;
+            try {
+              await api('droit', { cle: a.cle, fonction: f.nom, actif: c.checked });
+            } catch (e) {
+              // Le decochage est le sens dangereux: si l ecriture echoue et
+              // qu on laisse la case decochee, elle MENT -- l ami garde le
+              // droit cote serveur alors que Draxus croit l avoir retire, en
+              // silence. On revient donc a l etat d avant le clic.
+              c.checked = avant;
+              throw e;
+            } finally {
+              c.disabled = false;
+            }
+          };
+          label.append(c, document.createTextNode(' ' + f.libelle));
+          tdDroits.append(label);
+        }
+        const tout = document.createElement('button');
+        tout.textContent = 'tout cocher';
+        tout.onclick = async () => {
+          // La cle de Draxus doit tout avoir sans sept clics.
+          for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
+          rafraichir();
+        };
+        tdDroits.append(tout);
+      }
+      trDroits.append(tdDroits);
+      t.append(trDroits);
     }
     // Le coupe-circuit (dans #panneau) est le seul moyen d'arreter tout le
     // parc: son accessibilite ne doit jamais dependre du tableau des

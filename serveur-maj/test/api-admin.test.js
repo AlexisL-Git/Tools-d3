@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
 const { traiterAdmin } = require('../api/admin');
+const { FONCTIONS } = require('../lib/fonctions');
 
 function fauxSql(reponses = []) {
   const sql = (c, ...v) => {
@@ -215,4 +216,57 @@ test('action lancements: 404 sur mauvais mot de passe', async () => {
   });
   assert.strictEqual(r.statut, 404);
   assert.strictEqual(sql.appels.length, 0);
+});
+
+test('action fonctions: la liste a afficher', async () => {
+  const r = await traiterAdmin({
+    motDePasse: 'secret', action: 'fonctions', sql: fauxSql([]), motDePasseAttendu: 'secret',
+  });
+  assert.strictEqual(r.statut, 200);
+  assert.deepStrictEqual(r.corps, FONCTIONS);
+});
+
+test('action droit: une fonction inconnue est refusee', async () => {
+  // Sans cette garde, une faute de frappe au panneau ecrit une ligne que
+  // l application ne lira jamais, et la case resterait cochee pour rien.
+  const r = await traiterAdmin({
+    motDePasse: 'secret', action: 'droit',
+    corps: { cle: 'abc', fonction: 'replicate', actif: true },
+    sql: fauxSql([]), motDePasseAttendu: 'secret',
+  });
+  assert.strictEqual(r.statut, 400);
+});
+
+test('action droit: sans cle, 400', async () => {
+  const r = await traiterAdmin({
+    motDePasse: 'secret', action: 'droit',
+    corps: { fonction: 'hdv', actif: true },
+    sql: fauxSql([]), motDePasseAttendu: 'secret',
+  });
+  assert.strictEqual(r.statut, 400);
+});
+
+test('action droit: accorder puis retirer', async () => {
+  const requetes = [];
+  const sql = (chaines, ...valeurs) => { requetes.push({ chaines, valeurs }); return Promise.resolve([]); };
+  const ok = await traiterAdmin({
+    motDePasse: 'secret', action: 'droit',
+    corps: { cle: 'abc', fonction: 'hdv', actif: true },
+    sql, motDePasseAttendu: 'secret',
+  });
+  assert.strictEqual(ok.statut, 200);
+  assert.ok(requetes[0].chaines.join('').includes('INSERT INTO droits'));
+  await traiterAdmin({
+    motDePasse: 'secret', action: 'droit',
+    corps: { cle: 'abc', fonction: 'hdv', actif: false },
+    sql, motDePasseAttendu: 'secret',
+  });
+  assert.ok(requetes[1].chaines.join('').includes('DELETE FROM droits'));
+});
+
+test('sans le mot de passe, les droits ne se lisent pas', async () => {
+  const r = await traiterAdmin({
+    motDePasse: 'faux', action: 'droits', sql: fauxSql([]), motDePasseAttendu: 'secret',
+  });
+  assert.strictEqual(r.statut, 404);
 });

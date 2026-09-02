@@ -210,8 +210,13 @@
     border: 1px solid var(--bord); background: transparent; color: var(--attenue);
     font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
   }
-  .pose:hover { border-color: var(--attenue); color: var(--texte); }
+  .pose:hover:not(:disabled) { border-color: var(--attenue); color: var(--texte); }
   .pose.ouvert { border-color: var(--arme); color: var(--arme); }
+  /* Sans cette regle le bouton reste visuellement actif une fois `disabled`
+     pose par surEtat(): la regle generale `button { cursor: pointer; }` et
+     les couleurs d'auteur ecrasent le style par defaut du navigateur. Meme
+     traitement que .hdv:disabled plus bas. */
+  .pose:disabled { opacity: .3; cursor: not-allowed; }
 
   .avis { padding: 9px 15px; font-size: 13px; border-bottom: 1px solid var(--filet); }
   .avis:empty { display: none; }
@@ -328,6 +333,7 @@
     border-radius: 6px;
   }
   .tete-colonne:hover { background: rgba(255,255,255,.06); color: var(--texte); }
+  .tete-colonne:disabled { opacity: .3; cursor: not-allowed; }
   .jauge {
     width: 8px; height: 8px; flex: none; transform: rotate(45deg); border-radius: 4px;
     border: 1.5px solid var(--bord); background: transparent;
@@ -747,12 +753,14 @@
   // Les memes regles que src/comptes/colonnes.js, cote affichage. Le module
   // n'est pas importable ici (le renderer est sandboxe), il reste la reference,
   // et main.js recalcule la cible de son cote avant d'ecrire.
+  // `droit`: la fonction verrouillable que cette colonne commande, ou null si
+  // elle n en commande aucune (repl et l anim ne sont pas dans les sept).
   const COLONNES = {
-    repl: { champ: 'exclu', inverse: true },
-    tour: { champ: 'passeTour', inverse: false },
-    groupe: { champ: 'invitation', inverse: false },
-    anim: { champ: 'noAnim', inverse: false },
-    echange: { champ: 'echange', inverse: false },
+    repl: { champ: 'exclu', inverse: true, droit: null },
+    tour: { champ: 'passeTour', inverse: false, droit: 'passe-tour' },
+    groupe: { champ: 'invitation', inverse: false, droit: 'invitation' },
+    anim: { champ: 'noAnim', inverse: false, droit: null },
+    echange: { champ: 'echange', inverse: false, droit: 'echange' },
   };
 
   const valeurDe = (l, nom) => {
@@ -773,6 +781,9 @@
   }
 
   let dernieresLignes = [];
+  // Ce que cette cle a le droit d utiliser, tel que le processus principal
+  // vient de le dire. Lue par majRang(), qui ne recoit pas l etat.
+  let droitsCourants = [];
   for (const b of document.querySelectorAll('[data-colonne]')) {
     b.addEventListener('click', () => {
       const ids = pertinentes(dernieresLignes).map((l) => l.id);
@@ -836,12 +847,14 @@
   // ligne de commande ne porte pas de -logFile n'a que lui.
   const cleDe = (l) => (l.id === null || l.id === undefined ? 'pid:' + l.pid : 'id:' + l.id);
 
+  // `droit`: la fonction verrouillable que cette case commande, ou null si
+  // elle n en commande aucune (repl et l anim ne sont pas dans les sept).
   const CASES = [
-    { champ: 'exclu', inverse: true, envoyer: (l, v) => window.app.exclureCompte(l.id, !v) },
-    { champ: 'passeTour', inverse: false, envoyer: (l, v) => window.app.basculerPasseTourCompte(l.id, v) },
-    { champ: 'invitation', inverse: false, envoyer: (l, v) => window.app.basculerInvitationCompte(l.id, v) },
-    { champ: 'noAnim', inverse: false, envoyer: (l, v) => window.app.basculerNoAnimCompte(l.id, v) },
-    { champ: 'echange', inverse: false, envoyer: (l, v) => window.app.basculerEchangeCompte(l.id, v) },
+    { champ: 'exclu', inverse: true, droit: null, envoyer: (l, v) => window.app.exclureCompte(l.id, !v) },
+    { champ: 'passeTour', inverse: false, droit: 'passe-tour', envoyer: (l, v) => window.app.basculerPasseTourCompte(l.id, v) },
+    { champ: 'invitation', inverse: false, droit: 'invitation', envoyer: (l, v) => window.app.basculerInvitationCompte(l.id, v) },
+    { champ: 'noAnim', inverse: false, droit: null, envoyer: (l, v) => window.app.basculerNoAnimCompte(l.id, v) },
+    { champ: 'echange', inverse: false, droit: 'echange', envoyer: (l, v) => window.app.basculerEchangeCompte(l.id, v) },
   ];
 
   const valeurCase = (l, c) => (c.inverse ? !l[c.champ] : Boolean(l[c.champ]));
@@ -1035,9 +1048,14 @@
 
     r.cases.forEach((b, i) => {
       const actif = valeurCase(l, CASES[i]);
+      // Une case dont le droit n est pas accorde reste cliquable sans ca: la
+      // porte bloquerait bien la trame plus loin, mais en silence -- ni le
+      // clic ni favoris.json ne diraient pourquoi rien ne se passe.
+      const bloque = CASES[i].droit && !droitsCourants.includes(CASES[i].droit);
       b.classList.toggle('on', actif);
-      b.disabled = !pilotable;
+      b.disabled = !pilotable || bloque;
       b.setAttribute('aria-pressed', String(actif));
+      b.title = bloque ? 'pas activé sur ta clé' : '';
     });
 
     // A DROITE: le bouton OU le verdict, jamais les deux. Un compte non
@@ -1065,13 +1083,16 @@
     if (!aUneFenetre) r.fermerUn.classList.remove('confirme');
     if (!r.fermerUn.title) r.fermerUn.title = 'fermer ce client';
 
-    // Le menu n'a de sens que sur un client en jeu. `hdvLots` a zero veut dire
-    // que kby n'est jamais passee: le HDV n'a pas ete ouvert de la session.
-    const hdvPossible = l.pid !== null && l.pid !== undefined && l.etat !== 'hors-ligne';
+    // Le menu n'a de sens que sur un client en jeu, et seulement si la cle a
+    // le droit. `hdvLots` a zero veut dire que kby n'est jamais passee.
+    const droitHdv = droitsCourants.includes('hdv');
+    const hdvPossible = droitHdv && l.pid !== null && l.pid !== undefined && l.etat !== 'hors-ligne';
     r.hdv.disabled = !hdvPossible;
     if (!hdvPossible) r.menuHdv.hidden = true;
     r.hdv.classList.toggle('tourne', Boolean(l.hdvEnCours));
-    r.hdv.title = l.hdvEnCours ? 'une mise à jour des prix est en cours' : 'hôtel de vente';
+    r.hdv.title = !droitHdv
+      ? 'pas activé sur ta clé'
+      : (l.hdvEnCours ? 'une mise à jour des prix est en cours' : 'hôtel de vente');
     if (l.hdvEnCours) {
       r.majPrix.textContent = 'Arrêter la mise à jour';
       r.majPrix.classList.remove('inerte');
@@ -1088,6 +1109,7 @@
   }
 
   window.app.surEtat((etat) => {
+    droitsCourants = etat.droits || [];
     dernieresLignes = etat.lignes;
 
     interActif.classList.toggle('on', etat.actif);
@@ -1098,11 +1120,18 @@
 
     // Le losange de chaque titre de colonne: plein, creux, ou a moitie.
     for (const b of document.querySelectorAll('[data-colonne]')) {
-      const e = etatColonne(etat.lignes, b.dataset.colonne);
+      const nom = b.dataset.colonne;
+      const e = etatColonne(etat.lignes, nom);
       const j = b.querySelector('.jauge');
       j.classList.toggle('tous', e === 'tous');
       j.classList.toggle('partiel', e === 'partiel');
-      b.title = e === 'tous' ? 'Actif pour tous — cliquer pour couper tout le monde'
+      // Meme piege que les cases par compte: un titre de colonne sans droit
+      // declenche quand meme basculerColonne() pour tout le monde, et la
+      // porte l'avale en silence pour chacun.
+      const bloque = COLONNES[nom].droit && !droitsCourants.includes(COLONNES[nom].droit);
+      b.disabled = bloque;
+      b.title = bloque ? 'pas activé sur ta clé'
+        : e === 'tous' ? 'Actif pour tous — cliquer pour couper tout le monde'
         : e === 'aucun' ? 'Éteint partout — cliquer pour activer tout le monde'
         : 'Actif pour certains — cliquer pour activer tout le monde';
     }
@@ -1126,6 +1155,11 @@
     const bov = document.getElementById('boverlay');
     bov.classList.toggle('ouvert', Boolean(etat.overlayOuvert));
     bov.textContent = etat.overlayOuvert ? 'Masquer l’overlay' : 'Overlay';
+    const droitOverlay = droitsCourants.includes('overlay');
+    bov.disabled = !droitOverlay;
+    // Recalcule a chaque etat, pas seulement au retrait: sans ca, un droit
+    // rendu apres coupure laisserait le titre bloque sur le refus perime.
+    bov.title = droitOverlay ? 'la barre de pictos posée par-dessus le jeu' : 'pas activé sur ta clé';
 
     document.getElementById('erreur').textContent = etat.erreurComptes || '';
     document.getElementById('sansmaitre').textContent = etat.sansMaitre

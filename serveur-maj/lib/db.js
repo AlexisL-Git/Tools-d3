@@ -82,6 +82,15 @@ async function ecrireSchema(sql) {
     au      TIMESTAMPTZ NOT NULL DEFAULT now()
   )`;
   await sql`CREATE INDEX IF NOT EXISTS lancements_cle_au ON lancements (cle, au DESC)`;
+  // Les droits accordes, une ligne par (ami, fonction). Pas de colonne actif:
+  // accorder c est inserer, retirer c est supprimer. Un booleen en plus
+  // offrirait deux facons de dire non, et une ligne actif=false serait un
+  // droit qui n en est pas un.
+  await sql`CREATE TABLE IF NOT EXISTS droits (
+    cle      TEXT NOT NULL,
+    fonction TEXT NOT NULL,
+    PRIMARY KEY (cle, fonction)
+  )`;
   await sql`INSERT INTO config (id) VALUES (1) ON CONFLICT (id) DO NOTHING`;
 }
 
