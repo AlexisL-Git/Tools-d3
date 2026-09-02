@@ -118,19 +118,12 @@
   }
   .version-lien:hover { color: var(--texte); border-bottom-color: var(--arme); }
 
-  /* Le retard sur le depot, en mode dev. Meme piege que `.version-lien`: le
-     `no-drag` n'est pas decoratif, sans lui la barre de titre avale le clic. */
-  .maj-git { -webkit-app-region: no-drag; cursor: pointer; }
-  .maj-git.retard { color: var(--arme); }
-  .maj-git-bouton {
-    -webkit-app-region: no-drag;
-    margin-left: 8px; padding: 1px 7px;
-    background: var(--arme); color: var(--arme-encre);
-    border: 0; border-radius: 3px;
-    font: inherit; font-weight: 700;
-    letter-spacing: inherit; text-transform: inherit; cursor: pointer;
-  }
-  .maj-git-bouton:disabled { background: var(--filet); color: var(--attenue); cursor: default; }
+  /* LE SEUL SIGNAL DANS LA BARRE quand le depot a avance: le numero passe au
+     cyan, comme tout ce qui est arme dans ce panneau. Pas de texte, pas de
+     bouton: la barre porte deja le nom, l'interrupteur, la version et l'etat,
+     et une ligne de plus n'y etait plus lisible. Le detail est dans le panneau
+     que ce meme numero ouvre. */
+  .version-lien.retard { color: var(--arme); border-bottom-color: var(--arme); }
 
   /* Un panneau DANS la fenetre, pas une fenetre modale: le depot s'y refuse
      deja (confirmation en place pour la fermeture d'un client). */
@@ -149,6 +142,30 @@
     font-size: 15px; cursor: pointer;
   }
   .qdn-tete button:hover { color: var(--texte); }
+  /* Le bloc de mise a jour, en tete du panneau et au-dessus des notes: c'est
+     la seule chose du panneau sur laquelle on peut AGIR, elle passe devant ce
+     qui ne fait que se lire. */
+  .qdn-maj {
+    margin: 12px 15px 4px; padding: 11px 13px;
+    border: 1px solid var(--filet); border-radius: 6px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .qdn-maj.retard { border-color: var(--arme); background: rgba(47,212,196,.08); }
+  .qdn-maj .texte { flex: 1; min-width: 0; }
+  .qdn-maj .quoi { display: block; font-weight: 600; }
+  .qdn-maj.retard .quoi { color: var(--arme); }
+  .qdn-maj .refs {
+    display: block; color: var(--attenue); font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .qdn-maj button {
+    flex: none; padding: 5px 12px; border-radius: 999px;
+    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
+    font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  }
+  .qdn-maj.retard button { border-color: var(--arme); background: var(--arme); color: var(--arme-encre); }
+  .qdn-maj button:disabled { opacity: .4; cursor: default; }
   .qdn-corps { overflow-y: auto; padding: 6px 15px 18px; }
   .qdn-version { padding: 12px 0; border-bottom: 1px solid var(--filet); }
   .qdn-version:last-child { border-bottom: 0; }
@@ -466,7 +483,7 @@
 <div class="barre-titre">
   <span class="titre-nom"><span class="o">O</span>MNI</span>
   <button class="maitre-inter" id="interActif"><span class="temoin"></span><span id="libelleActif">au repos</span></button>
-  <span class="titre-etat"><button class="version-lien" id="versionBouton" title="Voir ce qui a changé"></button><span id="titreEtat"></span><span class="maj-git" id="majGit" hidden></span><button class="maj-git-bouton" id="majGitBouton" hidden>Mettre à jour</button></span>
+  <span class="titre-etat"><button class="version-lien" id="versionBouton" title="Voir ce qui a changé"></button><span id="titreEtat"></span></span>
   <span class="fenetre-boutons">
     <button id="reduire" title="Réduire"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
     <button id="fermer" class="fermer" title="Fermer"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
@@ -501,6 +518,10 @@
   <div class="qdn-tete">
     <b>Quoi de neuf</b>
     <button id="qdnFermer" title="Fermer (Échap)">✕</button>
+  </div>
+  <div class="qdn-maj" id="qdnMaj" hidden>
+    <span class="texte"><span class="quoi" id="qdnMajQuoi"></span><span class="refs" id="qdnMajRefs"></span></span>
+    <button id="qdnMajBouton" hidden>Mettre à jour</button>
   </div>
   <div class="qdn-corps" id="qdnCorps"></div>
 </div>
@@ -648,6 +669,7 @@
       }
     }
     rendreDevlog(devlogCharge);
+    verifierMajGit();   // relu a chaque ouverture: le panneau ne montre jamais un etat perime
     document.getElementById('quoiDeNeuf').hidden = false;
   }
 
@@ -656,59 +678,80 @@
 
   // ---------------- le retard sur le depot (mode dev) ----------------
   // Les deux canaux n'ont d'ipcMain que sous OMNI_DEV. Chez un ami l'invoke
-  // REJETTE, et c'est normal: on efface l'indicateur au lieu d'afficher quoi
-  // que ce soit. Surtout pas « a jour » -- ne pas savoir n'est pas une reponse.
-  const elMajGit = document.getElementById('majGit');
-  const boutonMajGit = document.getElementById('majGitBouton');
+  // REJETTE, et c'est normal: le bloc reste cache et le numero de version ne
+  // change pas de couleur. Surtout pas « a jour » -- ne pas savoir n'est pas
+  // une reponse, c'est la regle que canal.js et veille.js tiennent deja.
+  //
+  // Dans la barre, un seul signal: le numero passe au cyan. Tout le reste vit
+  // dans le panneau que ce numero ouvre, parce que la barre de titre etait
+  // devenue illisible avec un texte et un bouton de plus.
+  const elMajBloc = document.getElementById('qdnMaj');
+  const elMajQuoi = document.getElementById('qdnMajQuoi');
+  const elMajRefs = document.getElementById('qdnMajRefs');
+  const boutonMaj = document.getElementById('qdnMajBouton');
+  let dernierMajGit = null;
 
   function rendreMajGit(r) {
-    elMajGit.hidden = false;
-    elMajGit.classList.toggle('retard', r && r.etat === 'en-retard');
+    dernierMajGit = r;
+    const retard = !!r && r.etat === 'en-retard';
+    document.getElementById('versionBouton').classList.toggle('retard', retard);
+    elMajBloc.classList.toggle('retard', retard);
+    elMajBloc.hidden = false;
+    boutonMaj.disabled = false;
+
     if (!r || r.etat === 'inconnu') {
-      elMajGit.textContent = ' · maj non vérifiée';
-      elMajGit.title = (r && r.raison) || '';
-      boutonMajGit.hidden = true;
+      elMajQuoi.textContent = 'Mise à jour non vérifiée';
+      elMajRefs.textContent = (r && r.raison) || '';
+      boutonMaj.textContent = 'Réessayer';
+      boutonMaj.hidden = false;
       return;
     }
     if (r.etat === 'a-jour') {
-      elMajGit.textContent = ' · à jour';
-      elMajGit.title = r.branche + ' · ' + r.locale;
-      boutonMajGit.hidden = true;
+      elMajQuoi.textContent = 'Code à jour';
+      elMajRefs.textContent = r.branche + ' · ' + r.locale + ' · rien de neuf sur ' + r.reference;
+      boutonMaj.textContent = 'Revérifier';
+      boutonMaj.hidden = false;
       return;
     }
-    elMajGit.textContent = ' · ' + r.retard + ' commit' + (r.retard > 1 ? 's' : '') + ' de retard';
-    elMajGit.title = r.branche + ' : ' + r.locale + ' → ' + r.distante;
-    boutonMajGit.textContent = 'Mettre à jour';
-    boutonMajGit.disabled = false;
-    boutonMajGit.hidden = false;
+    elMajQuoi.textContent = r.retard + ' commit' + (r.retard > 1 ? 's' : '') + ' de retard sur ' + r.reference;
+    elMajRefs.textContent = r.branche + ' · ' + r.locale + ' → ' + r.distante;
+    boutonMaj.textContent = 'Mettre à jour';
+    boutonMaj.hidden = false;
   }
 
   async function verifierMajGit() {
-    elMajGit.hidden = false;
-    elMajGit.textContent = ' · vérification…';
-    elMajGit.title = '';
     try {
       rendreMajGit(await window.app.etatMajGit());
     } catch {
-      elMajGit.hidden = true;
-      boutonMajGit.hidden = true;
+      dernierMajGit = null;
+      elMajBloc.hidden = true;     // pas de canal = mode ami: on n'affiche rien
+      document.getElementById('versionBouton').classList.remove('retard');
     }
   }
 
-  elMajGit.onclick = verifierMajGit;
-
-  boutonMajGit.onclick = async () => {
-    boutonMajGit.disabled = true;
-    boutonMajGit.textContent = 'Mise à jour…';
+  boutonMaj.onclick = async () => {
+    // Le meme bouton porte les trois gestes: reessayer, reverifier, mettre a
+    // jour. Une seule voie, comme le bouton HDV qui lance ou arrete la passe.
+    if (!dernierMajGit || dernierMajGit.etat !== 'en-retard') {
+      boutonMaj.disabled = true;
+      boutonMaj.textContent = 'Vérification…';
+      await verifierMajGit();
+      return;
+    }
+    boutonMaj.disabled = true;
+    boutonMaj.textContent = 'Mise à jour…';
     try {
       const r = await window.app.lancerMajGit();
-      if (r.etat === 'ok' && r.relancable) { boutonMajGit.textContent = 'Relance…'; return; }
-      elMajGit.textContent = ' · ' + (r.raison || 'mise à jour refusée');
-      elMajGit.title = r.raison || '';
-      boutonMajGit.hidden = true;
+      if (r.etat === 'ok' && r.relancable) { boutonMaj.textContent = 'Relance…'; return; }
+      // Un refus n'efface pas ce qu'on savait: le retard est toujours la, seule
+      // la tentative a echoue, et c'est ce qu'on ecrit.
+      elMajRefs.textContent = r.raison || 'mise à jour refusée';
+      boutonMaj.textContent = 'Réessayer';
+      boutonMaj.disabled = false;
     } catch {
-      elMajGit.textContent = ' · mise à jour impossible';
-      boutonMajGit.hidden = true;
+      elMajRefs.textContent = 'mise à jour impossible';
+      boutonMaj.textContent = 'Réessayer';
+      boutonMaj.disabled = false;
     }
   };
 

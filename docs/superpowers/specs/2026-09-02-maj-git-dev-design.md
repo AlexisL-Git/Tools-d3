@@ -23,11 +23,18 @@ n'a rien. C'est ce trou qu'on bouche, et lui seul.
 
 ## Ce qu'on ajoute
 
-Un indicateur dans le barre de titre, colle au numero de version, la ou on clique
-deja pour les notes de version. Un bouton apparait quand il y a du retard.
+Un bloc en tete du panneau « Quoi de neuf », celui que le numero de version
+ouvre deja. Il porte l'etat, les deux empreintes et le bouton, et il est relu a
+chaque ouverture du panneau : jamais un etat perime.
+
+Dans la barre de titre, UN SEUL signal : le numero passe au cyan quand le depot
+a avance. Pas de texte, pas de bouton. La premiere version les y avait mis et
+c'etait illisible : la barre porte deja le nom, l'interrupteur, la version et le
+nombre de comptes en jeu. Le detail appartient au panneau, la barre ne garde que
+l'alerte.
 
 Hors mode developpement : RIEN. Les deux canaux IPC ne sont pas enregistres, le
-barre de titre est identique a aujourd'hui. La raison est technique et non une
+bloc reste cache et le numero ne change pas de couleur. La raison est technique et non une
 question de discretion : un ami n'a pas le depot, il n'y a rien a comparer chez
 lui. Chez Draxus, qui developpe avec `OMNI_DEV` comme tout le monde ici, le
 bouton marche a l'identique.
@@ -36,15 +43,15 @@ bouton marche a l'identique.
 
 | Etat | Ce qu'on sait | Ce qu'on affiche |
 |---|---|---|
-| `a-jour` | `HEAD` == `@{upstream}` | `dev · a jour` |
-| `en-retard` | n commits d'ecart | `dev · 3 commits de retard` + bouton |
-| `inconnu` | git absent, pas un depot, reseau coupe | `dev · maj non verifiee` |
+| `a-jour` | `HEAD` == la reference | « Code a jour » dans le panneau |
+| `en-retard` | n commits d'ecart | numero en cyan, et le bloc dans le panneau |
+| `inconnu` | git absent, pas un depot, reseau coupe | « Mise a jour non verifiee » + la raison |
 
 Le troisieme n'est JAMAIS rendu comme le premier. C'est exactement la distinction
 que `amorceur/canal.js` tient entre `injoignable` et `refuse`, et que
 `src/droits/veille.js` tient entre un incident reseau et un 404 : dire « a jour »
 quand on ne sait pas, c'est mentir sur le seul fait que l'indicateur existe pour
-donner. La raison de l'echec voyage dans `raison` et se lit en survol.
+donner. La raison de l'echec voyage dans `raison` et s'ecrit sous l'etat.
 
 ## Le module
 
@@ -53,7 +60,7 @@ injectee, comme `chercher` l'est dans `veille.js`. C'est ce qui le rend testable
 sans depot reel et sans connexion.
 
     etatDepot({ racine, executer })
-      -> { etat, retard, locale, distante, branche, propre, raison }
+      -> { etat, retard, locale, distante, branche, propre, reference, raison }
 
     mettreAJour({ racine, executer })
       -> { etat, relancable, raison }
@@ -63,9 +70,9 @@ un shell :
 
     git rev-parse --git-dir                    est-ce un depot
     git fetch --quiet                          lecture seule, ne touche pas l'arbre
-    git rev-list --count HEAD..@{upstream}     le retard
+    git rev-list --count HEAD..<ref>           le retard
     git rev-parse --short HEAD                 le repere local
-    git rev-parse --short @{upstream}          le repere distant
+    git rev-parse --short <ref>                le repere distant
     git status --porcelain                     l'arbre est-il propre
     git merge --ff-only <ref>                  la mise a jour
 
@@ -83,7 +90,7 @@ Jamais avant : un depot injoignable ne doit pas retarder l'affichage d'une
 seconde. Meme regle que la remontee d'etat de l'amorceur, qui ne bloque pas le
 chargement.
 
-Un clic sur l'indicateur relance la verification.
+Le panneau relit l'etat a chaque ouverture, et son bouton reverifie a la demande.
 
 Pas de sondage periodique. Le besoin est de savoir en s'installant, pas a la
 minute pres : la veille des droits sonde toutes les 60 s parce qu'un droit
@@ -101,7 +108,7 @@ elles se disent toutes :
   Relancer sans `npm install` donnerait un ecran mort sur un module introuvable,
   exactement la panne du 29/08 qui a fait refuser la 0.2.6 (`Cannot find module
   'frida'`). Le message dit quoi taper.
-- **refuse** : le message de git s'affiche dans le barre de titre et l'arbre de
+- **refuse** : le message de git s'affiche dans le bloc du panneau et l'arbre de
   travail n'a pas bouge. `--ff-only` est le garde-fou : devant des commits
   locaux ou une divergence, il refuse au lieu de fusionner.
 
@@ -141,4 +148,4 @@ Cinq fichiers, dont deux neufs :
     test/dev-maj-git.test.js    les dix cas
     desktop/main.js             deux ipcMain.handle sous garde OMNI_DEV
     desktop/preload.js          deux canaux, documentes comme les quinze autres
-    desktop/index.html          l'indicateur et le bouton dans le barre de titre
+    desktop/index.html          le bloc du panneau, et le numero en cyan
