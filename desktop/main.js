@@ -1682,6 +1682,35 @@ ipcMain.handle('devlog', () => {
   return devlogEnMemoire;
 });
 
+// LE RETARD SUR LE DEPOT, EN MODE DEV SEULEMENT.
+//
+// Sous OMNI_DEV le code execute EST celui du depot, et rien ne dit quand
+// origin/master a avance: l'amorceur sort avant son canal reseau, il n'y a ni
+// manifeste ni version_vue. Ces deux canaux comblent ce trou.
+//
+// La garde n'est pas de la discretion, elle est technique: un ami n'a pas de
+// depot, il n'y a rien a comparer chez lui. Hors mode dev les deux canaux
+// N'EXISTENT PAS, et window.app.etatMajGit() rejette -- l'interface le prend
+// pour ce que c'est et n'affiche rien. Meme forme que la garde des droits:
+// une fonction qui n'a rien a faire ici ne doit pas exister ici.
+if (process.env.OMNI_DEV) {
+  const { etatDepot, mettreAJour } = require('../src/dev/maj-git');
+  const racineDepot = process.env.OMNI_DEV;
+
+  ipcMain.handle('etatMajGit', () => etatDepot({ racine: racineDepot }));
+
+  ipcMain.handle('lancerMajGit', async () => {
+    const r = await mettreAJour({ racine: racineDepot });
+    journal(0, `maj git: ${r.etat}${r.raison ? ' — ' + r.raison : ''}`);
+    // Le code versionne n'est lu qu'au demarrage: sans relance, un pull reussi
+    // ne change rien a l'ecran. On laisse la reponse partir avant de couper.
+    if (r.etat === 'ok' && r.relancable) {
+      setTimeout(() => { app.relaunch(); app.exit(0); }, 400);
+    }
+    return r;
+  });
+}
+
 app.on('window-all-closed', async () => {
   // Un raccourci global survit au process s'il n'est pas rendu: Windows le
   // garderait confisque pour Dofus jusqu'a la deconnexion de la session.

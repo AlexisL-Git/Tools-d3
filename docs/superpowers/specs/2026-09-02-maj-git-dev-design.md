@@ -23,11 +23,11 @@ n'a rien. C'est ce trou qu'on bouche, et lui seul.
 
 ## Ce qu'on ajoute
 
-Un indicateur dans le pied de page, colle au numero de version, la ou on clique
+Un indicateur dans le barre de titre, colle au numero de version, la ou on clique
 deja pour les notes de version. Un bouton apparait quand il y a du retard.
 
 Hors mode developpement : RIEN. Les deux canaux IPC ne sont pas enregistres, le
-pied de page est identique a aujourd'hui. La raison est technique et non une
+barre de titre est identique a aujourd'hui. La raison est technique et non une
 question de discretion : un ami n'a pas le depot, il n'y a rien a comparer chez
 lui. Chez Draxus, qui developpe avec `OMNI_DEV` comme tout le monde ici, le
 bouton marche a l'identique.
@@ -67,11 +67,14 @@ un shell :
     git rev-parse --short HEAD                 le repere local
     git rev-parse --short @{upstream}          le repere distant
     git status --porcelain                     l'arbre est-il propre
-    git pull --ff-only                         la mise a jour
+    git merge --ff-only <ref>                  la mise a jour
 
 `@{upstream}` plutot que `origin/master` en dur : la branche de travail change
 (`feat/overlay`, `feat/maj-git-dev`), et l'indicateur doit suivre celle sur
-laquelle on est, pas une branche supposee.
+laquelle on est, pas une branche supposee. Repli sur `origin/HEAD` quand la
+branche n'a pas d'amont : `git checkout -b` n'en pose pas, et sans ce repli
+l'indicateur se tairait sur toute branche de travail, c'est-a-dire precisement
+quand on developpe.
 
 ## Quand ca verifie
 
@@ -88,7 +91,8 @@ retire doit s'appliquer tout de suite, un commit de retard non.
 
 ## Ce que fait le bouton
 
-`git pull --ff-only`, jamais de merge. Trois issues, et elles se disent toutes :
+`git fetch` puis `git merge --ff-only <ref>`, jamais de fusion. Trois issues, et
+elles se disent toutes :
 
 - **reussi, `package.json` inchange** : `app.relaunch()` puis `app.exit()`. OMNI
   repart sur le nouveau code, ce qui est le seul moyen de le charger : le code
@@ -97,7 +101,7 @@ retire doit s'appliquer tout de suite, un commit de retard non.
   Relancer sans `npm install` donnerait un ecran mort sur un module introuvable,
   exactement la panne du 29/08 qui a fait refuser la 0.2.6 (`Cannot find module
   'frida'`). Le message dit quoi taper.
-- **refuse** : le message de git s'affiche dans le pied de page et l'arbre de
+- **refuse** : le message de git s'affiche dans le barre de titre et l'arbre de
   travail n'a pas bouge. `--ff-only` est le garde-fou : devant des commits
   locaux ou une divergence, il refuse au lieu de fusionner.
 
@@ -111,16 +115,19 @@ retire doit s'appliquer tout de suite, un commit de retard non.
 
 ## Tests
 
-`src/dev/maj-git.js` se teste sans reseau et sans depot : `executer` rend ce
-qu'on veut, comme `chercher` dans `test/droits-veille.test.js`.
+Dix cas. `src/dev/maj-git.js` se teste sans reseau et sans depot : `executer`
+rend ce qu'on veut, comme `chercher` dans `test/droits-veille.test.js`.
 
 1. a jour
 2. en retard de n commits
 3. le dossier n'est pas un depot
 4. git absent de la machine (`ENOENT`)
 5. `fetch` en echec reseau : etat `inconnu`, JAMAIS `a-jour`
-6. `pull --ff-only` refuse : le message de git remonte tel quel
+6. `merge --ff-only` refuse : le message de git remonte tel quel
 7. `package.json` touche par le pull : `relancable` vaut `false`
+8. le pull ne touche pas les dependances : la relance est autorisee
+9. branche locale sans amont : on se compare a la branche par defaut
+10. ni amont ni branche par defaut : `inconnu`, jamais `a-jour`
 
 Et une garde cote `desktop/main.js` : sans `OMNI_DEV`, les deux canaux ne sont
 pas enregistres. Meme forme que la garde des droits, et pour la meme raison :
@@ -131,7 +138,7 @@ une fonction qui n'a rien a faire ici ne doit pas exister ici.
 Cinq fichiers, dont deux neufs :
 
     src/dev/maj-git.js          le module
-    test/dev-maj-git.test.js    les sept cas
+    test/dev-maj-git.test.js    les dix cas
     desktop/main.js             deux ipcMain.handle sous garde OMNI_DEV
     desktop/preload.js          deux canaux, documentes comme les quinze autres
-    desktop/index.html          l'indicateur et le bouton dans le pied de page
+    desktop/index.html          l'indicateur et le bouton dans le barre de titre

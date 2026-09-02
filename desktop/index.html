@@ -118,6 +118,20 @@
   }
   .version-lien:hover { color: var(--texte); border-bottom-color: var(--arme); }
 
+  /* Le retard sur le depot, en mode dev. Meme piege que `.version-lien`: le
+     `no-drag` n'est pas decoratif, sans lui la barre de titre avale le clic. */
+  .maj-git { -webkit-app-region: no-drag; cursor: pointer; }
+  .maj-git.retard { color: var(--arme); }
+  .maj-git-bouton {
+    -webkit-app-region: no-drag;
+    margin-left: 8px; padding: 1px 7px;
+    background: var(--arme); color: var(--arme-encre);
+    border: 0; border-radius: 3px;
+    font: inherit; font-weight: 700;
+    letter-spacing: inherit; text-transform: inherit; cursor: pointer;
+  }
+  .maj-git-bouton:disabled { background: var(--filet); color: var(--attenue); cursor: default; }
+
   /* Un panneau DANS la fenetre, pas une fenetre modale: le depot s'y refuse
      deja (confirmation en place pour la fermeture d'un client). */
   .quoi-de-neuf {
@@ -452,7 +466,7 @@
 <div class="barre-titre">
   <span class="titre-nom"><span class="o">O</span>MNI</span>
   <button class="maitre-inter" id="interActif"><span class="temoin"></span><span id="libelleActif">au repos</span></button>
-  <span class="titre-etat"><button class="version-lien" id="versionBouton" title="Voir ce qui a changé"></button><span id="titreEtat"></span></span>
+  <span class="titre-etat"><button class="version-lien" id="versionBouton" title="Voir ce qui a changé"></button><span id="titreEtat"></span><span class="maj-git" id="majGit" hidden></span><button class="maj-git-bouton" id="majGitBouton" hidden>Mettre à jour</button></span>
   <span class="fenetre-boutons">
     <button id="reduire" title="Réduire"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
     <button id="fermer" class="fermer" title="Fermer"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
@@ -639,6 +653,68 @@
 
   document.getElementById('versionBouton').onclick = ouvrirQuoiDeNeuf;
   document.getElementById('qdnFermer').onclick = fermerQuoiDeNeuf;
+
+  // ---------------- le retard sur le depot (mode dev) ----------------
+  // Les deux canaux n'ont d'ipcMain que sous OMNI_DEV. Chez un ami l'invoke
+  // REJETTE, et c'est normal: on efface l'indicateur au lieu d'afficher quoi
+  // que ce soit. Surtout pas « a jour » -- ne pas savoir n'est pas une reponse.
+  const elMajGit = document.getElementById('majGit');
+  const boutonMajGit = document.getElementById('majGitBouton');
+
+  function rendreMajGit(r) {
+    elMajGit.hidden = false;
+    elMajGit.classList.toggle('retard', r && r.etat === 'en-retard');
+    if (!r || r.etat === 'inconnu') {
+      elMajGit.textContent = ' · maj non vérifiée';
+      elMajGit.title = (r && r.raison) || '';
+      boutonMajGit.hidden = true;
+      return;
+    }
+    if (r.etat === 'a-jour') {
+      elMajGit.textContent = ' · à jour';
+      elMajGit.title = r.branche + ' · ' + r.locale;
+      boutonMajGit.hidden = true;
+      return;
+    }
+    elMajGit.textContent = ' · ' + r.retard + ' commit' + (r.retard > 1 ? 's' : '') + ' de retard';
+    elMajGit.title = r.branche + ' : ' + r.locale + ' → ' + r.distante;
+    boutonMajGit.textContent = 'Mettre à jour';
+    boutonMajGit.disabled = false;
+    boutonMajGit.hidden = false;
+  }
+
+  async function verifierMajGit() {
+    elMajGit.hidden = false;
+    elMajGit.textContent = ' · vérification…';
+    elMajGit.title = '';
+    try {
+      rendreMajGit(await window.app.etatMajGit());
+    } catch {
+      elMajGit.hidden = true;
+      boutonMajGit.hidden = true;
+    }
+  }
+
+  elMajGit.onclick = verifierMajGit;
+
+  boutonMajGit.onclick = async () => {
+    boutonMajGit.disabled = true;
+    boutonMajGit.textContent = 'Mise à jour…';
+    try {
+      const r = await window.app.lancerMajGit();
+      if (r.etat === 'ok' && r.relancable) { boutonMajGit.textContent = 'Relance…'; return; }
+      elMajGit.textContent = ' · ' + (r.raison || 'mise à jour refusée');
+      elMajGit.title = r.raison || '';
+      boutonMajGit.hidden = true;
+    } catch {
+      elMajGit.textContent = ' · mise à jour impossible';
+      boutonMajGit.hidden = true;
+    }
+  };
+
+  // APRES l'ouverture de la fenetre, jamais avant: un depot distant
+  // injoignable ne doit pas retarder l'affichage d'une seule seconde.
+  setTimeout(verifierMajGit, 600);
 
   // Une touche NUE est CONFISQUEE a Dofus. Un bouton de souris, non: on lit
   // son etat, le jeu le recoit aussi. Deux situations opposees, deux textes.
