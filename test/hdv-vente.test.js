@@ -281,6 +281,41 @@ test('le premier lot d un paquet ne paie pas le delai de rafale', async () => {
   assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 2);
 });
 
+// LA PREMIERE VISITE D'UNE PASSE NE PAIE PAS LE DELAI D'OBJET, pour la meme
+// raison que le premier lot ne paie pas la rafale: le delai espace DEUX
+// objets, et au depart il n'y a pas d'objet precedent. Le geste qui vient
+// d'avoir lieu, c'est le clic. Mesure avant correction: 1,4 a 2,6 s de silence
+// entre le clic et le premier keh, signale en jeu comme « une grande attente
+// au tout debut ». Il faut un delaiObjetMs non nul pour que le test distingue
+// les deux chemins — a zero ils se ressemblent.
+test('la premiere visite d une passe ne paie pas le delai d objet', async () => {
+  const superviseur = doubleSuperviseur();
+  const vente = creerVente({
+    superviseur,
+    reglages: { delaiObjetMs: 50, delaiRafaleMs: 0, delaiReponseMs: 0 },
+  });
+  const pile = (gid, qte, uid) => ({
+    no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      vint(1, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, gid), vint(3, qte), vint(4, uid)] },
+    ] });
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32], [8437, 39]]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [pile(13731, 100, 1), pile(8437, 100, 2)]) });
+
+  vente.lancer(42);
+  // Le premier objet s'ouvre TOUT DE SUITE: rien ne le precede.
+  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz']);
+
+  // Le second, lui, paie: le desabonnement du premier part sans attendre, mais
+  // l'abonnement du suivant est differe.
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(8437, [19, 190, 5000, 0]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(2, 0) });
+  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz', 'kge', 'keh']);
+  await new Promise((r) => setTimeout(r, 80));
+  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz', 'kge', 'keh', 'keh', 'kbz']);
+  vente.arreter(42);
+});
+
 // L'ARRET SUR REFUS. On ne sait distinguer ni le plafond de lots, ni le manque
 // de kamas, ni un hoquet — et on n'a pas a le faire: les trois demandent la
 // meme chose. On s'arrete au PREMIER kge non confirme.

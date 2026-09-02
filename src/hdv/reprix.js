@@ -194,6 +194,14 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
     // vaut null: les kbt et kgp qui trainent encore sont donc ignores, ce qui
     // est exactement ce qu'on veut — ils portent sur l'objet qu'on vient de
     // quitter.
+    //
+    // LE PREMIER OBJET, LUI, NE PAIE PAS CE DELAI: il espace DEUX objets, et
+    // au depart il n'y a pas d'objet precedent — le geste qui vient d'avoir
+    // lieu, c'est le clic. Meme regle que dans vente.js, ou la servir laissait
+    // plusieurs secondes de silence apres le clic.
+    const attente = passe.premiereVisite ? 0 : delaiObjet();
+    passe.premiereVisite = false;
+
     plusTard(passe, () => {
       if (!passes.has(pid)) return;
       if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
@@ -210,7 +218,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         passe.file = [];
         gidSuivant(pid, passe);
       }, delaiReponse());
-    }, delaiObjet());
+    }, attente);
   }
 
   // Les lots du gid courant, tels qu'ils sont MAINTENANT: c'est ce que decider()
@@ -244,6 +252,14 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       passe.fraiche = false;
       passe.attenteUid = lot.uid;
       const envoi = trameMajPrix({ uid: lot.uid, prix, taille: lot.taille });
+      // LE PREMIER LOT DE LA PASSE NE PAIE PAS LE DELAI D'ENVOI, meme
+      // raisonnement qu'au-dessus: il espace deux kch, et celui-la n'a pas de
+      // predecesseur. Sans lui, ouvrir l'objet tout de suite ne servait a
+      // rien: l'ecran restait immobile jusqu'au premier prix repris. Le
+      // compteur de pause n'est pas decompte non plus — il n'y a pas
+      // d'intervalle a compter.
+      const attente = passe.premierLot ? 0 : delaiEnvoi(passe);
+      passe.premierLot = false;
       plusTard(passe, () => {
         if (!passes.has(pid)) return;
         if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
@@ -258,7 +274,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
           passe.fraiche = true;
           traiter(pid, passe);
         }, delaiReponse());
-      }, delaiEnvoi(passe));
+      }, attente);
       return;
     }
 
@@ -368,6 +384,8 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       file: [],
       marche: null,
       fraiche: false,
+      premiereVisite: true,
+      premierLot: true,
       attenteUid: null,
       minuteurs: new Set(),
       // Lots restants avant la prochaine pause. Tire au depart pour que deux

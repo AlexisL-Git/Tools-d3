@@ -193,6 +193,18 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
     // L'ouverture de l'objet suivant EST DIFFEREE. Entre les deux, passe.gid
     // vaut null: les kbt et kgp qui trainent encore sont donc ignores, ce qui
     // est exactement ce qu'on veut — ils portent sur l'objet qu'on quitte.
+    //
+    // LA PREMIERE VISITE, ELLE, NE PAIE PAS CE DELAI — meme raison que le
+    // premier lot d'un paquet ne paie pas la rafale, un cran plus haut: ce
+    // delai espace DEUX objets, et au depart il n'y a pas d'objet precedent.
+    // Le geste qui vient d'avoir lieu, c'est le clic. Le servir quand meme
+    // laissait 1,4 a 2,6 s de silence entre le clic et le premier keh —
+    // signale en jeu comme « une grande attente au tout debut ». Il n'est pas
+    // consomme non plus: sans visite precedente, il n'y a pas d'intervalle a
+    // decompter du compteur de pause.
+    const attente = passe.premiereVisite ? 0 : delaiObjetMs(passe);
+    passe.premiereVisite = false;
+
     plusTard(passe, () => {
       if (!passes.has(pid)) return;
       if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
@@ -217,7 +229,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         passe.file = [];
         paquetSuivant(pid, passe);
       }, delaiReponseMs());
-    }, delaiObjetMs(passe));
+    }, attente);
   }
 
   // Les lots DEJA POSES pendant cette passe pour ce gid et cette taille. C'est
@@ -338,6 +350,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       gid: null,
       prix: null,
       premier: true,
+      premiereVisite: true,
       attentePile: null,
       enVol: null,
       quantites,

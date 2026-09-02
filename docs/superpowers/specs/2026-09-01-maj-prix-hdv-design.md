@@ -208,6 +208,25 @@ Pendant l'attente, `passe.gid` vaut `null` : les `kbt` et `kgp` qui traînent
 encore sont ignorés, ce qui est exactement voulu puisqu'ils portent sur l'objet
 qu'on vient de quitter.
 
+### Le début de la passe ne paie ni l'un ni l'autre
+
+Troisième correction, venue de `vente.js` où le même défaut a été signalé en
+jeu : **les deux délais espacent deux gestes, et au départ il n'y a pas de
+geste précédent** — celui qui vient d'avoir lieu, c'est le clic. Les servir
+quand même enchaînait les deux attentes bout à bout, mesuré sur cinq lancements
+au rythme réel :
+
+| entre | avant | après |
+|---|---|---|
+| le clic et le premier `keh` | 890–1370 ms | **0–1 ms** |
+| le `kbt` et le premier `kch` | 960–2420 ms | **2–13 ms** |
+
+Soit 2 à 3,8 s pendant lesquelles l'écran ne bougeait pas. Le premier objet ne
+paie donc pas le délai d'objet, et le premier `kch` ne paie pas le délai
+d'envoi ; ni l'un ni l'autre ne décompte le compteur de pause, puisqu'aucun
+intervalle ne s'est écoulé. La cadence moyenne ne bouge pas : c'est un délai
+par passe, pas par lot.
+
 ### Ce que ça coûte
 
 Sur le compte de mesure, 376 lots répartis en 108 objets :
