@@ -16,6 +16,11 @@ const { encodeRaw, WIRE } = require('../codec/rawProto');
 
 const TAILLES = [1, 10, 100, 1000];
 
+// La position d'une pile. 63 est l'inventaire, c'est-a-dire « pas equipe ».
+// LE ZERO PROTOBUF NE S'ECRIT PAS: un champ 1 absent vaut 0, l'amulette, et
+// surtout PAS 63. Mesure du 03/09: sur 471 piles, une seule est dans ce cas.
+const POSITION_INVENTAIRE = 63;
+
 // --- Ce qu'on emet -------------------------------------------------------
 
 // L'enveloppe commune a toutes les requetes observees: request { content:
@@ -223,7 +228,8 @@ function lirePile(el) {
   const uid = entier(detail.value, 4);
   if (gid === null || qte === null || uid === null) return null;
   const avecEffets = (detail.value || []).some((f) => f.no === 2);
-  return { uid, gid, qte, avecEffets };
+  const p = entier(el.value, 1);
+  return { uid, gid, qte, avecEffets, pos: p === null ? 0 : p };
 }
 
 // ivx { 3: [ pile ] } — l'inventaire, et l'inventaire + la banque quand le
@@ -312,7 +318,7 @@ function lirePrixMoyens(frame) {
 }
 
 module.exports = {
-  TAILLES,
+  TAILLES, POSITION_INVENTAIRE,
   trameMajPrix, trameAbonner, trameDesabonner, trameStats, trameMettreEnVente,
   lirePrixMarche, lireStatsPrix, lireNosLots, lireLotPose, lireLotRetire, lirePrixMoyens,
   lireStock, lirePileMaj, lirePileDisparue,

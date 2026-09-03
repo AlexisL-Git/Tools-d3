@@ -232,7 +232,11 @@ test('lireStock rend les 219 piles de l inventaire mesure', () => {
 test('lireStock : la pile posee au sol figure dans l inventaire mesure', () => {
   const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
   const pile = lireStock(frame(hex)).find((p) => p.uid === 84495873);
-  assert.deepStrictEqual(pile, { uid: 84495873, gid: 13731, qte: 286, avecEffets: false });
+  // `pos` s'est ajoute le 03/09 pour la chasse a l'archimonstre: c'est la
+  // position d'equipement, 63 valant « range », donc pas equipe.
+  assert.deepStrictEqual(pile, {
+    uid: 84495873, gid: 13731, qte: 286, avecEffets: false, pos: 63,
+  });
 });
 
 test('lireStock rend les 814 piles de la banque mesuree', () => {
