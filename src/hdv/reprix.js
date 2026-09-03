@@ -149,6 +149,24 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
     return plusTard(passe, fn, ms);
   }
 
+  // L'AVANCEMENT SE COMPTE LA OU LES LOTS QUITTENT LA FILE, et nulle part
+  // ailleurs.
+  //
+  // L'ancien compteur rendait `total - file.length`, et il melangeait deux
+  // echelles: `file` ne porte que les lots de l'OBJET COURANT. Sur les 376
+  // lots mesures, repartis en 108 objets, le premier lot traite affichait deja
+  // « 374 / 376 », puis le chiffre sautait en arriere a chaque objet.
+  //
+  // LE DEDUIRE DES BILANS SERAIT UN AUTRE PIEGE. Ici `maj + laisses + echecs`
+  // couvrirait tout par chance; chez vente.js non — les lots d'un paquet
+  // abandonne n'y sont comptes nulle part. Une seule regle pour les deux
+  // modules freres vaut mieux qu'une par module.
+  function avancer(pid, passe, n) {
+    if (n <= 0) return;
+    passe.restant -= n;
+    onCompteRendu({ pid, restant: passe.restant, total: passe.bilan.total });
+  }
+
   function annulerMinuteurs(passe) {
     for (const t of passe.minuteurs) clearTimeout(t);
     passe.minuteurs.clear();
@@ -219,6 +237,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       expirer(passe, () => {
         if (!passes.has(pid)) return;
         passe.bilan.echecs += passe.file.length;
+        avancer(pid, passe, passe.file.length);
         passe.file = [];
         gidSuivant(pid, passe);
       }, delaiReponse());
@@ -239,6 +258,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
 
     while (passe.file.length > 0) {
       const lot = passe.file.shift();
+      avancer(pid, passe, 1);
       const moyens = prixMoyens.get(pid);
       const prix = decider({
         marche: passe.marche,
@@ -250,8 +270,6 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         prixActuel: lot.prix,
         moyenUnitaire: (moyens && moyens.get(passe.gid)) || 0,
       });
-
-      onCompteRendu({ pid, avance: passe.bilan.total - passe.file.length, total: passe.bilan.total });
 
       // Rien a faire sur ce lot: le marche n'a pas bouge, donc la lecture reste
       // valable et on enchaine sans attendre de kgp.
@@ -399,9 +417,15 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       // Lots restants avant la prochaine pause. Tire au depart pour que deux
       // passes ne pausent pas au meme rang.
       avantPause: auHasard(AVANT_PAUSE_MIN, AVANT_PAUSE_MAX),
+      restant: mes.length,
       bilan: { total: mes.length, maj: 0, laisses: 0, echecs: 0 },
     };
     passes.set(pid, passe);
+    // LE SEUL COMPTE RENDU MARQUE `debut`, et il est emis AVANT la premiere
+    // trame: c'est ce qui permet a l'IHM de rafraichir des le clic, une fois
+    // par passe. Les suivants se contentent du tick d'affichage — envoyer
+    // l'etat a chaque lot lancerait un powershell.exe par lot.
+    onCompteRendu({ pid, debut: true, restant: passe.restant, total: passe.bilan.total });
     gidSuivant(pid, passe);
   }
 

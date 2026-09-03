@@ -334,6 +334,96 @@ test('arreter coupe la passe et se desabonne', () => {
   assert.deepStrictEqual(types(), ['keh', 'kbz', 'keh']);
 });
 
+// --- L'avancement --------------------------------------------------------
+
+// LE COMPTEUR MELANGEAIT DEUX ECHELLES. Il rendait `total - file.length`, or
+// `file` ne porte que les lots de l'OBJET COURANT: sur 376 lots repartis en
+// 108 objets, le premier lot traite affichait deja « 374 / 376 », puis le
+// chiffre sautait en arriere a chaque changement d'objet.
+//
+// Le restant se compte donc pour lui-meme, lot par lot, et il tombe a zero.
+test('le restant decroit lot par lot, tous objets confondus', () => {
+  const { r, dire, rendu } = monter();
+  dire(kby([
+    { uid: 10, gid: 13731, taille: 100, prix: 5000 },
+    { uid: 20, gid: 15169, taille: 100, prix: 5000 },
+    { uid: 21, gid: 15169, taille: 10, prix: 500 },
+  ]));
+  dire(ivi([[13731, 32], [15169, 34]]));
+  r.lancer(1);
+
+  const restants = () => rendu.filter((x) => x.restant !== undefined).map((x) => x.restant);
+
+  // Des le clic, avant toute trame: le nombre de lots a traiter est connu.
+  assert.deepStrictEqual(restants(), [3]);
+
+  dire(kbt(13731, [19, 190, 2700, 18000]));
+  assert.deepStrictEqual(restants(), [3, 2]);
+
+  // kes fait passer a l'objet suivant: le kgp du 13731 arrive trop tard et est
+  // ignore, donc le compteur ne bouge pas tant que le 15169 n'a pas repondu.
+  dire(kes(90, 13731, 100, 2699));
+  dire(kgp(13731, [19, 190, 2699, 18000]));
+  assert.deepStrictEqual(restants(), [3, 2]);
+
+  // Le second objet: son premier lot, puis son second sur le kgp suivant.
+  dire(kbt(15169, [19, 190, 2700, 18000]));
+  assert.deepStrictEqual(restants(), [3, 2, 1]);
+
+  dire(kes(91, 15169, 100, 2699));
+  dire(kgp(15169, [19, 190, 2699, 18000]));
+  assert.deepStrictEqual(restants(), [3, 2, 1, 0]);
+
+  // Le dernier lot attend son kgp comme les autres: kes seule remet l'uid, pas
+  // la fraicheur du marche.
+  dire(kes(92, 15169, 10, 189));
+  dire(kgp(15169, [19, 189, 2699, 18000]));
+  const fin = rendu.find((x) => x.fini);
+  assert.ok(fin, 'la passe se termine');
+});
+
+// Le premier compte rendu est emis AU LANCEMENT et se distingue des suivants:
+// c'est lui qui autorise l'IHM a rafraichir tout de suite, une fois par passe,
+// sans payer un powershell.exe par lot.
+test('le lancement annonce le nombre de lots a mettre a jour', () => {
+  const { r, dire, rendu } = monter();
+  dire(kby([
+    { uid: 10, gid: 13731, taille: 100, prix: 5000 },
+    { uid: 11, gid: 13731, taille: 10, prix: 500 },
+  ]));
+  dire(ivi([[13731, 32]]));
+  r.lancer(1);
+  assert.deepStrictEqual(rendu[0], { pid: 1, debut: true, restant: 2, total: 2 });
+});
+
+// LE CAS QUE LES BILANS RATENT. A l'expiration d'un kbt on vide la file du gid
+// d'un coup: deduire le restant de `maj + laisses + echecs` marcherait ici par
+// chance, mais pas chez vente.js, ou les lots d'un paquet abandonne ne sont
+// comptes nulle part. Le restant se decremente donc la ou les lots QUITTENT la
+// file, et nulle part ailleurs — sur les deux modules, la meme regle.
+test('un objet abandonne ne laisse pas ses lots dans le decompte', async () => {
+  const sup = fauxSuperviseur(1);
+  const rendu = [];
+  const r = creerReprix({
+    superviseur: sup,
+    reglages: { delaiMs: 0, delaiObjetMs: 0, delaiReponseMs: 15 },
+    onCompteRendu: (x) => rendu.push(x),
+  });
+  const dire = (f) => r.onTrame({ pid: 1, dir: 'in', frame: f, brute: Buffer.alloc(0) });
+  dire(kby([
+    { uid: 10, gid: 13731, taille: 100, prix: 5000 },
+    { uid: 11, gid: 13731, taille: 10, prix: 500 },
+    { uid: 20, gid: 15169, taille: 100, prix: 2991 },
+  ]));
+  dire(ivi([[13731, 32], [15169, 34]]));
+  r.lancer(1);
+  await new Promise((res) => setTimeout(res, 60));
+
+  const derniers = rendu.filter((x) => x.restant !== undefined);
+  assert.strictEqual(derniers[derniers.length - 1].restant, 0,
+    'les trois lots des deux objets abandonnes sont sortis du decompte');
+});
+
 // --- Le minuteur ---------------------------------------------------------
 
 // Si kbt n'arrive jamais, on abandonne CE gid et on passe au suivant. Une passe
