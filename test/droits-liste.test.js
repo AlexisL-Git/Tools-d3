@@ -4,10 +4,10 @@ const assert = require('node:assert');
 const { FONCTIONS, NOMS, estConnue } = require('../src/droits/liste');
 const copieServeur = require('../serveur-maj/lib/fonctions');
 
-test('les neuf fonctions verrouillables, et elles seules', () => {
+test('les dix fonctions verrouillables, et elles seules', () => {
   assert.deepStrictEqual(NOMS, [
     'abandon', 'passe-tour', 'invitation', 'echange', 'songe', 'overlay', 'hdv', 'vente',
-    'no-anim',
+    'chasse', 'no-anim',
   ]);
 });
 

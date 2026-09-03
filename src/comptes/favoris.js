@@ -77,6 +77,10 @@ class Favoris {
     // un couple 0,0 par defaut la collerait dans un coin sur une machine dont
     // on ne connait pas la definition.
     this._overlay = { ouvert: false, sens: 'horizontal', x: null, y: null };
+    // La chasse a l'archimonstre part ETEINTE chez qui n'a jamais ouvert le
+    // fichier, et c'est voulu: une pierre d'ame capture aussi les monstres
+    // ordinaires, donc allumee en permanence elle gacherait les grosses pierres.
+    this._chasse = false;
   }
 
   // Le seul sens autre qu'horizontal. Ecrit une fois ici plutot que teste a
@@ -150,6 +154,7 @@ class Favoris {
         if (Number.isInteger(o.x)) this._overlay.x = o.x;
         if (Number.isInteger(o.y)) this._overlay.y = o.y;
       }
+      if (typeof json.chasse === 'boolean') this._chasse = json.chasse;
     } catch (e) {
       // Fichier absent ou corrompu: on repart d'une liste vide plutot que de
       // faire echouer le demarrage de l'application.
@@ -165,6 +170,7 @@ class Favoris {
       this._ordre = [];
       this._combats = new Map();
       this._overlay = { ouvert: false, sens: 'horizontal', x: null, y: null };
+      this._chasse = false;
     }
     if (reecrire) this._ecrire();
     return this;
@@ -352,6 +358,16 @@ class Favoris {
     this._ecrire();
   }
 
+  // L'interrupteur de la chasse a l'archimonstre.
+  chasse() {
+    return this._chasse;
+  }
+
+  marquerChasse(actif) {
+    this._chasse = actif === true;
+    this._ecrire();
+  }
+
   _ecrire() {
     try {
       fs.mkdirSync(path.dirname(this.chemin), { recursive: true });
@@ -368,6 +384,7 @@ class Favoris {
         ordre: this._ordre,
         combats: [...this._combats].map(([cle, le]) => ({ cle, le })),
         overlay: this.overlay(),
+        chasse: this._chasse,
       };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
     } catch (e) {

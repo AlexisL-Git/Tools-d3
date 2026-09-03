@@ -14,6 +14,7 @@ const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/son
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { creerReprix } = require('../src/hdv/reprix');
 const { creerVente } = require('../src/hdv/vente');
+const { creerChasse } = require('../src/chasse/chasse');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients, fermerClients } = require('../src/comptes/clients');
@@ -62,6 +63,9 @@ let superviseur = null;
 // module d'OMNI qui repond a autre chose qu'a une trame.
 let reprix = null;
 let vente = null;
+// La chasse a l'archimonstre. Declaree ici comme la vente: le panneau lit son
+// etat, l'interrupteur l'arme, et la perte du droit doit pouvoir la desarmer.
+let chasse = null;
 // LES DROITS ACCORDES A CETTE CLE. Relus par la veille toutes les 60 s: voir
 // sa creation dans app.whenReady(). null tant qu'elle n'existe pas encore --
 // jamais interroge avant, la fenetre n'est pas encore ouverte.
@@ -669,6 +673,7 @@ async function envoyerEtat() {
     // « ca marche pas », le depannage ne commence pas par une devinette.
     version: process.env.OMNI_VERSION || 'dev',
     actif: favoris.actif(),
+    chasse: chasse !== null && chasse.estAllume(),
     // Sans maitre, rien ne se replique. L absence de duplication et une panne
     // produisent le meme silence: l en-tete doit dire lequel des deux.
     sansMaitre: superviseur.maitre === null,
@@ -1041,6 +1046,47 @@ app.whenReady().then(async () => {
       }
     },
   });
+  // LA CHASSE A L'ARCHIMONSTRE.
+  //
+  // Elle ecoute EN PERMANENCE elle aussi, et meme eteinte: sans cela, allumer
+  // l'interrupteur devant un combat n'aurait aucun effet avant le prochain
+  // changement de carte, l'inventaire et la carte n'arrivant qu'a ce
+  // moment-la.
+  chasse = creerChasse({
+    superviseur,
+    actif: favoris.chasse(),
+    onCompteRendu: (r) => {
+      if (r.quoi === 'equipe') {
+        journal(r.pid, `chasse : pierre ${r.gid} equipee`);
+        messages.delete(r.pid);
+        return;
+      }
+      if (r.quoi === 'deja' || r.quoi === 'envoye') {
+        journal(r.pid, `chasse : ${r.quoi} ${r.gid}`);
+        return;
+      }
+      // LES CAS OU LA CAPTURE EST IMPOSSIBLE, ET EUX SEULS, remontent au
+      // panneau et font biper: c'est pendant la phase de preparation qu'on les
+      // regarde, et a ce moment-la on regarde le jeu, pas OMNI.
+      //
+      // `r.nom` est le nom de la PIERRE qui manque, `r.compte` celui du
+      // personnage: src/chasse/chasse.js les separe expres.
+      const textes = {
+        manque: `chasse : pas de ${r.nom} pour du niveau ${r.niveauMax}`,
+        'hors-portee': `chasse : niveau ${r.niveauMax}, aucune pierre ne couvre`,
+        'groupe-inconnu': 'chasse : groupe inconnu, rien equipe',
+        echec: 'chasse : ordre refuse',
+      };
+      const texte = textes[r.quoi];
+      if (texte === undefined) return;
+      journal(r.pid, texte);
+      messages.set(r.pid, texte);
+      if (fenetre !== null && !fenetre.isDestroyed()) {
+        fenetre.webContents.send('chasseAlerte', { pid: r.pid, texte });
+      }
+    },
+  });
+
   // LES DROITS ACCORDES A CETTE CLE. Relus toutes les 60 s: Draxus coupe une
   // case au panneau, la fonction s arrete ici dans la minute.
   //
@@ -1096,6 +1142,9 @@ app.whenReady().then(async () => {
       if (perdus.includes('vente')) {
         for (const etat of superviseur.comptes.tous) vente.arreter(etat.pid);
       }
+      // La chasse se desarme, mais son reglage enregistre ne bouge pas: le
+      // droit rendu, elle repart comme l utilisateur l avait laissee.
+      if (perdus.includes('chasse') && chasse !== null) chasse.armer(false);
       // Sans ca la barre flottante deja ouverte restait a l ecran apres un
       // retrait de droit: la garde IPC de basculerOverlay ne couvre que la
       // bascule, pas une fenetre deja la. PAS de reglerOverlay(false) ici:
@@ -1219,6 +1268,7 @@ app.whenReady().then(async () => {
     })),
     protege('hdv', reprix.onTrame),
     protege('vente', vente.onTrame),
+    protege('chasse', chasse.onTrame),
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -1464,6 +1514,25 @@ ipcMain.handle('majPrixHdv', async (_e, pid) => {
   if (reprix.enCours(pid)) reprix.arreter(pid);
   else reprix.lancer(pid);
   await envoyerEtat();
+});
+
+// LA CHASSE A L'ARCHIMONSTRE. Un interrupteur, rien de plus: il n'y a pas de
+// passe a lancer ni a arreter, la chasse reagit a l'entree en combat.
+//
+// Le refus quand le droit manque est EXPLICITE, meme raison que pour le HDV
+// juste au-dessus: une case qui se decoche toute seule sans un mot est un
+// bouton qui « ne fait rien ».
+ipcMain.handle('chasseArmer', async (_e, actif) => {
+  if (chasse === null) return { ok: false, raison: 'chasse : pas encore prete' };
+  if (actif === true && !veille.droits().includes('chasse')) {
+    noterAvis('Chasse : pas activé sur ta clé');
+    await envoyerEtat();
+    return { ok: false, raison: 'Chasse : pas activé sur ta clé' };
+  }
+  chasse.armer(actif === true);
+  favoris.marquerChasse(actif === true);
+  await envoyerEtat();
+  return { ok: true };
 });
 
 // LA MISE EN VENTE. Une seule voie pour lancer ET arreter, comme la mise a
