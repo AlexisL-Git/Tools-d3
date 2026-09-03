@@ -34,7 +34,7 @@ test('un niveau absurde ne repond pas non plus', () => {
 test('la pierre presente en inventaire est celle a equiper', () => {
   const piles = [pile(9688, 111, 40), pile(9686, 222, 89)];
   assert.deepStrictEqual(choisir({ niveauMax: 90, piles }), {
-    quoi: 'equiper', gid: 9688, uid: 111, qte: 40,
+    quoi: 'equiper', gid: 9688, uid: 111, qte: 40, purge: null,
   });
 });
 
@@ -43,6 +43,7 @@ test('une autre pierre deja portee ne change rien a la decision', () => {
   const piles = [pile(9687, 333, 47, POSITION_PIERRE), pile(9688, 111, 40)];
   assert.deepStrictEqual(choisir({ niveauMax: 90, piles }), {
     quoi: 'equiper', gid: 9688, uid: 111, qte: 40,
+    purge: { uid: 333, qte: 47, gid: 9687 },
   });
 });
 
@@ -76,7 +77,7 @@ test('un niveau hors portee ne fait rien et le dit', () => {
 test('une pierre porte des effets et reste equipable', () => {
   const piles = [{ gid: 9688, uid: 111, qte: 40, pos: 63, avecEffets: true }];
   assert.deepStrictEqual(choisir({ niveauMax: 90, piles }), {
-    quoi: 'equiper', gid: 9688, uid: 111, qte: 40,
+    quoi: 'equiper', gid: 9688, uid: 111, qte: 40, purge: null,
   });
 });
 
@@ -85,6 +86,6 @@ test('une pierre porte des effets et reste equipable', () => {
 test('entre deux piles de la meme pierre, la plus grosse est choisie', () => {
   const piles = [pile(9688, 111, 3), pile(9688, 222, 40)];
   assert.deepStrictEqual(choisir({ niveauMax: 90, piles }), {
-    quoi: 'equiper', gid: 9688, uid: 222, qte: 40,
+    quoi: 'equiper', gid: 9688, uid: 222, qte: 40, purge: null,
   });
 });

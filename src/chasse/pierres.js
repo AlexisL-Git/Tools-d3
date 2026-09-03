@@ -41,6 +41,21 @@ function choisir({ niveauMax, piles }) {
   const voulue = tranche(niveauMax);
   if (voulue === null) return { quoi: 'hors-portee', niveauMax };
 
+  // CE QUI OCCUPE L'EMPLACEMENT, quoi que ce soit. On le sortira avant de poser
+  // la bonne pierre, plutot que de compter sur le serveur pour le faire.
+  //
+  // LE CAS QUI JUSTIFIE VRAIMENT CETTE PURGE: une pierre qui se remplit pendant
+  // le combat CHANGE D'OBJET, elle devient une « Pierre d'ame pleine », gid
+  // 7010, et reste a l'emplacement. Sans purge, on la prendrait pour une pierre
+  // etrangere qu'on remplace, ce qui va, mais si notre copie de l'inventaire
+  // avait pris du retard on croirait la bonne pierre en place et la chasse
+  // s'arreterait en silence apres la premiere capture. Sortir d'abord ne
+  // suppose rien.
+  const occupant = (piles || []).find((p) => p.pos === POSITION_PIERRE) || null;
+  const purge = occupant === null || occupant.gid === voulue.gid
+    ? null
+    : { uid: occupant.uid, qte: occupant.qte, gid: occupant.gid };
+
   // LE GID SUFFIT, ET `avecEffets` NE SERT A RIEN ICI. Mesure du 03/09: les
   // quatre piles de pierres vides de l'inventaire le portent toutes. Le
   // raisonnement de l'hotel de vente, ou une ressource n'a pas d'effets, ne
@@ -56,7 +71,7 @@ function choisir({ niveauMax, piles }) {
     .sort((a, b) => (b.qte - a.qte) || (a.uid - b.uid))[0];
   if (rangee === undefined) return { quoi: 'manque', gid: voulue.gid, nom: voulue.nom };
 
-  return { quoi: 'equiper', gid: voulue.gid, uid: rangee.uid, qte: rangee.qte };
+  return { quoi: 'equiper', gid: voulue.gid, uid: rangee.uid, qte: rangee.qte, purge };
 }
 
 module.exports = { PIERRES, POSITION_PIERRE, tranche, choisir };

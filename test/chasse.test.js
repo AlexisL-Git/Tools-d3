@@ -89,7 +89,8 @@ test('un niveau 90 fait equiper la Grande pierre et attend la confirmation', () 
   const { superviseur, chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
-  assert.strictEqual(superviseur.envois.length, 1);
+  // Deux ordres: la purge de la Moyenne portee, puis la pose de la Grande.
+  assert.strictEqual(superviseur.envois.length, 2);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
   assert.strictEqual(rendus.at(-1).gid, 9688);
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(233526391, POSITION_PIERRE) });
@@ -126,7 +127,7 @@ test('l ordre ne porte qu une seule pierre, pas la pile entiere', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
   const attendu = trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE });
-  assert.deepStrictEqual(superviseur.envois[0].octets, attendu);
+  assert.deepStrictEqual(superviseur.envois[1].octets, attendu);
 });
 
 // Le combat suivant ne doit RIEN renvoyer: la pierre posee est en 31, et notre
@@ -137,7 +138,7 @@ test('le combat suivant ne reequipe pas la pierre deja posee', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
-  assert.strictEqual(superviseur.envois.length, 1);
+  assert.strictEqual(superviseur.envois.length, 2);
   assert.strictEqual(rendus.at(-1).quoi, 'deja');
 });
 
@@ -251,10 +252,10 @@ test('une pile neuve devient equipable', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999001, 9688, 12, 63) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
-  assert.strictEqual(superviseur.envois.length, 1);
+  assert.strictEqual(superviseur.envois.length, 2);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
   assert.deepStrictEqual(
-    superviseur.envois[0].octets,
+    superviseur.envois[1].octets,
     trameEquiper({ uid: 999001, qte: 1, position: POSITION_PIERRE }),
   );
 });
@@ -267,7 +268,7 @@ test('une quantite mise a jour est suivie', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
   // 7 contre 3: la plus grosse pile reste celle d'origine.
   assert.deepStrictEqual(
-    superviseur.envois[0].octets,
+    superviseur.envois[1].octets,
     trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE }),
   );
 });
@@ -304,4 +305,51 @@ test('une reponse a temps desarme le minuteur', async () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
   await new Promise((r) => setTimeout(r, 40));
   assert.strictEqual(rendus.at(-1).quoi, 'equipe');
+});
+
+// --- La purge, demandee par Jibef le 03/09 ---------------------------------
+
+const { POSITION_INVENTAIRE } = require('../src/hdv/trames');
+
+// L'inventaire mesure porte la Moyenne (9687, uid 233525940, 47 unites) a
+// l'emplacement. Elle doit en sortir AVANT que la Grande y entre.
+test('la purge part avant la pose, et porte la pile entiere', () => {
+  const { superviseur, chasse } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(superviseur.envois.length, 2);
+  assert.deepStrictEqual(
+    superviseur.envois[0].octets,
+    trameEquiper({ uid: 233525940, qte: 47, position: POSITION_INVENTAIRE }),
+  );
+});
+
+// Rien a l'emplacement, rien a purger: un seul ordre.
+test('sans rien a l emplacement, aucune purge n est emise', () => {
+  const { superviseur, chasse } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233525940) }); // la Moyenne s en va
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(superviseur.envois.length, 1);
+  assert.deepStrictEqual(
+    superviseur.envois[0].octets,
+    trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE }),
+  );
+});
+
+// LE CAS QUI JUSTIFIE LA PURGE. Une pierre qui se remplit pendant le combat
+// devient une « Pierre d'ame pleine », gid 7010, et reste a l'emplacement. Elle
+// doit en sortir, sinon elle occupe la place sans jamais rien capturer.
+test('une pierre pleine restee a l emplacement est purgee', () => {
+  const { superviseur, chasse, rendus } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233525940) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999003, 7010, 1, POSITION_PIERRE) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(superviseur.envois.length, 2);
+  assert.deepStrictEqual(
+    superviseur.envois[0].octets,
+    trameEquiper({ uid: 999003, qte: 1, position: POSITION_INVENTAIRE }),
+  );
+  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
 });

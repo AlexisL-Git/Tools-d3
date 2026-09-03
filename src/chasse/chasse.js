@@ -1,5 +1,7 @@
 'use strict';
-const { lireStock, lirePile, lirePileMaj, lirePileDisparue } = require('../hdv/trames');
+const {
+  lireStock, lirePile, lirePileMaj, lirePileDisparue, POSITION_INVENTAIRE,
+} = require('../hdv/trames');
 const { choisir, POSITION_PIERRE } = require('./pierres');
 const { trameEquiper, lirePosition, lireGroupeAttaque, lireGroupes } = require('./trames');
 
@@ -92,6 +94,21 @@ function creerChasse({
     if (verdict.quoi !== 'equiper') {
       rendre(pid, { ...verdict, niveauMax: groupe.niveauMax });
       return;
+    }
+
+    // LA PURGE D'ABORD. On sort ce qui occupe l'emplacement avant de poser,
+    // plutot que de compter sur le serveur pour le faire tout seul. Il le fait,
+    // c'est mesure, mais un ordre qui ne suppose rien vaut mieux qu'un ordre
+    // qui suppose. Demande de Jibef le 2026-09-03 apres avoir vu une pierre
+    // etrangere rester en place.
+    //
+    // ELLE N'EST PAS ATTENDUE. Sa confirmation arriverait avant celle de la
+    // pose, et les deux se ressemblent: attendre les deux compliquerait le
+    // suivi pour rien. Si la purge echoue, la pose la remplace de toute facon.
+    if (verdict.purge !== null && verdict.purge !== undefined) {
+      superviseur.emettre(pid, trameEquiper({
+        uid: verdict.purge.uid, qte: verdict.purge.qte, position: POSITION_INVENTAIRE,
+      }));
     }
 
     // UNE SEULE PIERRE, PAS LA PILE ENTIERE. Le client, lui, deplace tout le
