@@ -526,7 +526,7 @@
        bascules de FONCTION (overlay, fermeture des clients), la barre de titre
        porte l'etat d'OMNI lui-meme. Emplacement choisi par Jibef le 03/09 sur
        le labo, apres avoir compare quatre positions. -->
-  <button class="maitre-inter" id="interChasse"><span class="temoin"></span><span>PdA archi</span></button>
+  <button class="maitre-inter" id="interPdaArchi"><span class="temoin"></span><span>PdA archi</span></button>
   <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
 </div>
@@ -840,9 +840,9 @@
 
   // L'interrupteur de la chasse a l'archimonstre. Meme regle: il demande, et
   // l'etat suivant fait foi.
-  const interChasse = document.getElementById('interChasse');
-  interChasse.addEventListener('click', () => {
-    window.app.chasseArmer(!interChasse.classList.contains('on'));
+  const interPdaArchi = document.getElementById('interPdaArchi');
+  interPdaArchi.addEventListener('click', () => {
+    window.app.pdaArchiArmer(!interPdaArchi.classList.contains('on'));
   });
 
   // LE BIP DE LA CHASSE, le premier son d'OMNI.
@@ -879,7 +879,7 @@
   // quatre bips superposes ne disent rien de plus qu'un seul. Le detail par
   // compte est deja sur sa ligne.
   let dernierBip = 0;
-  window.app.surChasseAlerte(() => {
+  window.app.surPdaArchiAlerte(() => {
     const t = Date.now();
     if (t - dernierBip > 3000) { bip(); dernierBip = t; }
   });
@@ -1282,8 +1282,8 @@
       ? 'OMNI agit. Cliquer pour tout suspendre sans rien effacer.'
       : 'OMNI est suspendu. Les réglages par compte sont conservés.';
 
-    interChasse.classList.toggle('on', etat.chasse === true);
-    interChasse.title = etat.chasse === true
+    interPdaArchi.classList.toggle('on', etat.pdaArchi === true);
+    interPdaArchi.title = etat.pdaArchi === true
       ? 'La bonne pierre d’âme est équipée sur tous les comptes à chaque entrée en combat. Cliquer pour arrêter.'
       : 'Éteint. Allumé, des pierres d’âme se rempliraient sur des monstres ordinaires.';
 

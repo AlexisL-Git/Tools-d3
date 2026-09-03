@@ -3,7 +3,7 @@
 // La table des pierres d'ame, et le choix. Fonction pure: ni trame, ni reseau,
 // ni disque.
 //
-// Conception: docs/superpowers/specs/2026-09-03-chasse-pierre-ame-design.md.
+// Conception: docs/superpowers/specs/2026-09-03-pda-archi-design.md.
 //
 // LE PLAFOND N'EST PAS LE NIVEAU DE L'OBJET, et les confondre coute une pierre
 // a chaque combat. C'est l'erreur du 03/09, rapportee deux fois par Jibef avant

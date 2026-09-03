@@ -110,9 +110,9 @@ défaut.
 
 ## Les modules
 
-    src/chasse/pierres.js    fonction pure : niveau max -> gid de pierre
-    src/chasse/trames.js     construire la trame d'équipement, lire ce qui revient
-    src/chasse/chasse.js     branché sur le flux : déclencheur, ordres, état
+    src/pda-archi/pierres.js    fonction pure : niveau max -> gid de pierre
+    src/pda-archi/trames.js     construire la trame d'équipement, lire ce qui revient
+    src/pda-archi/chasse.js     branché sur le flux : déclencheur, ordres, état
 
 Même découpage que `src/hdv/` : ce qui décide est pur et testable sans le jeu,
 ce qui agit est branché sur le flux.

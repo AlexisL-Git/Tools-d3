@@ -54,7 +54,7 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   // dedie plus bas pour le contenu complet. `overlay` s'y est ajoute le
   // 2026-08-29: une position d'ecran, un sens et un booleen, rien qui
   // designe une personne.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'chasse', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -105,7 +105,7 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'chasse', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);

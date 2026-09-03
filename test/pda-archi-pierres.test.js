@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { tranche, choisir, POSITION_PIERRE } = require('../src/chasse/pierres');
+const { tranche, choisir, POSITION_PIERRE } = require('../src/pda-archi/pierres');
 
 const pile = (gid, uid, qte, pos = 63) => ({ gid, uid, qte, pos, avecEffets: false });
 

@@ -13,7 +13,7 @@ const FONCTIONS = [
   { nom: 'overlay', libelle: 'barre flottante' },
   { nom: 'hdv', libelle: 'mise a jour des prix en hotel de vente' },
   { nom: 'vente', libelle: 'mise en vente en hotel de vente' },
-  { nom: 'chasse', libelle: 'chasse a l archimonstre, pierre d ame equipee' },
+  { nom: 'pda-archi', libelle: 'pierre d ame equipee a l entree en combat' },
   { nom: 'no-anim', libelle: 'animations du jeu coupees' },
 ];
 

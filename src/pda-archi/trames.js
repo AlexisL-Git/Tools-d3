@@ -4,7 +4,7 @@ const { encodeRaw, decodeRaw, WIRE } = require('../codec/rawProto');
 // Les trames de la chasse: ce qu'on emet, ce qu'on lit.
 //
 // Mesure du 2026-09-03, journal-chasse1.log, conception dans
-// docs/superpowers/specs/2026-09-03-chasse-pierre-ame-design.md. La requete
+// docs/superpowers/specs/2026-09-03-pda-archi-design.md. La requete
 // construite ici reproduit celle que le jeu emet quand on equipe a la main.
 //
 // Fonctions pures: ni Electron, ni Frida, ni reseau.

@@ -4,9 +4,9 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { decodeFrameRaw, WIRE } = require('../src/codec/rawProto');
-const { creerChasse } = require('../src/chasse/chasse');
-const { POSITION_PIERRE } = require('../src/chasse/pierres');
-const { trameEquiper } = require('../src/chasse/trames');
+const { creerPdaArchi } = require('../src/pda-archi/pda-archi');
+const { POSITION_PIERRE } = require('../src/pda-archi/pierres');
+const { trameEquiper } = require('../src/pda-archi/trames');
 
 const fixture = (nom) => decodeFrameRaw(
   Buffer.from(fs.readFileSync(path.join(__dirname, 'fixtures', nom), 'utf8').trim(), 'hex'),
@@ -78,11 +78,11 @@ function jssNiveau(niveau, idGroupe = -300) {
 function monte({ actif = true } = {}) {
   const superviseur = doubleSuperviseur();
   const rendus = [];
-  const chasse = creerChasse({
+  const chasse = creerPdaArchi({
     superviseur, actif, onCompteRendu: (r) => rendus.push(r),
   });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-jss-groupes.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-jss-groupes.hex') });
   return { superviseur, chasse, rendus };
 }
 
@@ -307,11 +307,11 @@ test('une quantite mise a jour est suivie', () => {
 test('un ordre sans reponse finit par se dire', async () => {
   const superviseur = doubleSuperviseur();
   const rendus = [];
-  const chasse = creerChasse({
+  const chasse = creerPdaArchi({
     superviseur, actif: true, reglages: { delaiReponseMs: 5 },
     onCompteRendu: (r) => rendus.push(r),
   });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
@@ -323,11 +323,11 @@ test('un ordre sans reponse finit par se dire', async () => {
 test('une reponse a temps desarme le minuteur', async () => {
   const superviseur = doubleSuperviseur();
   const rendus = [];
-  const chasse = creerChasse({
+  const chasse = creerPdaArchi({
     superviseur, actif: true, reglages: { delaiReponseMs: 5 },
     onCompteRendu: (r) => rendus.push(r),
   });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
@@ -413,11 +413,11 @@ test('une pile neuve rangee ailleurs ne confirme rien', () => {
 test('un seul kmu suffit, chaque client s equipe en rejoignant', () => {
   const superviseur = doubleSuperviseur([42, 43, 44]);
   const rendus = [];
-  const chasse = creerChasse({
+  const chasse = creerPdaArchi({
     superviseur, actif: true, onCompteRendu: (r) => rendus.push(r),
   });
   for (const pid of [42, 43, 44]) {
-    chasse.onTrame({ pid, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+    chasse.onTrame({ pid, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   }
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   // Seul le maitre voit le groupe partir.
@@ -437,9 +437,9 @@ test('un seul kmu suffit, chaque client s equipe en rejoignant', () => {
 // maitre attaque.
 test('une mule en retard est equipee a son arrivee, pas avant', () => {
   const superviseur = doubleSuperviseur([42, 43]);
-  const chasse = creerChasse({ superviseur, actif: true });
+  const chasse = creerPdaArchi({ superviseur, actif: true });
   for (const pid of [42, 43]) {
-    chasse.onTrame({ pid, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+    chasse.onTrame({ pid, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   }
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
@@ -452,8 +452,8 @@ test('une mule en retard est equipee a son arrivee, pas avant', () => {
 // kmk sert AUSSI a lister les acteurs d une carte, ou tout est positif.
 test('une liste d acteurs de carte n equipe personne', () => {
   const superviseur = doubleSuperviseur([42]);
-  const chasse = creerChasse({ superviseur, actif: true });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  const chasse = creerPdaArchi({ superviseur, actif: true });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(777, 888) });
@@ -463,8 +463,8 @@ test('une liste d acteurs de carte n equipe personne', () => {
 // Plusieurs kmk tombent pendant un meme combat: un seul ordre par client.
 test('une seconde liste de combattants ne rejoue rien', () => {
   const superviseur = doubleSuperviseur([42]);
-  const chasse = creerChasse({ superviseur, actif: true });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  const chasse = creerPdaArchi({ superviseur, actif: true });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
@@ -476,11 +476,11 @@ test('une seconde liste de combattants ne rejoue rien', () => {
 test('le meme groupe deux fois de suite n equipe qu une fois', () => {
   const superviseur = doubleSuperviseur([42, 43]);
   const rendus = [];
-  const chasse = creerChasse({
+  const chasse = creerPdaArchi({
     superviseur, actif: true, onCompteRendu: (r) => rendus.push(r),
   });
   for (const pid of [42, 43]) {
-    chasse.onTrame({ pid, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+    chasse.onTrame({ pid, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   }
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   chasse.onTrame({ pid: 43, dir: 'in', frame: jssNiveau(120) });
@@ -493,10 +493,10 @@ test('le meme groupe deux fois de suite n equipe qu une fois', () => {
 test('le meme groupe hors de la fenetre equipe de nouveau', () => {
   const superviseur = doubleSuperviseur([42]);
   let horloge = 0;
-  const chasse = creerChasse({
+  const chasse = creerPdaArchi({
     superviseur, actif: true, reglages: { maintenant: () => horloge },
   });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
   horloge = 6000;

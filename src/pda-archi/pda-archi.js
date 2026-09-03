@@ -24,7 +24,7 @@ const FENETRE_ARRIVEE_MS = 60000;
 
 // La chasse a l'archimonstre: equiper la bonne pierre d'ame, et rien d'autre.
 //
-// Conception: docs/superpowers/specs/2026-09-03-chasse-pierre-ame-design.md.
+// Conception: docs/superpowers/specs/2026-09-03-pda-archi-design.md.
 //
 // CE QUI REND LA FONCTION SIMPLE, c'est qu'on peut changer d'equipement en
 // PHASE DE PREPARATION, verifie en jeu le 03/09. On declenche donc sur l'entree
@@ -42,7 +42,7 @@ const FENETRE_ARRIVEE_MS = 60000;
 //
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur, comme src/hdv/vente.js.
-function creerChasse({
+function creerPdaArchi({
   superviseur, actif = false, reglages = {}, onCompteRendu = () => {},
 }) {
   // Ce que l'ecoute permanente retient, par client.
@@ -312,4 +312,4 @@ function creerChasse({
   return { onTrame, armer, estAllume: () => allume };
 }
 
-module.exports = { creerChasse };
+module.exports = { creerPdaArchi };

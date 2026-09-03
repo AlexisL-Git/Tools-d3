@@ -9,7 +9,7 @@
 la pierre d'âme de la tranche qui couvre le monstre le plus haut du groupe
 attaqué, et signale par écrit et par un bip quand il ne peut pas.
 
-**Architecture :** trois modules dans `src/chasse/`. Ce qui décide est pur et
+**Architecture :** trois modules dans `src/pda-archi/`. Ce qui décide est pur et
 se teste sans le jeu (`pierres.js`), ce qui lit et construit les trames est pur
 aussi (`trames.js`), ce qui agit est branché sur le flux (`chasse.js`). Même
 découpage que `src/hdv/`, et le module branché suit exactement la forme de
@@ -17,7 +17,7 @@ découpage que `src/hdv/`, et le module branché suit exactement la forme de
 
 **Outillage :** node:test, `node --test`. Aucune dépendance nouvelle.
 
-**Conception :** `2026-09-03-chasse-pierre-ame-design.md`, à copier dans
+**Conception :** `2026-09-03-pda-archi-design.md`, à copier dans
 `docs/superpowers/specs/` en même temps que la branche est créée.
 
 ---
@@ -29,8 +29,8 @@ découpage que `src/hdv/`, et le module branché suit exactement la forme de
 ```bash
 cd C:/Users/jibef/mm
 git checkout -b feat/chasse
-cp C:/Users/jibef/labo-chasse/2026-09-03-chasse-pierre-ame-design.md docs/superpowers/specs/
-cp C:/Users/jibef/labo-chasse/2026-09-03-chasse-pierre-ame-plan.md docs/superpowers/plans/
+cp C:/Users/jibef/labo-chasse/2026-09-03-pda-archi-design.md docs/superpowers/specs/
+cp C:/Users/jibef/labo-chasse/2026-09-03-pda-archi-plan.md docs/superpowers/plans/
 git add docs/superpowers
 git commit -m "docs(chasse): equiper la bonne pierre d ame, conception et plan"
 ```
@@ -38,7 +38,7 @@ git commit -m "docs(chasse): equiper la bonne pierre d ame, conception et plan"
 Les deux fixtures de mesure sont dans `C:\Users\jibef\labo-chasse\` et servent
 aux tâches 1 et 3 :
 
-- `chasse-ivx-inventaire.hex`, l'inventaire de connexion, 471 piles
+- `pda-archi-ivx-inventaire.hex`, l'inventaire de connexion, 471 piles
 - `jss-groupes-monstres.hex`, la carte et ses deux groupes de monstres
 
 ---
@@ -48,20 +48,20 @@ aux tâches 1 et 3 :
 | Fichier | Responsabilité |
 |---|---|
 | `src/hdv/trames.js` | modifié : `lirePile` garde la position |
-| `src/chasse/pierres.js` | créé : la table des pierres, le choix. Pur. |
-| `src/chasse/trames.js` | créé : lire `jss` et `ivq`, construire `iuk`. Pur. |
-| `src/chasse/chasse.js` | créé : l'écoute, la décision, l'ordre, le compte rendu |
+| `src/pda-archi/pierres.js` | créé : la table des pierres, le choix. Pur. |
+| `src/pda-archi/trames.js` | créé : lire `jss` et `ivq`, construire `iuk`. Pur. |
+| `src/pda-archi/chasse.js` | créé : l'écoute, la décision, l'ordre, le compte rendu |
 | `src/droits/liste.js` | modifié : la dixième fonction |
 | `serveur-maj/lib/fonctions.js` | modifié : la même, côté panneau |
 | `src/comptes/favoris.js` | modifié : la clé `chasse` |
 | `desktop/main.js` | modifié : branchement, interrupteur, compte rendu |
 | `desktop/preload.js` | modifié : les deux canaux |
 | `desktop/index.html` | modifié : la case à cocher et le bip |
-| `test/chasse-pierres.test.js` | créé |
-| `test/chasse-trames.test.js` | créé |
-| `test/chasse.test.js` | créé |
-| `test/fixtures/chasse-ivx-inventaire.hex` | créé (copie) |
-| `test/fixtures/chasse-jss-groupes.hex` | créé (copie) |
+| `test/pda-archi-pierres.test.js` | créé |
+| `test/pda-archi-trames.test.js` | créé |
+| `test/pda-archi.test.js` | créé |
+| `test/fixtures/pda-archi-ivx-inventaire.hex` | créé (copie) |
+| `test/fixtures/pda-archi-jss-groupes.hex` | créé (copie) |
 
 ---
 
@@ -77,8 +77,8 @@ l'inventaire mesuré, exactement une pile est dans ce cas.
 
 **Fichiers :**
 - Modifier : `src/hdv/trames.js`, fonction `lirePile`
-- Créer : `test/fixtures/chasse-ivx-inventaire.hex`
-- Créer : `test/chasse-trames.test.js`
+- Créer : `test/fixtures/pda-archi-ivx-inventaire.hex`
+- Créer : `test/pda-archi-trames.test.js`
 
 **C'EST LA SEULE TÂCHE QUI TOUCHE LE TERRITOIRE D'UN AUTRE.** `src/hdv/trames.js`
 est le fichier d'Alexis, il y travaille en ce moment. La modification est
@@ -90,12 +90,12 @@ changement dans un rebase.
 - [ ] **Étape 1 : copier la fixture**
 
 ```bash
-cp C:/Users/jibef/labo-chasse/chasse-ivx-inventaire.hex test/fixtures/
+cp C:/Users/jibef/labo-chasse/pda-archi-ivx-inventaire.hex test/fixtures/
 ```
 
 - [ ] **Étape 2 : écrire le test qui échoue**
 
-Créer `test/chasse-trames.test.js` :
+Créer `test/pda-archi-trames.test.js` :
 
 ```js
 'use strict';
@@ -114,7 +114,7 @@ const fixture = (nom) => decodeFrameRaw(
 // UNE SEULE pile n'a pas de champ 1 -- l'amulette, position 0. La lire comme
 // 63 la ferait passer pour rangee, et le compte tomberait a 455 et 16.
 test('lireStock rend la position, et un champ absent vaut 0 et non 63', () => {
-  const piles = lireStock(fixture('chasse-ivx-inventaire.hex'));
+  const piles = lireStock(fixture('pda-archi-ivx-inventaire.hex'));
   assert.strictEqual(piles.length, 471);
   assert.strictEqual(piles.filter((p) => p.pos === POSITION_INVENTAIRE).length, 454);
   assert.strictEqual(piles.filter((p) => p.pos !== POSITION_INVENTAIRE).length, 17);
@@ -123,7 +123,7 @@ test('lireStock rend la position, et un champ absent vaut 0 et non 63', () => {
 
 // La position 31 est l'emplacement de la pierre d'ame, mesure du 03/09.
 test('la pierre d ame portee se trouve en position 31', () => {
-  const piles = lireStock(fixture('chasse-ivx-inventaire.hex'));
+  const piles = lireStock(fixture('pda-archi-ivx-inventaire.hex'));
   const portees = piles.filter((p) => p.pos === 31);
   assert.strictEqual(portees.length, 1);
   assert.strictEqual(portees[0].gid, 9687);
@@ -135,7 +135,7 @@ test('la pierre d ame portee se trouve en position 31', () => {
 - [ ] **Étape 3 : lancer le test, vérifier qu'il échoue**
 
 ```bash
-node --test test/chasse-trames.test.js
+node --test test/pda-archi-trames.test.js
 ```
 
 Attendu : échec, `POSITION_INVENTAIRE` vaut `undefined` et `p.pos` aussi.
@@ -164,7 +164,7 @@ Et ajouter `POSITION_INVENTAIRE` aux exports du fichier.
 - [ ] **Étape 5 : lancer le test, vérifier qu'il passe**
 
 ```bash
-node --test test/chasse-trames.test.js
+node --test test/pda-archi-trames.test.js
 ```
 
 Attendu : 2 tests, 2 réussites.
@@ -182,7 +182,7 @@ chose casse, c'est un vrai signal : lire l'échec, ne pas le contourner.
 - [ ] **Étape 7 : commit**
 
 ```bash
-git add src/hdv/trames.js test/chasse-trames.test.js test/fixtures/chasse-ivx-inventaire.hex
+git add src/hdv/trames.js test/pda-archi-trames.test.js test/fixtures/pda-archi-ivx-inventaire.hex
 git commit -m "feat(hdv): la pile d inventaire porte sa position d equipement"
 ```
 
@@ -194,18 +194,18 @@ La fonction pure qui décide. Niveau max du groupe et piles d'inventaire en
 entrée, un seul verdict en sortie.
 
 **Fichiers :**
-- Créer : `src/chasse/pierres.js`
-- Créer : `test/chasse-pierres.test.js`
+- Créer : `src/pda-archi/pierres.js`
+- Créer : `test/pda-archi-pierres.test.js`
 
 - [ ] **Étape 1 : écrire les tests qui échouent**
 
-Créer `test/chasse-pierres.test.js` :
+Créer `test/pda-archi-pierres.test.js` :
 
 ```js
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { tranche, choisir, POSITION_PIERRE } = require('../src/chasse/pierres');
+const { tranche, choisir, POSITION_PIERRE } = require('../src/pda-archi/pierres');
 
 const pile = (gid, uid, qte, pos = 63) => ({ gid, uid, qte, pos, avecEffets: false });
 
@@ -284,14 +284,14 @@ test('une pierre a effets ne compte pas comme une pierre vide', () => {
 - [ ] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
-node --test test/chasse-pierres.test.js
+node --test test/pda-archi-pierres.test.js
 ```
 
-Attendu : échec, `Cannot find module '../src/chasse/pierres'`.
+Attendu : échec, `Cannot find module '../src/pda-archi/pierres'`.
 
 - [ ] **Étape 3 : écrire le module**
 
-Créer `src/chasse/pierres.js` :
+Créer `src/pda-archi/pierres.js` :
 
 ```js
 'use strict';
@@ -299,7 +299,7 @@ Créer `src/chasse/pierres.js` :
 // La table des pierres d'ame, et le choix. Fonction pure: ni trame, ni reseau,
 // ni disque.
 //
-// Conception: docs/superpowers/specs/2026-09-03-chasse-pierre-ame-design.md.
+// Conception: docs/superpowers/specs/2026-09-03-pda-archi-design.md.
 //
 // LES NIVEAUX NE SONT PAS DEVINES. Ils viennent du champ niveau des objets du
 // jeu, typeId 83, et disent le PLAFOND de capture: une pierre prend tout ce
@@ -356,7 +356,7 @@ module.exports = { PIERRES, POSITION_PIERRE, tranche, choisir };
 - [ ] **Étape 4 : lancer, vérifier que ça passe**
 
 ```bash
-node --test test/chasse-pierres.test.js
+node --test test/pda-archi-pierres.test.js
 ```
 
 Attendu : 9 tests, 9 réussites.
@@ -364,7 +364,7 @@ Attendu : 9 tests, 9 réussites.
 - [ ] **Étape 5 : commit**
 
 ```bash
-git add src/chasse/pierres.js test/chasse-pierres.test.js
+git add src/pda-archi/pierres.js test/pda-archi-pierres.test.js
 git commit -m "feat(chasse): la table des pierres d ame et le choix de la tranche"
 ```
 
@@ -373,9 +373,9 @@ git commit -m "feat(chasse): la table des pierres d ame et le choix de la tranch
 ### Tâche 3 : lire les groupes de monstres, construire l'ordre
 
 **Fichiers :**
-- Créer : `src/chasse/trames.js`
-- Créer : `test/fixtures/chasse-jss-groupes.hex`
-- Modifier : `test/chasse-trames.test.js`
+- Créer : `src/pda-archi/trames.js`
+- Créer : `test/fixtures/pda-archi-jss-groupes.hex`
+- Modifier : `test/pda-archi-trames.test.js`
 
 Ce que la mesure du 03/09 a donné, et qui fixe les chemins :
 
@@ -395,18 +395,18 @@ demande que le maximum, donc on lit toutes les entrées du bloc.
 - [ ] **Étape 1 : copier la fixture**
 
 ```bash
-cp C:/Users/jibef/labo-chasse/jss-groupes-monstres.hex test/fixtures/chasse-jss-groupes.hex
+cp C:/Users/jibef/labo-chasse/jss-groupes-monstres.hex test/fixtures/pda-archi-jss-groupes.hex
 ```
 
 - [ ] **Étape 2 : ajouter les tests qui échouent**
 
-Ajouter en tête de `test/chasse-trames.test.js`, à côté des autres `require` :
+Ajouter en tête de `test/pda-archi-trames.test.js`, à côté des autres `require` :
 
 ```js
 const { encodeRaw, WIRE } = require('../src/codec/rawProto');
 const {
   lireGroupes, lireGroupeAttaque, lirePosition, trameEquiper,
-} = require('../src/chasse/trames');
+} = require('../src/pda-archi/trames');
 ```
 
 Puis à la fin du fichier :
@@ -416,7 +416,7 @@ Puis à la fin du fichier :
 // Jibef a attaque: deux Black Wabbit de niveau 46. Le -20001 en portait quatre,
 // dont un Black Wabbit de niveau 50 qui menait le groupe.
 test('lireGroupes rend les deux groupes de la carte mesuree', () => {
-  const groupes = lireGroupes(fixture('chasse-jss-groupes.hex'));
+  const groupes = lireGroupes(fixture('pda-archi-jss-groupes.hex'));
   assert.strictEqual(groupes.size, 2);
   assert.strictEqual(groupes.get(-20000).niveauMax, 46);
   assert.strictEqual(groupes.get(-20000).monstres, 2);
@@ -425,7 +425,7 @@ test('lireGroupes rend les deux groupes de la carte mesuree', () => {
 });
 
 test('le joueur n est pas un groupe de monstres', () => {
-  const groupes = lireGroupes(fixture('chasse-jss-groupes.hex'));
+  const groupes = lireGroupes(fixture('pda-archi-jss-groupes.hex'));
   assert.strictEqual(groupes.has(677158453542), false);
 });
 
@@ -477,14 +477,14 @@ test('trameEquiper reproduit l ordre mesure', () => {
 - [ ] **Étape 3 : lancer, vérifier l'échec**
 
 ```bash
-node --test test/chasse-trames.test.js
+node --test test/pda-archi-trames.test.js
 ```
 
-Attendu : échec, `Cannot find module '../src/chasse/trames'`.
+Attendu : échec, `Cannot find module '../src/pda-archi/trames'`.
 
 - [ ] **Étape 4 : écrire le module**
 
-Créer `src/chasse/trames.js` :
+Créer `src/pda-archi/trames.js` :
 
 ```js
 'use strict';
@@ -606,7 +606,7 @@ module.exports = { trameEquiper, lirePosition, lireGroupeAttaque, lireGroupes };
 - [ ] **Étape 5 : lancer, vérifier que ça passe**
 
 ```bash
-node --test test/chasse-trames.test.js
+node --test test/pda-archi-trames.test.js
 ```
 
 Attendu : 9 tests, 9 réussites. Si `lireGroupes` rend une Map vide, le
@@ -616,7 +616,7 @@ importé et que les champs en `bytes` sont redécodés.
 - [ ] **Étape 6 : commit**
 
 ```bash
-git add src/chasse/trames.js test/chasse-trames.test.js test/fixtures/chasse-jss-groupes.hex
+git add src/pda-archi/trames.js test/pda-archi-trames.test.js test/fixtures/pda-archi-jss-groupes.hex
 git commit -m "feat(chasse): lire les groupes de monstres et construire l ordre d equipement"
 ```
 
@@ -629,12 +629,12 @@ L'écoute, la décision, l'ordre, l'attente de confirmation. Même forme que
 superviseur dans les tests.
 
 **Fichiers :**
-- Créer : `src/chasse/chasse.js`
-- Créer : `test/chasse.test.js`
+- Créer : `src/pda-archi/chasse.js`
+- Créer : `test/pda-archi.test.js`
 
 - [ ] **Étape 1 : écrire les tests qui échouent**
 
-Créer `test/chasse.test.js` :
+Créer `test/pda-archi.test.js` :
 
 ```js
 'use strict';
@@ -643,8 +643,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { decodeFrameRaw, WIRE } = require('../src/codec/rawProto');
-const { creerChasse } = require('../src/chasse/chasse');
-const { POSITION_PIERRE } = require('../src/chasse/pierres');
+const { creerPdaArchi } = require('../src/pda-archi/chasse');
+const { POSITION_PIERRE } = require('../src/pda-archi/pierres');
 
 const fixture = (nom) => decodeFrameRaw(
   Buffer.from(fs.readFileSync(path.join(__dirname, 'fixtures', nom), 'utf8').trim(), 'hex'),
@@ -692,11 +692,11 @@ function jssNiveau(niveau, idGroupe = -300) {
 function monte({ actif = true } = {}) {
   const superviseur = doubleSuperviseur();
   const rendus = [];
-  const chasse = creerChasse({
+  const chasse = creerPdaArchi({
     superviseur, actif, onCompteRendu: (r) => rendus.push(r),
   });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-jss-groupes.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-jss-groupes.hex') });
   return { superviseur, chasse, rendus };
 }
 
@@ -773,14 +773,14 @@ test('une trame sortante est ignoree', () => {
 - [ ] **Étape 2 : lancer, vérifier l'échec**
 
 ```bash
-node --test test/chasse.test.js
+node --test test/pda-archi.test.js
 ```
 
-Attendu : échec, `Cannot find module '../src/chasse/chasse'`.
+Attendu : échec, `Cannot find module '../src/pda-archi/chasse'`.
 
 - [ ] **Étape 3 : écrire le module**
 
-Créer `src/chasse/chasse.js` :
+Créer `src/pda-archi/chasse.js` :
 
 ```js
 'use strict';
@@ -790,7 +790,7 @@ const { trameEquiper, lirePosition, lireGroupeAttaque, lireGroupes } = require('
 
 // La chasse a l'archimonstre: equiper la bonne pierre d'ame, et rien d'autre.
 //
-// Conception: docs/superpowers/specs/2026-09-03-chasse-pierre-ame-design.md.
+// Conception: docs/superpowers/specs/2026-09-03-pda-archi-design.md.
 //
 // CE QUI REND LA FONCTION SIMPLE, c'est qu'on peut changer d'equipement en
 // PHASE DE PREPARATION: verifie en jeu le 03/09. On declenche donc sur l'entree
@@ -807,7 +807,7 @@ const { trameEquiper, lirePosition, lireGroupeAttaque, lireGroupes } = require('
 // pierres avec des Bouftous.
 //
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme.
-function creerChasse({ superviseur, actif = false, onCompteRendu = () => {} }) {
+function creerPdaArchi({ superviseur, actif = false, onCompteRendu = () => {} }) {
   // Ce que l'ecoute permanente retient, par client.
   const stocks = new Map();   // pid -> [pile]
   const cartes = new Map();   // pid -> Map(idGroupe -> { niveauMax, monstres })
@@ -904,13 +904,13 @@ function creerChasse({ superviseur, actif = false, onCompteRendu = () => {} }) {
   return { onTrame, armer, estAllume: () => allume };
 }
 
-module.exports = { creerChasse };
+module.exports = { creerPdaArchi };
 ```
 
 - [ ] **Étape 4 : lancer, vérifier que ça passe**
 
 ```bash
-node --test test/chasse.test.js
+node --test test/pda-archi.test.js
 ```
 
 Attendu : 9 tests, 9 réussites. Si `la bonne pierre deja portee` échoue, lire
@@ -929,7 +929,7 @@ Attendu : 0 échec.
 - [ ] **Étape 6 : commit**
 
 ```bash
-git add src/chasse/chasse.js test/chasse.test.js
+git add src/pda-archi/chasse.js test/pda-archi.test.js
 git commit -m "feat(chasse): equiper la pierre a l entree en combat"
 ```
 
@@ -1046,7 +1046,7 @@ git commit -m "feat(chasse): la fonction verrouillable et l interrupteur enregis
 En tête de fichier, à côté de `creerVente` :
 
 ```js
-const { creerChasse } = require('../src/chasse/chasse');
+const { creerPdaArchi } = require('../src/pda-archi/chasse');
 ```
 
 Et près de `let vente = null;` :
@@ -1060,7 +1060,7 @@ let chasse = null;
 - [ ] **Étape 2 : construire, juste après `vente = creerVente({...})`**
 
 ```js
-  chasse = creerChasse({
+  chasse = creerPdaArchi({
     superviseur,
     actif: favoris.chasse(),
     onCompteRendu: (r) => {
@@ -1263,7 +1263,7 @@ Reporter ce que la séance donne dans la spec, section « Ce que la séance du
 2026-09-03 a donné », puis :
 
 ```bash
-git add docs/superpowers/specs/2026-09-03-chasse-pierre-ame-design.md
+git add docs/superpowers/specs/2026-09-03-pda-archi-design.md
 git commit -m "docs(chasse): la verification en jeu"
 ```
 
