@@ -192,6 +192,9 @@ const MESSAGES = {
   // du defaut qu'on corrige. Si un ramassage se met un jour a lancer un
   // combat, c'est le couple (ido, kla) qu'il faudra retarder ensemble.
   //
+  // VERIFIE EN JEU LE 03/09 par l'utilisateur, sur un objet ramasse par le
+  // maitre: la mule l'a eu aussi. C'est la seule preuve qui compte ici.
+  //
   // LE NOM EST LE NOTRE: ce type ne figurait pas dans le canal de krm35.
   ido: {
     name: 'ObjetQueteRamasseRequest',
@@ -220,6 +223,30 @@ const MESSAGES = {
     },
     verbatim: false,
   },
+  // LE REJEU EST REFUSE QUAND LA MULE EST LOIN DE L'ELEMENT, et c'est une
+  // CONDITION QUE LA TRAME NE PORTE PAS — la position, comme pour `jqk`. La
+  // mesure du 03/09 (journal-dev.log de 17h35) ne laisse pas de place au doute:
+  //
+  //   MAITRE 933318 --> iwo { 1=11122 2=489396 }   le clic sur l'objet de quete
+  //                 <-- iwn ... 5=676438999334     accepte, l'objet part chez lui
+  //   MULE   933607     rejeu iwo ecrit (+288 ms)
+  //                 <-- iwq { 2=489396 3=11122 }   REFUSE, rien dans le sac
+  //   MULE   951001 --> jrw { … }                  la mule MARCHE jusqu'a l'objet
+  //          951570 --> iwo { 1=11122 2=489396 }   LES MEMES OCTETS
+  //                 <-- iwn ... 5=677030854950     ACCEPTE, elle a l'objet
+  //
+  // Meme personnage, meme trame, resultat oppose: seule la position change.
+  // Refait a l'identique sur l'element 489391 dans la meme session. Le numero
+  // propre au compte n'y est pour rien — maitre et mule ont le meme (11122).
+  //
+  // ECARTE, mesure a l'appui: « le maitre vide l'element ». Sur l'element
+  // 538796, le rejeu de la mule a ete ACCEPTE 286 ms apres l'usage du maitre.
+  //
+  // TRANCHE LE 03/09, NE RIEN CORRIGER. Trois pistes ont ete posees a
+  // l'utilisateur — attendre l'arrivee de la mule avant d'injecter, lui
+  // fabriquer son deplacement, ou ne rien faire — et il a choisi de ne rien
+  // faire: le rejeu passe deja quand les persos sont ensemble (zaap, porte,
+  // `hjc`), et c'est ainsi qu'il joue. Ce n'est pas un defaut oublie.
   iwo: {
     name: 'InteractiveUseRequest',
     fields: {
