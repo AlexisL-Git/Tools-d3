@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('app', {
 
   // L'interrupteur unique, et l'action groupee d'un titre de colonne.
   basculerActif: (actif) => ipcRenderer.invoke('basculerActif', actif),
+
+  // La chasse a l'archimonstre: l'interrupteur, et l'alerte quand la capture
+  // est impossible. Les DEUX doivent exister cote main.js, voir l'avertissement
+  // en tete de ce fichier.
+  chasseArmer: (actif) => ipcRenderer.invoke('chasseArmer', actif),
+  surChasseAlerte: (rappel) => ipcRenderer.on('chasseAlerte', (_e, a) => rappel(a)),
   basculerColonne: (nom, ids) => ipcRenderer.invoke('basculerColonne', nom, ids),
 
   // Les cinq cases d'une ligne. `exclureCompte` est l'inversee des cinq:

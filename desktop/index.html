@@ -476,6 +476,7 @@
 <div class="barre-titre">
   <span class="titre-nom"><span class="o">O</span>MNI</span>
   <button class="maitre-inter" id="interActif"><span class="temoin"></span><span id="libelleActif">au repos</span></button>
+  <button class="maitre-inter" id="interChasse"><span class="temoin"></span><span>chasse</span></button>
   <span class="titre-etat"><button class="version-lien" id="versionBouton" title="Voir ce qui a changé"></button><span id="titreEtat"></span></span>
   <span class="fenetre-boutons">
     <button id="reduire" title="Réduire"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
@@ -831,6 +832,52 @@
   const interActif = document.getElementById('interActif');
   interActif.addEventListener('click', () => {
     window.app.basculerActif(!interActif.classList.contains('on'));
+  });
+
+  // L'interrupteur de la chasse a l'archimonstre. Meme regle: il demande, et
+  // l'etat suivant fait foi.
+  const interChasse = document.getElementById('interChasse');
+  interChasse.addEventListener('click', () => {
+    window.app.chasseArmer(!interChasse.classList.contains('on'));
+  });
+
+  // LE BIP DE LA CHASSE, le premier son d'OMNI.
+  //
+  // Deux notes basses, distinctes de tout ce que fait Dofus. SYNTHETISEES
+  // plutot que jouees depuis un fichier: rien a embarquer dans le paquet, donc
+  // rien a oublier dans FICHIERS_DESKTOP de outils/faire-etape.js -- l'oubli
+  // silencieux qui a failli couter l'overlay.
+  let audio = null;
+  function bip() {
+    try {
+      if (audio === null) audio = new AudioContext();
+      if (audio.state === 'suspended') audio.resume();
+      const debut = audio.currentTime;
+      for (const [rang, hz] of [[0, 330], [1, 247]]) {
+        const t = debut + rang * 0.22;
+        const o = audio.createOscillator();
+        const g = audio.createGain();
+        o.type = 'sine';
+        o.frequency.value = hz;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        o.connect(g).connect(audio.destination);
+        o.start(t);
+        o.stop(t + 0.2);
+      }
+    } catch (e) {
+      // Pas de son disponible: le texte sur la ligne du compte suffit.
+    }
+  }
+
+  // UN SEUL BIP, meme si les quatre comptes sont en defaut au meme combat:
+  // quatre bips superposes ne disent rien de plus qu'un seul. Le detail par
+  // compte est deja sur sa ligne.
+  let dernierBip = 0;
+  window.app.surChasseAlerte(() => {
+    const t = Date.now();
+    if (t - dernierBip > 3000) { bip(); dernierBip = t; }
   });
 
   // Les memes regles que src/comptes/colonnes.js, cote affichage. Le module
@@ -1230,6 +1277,11 @@
     interActif.title = etat.actif
       ? 'OMNI agit. Cliquer pour tout suspendre sans rien effacer.'
       : 'OMNI est suspendu. Les réglages par compte sont conservés.';
+
+    interChasse.classList.toggle('on', etat.chasse === true);
+    interChasse.title = etat.chasse === true
+      ? 'La bonne pierre d’âme est équipée à chaque entrée en combat. Cliquer pour arrêter.'
+      : 'Chasse éteinte. Allumée, elle userait des pierres sur les monstres ordinaires.';
 
     // Le losange de chaque titre de colonne: plein, creux, ou a moitie.
     for (const b of document.querySelectorAll('[data-colonne]')) {
