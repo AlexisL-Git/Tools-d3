@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.3.2",
+    "le": "2026-09-03",
+    "notes": [
+      "Le ramassage d'un objet de quête se réplique : quand tu prends l'objet, tes mules prennent le leur. Avant, ce geste-là n'était pas reconnu du tout — seul ton personnage repartait avec.",
+      "Une limite à connaître : si l'objet se ramasse d'un clic direct sur la carte, le serveur refuse le geste d'une mule qui n'est pas à côté de l'objet. Colle tes mules à toi avant de cliquer.",
+      "Hôtel de vente : quand une de tes piles était déjà au meilleur prix, OMNI laissait tomber tes autres piles identiques posées plus cher. Elles sont remises au prix du marché elles aussi.",
+      "L'avancement de la mise en vente compte les lots qui restent, et il descend vraiment."
+    ]
+  },
+  {
     "version": "0.3.1",
     "le": "2026-09-02",
     "notes": [
