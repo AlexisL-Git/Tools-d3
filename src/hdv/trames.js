@@ -321,6 +321,6 @@ module.exports = {
   TAILLES, POSITION_INVENTAIRE,
   trameMajPrix, trameAbonner, trameDesabonner, trameStats, trameMettreEnVente,
   lirePrixMarche, lireStatsPrix, lireNosLots, lireLotPose, lireLotRetire, lirePrixMoyens,
-  lireStock, lirePileMaj, lirePileDisparue,
+  lireStock, lirePile, lirePileMaj, lirePileDisparue,
   varintsPackes,
 };

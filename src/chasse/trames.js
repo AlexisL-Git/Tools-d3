@@ -76,10 +76,27 @@ function lirePosition(frame) {
   return { uid, pos };
 }
 
-// kmu { 2: identifiant du groupe attaque } arrive au demarrage du combat.
+// kmu { 2: identifiant d'un acteur } dit qu'un acteur QUITTE LA CARTE. Un
+// groupe de monstres attaque la quitte, donc c'est bien le signal du combat.
+//
+// MAIS ELLE NE PARLE PAS QUE DE COMBAT, et c'est la lecon du 03/09 au soir:
+// chaque joueur qui s'en va en produit une aussi. La premiere mesure avait
+// donne `kmu { 2=-20000 }` juste au demarrage du combat, et on en avait
+// conclu trop vite qu'elle nommait le groupe attaque. Sur une carte frequentee,
+// elle tombe des dizaines de fois pour rien.
+//
+// LE SIGNE FAIT LE TRI, et lui seul: un groupe de monstres porte un
+// identifiant NEGATIF, un joueur porte le sien, grand et positif. Meme critere
+// que src/abandon-combat.js pour distinguer un monstre d'un joueur.
+//
+// Verifie le 03/09: les DEUX clients recoivent le meme `kmu { 2=-20004 }` a
+// 6 ms d'intervalle. La trame sortante `hqa`, elle, n'est emise que par le
+// maitre: elle n'aurait pas convenu.
 function lireGroupeAttaque(frame) {
   if (!frame || frame.type !== 'kmu') return null;
-  return entier(frame.payload, 2);
+  const id = entier(frame.payload, 2);
+  if (id === null || id >= 0) return null;
+  return id;
 }
 
 // jss, la liste des acteurs de la carte:

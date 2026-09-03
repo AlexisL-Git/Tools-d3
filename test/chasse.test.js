@@ -203,3 +203,105 @@ test('la position se met a jour meme eteinte', () => {
   assert.strictEqual(rendus.at(-1).quoi, 'deja');
   assert.strictEqual(rendus.at(-1).gid, 9688);
 });
+
+// --- Les trois corrections du 03/09 au soir --------------------------------
+
+const iua = (uid, gid, qte, pos) => ({ type: 'iua', payload: [
+  { no: 3, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 1, wire: WIRE.VARINT, value: BigInt(pos) },
+    { no: 5, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 1, wire: WIRE.VARINT, value: BigInt(gid) },
+      { no: 3, wire: WIRE.VARINT, value: BigInt(qte) },
+      { no: 4, wire: WIRE.VARINT, value: BigInt(uid) },
+    ] },
+  ] },
+] });
+const ium = (uid) => ({ type: 'ium', payload: [{ no: 1, wire: WIRE.VARINT, value: BigInt(uid) }] });
+const ivj = (uid, qte) => ({ type: 'ivj', payload: [
+  { no: 3, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 2, wire: WIRE.VARINT, value: BigInt(uid) },
+    { no: 3, wire: WIRE.VARINT, value: BigInt(qte) },
+  ] },
+] });
+
+// Un joueur qui quitte la carte ne doit plus rien declencher du tout.
+test('un depart de joueur ne fait plus dire groupe inconnu', () => {
+  const { superviseur, chasse, rendus } = monte();
+  const joueur = { type: 'kmu', payload: [{ no: 2, wire: WIRE.VARINT, value: 677158453542n }] };
+  chasse.onTrame({ pid: 42, dir: 'in', frame: joueur });
+  assert.strictEqual(superviseur.envois.length, 0);
+  assert.strictEqual(rendus.length, 0);
+});
+
+// LE DEFAUT DU 03/09 AU SOIR. La pierre visee disparait de l'inventaire entre
+// la connexion et le combat: sans suivre `ium`, on enverrait un uid mort et le
+// serveur ignorerait l'ordre sans un mot.
+test('une pile disparue n est plus proposee', () => {
+  const { superviseur, chasse, rendus } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) }); // la Grande
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(superviseur.envois.length, 0);
+  assert.strictEqual(rendus.at(-1).quoi, 'manque');
+});
+
+test('une pile neuve devient equipable', () => {
+  const { superviseur, chasse, rendus } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999001, 9688, 12, 63) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(superviseur.envois.length, 1);
+  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+  assert.deepStrictEqual(
+    superviseur.envois[0].octets,
+    trameEquiper({ uid: 999001, qte: 1, position: POSITION_PIERRE }),
+  );
+});
+
+test('une quantite mise a jour est suivie', () => {
+  const { superviseur, chasse } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivj(233526391, 7) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999002, 9688, 3, 63) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  // 7 contre 3: la plus grosse pile reste celle d'origine.
+  assert.deepStrictEqual(
+    superviseur.envois[0].octets,
+    trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE }),
+  );
+});
+
+// LE SILENCE EST UN COMPTE RENDU. Sans ca, un ordre ignore par le serveur ne
+// se voit nulle part: c'est ce qui a rendu la seance du 03/09 au soir
+// incomprehensible.
+test('un ordre sans reponse finit par se dire', async () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const chasse = creerChasse({
+    superviseur, actif: true, reglages: { delaiReponseMs: 5 },
+    onCompteRendu: (r) => rendus.push(r),
+  });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+  await new Promise((r) => setTimeout(r, 40));
+  assert.strictEqual(rendus.at(-1).quoi, 'sans-reponse');
+  assert.strictEqual(rendus.at(-1).gid, 9688);
+});
+
+test('une reponse a temps desarme le minuteur', async () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const chasse = creerChasse({
+    superviseur, actif: true, reglages: { delaiReponseMs: 5 },
+    onCompteRendu: (r) => rendus.push(r),
+  });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.strictEqual(rendus.at(-1).quoi, 'equipe');
+});

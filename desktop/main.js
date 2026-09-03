@@ -1076,6 +1076,8 @@ app.whenReady().then(async () => {
         'hors-portee': `chasse : niveau ${r.niveauMax}, aucune pierre ne couvre`,
         'groupe-inconnu': 'chasse : groupe inconnu, rien equipe',
         echec: 'chasse : ordre refuse',
+        // Le serveur n'a rien repondu en 3 s alors qu'il repond en 40 ms.
+        'sans-reponse': `chasse : ${r.gid} pas equipee, le serveur n a rien repondu`,
       };
       const texte = textes[r.quoi];
       if (texte === undefined) return;

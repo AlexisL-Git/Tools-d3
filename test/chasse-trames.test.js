@@ -94,3 +94,17 @@ test('trameEquiper reproduit l ordre mesure', () => {
   ]);
   assert.deepStrictEqual(octets, attendu);
 });
+
+// kmu dit qu'un ACTEUR QUITTE LA CARTE, pas « un combat commence ». Chaque
+// joueur qui s'en va en produit une: sur la seance du 03/09 au soir, des
+// dizaines sont tombees avec des identifiants de personnages, et chacune
+// faisait dire « groupe inconnu » a la chasse.
+test('lireGroupeAttaque ignore un identifiant de joueur, positif', () => {
+  const joueur = { type: 'kmu', payload: [{ no: 2, wire: WIRE.VARINT, value: 677158453542n }] };
+  assert.strictEqual(lireGroupeAttaque(joueur), null);
+});
+
+test('lireGroupeAttaque retient un identifiant de groupe, negatif', () => {
+  const groupe = { type: 'kmu', payload: [{ no: 2, wire: WIRE.VARINT, value: -20004n }] };
+  assert.strictEqual(lireGroupeAttaque(groupe), -20004);
+});
