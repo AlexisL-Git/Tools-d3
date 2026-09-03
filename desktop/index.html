@@ -526,7 +526,7 @@
        bascules de FONCTION (overlay, fermeture des clients), la barre de titre
        porte l'etat d'OMNI lui-meme. Emplacement choisi par Jibef le 03/09 sur
        le labo, apres avoir compare quatre positions. -->
-  <button class="maitre-inter" id="interChasse"><span class="temoin"></span><span>chasse</span></button>
+  <button class="maitre-inter" id="interChasse"><span class="temoin"></span><span>PdA archi</span></button>
   <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
 </div>
@@ -1284,8 +1284,8 @@
 
     interChasse.classList.toggle('on', etat.chasse === true);
     interChasse.title = etat.chasse === true
-      ? 'La bonne pierre d’âme est équipée à chaque entrée en combat. Cliquer pour arrêter.'
-      : 'Chasse éteinte. Allumée, elle userait des pierres sur les monstres ordinaires.';
+      ? 'La bonne pierre d’âme est équipée sur tous les comptes à chaque entrée en combat. Cliquer pour arrêter.'
+      : 'Éteint. Allumé, des pierres d’âme se rempliraient sur des monstres ordinaires.';
 
     // Le losange de chaque titre de colonne: plein, creux, ou a moitie.
     for (const b of document.querySelectorAll('[data-colonne]')) {

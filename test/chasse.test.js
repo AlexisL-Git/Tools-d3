@@ -14,10 +14,18 @@ const fixture = (nom) => decodeFrameRaw(
 
 // Un double du superviseur, comme dans hdv-vente.test.js: il retient ce qu'on
 // lui demande d'emettre au lieu d'ouvrir une socket.
-function doubleSuperviseur(pid = 42, etat = { nom: 'Iop' }) {
+// `tous` est un getter chez le vrai (src/protocol/compte.js): il rend la liste
+// des etats, chacun portant son pid. La chasse s'en sert pour equiper TOUS les
+// clients, pas seulement celui qui a vu le groupe partir.
+function doubleSuperviseur(pids = [42]) {
+  const etats = new Map(pids.map((p) => [p, { pid: p, nom: 'compte-' + p }]));
   return {
-    comptes: new Map([[pid, etat]]),
+    comptes: {
+      get: (p) => etats.get(p),
+      get tous() { return [...etats.values()]; },
+    },
     envois: [],
+    envoisDe(p) { return this.envois.filter((e) => e.pid === p); },
     emettre(p, octets) { this.envois.push({ pid: p, octets }); return { ok: true }; },
   };
 }
@@ -137,7 +145,9 @@ test('le combat suivant ne reequipe pas la pierre deja posee', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  // Un AUTRE groupe: le meme serait avale par la garde anti-doublon.
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90, -301) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-301) });
   assert.strictEqual(superviseur.envois.length, 2);
   assert.strictEqual(rendus.at(-1).quoi, 'deja');
 });
@@ -174,7 +184,7 @@ test('le compte rendu nomme le compte et la pierre separement', () => {
   const { chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(160) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
-  assert.strictEqual(rendus.at(-1).compte, 'Iop');
+  assert.strictEqual(rendus.at(-1).compte, 'compte-42');
   assert.strictEqual(rendus.at(-1).nom, 'Gigantesque pierre d ame');
 });
 
@@ -352,4 +362,83 @@ test('une pierre pleine restee a l emplacement est purgee', () => {
     trameEquiper({ uid: 999003, qte: 1, position: POSITION_INVENTAIRE }),
   );
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+});
+
+// --- Les deux corrections du 03/09, 14h40 ----------------------------------
+
+// LE SERVEUR NE REPOND PAS PAR ivq QUAND LA PILE SE SCINDE. Il cree une pile
+// neuve DEJA a l'emplacement, et n'emet aucun ivq. Mesure du 03/09:
+//   iua { 3={1=31 5={1=9689 3=1 4=242186527}} }
+// OMNI attendait un ivq qui ne pouvait pas venir et concluait a tort que le
+// serveur n'avait rien repondu, sur un ordre qui avait parfaitement marche.
+test('une pile neuve a l emplacement confirme la pose', () => {
+  const { chasse, rendus } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(242186527, 9688, 1, POSITION_PIERRE) });
+  assert.strictEqual(rendus.at(-1).quoi, 'equipe');
+  assert.strictEqual(rendus.at(-1).gid, 9688);
+});
+
+test('une pile neuve rangee ailleurs ne confirme rien', () => {
+  const { chasse, rendus } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(242186528, 9688, 1, 63) });
+  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+});
+
+// UNE MULE QUI REJOINT LE COMBAT NE VOIT PAS LE GROUPE PARTIR. Mesure du 03/09:
+// sur trois clients, un seul a recu le kmu du groupe. Un seul kmu doit donc
+// equiper tout le monde.
+test('un seul kmu equipe tous les clients connectes', () => {
+  const superviseur = doubleSuperviseur([42, 43, 44]);
+  const rendus = [];
+  const chasse = creerChasse({
+    superviseur, actif: true, onCompteRendu: (r) => rendus.push(r),
+  });
+  // Chaque client a son propre inventaire; seul le 42 voit la carte.
+  for (const pid of [42, 43, 44]) {
+    chasse.onTrame({ pid, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  }
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  for (const pid of [42, 43, 44]) {
+    assert.strictEqual(superviseur.envoisDe(pid).length, 2, 'pid ' + pid);
+  }
+  assert.strictEqual(rendus.filter((r) => r.quoi === 'envoye').length, 3);
+});
+
+// Deux clients sur la carte recoivent le MEME kmu: sans garde, on equiperait
+// deux fois de suite.
+test('le meme groupe deux fois de suite n equipe qu une fois', () => {
+  const superviseur = doubleSuperviseur([42, 43]);
+  const rendus = [];
+  const chasse = creerChasse({
+    superviseur, actif: true, onCompteRendu: (r) => rendus.push(r),
+  });
+  for (const pid of [42, 43]) {
+    chasse.onTrame({ pid, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  }
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 43, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  chasse.onTrame({ pid: 43, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(superviseur.envois.length, 4); // 2 clients x (purge + pose)
+});
+
+// La garde ne doit pas avaler un combat qui suit, sur le meme groupe, plus tard.
+test('le meme groupe hors de la fenetre equipe de nouveau', () => {
+  const superviseur = doubleSuperviseur([42]);
+  let horloge = 0;
+  const chasse = creerChasse({
+    superviseur, actif: true, reglages: { maintenant: () => horloge },
+  });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  horloge = 6000;
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(superviseur.envois.length, 4);
 });

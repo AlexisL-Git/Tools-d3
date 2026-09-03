@@ -10,6 +10,11 @@ const { trameEquiper, lirePosition, lireGroupeAttaque, lireGroupes } = require('
 // reste quinze secondes de preparation pour reagir.
 const DELAI_REPONSE_MS = 3000;
 
+// Deux clients qui voient le meme groupe partir emettent leur `kmu` a quelques
+// millisecondes d'ecart; cinq secondes couvrent largement l'ecart sans jamais
+// avaler deux combats successifs, la preparation durant a elle seule 18 s.
+const FENETRE_COMBAT_MS = 5000;
+
 // La chasse a l'archimonstre: equiper la bonne pierre d'ame, et rien d'autre.
 //
 // Conception: docs/superpowers/specs/2026-09-03-chasse-pierre-ame-design.md.
@@ -82,17 +87,47 @@ function creerChasse({
     piles.push({ uid: uidPose, gid: attente.gid, qte: 1, avecEffets: true, pos: POSITION_PIERRE });
   }
 
-  function entrerEnCombat(pid, idGroupe) {
-    const carte = cartes.get(pid);
+  // TOUS LES CLIENTS CONNECTES, PAS SEULEMENT CELUI QUI A VU LE GROUPE PARTIR.
+  //
+  // Mesure du 03/09 au soir: sur trois clients, UN SEUL a recu le `kmu` du
+  // groupe. Les deux autres ont REJOINT le combat au lieu de le lancer, et un
+  // client qui rejoint ne voit pas le groupe quitter la carte. Declencher
+  // chacun sur sa propre trame laisserait donc les mules sans pierre, ce qui
+  // est exactement ce qui s'est passe.
+  //
+  // C'est aussi la logique d'OMNI: le maitre decide, les autres suivent.
+  const comptesConnectes = () => {
+    const c = superviseur.comptes;
+    return Array.isArray(c.tous) ? c.tous : [];
+  };
+
+  // UN SEUL DECLENCHEMENT PAR COMBAT. Quand plusieurs clients sont sur la carte
+  // ils recoivent tous le meme `kmu`, et sans cette garde on equiperait quatre
+  // fois de suite.
+  let dernier = null;
+  const maintenant = () => (typeof reglages.maintenant === 'function'
+    ? reglages.maintenant() : Date.now());
+
+  function entrerEnCombat(pidSource, idGroupe) {
+    const carte = cartes.get(pidSource);
     const groupe = carte === undefined ? undefined : carte.get(idGroupe);
     // UN GROUPE INCONNU N'EQUIPE RIEN. La liste des acteurs arrive a l'arrivee
     // sur la carte; un groupe qui n'y est pas est un trou dans ce qu'on sait,
     // pas une invitation a deviner.
-    if (groupe === undefined) { rendre(pid, { quoi: 'groupe-inconnu', idGroupe }); return; }
+    if (groupe === undefined) { rendre(pidSource, { quoi: 'groupe-inconnu', idGroupe }); return; }
 
-    const verdict = choisir({ niveauMax: groupe.niveauMax, piles: stocks.get(pid) || [] });
+    const t = maintenant();
+    if (dernier !== null && dernier.idGroupe === idGroupe
+        && t - dernier.quand < FENETRE_COMBAT_MS) return;
+    dernier = { idGroupe, quand: t };
+
+    for (const etat of comptesConnectes()) equiperPour(etat.pid, groupe.niveauMax);
+  }
+
+  function equiperPour(pid, niveauMax) {
+    const verdict = choisir({ niveauMax, piles: stocks.get(pid) || [] });
     if (verdict.quoi !== 'equiper') {
-      rendre(pid, { ...verdict, niveauMax: groupe.niveauMax });
+      rendre(pid, { ...verdict, niveauMax });
       return;
     }
 
@@ -124,7 +159,7 @@ function creerChasse({
       uid: verdict.uid, qte: 1, position: POSITION_PIERRE,
     }));
     if (res === null || res === undefined || res.ok !== true) {
-      rendre(pid, { quoi: 'echec', gid: verdict.gid, niveauMax: groupe.niveauMax });
+      rendre(pid, { quoi: 'echec', gid: verdict.gid, niveauMax });
       return;
     }
     // UN ORDRE SANS REPONSE DOIT SE VOIR. C'est le defaut qui a rendu la
@@ -134,11 +169,11 @@ function creerChasse({
     const ms = delaiReponseMs();
     const minuteur = ms > 0 ? setTimeout(() => {
       attentes.delete(pid);
-      rendre(pid, { quoi: 'sans-reponse', gid: verdict.gid, niveauMax: groupe.niveauMax });
+      rendre(pid, { quoi: 'sans-reponse', gid: verdict.gid, niveauMax });
     }, ms) : null;
     if (minuteur !== null && typeof minuteur.unref === 'function') minuteur.unref();
     attentes.set(pid, { uid: verdict.uid, gid: verdict.gid, minuteur });
-    rendre(pid, { quoi: 'envoye', gid: verdict.gid, niveauMax: groupe.niveauMax });
+    rendre(pid, { quoi: 'envoye', gid: verdict.gid, niveauMax });
   }
 
   function onTrame({ pid, dir, frame }) {
@@ -165,12 +200,29 @@ function creerChasse({
     // reprises telles quelles: `iua` une pile neuve, `ivj` une pile entamee,
     // `ium` une pile disparue.
     if (frame.type === 'iua') {
-      const piles = stocks.get(pid);
-      if (piles === undefined) return;
       // Meme forme qu'une pile d'ivx, au champ 3 de la trame.
       const el = (frame.payload || []).find((f) => f.no === 3);
       const pile = el === undefined ? null : lirePile(el);
-      if (pile !== null && !piles.some((p) => p.uid === pile.uid)) piles.push(pile);
+      if (pile === null) return;
+      const piles = stocks.get(pid);
+      if (piles !== undefined && !piles.some((p) => p.uid === pile.uid)) piles.push(pile);
+
+      // C'EST LA VRAIE CONFIRMATION D'UNE POSE, et c'est la lecon du 03/09 au
+      // soir. Quand on n'equipe qu'UNE pierre prise dans une pile, le serveur
+      // ne DEPLACE rien: il CREE une pile neuve, deja a l'emplacement, et
+      // n'emet donc aucun `ivq`. Mesure:
+      //
+      //   iua { 3={1=31 5={1=9689 3=1 4=242186527}} }   la pierre, en place
+      //   ivj { 3={2=242076402 3=10} }                  la source, entamee
+      //
+      // On attendait un `ivq` qui ne pouvait pas venir, et OMNI concluait
+      // « le serveur n'a rien repondu » sur un ordre qui avait parfaitement
+      // marche.
+      const attente = attentes.get(pid);
+      if (allume && attente !== undefined && pile.pos === POSITION_PIERRE) {
+        oublier(pid);
+        rendre(pid, { quoi: 'equipe', gid: pile.gid });
+      }
       return;
     }
 
