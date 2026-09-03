@@ -3,9 +3,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { MESSAGES, lookup, lookupByName, needsRewrite, accountFields, estRejouable } = require('../src/protocol/omni');
 
-test('les dix types répliqués sont présents', () => {
-  assert.strictEqual(Object.keys(MESSAGES).length, 10);
-  for (const k of ['hjc', 'jqk', 'jrh', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw', 'kea']) {
+test('les onze types répliqués sont présents', () => {
+  assert.strictEqual(Object.keys(MESSAGES).length, 11);
+  for (const k of ['hjc', 'jqk', 'jrh', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw', 'kea', 'ido']) {
     assert.notStrictEqual(lookup(k), null, `${k} manquant`);
   }
 });
@@ -72,10 +72,33 @@ test('chaque champ déclare sa nature et son niveau de preuve', () => {
 test('le changement de carte est répertorié mais jamais rejoué', () => {
   assert.notStrictEqual(lookup('jqk'), null, 'la mesure reste documentée');
   assert.strictEqual(estRejouable('jqk'), false);
-  for (const k of ['hjc', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw', 'kea']) {
+  for (const k of ['hjc', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw', 'kea', 'ido']) {
     assert.strictEqual(estRejouable(k), true, k);
   }
   assert.strictEqual(estRejouable('inconnu'), null, 'un type hors table ne se juge pas');
+});
+
+// MESURE du 02/09 (journal de 23h41, deux clients sur la meme carte). Le
+// maitre ramasse l'objet de quete, la mule le regarde: c'est le defaut
+// rapporte le 03/09.
+//
+//   MAITRE  240286 ms  --> ido { 1=1633 }        le clic sur l'objet
+//                      --> kla {  }              meme milliseconde
+//                      <-- lqn { 2=54 4=1633 }   l'objet entre dans le sac
+//                      <-- ief { 1=1633 }        la quete avance
+//           240345 ms      rejeu kla ecrit       SEUL kla partait
+//   MULE    242512 ms  --> ido { 1=1633 }        clic a la main, 2,2 s apres
+//                      <-- lqn { 2=54 4=1633 }   MEMES reponses
+//                      <-- ief { 1=1633 }
+//
+// Le champ 1 vaut 1633 chez les DEUX personnages pour le meme objet: c'est un
+// identifiant d'objet, pas un exemplaire — le serveur le renvoie tel quel dans
+// lqn.4, comme pour `kea`. Rien dans la requete n'appartient au maitre.
+test('le ramassage d un objet de quête est répliqué tel quel', () => {
+  assert.notStrictEqual(lookup('ido'), null, 'ido: le ramassage d un objet de quête');
+  assert.strictEqual(estRejouable('ido'), true);
+  assert.strictEqual(needsRewrite('ido'), false, 'le champ 1 vaut 1633 chez les deux comptes');
+  assert.deepStrictEqual(accountFields('ido'), []);
 });
 
 // MESURE sur DEUX sessions du 28/08 (avant et apres le retrait de `jqk`):

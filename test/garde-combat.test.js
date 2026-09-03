@@ -17,7 +17,9 @@ const trame = (type, champs) => ({
 // havre-sac, sortie de donjon — ne declenchent aucun combat.
 test('seuls les trois types de dialogue et d interaction sont sensibles', () => {
   for (const t of ['iov', 'ioy', 'iwo']) assert.strictEqual(estSensible(t), true, t);
-  for (const t of ['hjc', 'jqk', 'jrh', 'kla', 'kjw', 'jbn', 'ieb']) {
+  // `ido` part avec un `kla` dans la meme milliseconde: le retarder seul
+  // inverserait l'ordre des deux rejeux chez la mule. Voir src/garde-combat.js.
+  for (const t of ['hjc', 'jqk', 'jrh', 'kla', 'kjw', 'jbn', 'ieb', 'ido']) {
     assert.strictEqual(estSensible(t), false, t);
   }
 });
