@@ -69,12 +69,14 @@ test('un niveau hors portee ne fait rien et le dit', () => {
   });
 });
 
-// Une pierre PLEINE porte des effets: ce n'est pas une pierre vide, et
-// l'equiper ne capturerait rien.
-test('une pierre a effets ne compte pas comme une pierre vide', () => {
-  const piles = [{ gid: 9688, uid: 111, qte: 1, pos: 63, avecEffets: true }];
+// UNE PIERRE D AME VIDE PORTE DES EFFETS, mesure du 03/09: les quatre piles de
+// l'inventaire mesure le font. Ecarter les piles a effets, comme le fait
+// l'hotel de vente pour ne garder que les ressources, ecarterait ici TOUTES les
+// pierres. Une pierre PLEINE n'est pas le meme objet, c'est le gid 7010.
+test('une pierre porte des effets et reste equipable', () => {
+  const piles = [{ gid: 9688, uid: 111, qte: 40, pos: 63, avecEffets: true }];
   assert.deepStrictEqual(choisir({ niveauMax: 90, piles }), {
-    quoi: 'manque', gid: 9688, nom: 'Grande pierre d ame',
+    quoi: 'equiper', gid: 9688, uid: 111, qte: 40,
   });
 });
 

@@ -41,8 +41,12 @@ function choisir({ niveauMax, piles }) {
   const voulue = tranche(niveauMax);
   if (voulue === null) return { quoi: 'hors-portee', niveauMax };
 
-  // Une pierre PLEINE porte des lignes d'effets: l'equiper ne capturerait rien.
-  const siennes = (piles || []).filter((p) => p.gid === voulue.gid && !p.avecEffets);
+  // LE GID SUFFIT, ET `avecEffets` NE SERT A RIEN ICI. Mesure du 03/09: les
+  // quatre piles de pierres vides de l'inventaire le portent toutes. Le
+  // raisonnement de l'hotel de vente, ou une ressource n'a pas d'effets, ne
+  // s'applique pas: une pierre est de l'equipement. Et une pierre PLEINE n'est
+  // pas le meme objet, c'est le gid 7010, donc elle ne peut pas se glisser ici.
+  const siennes = (piles || []).filter((p) => p.gid === voulue.gid);
   const portee = siennes.find((p) => p.pos === POSITION_PIERRE);
   if (portee !== undefined) return { quoi: 'deja', gid: voulue.gid };
 
