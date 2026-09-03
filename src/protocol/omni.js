@@ -14,10 +14,15 @@
 // aucun message propre — l'ouvrir revient a parler a un PNJ, donc au triplet
 // NpcGenericActionRequest / NpcDialogReplyRequest / DialogLeaveRequest.
 //
-// UNE EXCEPTION, mesuree le 29/08 et ajoutee a la demande de l'utilisateur:
+// DEUX EXCEPTIONS, mesurees et ajoutees a la demande de l'utilisateur.
+//
+// La premiere, le 29/08:
 // `kea`, l'achat chez un marchand PNJ. Elle ne remet pas en cause la regle —
 // l'achat A L'HOTEL DE VENTE (`kbm`) reste dehors, volontairement, et le
 // commentaire de `kea` explique pourquoi cette absence est le mecanisme.
+//
+// La seconde, le 03/09: `ido`, le ramassage d'un objet de quete. Meme cas de
+// figure — une interaction que le clic du maitre ne produisait que chez lui.
 //
 // NATURE DES CHAMPS. Rejouer une action sur un second compte suppose de savoir
 // quoi recopier et quoi reconstruire:
@@ -151,6 +156,47 @@ const MESSAGES = {
     fields: {
       objetType: { no: 1, nature: 'monde', sur: 'mesure', note: 'type d article (6765 = Lailait), identique dans les deux sessions et renvoye par lqn' },
       quantite: { no: 2, nature: 'monde', sur: 'mesure', note: 'valait 1 sur les deux achats mesures' },
+    },
+    verbatim: true,
+  },
+  // MESURE du 02/09 (journal-dev.log, 23h41 locales, deux clients sur la meme
+  // carte). L'utilisateur clique l'objet de quete: le maitre le ramasse, la
+  // mule le regarde. C'est le defaut rapporte le 03/09.
+  //
+  //   MAITRE  240286 ms  --> ido { 1=1633 }        LE CLIC SUR L'OBJET
+  //                      --> kla {  }              meme milliseconde: le dialogue se ferme
+  //                      <-- lqn { 2=54 4=1633 }   l'objet entre dans le sac
+  //                      <-- ief { 1=1633 }        la quete avance
+  //           240345 ms      rejeu kla ecrit       SEUL kla partait: ido n'etait pas ici
+  //   MULE    242512 ms  --> ido { 1=1633 }        clic A LA MAIN, 2,2 s plus tard
+  //                      <-- lqn { 2=54 4=1633 }   MEMES reponses, meme objet
+  //                      <-- ief { 1=1633 }
+  //
+  // LE CHAMP 1 EST UN IDENTIFIANT D'OBJET, PAS UN EXEMPLAIRE, et il ne vient
+  // pas du maitre: 1633 chez les deux personnages pour le meme objet, et le
+  // serveur le renvoie tel quel dans `lqn.4`. Meme raisonnement que `kea`, et
+  // meme conclusion: verbatim.
+  //
+  // LA CONDITION QUE LA TRAME NE PORTE PAS — celle qui a tue `jqk` — est ici
+  // REMPLIE PAR LA MULE ELLE-MEME, et la mesure le prouve: son `ido` manuel a
+  // ete accepte 2,2 s apres celui du maitre, sans autre clic que celui-la,
+  // apres son propre rejeu du `iwo` qui ouvre l'interaction. Une mule qui n'a
+  // pas la quete a la bonne etape se fait ignorer par le serveur: aucun degat
+  // mesure, contrairement a `jqk`.
+  //
+  // POURQUOI `ido` N'EST PAS UN TYPE SENSIBLE (src/garde-combat.js) alors qu'il
+  // ressemble a une interaction de quete: le maitre emet `ido` et `kla` dans LA
+  // MEME milliseconde. Un plancher de 250 ms sur `ido` seul ferait arriver la
+  // fermeture du dialogue AVANT le ramassage chez la mule — l'ordre des deux
+  // rejeux s'inverserait. Le garde protegerait d'un combat non mesure au prix
+  // du defaut qu'on corrige. Si un ramassage se met un jour a lancer un
+  // combat, c'est le couple (ido, kla) qu'il faudra retarder ensemble.
+  //
+  // LE NOM EST LE NOTRE: ce type ne figurait pas dans le canal de krm35.
+  ido: {
+    name: 'ObjetQueteRamasseRequest',
+    fields: {
+      objetGid: { no: 1, nature: 'monde', sur: 'mesure', note: 'identifiant d objet (1633 = l objet de quete mesure), identique chez le maitre et chez la mule, renvoye par lqn.4' },
     },
     verbatim: true,
   },

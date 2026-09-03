@@ -60,6 +60,12 @@ const { combattantsDe, TYPE_COMBATTANTS } = require('./abandon-combat');
 //
 // La valeur est la liste des champs qui IDENTIFIENT l'action, dans l'ordre ou
 // ils composent la cle.
+//
+// `ido` (le ramassage d'un objet de quete, repertorie le 03/09) N'EST PAS ICI,
+// et c'est delibere: le maitre emet `ido` et `kla` dans la MEME milliseconde.
+// Un plancher sur `ido` seul ferait fermer le dialogue de la mule AVANT son
+// ramassage — les deux rejeux s'inverseraient. Le retarder demanderait de
+// retarder le couple entier.
 const CHAMPS_CLE = {
   iov: [2, 3],   // la carte, puis l'instance de PNJ
   ioy: [1],      // le numero de reponse dans l'arbre de dialogue
