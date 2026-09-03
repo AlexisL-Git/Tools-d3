@@ -5,29 +5,43 @@
 //
 // Conception: docs/superpowers/specs/2026-09-03-chasse-pierre-ame-design.md.
 //
-// LES NIVEAUX NE SONT PAS DEVINES. Ils viennent du champ niveau des objets du
-// jeu, typeId 83, et disent le PLAFOND de capture: une pierre prend tout ce
-// qui est inferieur ou egal a son niveau.
+// LE PLAFOND N'EST PAS LE NIVEAU DE L'OBJET, et les confondre coute une pierre
+// a chaque combat. C'est l'erreur du 03/09, rapportee deux fois par Jibef avant
+// qu'elle soit comprise: le champ « niveau » d'une pierre d'ame est celui de
+// l'OBJET, et le plafond de capture est DECALE D'UN CRAN AU-DESSUS.
 //
-// LA GARGANTUESQUE (gid 9718) N'EST PAS DANS LA TABLE, volontairement: c'est
-// le combat final d'une chasse, il se prepare a la main.
+//   gid   nom            niveau de l'objet   plafond reel
+//   9686  Petite                        20             50
+//   9687  Moyenne                       50            100
+//   9688  Grande                       100            150
+//   9689  Enorme                       150            190
+//   9690  Gigantesque                  190           1000
+//
+// Le plafond se lit dans l'effet 705 de l'objet, troisieme parametre. Lire le
+// champ « niveau » faisait equiper une Enorme (plafond 190) sur un monstre de
+// 124, la ou la Grande (plafond 150) suffisait.
+//
+// LA GIGANTESQUE COUVRE TOUT ce qui existe: la Gargantuesque (gid 9718) n'a
+// donc aucune raison d'etre dans la table, et le cas « hors de portee » ne peut
+// plus se produire en jeu. Il reste code, on ne supprime pas une garde parce
+// qu'elle ne sert pas aujourd'hui.
 const PIERRES = [
-  { gid: 9686, niveau: 20, nom: 'Petite pierre d ame' },
-  { gid: 9687, niveau: 50, nom: 'Moyenne pierre d ame' },
-  { gid: 9688, niveau: 100, nom: 'Grande pierre d ame' },
-  { gid: 9689, niveau: 150, nom: 'Enorme pierre d ame' },
-  { gid: 9690, niveau: 190, nom: 'Gigantesque pierre d ame' },
+  { gid: 9686, plafond: 50, nom: 'Petite pierre d ame' },
+  { gid: 9687, plafond: 100, nom: 'Moyenne pierre d ame' },
+  { gid: 9688, plafond: 150, nom: 'Grande pierre d ame' },
+  { gid: 9689, plafond: 190, nom: 'Enorme pierre d ame' },
+  { gid: 9690, plafond: 1000, nom: 'Gigantesque pierre d ame' },
 ];
 
 // L'emplacement d'equipement d'une pierre d'ame, mesure le 03/09: poser une
 // pile en 31 renvoie en inventaire celle qui s'y trouvait.
 const POSITION_PIERRE = 31;
 
-// La plus petite pierre qui couvre le niveau, ou null.
+// La plus petite pierre dont le plafond couvre le niveau, ou null.
 function tranche(niveauMax) {
   const n = Number(niveauMax);
   if (!Number.isFinite(n) || n <= 0) return null;
-  return PIERRES.find((p) => n <= p.niveau) || null;
+  return PIERRES.find((p) => n <= p.plafond) || null;
 }
 
 // LE VERDICT EST UN SEUL OBJET, jamais une exception ni un null nu: chacun des

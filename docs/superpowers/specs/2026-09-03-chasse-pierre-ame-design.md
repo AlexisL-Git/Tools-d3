@@ -15,19 +15,23 @@ son propre inventaire.
 ## Ce qui est déjà acquis, sans aucune mesure
 
 **La table des pierres**, tirée des données hors ligne (`objets.json`,
-21 736 objets). Les pierres d'âme vides portent le `typeId` 83 et leur champ
-niveau donne directement le plafond de capture :
+21 736 objets). Les pierres d'âme vides portent le `typeId` 83, mais leur champ
+niveau N'EST PAS le plafond de capture :
 
-| gid | nom | niveau max |
-|---|---|---|
-| 9686 | Petite pierre d'âme | 20 |
-| 9687 | Moyenne pierre d'âme | 50 |
-| 9688 | Grande pierre d'âme | 100 |
-| 9689 | Énorme pierre d'âme | 150 |
-| 9690 | Gigantesque pierre d'âme | 190 |
+| gid | nom | niveau de l objet | plafond REEL |
+|---|---|---|---|
+| 9686 | Petite pierre d ame | 20 | 50 |
+| 9687 | Moyenne pierre d ame | 50 | 100 |
+| 9688 | Grande pierre d ame | 100 | 150 |
+| 9689 | Enorme pierre d ame | 150 | 190 |
+| 9690 | Gigantesque pierre d ame | 190 | 1000 |
 
-La Gargantuesque (gid 9718) est écartée : c'est le combat final d'une chasse,
-il se prépare à la main.
+**LE PLAFOND N EST PAS LE NIVEAU DE L OBJET**, il est decale d un cran au-dessus,
+et il se lit dans l effet 705 de l objet, troisieme parametre. Confondre les deux
+faisait equiper une Enorme sur un monstre de 124. Erreur du 03/09, rapportee deux
+fois en jeu par Jibef avant d etre comprise.
+
+La Gigantesque couvrant 1000, la Gargantuesque (9718) ne sert jamais.
 
 **La lecture de l'inventaire.** `lirePile` dans `src/hdv/trames.js` décode déjà
 les piles de `ivx` et `iwb` et rend `{ uid, gid, qte, avecEffets }`. Retrouver
@@ -62,13 +66,14 @@ séparément : elle n'arrive qu'une fois le client réellement dans le combat.
 **Une mule encore en déplacement ne peut rien équiper, le jeu refuse.** On
 l'attend donc au lieu de tirer trop tôt.
 
-Sur chaque client connecté,
-chacun pour lui-même. On se greffe là où `abandon-combat.js` reconnaît déjà le
+Chaque client est servi pour lui-même, depuis son propre inventaire. On se
+greffe là où `abandon-combat.js` reconnaît déjà le
 combat.
 
 **La décision est une fonction pure.** Niveau max des monstres du combat en
 entrée, gid de la pierre en sortie : la plus petite dont le niveau couvre le
-maximum observé. Au-delà de 190, elle ne rend rien et OMNI ne touche à rien.
+maximum observé. Au-delà de 1000, elle ne rend rien et OMNI ne touche à rien,
+ce qui ne peut pas arriver en jeu.
 Elle se teste en dix cas sans lancer le jeu, comme `lots.js` du shopping.
 
 **L'action.** Retrouver la pile du bon gid dans l'inventaire, envoyer la trame
@@ -147,8 +152,10 @@ Trois choses à retenir.
 **Le serveur déséquipe tout seul.** Poser une pierre en 31 renvoie celle qui
 s'y trouvait en 63, sans qu'on ait rien à demander. Un seul ordre suffit.
 
-**La confirmation est `ivq { 1=uid, 2=nouvelle position }`**, rendue en 40 ms.
-C'est elle qu'on attend avant de considérer le personnage prêt.
+**La confirmation dépend de ce qu'on déplace.** Une pile entière DÉPLACÉE donne
+`ivq { 1=uid, 2=nouvelle position }`. Une seule pierre prise dans une pile ne
+donne AUCUN `ivq` : le serveur crée une pile neuve déjà à l'emplacement, et
+c'est `iua` qui fait foi. Les deux comptent, mesuré le 03/09 à 14h40.
 
 **L'uid d'une pierre change.** Sortir une partie d'une pile crée une pile
 neuve, la fusion en détruit une. L'uid doit donc être relu dans l'inventaire au
