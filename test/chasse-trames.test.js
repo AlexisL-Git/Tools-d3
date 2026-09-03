@@ -3,8 +3,11 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { decodeFrameRaw } = require('../src/codec/rawProto');
+const { decodeFrameRaw, encodeRaw, WIRE } = require('../src/codec/rawProto');
 const { lireStock, POSITION_INVENTAIRE } = require('../src/hdv/trames');
+const {
+  lireGroupes, lireGroupeAttaque, lirePosition, trameEquiper,
+} = require('../src/chasse/trames');
 
 const fixture = (nom) => decodeFrameRaw(
   Buffer.from(fs.readFileSync(path.join(__dirname, 'fixtures', nom), 'utf8').trim(), 'hex'),
@@ -29,4 +32,65 @@ test('la pierre d ame portee se trouve en position 31', () => {
   assert.strictEqual(portees[0].gid, 9687);
   assert.strictEqual(portees[0].uid, 233525940);
   assert.strictEqual(portees[0].qte, 47);
+});
+
+// La carte de mesure du 03/09 portait deux groupes. Le -20000 est celui que
+// Jibef a attaque: deux Black Wabbit de niveau 46. Le -20001 en portait quatre,
+// dont un Black Wabbit de niveau 50 qui menait le groupe.
+test('lireGroupes rend les deux groupes de la carte mesuree', () => {
+  const groupes = lireGroupes(fixture('chasse-jss-groupes.hex'));
+  assert.strictEqual(groupes.size, 2);
+  assert.strictEqual(groupes.get(-20000).niveauMax, 46);
+  assert.strictEqual(groupes.get(-20000).monstres, 2);
+  assert.strictEqual(groupes.get(-20001).niveauMax, 50);
+  assert.strictEqual(groupes.get(-20001).monstres, 4);
+});
+
+test('le joueur n est pas un groupe de monstres', () => {
+  const groupes = lireGroupes(fixture('chasse-jss-groupes.hex'));
+  assert.strictEqual(groupes.has(677158453542), false);
+});
+
+// kmu { 2 = identifiant du groupe } arrive au demarrage du combat.
+test('lireGroupeAttaque lit l identifiant du groupe dans kmu', () => {
+  const frame = { type: 'kmu', payload: [{ no: 2, wire: WIRE.VARINT, value: -20000n }] };
+  assert.strictEqual(lireGroupeAttaque(frame), -20000);
+});
+
+test('lireGroupeAttaque ignore une autre trame et un kmu vide', () => {
+  assert.strictEqual(lireGroupeAttaque({ type: 'kmk', payload: [] }), null);
+  assert.strictEqual(lireGroupeAttaque({ type: 'kmu', payload: [] }), null);
+});
+
+// ivq { 1 = uid, 2 = nouvelle position } confirme le deplacement en 40 ms.
+test('lirePosition lit la confirmation ivq', () => {
+  const frame = { type: 'ivq', payload: [
+    { no: 1, wire: WIRE.VARINT, value: 233526404n },
+    { no: 2, wire: WIRE.VARINT, value: 31n },
+  ] };
+  assert.deepStrictEqual(lirePosition(frame), { uid: 233526404, pos: 31 });
+});
+
+test('lirePosition rend null sur autre chose', () => {
+  assert.strictEqual(lirePosition({ type: 'ivj', payload: [] }), null);
+});
+
+// L'ordre mesure le 03/09: iuk { 1 = quantite, 2 = uid, 3 = position }.
+// Le client deplace la PILE ENTIERE quand il equipe, pas une unite.
+test('trameEquiper reproduit l ordre mesure', () => {
+  const octets = trameEquiper({ uid: 233526404, qte: 89, position: 31 });
+  const attendu = encodeRaw([
+    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+        { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/iuk' },
+        { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+          { no: 1, wire: WIRE.VARINT, value: 89n },
+          { no: 2, wire: WIRE.VARINT, value: 233526404n },
+          { no: 3, wire: WIRE.VARINT, value: 31n },
+        ] },
+      ] },
+      { no: 2, wire: WIRE.VARINT, value: -1n },
+    ] },
+  ]);
+  assert.deepStrictEqual(octets, attendu);
 });
