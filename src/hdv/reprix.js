@@ -29,6 +29,10 @@ const { decider } = require('./prix');
 // qu'apres coup, la marchandise bradee. L'automate attend donc le kgp avant de
 // decider le lot suivant. C'est la seule raison d'etre du drapeau `fraiche`.
 //
+// CE N'EST PAS CE RYTHME qui laissait des lots jumeaux en arriere (signale le
+// 03/09): la passe les voyait tous, et decider() les laissait tous des qu'UN
+// seul d'entre eux touchait le minimum. Cette regle-la vit dans prix.js.
+//
 // Ni Electron, ni Frida, ni disque: il se teste avec un double du superviseur,
 // comme le passeur et l'accepteur d'echange.
 
@@ -240,6 +244,10 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         marche: passe.marche,
         nos: nosDuGid(pid, passe.gid),
         taille: lot.taille,
+        // OU CE LOT-CI EN EST, et pas seulement ou en sont les autres. La file
+        // est figee au lancement, mais chaque lot n'y passe qu'une fois: son
+        // prix y est donc bien celui d'avant sa propre mise a jour.
+        prixActuel: lot.prix,
         moyenUnitaire: (moyens && moyens.get(passe.gid)) || 0,
       });
 

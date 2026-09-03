@@ -114,6 +114,48 @@ test('quand le minimum est a nous, rien n est emis', () => {
   assert.strictEqual(fin.bilan.maj, 0);
 });
 
+// LE CAS SIGNALE EN JEU LE 03/09, et c'est celui d'un stock: huit lots de 10 du
+// meme objet, un seul descendu a 19809 et les autres restes a 19814 et 19812.
+// Ce n'etait pas un probleme de cadence — la passe les voyait tous, et les
+// laissait tous, parce qu'un lot A NOUS touchait deja le minimum du creneau.
+//
+// La passe doit donc ALIGNER les retardataires sur ce minimum, sans le
+// sous-coter: le lot deja au plus bas, lui, ne bouge pas.
+test('des lots jumeaux plus chers sont alignes sur notre propre minimum', () => {
+  const { r, dire, sup, types, rendu } = monter();
+  dire(kby([
+    { uid: 10, gid: 13731, taille: 10, prix: 19814 },
+    { uid: 11, gid: 13731, taille: 10, prix: 19812 },
+    { uid: 12, gid: 13731, taille: 10, prix: 19809 },
+  ]));
+  dire(ivi([[13731, 1900]]));
+  r.lancer(1);
+  dire(kbt(13731, [0, 19809, 0, 0]));
+
+  // Le premier retardataire s'aligne, il ne sous-cote pas.
+  assert.deepStrictEqual(types(), ['keh', 'kbz', 'kch']);
+  assert.strictEqual(Number(champ(sup.emis[2].frame, 1).value), 10);
+  assert.strictEqual(Number(champ(sup.emis[2].frame, 2).value), 19809);
+
+  dire(kes(90, 13731, 10, 19809));
+  dire(kgp(13731, [0, 19809, 0, 0]));
+
+  // Le second aussi, et toujours au meme prix: aucune erosion d'un lot a l'autre.
+  assert.deepStrictEqual(types(), ['keh', 'kbz', 'kch', 'kch']);
+  assert.strictEqual(Number(champ(sup.emis[3].frame, 1).value), 11);
+  assert.strictEqual(Number(champ(sup.emis[3].frame, 2).value), 19809);
+
+  dire(kes(91, 13731, 10, 19809));
+  dire(kgp(13731, [0, 19809, 0, 0]));
+
+  // Le troisieme EST deja le minimum: rien a emettre, la passe se termine.
+  assert.deepStrictEqual(types(), ['keh', 'kbz', 'kch', 'kch', 'keh']);
+  const fin = rendu.find((x) => x.fini);
+  assert.strictEqual(fin.bilan.maj, 2);
+  assert.strictEqual(fin.bilan.laisses, 1);
+  assert.deepStrictEqual(r.lotsConnus(1).map((l) => l.prix), [19809, 19809, 19809]);
+});
+
 // LE TEST LE PLUS IMPORTANT DU FICHIER.
 //
 // Chaque kch fait pousser un kgp par le serveur, avec notre nouveau prix

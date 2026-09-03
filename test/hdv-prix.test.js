@@ -39,6 +39,52 @@ test('notre lot est au minimum d une AUTRE taille : on sous-cote quand meme', ()
   assert.strictEqual(prix, 2699);
 });
 
+// HUIT LOTS DU MEME OBJET, ET UN SEUL AU MINIMUM. Signale en jeu le 03/09: des
+// lots de 10 restes a 19814 et 19812 alors que le creneau etait tombe a 19809 —
+// notre propre lot. Le test « est-ce le notre » regardait si UN QUELCONQUE de
+// nos lots touchait le minimum, pas si CELUI-CI y etait: des le premier lot
+// descendu, tous ses jumeaux plus chers etaient abandonnes, passe apres passe.
+//
+// S'ALIGNER, JAMAIS SOUS-COTER. Le minimum est deja le notre: descendre d'un
+// kama serait l'auto-sous-cotation que ce module interdit. Meme raisonnement
+// que deciderPose(), et il est borne — une fois aligne, le lot ne bouge plus.
+test('le minimum est le notre mais CE lot-ci est plus cher : on s aligne', () => {
+  const prix = decider({
+    marche: [0, 19809, 0, 0],
+    nos: [{ taille: 10, prix: 19814 }, { taille: 10, prix: 19809 }],
+    taille: 10,
+    prixActuel: 19814,
+    moyenUnitaire: 1900,
+  });
+  assert.strictEqual(prix, 19809);
+});
+
+// Le pendant du precedent: ce lot-ci EST le minimum, il n'y a rien a emettre.
+test('le minimum est le notre et c est CE lot-ci : on ne touche a rien', () => {
+  const prix = decider({
+    marche: [0, 19809, 0, 0],
+    nos: [{ taille: 10, prix: 19814 }, { taille: 10, prix: 19809 }],
+    taille: 10,
+    prixActuel: 19809,
+    moyenUnitaire: 1900,
+  });
+  assert.strictEqual(prix, null);
+});
+
+// Le minimum est le notre a 1 kama: le garde-fou passe AVANT l'alignement,
+// comme chez deciderPose. S'aligner sur 1 kama serait brader huit lots d'un
+// coup, et un kama ne se sous-cote pas non plus — 0 signifie « creneau vide ».
+test('le minimum est le notre a 1 kama : on ne s aligne pas dessus', () => {
+  const prix = decider({
+    marche: [0, 1, 0, 0],
+    nos: [{ taille: 10, prix: 320 }, { taille: 10, prix: 1 }],
+    taille: 10,
+    prixActuel: 320,
+    moyenUnitaire: 32,
+  });
+  assert.strictEqual(prix, null);
+});
+
 test('les quatre creneaux sont vides : rien a deduire, on ne pose pas', () => {
   const prix = decider({ marche: [0, 0, 0, 0], nos: [], taille: 100, moyenUnitaire: MOYEN_PIERRE });
   assert.strictEqual(prix, null);
