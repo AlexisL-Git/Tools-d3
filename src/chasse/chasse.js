@@ -47,6 +47,22 @@ function creerChasse({ superviseur, actif = false, onCompteRendu = () => {} }) {
   // de la pierre qui manque, et l'etalement ci-dessous l'ecraserait.
   const rendre = (pid, rendu) => onCompteRendu({ pid, compte: nomDe(pid), ...rendu });
 
+  // Remettre notre copie de l'inventaire d'aplomb apres une pose reussie. Sans
+  // ca, le combat suivant relirait une pile source intacte et une position 31
+  // vide, et reequiperait pour rien.
+  //
+  // Les autres mouvements de piles (`iua`, `ivj`, `ium`) ne sont PAS ecoutes:
+  // le prochain `ivx` remet tout d'aplomb, et la seule chose qu'on ait besoin
+  // de savoir entre deux, c'est ou est la pierre.
+  function noterPierrePosee(pid, attente, uidPose) {
+    const piles = stocks.get(pid);
+    if (piles === undefined) return;
+    if (uidPose === attente.uid) return; // la pile n'a pas eu a se scinder
+    const source = piles.find((p) => p.uid === attente.uid);
+    if (source !== undefined) source.qte -= 1;
+    piles.push({ uid: uidPose, gid: attente.gid, qte: 1, avecEffets: true, pos: POSITION_PIERRE });
+  }
+
   function entrerEnCombat(pid, idGroupe) {
     const carte = cartes.get(pid);
     const groupe = carte === undefined ? undefined : carte.get(idGroupe);
@@ -61,8 +77,17 @@ function creerChasse({ superviseur, actif = false, onCompteRendu = () => {} }) {
       return;
     }
 
+    // UNE SEULE PIERRE, PAS LA PILE ENTIERE. Le client, lui, deplace tout le
+    // tas quand on equipe a la main (mesure du 03/09, une pile de 89 partie en
+    // un ordre a 89). On ne l'imite PAS: decision de Jibef le 2026-09-03, il
+    // n'y a aucune raison de mettre 89 pierres sur le personnage pour en
+    // remplir une.
+    //
+    // CE CHOIX A UN PRIX, et c'est tout l'objet de la confirmation plus bas:
+    // sortir une unite d'une pile en CREE une neuve, avec un uid neuf (`iua`,
+    // mesure du 03/09). L'uid confirme n'est donc pas celui qu'on a envoye.
     const res = superviseur.emettre(pid, trameEquiper({
-      uid: verdict.uid, qte: verdict.qte, position: POSITION_PIERRE,
+      uid: verdict.uid, qte: 1, position: POSITION_PIERRE,
     }));
     if (res === null || res === undefined || res.ok !== true) {
       rendre(pid, { quoi: 'echec', gid: verdict.gid, niveauMax: groupe.niveauMax });
@@ -103,9 +128,14 @@ function creerChasse({ superviseur, actif = false, onCompteRendu = () => {} }) {
         if (pile !== undefined) pile.pos = maj.pos;
       }
       const attente = attentes.get(pid);
-      if (allume && attente !== undefined && attente.uid === maj.uid
-          && maj.pos === POSITION_PIERRE) {
+      // LA CONFIRMATION NE SE RECONNAIT PAS A L'UID, mais a la POSITION. On
+      // envoie une seule pierre prise dans une pile, ce qui en cree une neuve
+      // avec un uid neuf: l'uid qui revient n'est donc pas celui qu'on a
+      // envoye. Une arrivee en position 31 pendant qu'on attend, c'est la
+      // notre, il n'y a rien d'autre qui aille s'y poser a cet instant.
+      if (allume && attente !== undefined && maj.pos === POSITION_PIERRE) {
         attentes.delete(pid);
+        noterPierrePosee(pid, attente, maj.uid);
         rendre(pid, { quoi: 'equipe', gid: attente.gid });
       }
       return;

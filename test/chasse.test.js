@@ -6,6 +6,7 @@ const path = require('node:path');
 const { decodeFrameRaw, WIRE } = require('../src/codec/rawProto');
 const { creerChasse } = require('../src/chasse/chasse');
 const { POSITION_PIERRE } = require('../src/chasse/pierres');
+const { trameEquiper } = require('../src/chasse/trames');
 
 const fixture = (nom) => decodeFrameRaw(
   Buffer.from(fs.readFileSync(path.join(__dirname, 'fixtures', nom), 'utf8').trim(), 'hex'),
@@ -96,12 +97,48 @@ test('un niveau 90 fait equiper la Grande pierre et attend la confirmation', () 
   assert.strictEqual(rendus.at(-1).gid, 9688);
 });
 
-test('une confirmation sur un autre uid ne conclut rien', () => {
+// LA CONFIRMATION SE RECONNAIT A LA POSITION, PAS A L'UID. Sortir une pierre
+// d'une pile en cree une neuve, avec un uid neuf: exiger l'uid envoye laisserait
+// l'attente ouverte pour toujours.
+test('la confirmation arrive sur un uid neuf et conclut quand meme', () => {
   const { chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
+  assert.strictEqual(rendus.at(-1).quoi, 'equipe');
+  assert.strictEqual(rendus.at(-1).gid, 9688);
+});
+
+// Un mouvement vers l'inventaire pendant l'attente n'est pas notre pose: c'est
+// la pierre precedente que le serveur renvoie en 63 tout seul.
+test('un retour en inventaire pendant l attente ne conclut rien', () => {
+  const { chasse, rendus } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(233525940, 63) });
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+});
+
+// UNE SEULE PIERRE, PAS LA PILE. Le client en deplace 40 quand on equipe a la
+// main; OMNI n'en envoie qu'une. Decision de Jibef le 03/09.
+test('l ordre ne porte qu une seule pierre, pas la pile entiere', () => {
+  const { superviseur, chasse } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  const attendu = trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE });
+  assert.deepStrictEqual(superviseur.envois[0].octets, attendu);
+});
+
+// Le combat suivant ne doit RIEN renvoyer: la pierre posee est en 31, et notre
+// copie de l'inventaire le sait sans attendre le prochain ivx.
+test('le combat suivant ne reequipe pas la pierre deja posee', () => {
+  const { superviseur, chasse, rendus } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(superviseur.envois.length, 1);
+  assert.strictEqual(rendus.at(-1).quoi, 'deja');
 });
 
 // Jibef n'a aucune Gigantesque: un groupe de niveau 160 doit dire le manque.

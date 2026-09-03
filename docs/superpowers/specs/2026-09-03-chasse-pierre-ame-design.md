@@ -141,8 +141,15 @@ C'est elle qu'on attend avant de considérer le personnage prêt.
 neuve, la fusion en détruit une. L'uid doit donc être relu dans l'inventaire au
 moment d'agir, jamais mémorisé d'un combat sur l'autre.
 
-Le client déplace **la pile entière** quand il équipe, pas une unité. On fait
-pareil : quantité = la quantité de la pile.
+Le client déplace **la pile entière** quand il équipe, pas une unité.
+**OMNI ne l’imite pas** : il n’en envoie qu’une. Décision de Jibef le
+2026-09-03, après le premier essai en jeu. Il n’y a aucune raison de poser
+89 pierres sur le personnage pour en remplir une, et une seule suffit pour le
+combat suivant sans avoir à déséquiper.
+
+**Ce choix se paie sur la confirmation.** Sortir une unité d’une pile en crée
+une neuve, avec un uid neuf : l’uid qui revient dans `ivq` n’est donc pas celui
+qu’on a envoyé. La confirmation se reconnaît à la POSITION, pas à l’uid.
 
 ### Les niveaux des monstres
 
