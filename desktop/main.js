@@ -980,10 +980,22 @@ app.whenReady().then(async () => {
         envoyerEtat();
         return;
       }
-      // L'AVANCEMENT NE DECLENCHE PAS D'ENVOI D'ETAT. envoyerEtat() lance
+      // LE DEBUT EST LE SEUL AVANCEMENT QUI ENVOIE L'ETAT, et il le fait UNE
+      // FOIS PAR PASSE. Sans lui, le clic restait sans reponse visible jusqu'au
+      // tick suivant, alors que c'est precisement l'instant ou l'utilisateur
+      // attend de savoir combien de lots vont y passer.
+      if (r.debut) {
+        messages.set(r.pid, `HDV : ${r.total} lots à mettre à jour`);
+        journal(r.pid, `hdv debut : ${r.total} lots`);
+        envoyerEtat();
+        return;
+      }
+      // LES AVANCEMENTS SUIVANTS, EUX, N'ENVOIENT RIEN. envoyerEtat() lance
       // powershell.exe par clientsRecents(): l'appeler a chaque lot ferait
-      // 376 lancements sur le compte de mesure. Le tick de 2 s l'affiche.
-      if (r.total) messages.set(r.pid, `HDV : ${r.avance} / ${r.total} lots`);
+      // 376 lancements sur le compte de mesure. Le tick de 2 s les affiche.
+      if (r.restant !== undefined) {
+        messages.set(r.pid, `HDV : ${r.restant} lots restants sur ${r.total}`);
+      }
     },
   });
 
@@ -1012,13 +1024,21 @@ app.whenReady().then(async () => {
         envoyerEtat();
         return;
       }
-      // L'AVANCEMENT NE DECLENCHE PAS D'ENVOI D'ETAT: envoyerEtat() lance
-      // powershell.exe par clientsRecents(). Le tick de 2 s l'affiche.
-      //
-      // PAS DE DENOMINATEUR EN LOTS. Le stock de mesure porte 6495 lots
-      // candidats et la passe s'arretera bien avant: afficher « 47 / 6495 »
-      // serait un chiffre faux.
-      if (r.objets) messages.set(r.pid, `HDV : ${r.poses} lots posés — objet ${r.objetsFaits} sur ${r.objets}`);
+      // MEME REGLE QUE POUR L'ACTUALISATION: le debut envoie l'etat une fois,
+      // les avancements suivants attendent le tick de 2 s.
+      if (r.debut) {
+        messages.set(r.pid, `HDV : ${r.total} lots à mettre en vente`);
+        journal(r.pid, `vente debut : ${r.total} lots candidats`);
+        envoyerEtat();
+        return;
+      }
+      // LE RESTANT NE TOMBERA PAS A ZERO, et c'est assume. Le stock de mesure
+      // porte 6495 lots candidats; la passe s'arretera au plafond de l'hotel
+      // de vente, quelques centaines avant. Le chiffre dit ce qui POURRAIT
+      // encore partir — c'est ce qu'on sait, et l'avancement se lit dessus.
+      if (r.restant !== undefined) {
+        messages.set(r.pid, `HDV : ${r.poses} posés — ${r.restant} lots restants`);
+      }
     },
   });
   // LES DROITS ACCORDES A CETTE CLE. Relus toutes les 60 s: Draxus coupe une

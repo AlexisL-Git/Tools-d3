@@ -512,10 +512,13 @@ test('un ivj errant pendant la rafale ne compte pas un lot non envoye', async ()
   // a la main par le joueur, precisement devant son hotel de vente. Il ne
   // doit rien confirmer: aucun kge ne le justifie encore.
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 50) });
-  assert.strictEqual(
-    rendus.filter((r) => r.poses !== undefined).length, 1,
-    'le lot errant ne compte pas comme pose',
-  );
+  // L'ASSERTION PORTE SUR LE NOMBRE DE POSES, PAS SUR CELUI DES COMPTES
+  // RENDUS. Compter les rendus etait un raccourci tant qu'un seul d'entre eux
+  // portait `poses`; l'avancement en porte un aussi depuis qu'il affiche
+  // « X poses — Y restants ». La grandeur elle-meme ne se prete pas a
+  // l'ambiguite.
+  const dernier = rendus.filter((r) => r.poses !== undefined).pop();
+  assert.strictEqual(dernier.poses, 1, 'le lot errant ne compte pas comme pose');
   await new Promise((r) => setTimeout(r, 80));
   // Le delai de rafale n'a pas ete annule a tort: le second kge finit par
   // partir de lui-meme.
@@ -540,4 +543,65 @@ test('rythmeVisite ajoute la pause et rearme le compteur', () => {
   assert.ok(avecPause.compteur >= 20, 'le compteur est rearme, sinon toutes les visites suivantes pauseraient');
   const haut = rythmeVisite(1, () => 0.999999);
   assert.strictEqual(haut.ms, DELAI_OBJET_MAX + PAUSE_MAX);
+});
+
+// --- L'avancement --------------------------------------------------------
+
+// LE COMPTE RENDU N'ETAIT EMIS QU'APRES UNE POSE CONFIRMEE. Un stock ou les
+// piles ont fondu, ou dont les prix sont indecidables, faisait donc une passe
+// entierement muette: l'affichage restait fige sur le message du clic sans que
+// rien ne dise si elle travaillait.
+//
+// Le lancement annonce le nombre de lots, et c'est le seul compte rendu marque
+// `debut`: l'IHM s'en sert pour rafraichir tout de suite, une fois par passe.
+test('le lancement annonce le nombre de lots a mettre en vente', () => {
+  const { vente, rendus } = venteAvecPile({ qte: 200 });
+  vente.lancer(42);
+  // 200 unites font deux lots de 100.
+  assert.deepStrictEqual(rendus[0], { pid: 42, debut: true, restant: 2, total: 2 });
+});
+
+// Le restant tombe a zero quand la passe va au bout, et il ne remonte jamais.
+test('le restant decroit a chaque lot qui quitte la file', () => {
+  const { vente, rendus } = venteAvecPile({ qte: 300 });
+  vente.lancer(42);
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
+  for (const reste of [200, 100, 0]) {
+    vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, reste) });
+  }
+  const vus = rendus.filter((r) => r.restant !== undefined).map((r) => r.restant);
+  assert.deepStrictEqual([...new Set(vus)], [3, 2, 1, 0]);
+  const fin = rendus.find((r) => r.fini);
+  assert.strictEqual(fin.bilan.poses, 3);
+});
+
+// LE CAS QUE LES BILANS RATENT, et ici il est franc: a l'expiration d'un kbt,
+// vente.js compte `objetsAbandonnes += 1` et vide la file. Les LOTS de ce
+// paquet ne sont comptes nulle part — ni poses, ni sautes, ni echecs. Un
+// restant deduit de `total - (poses + sautes + echecs)` resterait donc bloque
+// a 2 pour toujours. Il se decremente la ou les lots QUITTENT la file.
+test('les lots d un objet abandonne sortent du decompte', async () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const vente = creerVente({
+    superviseur,
+    reglages: { delaiObjetMs: 0, delaiRafaleMs: 0, delaiReponseMs: 5 },
+    onCompteRendu: (r) => rendus.push(r),
+  });
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32], [8437, 39]]) });
+  const pile = (gid, qte, uid) => ({
+    no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      vint(1, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, gid), vint(3, qte), vint(4, uid)] },
+    ] });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [pile(13731, 100, 1), pile(8437, 100, 2)]) });
+  vente.lancer(42);
+  assert.strictEqual(rendus[0].total, 2, 'un lot de 100 par pile');
+  await new Promise((r) => setTimeout(r, 30));
+
+  const vus = rendus.filter((r) => r.restant !== undefined);
+  assert.strictEqual(vus[vus.length - 1].restant, 0,
+    'les deux objets abandonnes ont rendu leurs lots au decompte');
+  const fin = rendus.find((r) => r.fini);
+  assert.strictEqual(fin.bilan.objetsAbandonnes, 2);
 });

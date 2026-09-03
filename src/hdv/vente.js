@@ -140,6 +140,23 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
     return plusTard(passe, fn, ms);
   }
 
+  // L'AVANCEMENT SE COMPTE LA OU LES LOTS QUITTENT LA FILE, et nulle part
+  // ailleurs. Meme regle que chez reprix.js, et ici elle est obligatoire: a
+  // l'expiration d'un kbt on compte `objetsAbandonnes += 1` et on vide la
+  // file, sans que les LOTS de ce paquet soient comptes nulle part — ni poses,
+  // ni sautes, ni echecs. Un restant deduit de ces trois-la resterait donc
+  // bloque pour toujours sur un stock ou un seul objet s'abandonne.
+  //
+  // LE TOTAL NE SERA PAS ATTEINT, et c'est assume: la passe s'arrete au
+  // plafond de l'hotel de vente, quelques centaines de lots avant d'epuiser
+  // les candidats. Le restant dit ce qui pourrait encore partir, pas ce qui
+  // partira.
+  function avancer(pid, passe, n) {
+    if (n <= 0) return;
+    passe.restant -= n;
+    onCompteRendu({ pid, poses: passe.bilan.poses, restant: passe.restant, total: passe.bilan.lots });
+  }
+
   function annulerMinuteurs(passe) {
     for (const t of passe.minuteurs) clearTimeout(t);
     passe.minuteurs.clear();
@@ -211,7 +228,6 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       passe.gid = paquet.gid;
       passe.paquet = paquet;
       passe.file = paquet.lots.slice();
-      passe.objetsFaits += 1;
       if (!envoyer(pid, passe, trameAbonner(paquet.gid))) return;
       if (!envoyer(pid, passe, trameStats(paquet.gid))) return;
 
@@ -226,6 +242,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         // sans cette garde on parle dans la session de quelqu'un d'autre.
         if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
         passe.bilan.objetsAbandonnes += 1;
+        avancer(pid, passe, passe.file.length);
         passe.file = [];
         paquetSuivant(pid, passe);
       }, delaiReponseMs());
@@ -252,6 +269,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
     });
     if (prix === null) {
       passe.bilan.sautes += passe.file.length;
+      avancer(pid, passe, passe.file.length);
       passe.file = [];
       paquetSuivant(pid, passe);
       return;
@@ -277,9 +295,11 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       if (reste === undefined || reste < lot.taille) {
         passe.file.shift();
         passe.bilan.sautes += 1;
+        avancer(pid, passe, 1);
         continue;
       }
       passe.file.shift();
+      avancer(pid, passe, 1);
       const envoi = trameMettreEnVente({ prix: passe.prix, uidPile: lot.uidPile, taille: lot.taille });
       plusTard(passe, () => {
         if (!passes.has(pid)) return;
@@ -333,7 +353,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
     passe.bilan.poses += 1;
     passe.poses.push({ gid: passe.gid, taille: passe.enVol.taille, prix: passe.prix });
     onCompteRendu({
-      pid, poses: passe.bilan.poses, objetsFaits: passe.objetsFaits, objets: passe.bilan.objets,
+      pid, poses: passe.bilan.poses, restant: passe.restant, total: passe.bilan.lots,
     });
     poserSuivant(pid, passe);
   }
@@ -355,13 +375,18 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       enVol: null,
       quantites,
       poses: [],
-      objetsFaits: 0,
       minuteurs: new Set(),
       // Tire au depart pour que deux passes ne pausent pas au meme rang.
       avantPause: auHasard(AVANT_PAUSE_MIN, AVANT_PAUSE_MAX),
-      bilan: { objets: groupes.length, poses: 0, sautes: 0, echecs: 0, objetsAbandonnes: 0 },
+      restant: lots.length,
+      bilan: { lots: lots.length, poses: 0, sautes: 0, echecs: 0, objetsAbandonnes: 0 },
     };
     passes.set(pid, passe);
+    // LE SEUL COMPTE RENDU MARQUE `debut`, emis AVANT la premiere trame: il
+    // permet a l'IHM de rafraichir des le clic, une fois par passe. Les
+    // suivants attendent le tick d'affichage — envoyer l'etat a chaque lot
+    // lancerait un powershell.exe par lot.
+    onCompteRendu({ pid, debut: true, restant: passe.restant, total: passe.bilan.lots });
     paquetSuivant(pid, passe);
   }
 

@@ -28,6 +28,11 @@
 // Le cas 1 l'empeche. Il coute parfois un kama: si un concurrent est exactement
 // a notre prix, on ne sait pas les distinguer et on renonce a le doubler.
 // C'est delibere — RENONCER EST REVERSIBLE, BRADER NE L'EST PAS.
+//
+// MAIS RENONCER A SOUS-COTER N'EST PAS RENONCER A TOUT. Quand le minimum est le
+// notre, les AUTRES lots du meme creneau, eux, sont souvent restes plus haut:
+// ils ne se vendront qu'une fois le premier parti. On les aligne sur ce
+// minimum. C'est le seul cas ou la fonction rend un prix egal au marche.
 const TAILLES = [1, 10, 100, 1000];
 
 // LE CRENEAU NON VIDE LE PLUS PROCHE, en CRANS de TAILLES et non en ecart de
@@ -63,10 +68,13 @@ function extrapoler({ marche, voisin, taille, moyenUnitaire }) {
 // marche        — les quatre minimums, dans l'ordre de TAILLES. 0 = personne.
 // nos           — nos lots du MEME GID: [{ taille, prix }].
 // taille        — la taille du lot qu'on veut reposer.
+// prixActuel    — le prix ou CE lot-ci est en ce moment. C'est lui qui distingue
+//                 « le minimum est le notre » de « le minimum est CELUI-CI »:
+//                 sans lui, un stock de lots jumeaux garde ses retardataires.
 // moyenUnitaire — le prix moyen a l'unite, tire d'ivi. 0 si inconnu.
 //
 // Rend le prix a poser, ou null pour « ne rien emettre ». Jamais 0.
-function decider({ marche, nos, taille, moyenUnitaire }) {
+function decider({ marche, nos, taille, moyenUnitaire, prixActuel }) {
   if (!Array.isArray(marche) || marche.length !== TAILLES.length) return null;
   const i = TAILLES.indexOf(taille);
   if (i === -1) return null;
@@ -74,16 +82,33 @@ function decider({ marche, nos, taille, moyenUnitaire }) {
   const minimum = Number(marche[i]) || 0;
 
   if (minimum > 0) {
-    // Le minimum est-il DEJA le notre, a cette taille? Alors on est le moins
-    // cher et il n'y a rien a gagner. La comparaison porte sur la taille autant
-    // que sur le GID: le minimum est par creneau, et un lot de 10 ne dit rien
-    // du creneau des 100.
-    const nous = (nos || []).some((l) => l.taille === taille && Number(l.prix) === minimum);
-    if (nous) return null;
-    // Un minimum a 1 kama ne se sous-cote pas: 0 est aussi la valeur qui
-    // signifie « creneau vide » dans kgp, donc un lot pose a 0 disparaitrait du
-    // tableau qu'on relit juste apres.
+    // UN MINIMUM A 1 KAMA NE SE TOUCHE PAS, et ce garde-fou passe EN PREMIER,
+    // meme ordre que chez deciderPose(). On ne le sous-cote pas — 0 est aussi
+    // la valeur qui signifie « creneau vide » dans kgp, donc un lot pose a 0
+    // disparaitrait du tableau qu'on relit juste apres — et on ne s'aligne pas
+    // dessus non plus: aligner huit lots sur un kama, c'est les brader.
     if (minimum <= 1) return null;
+
+    // Le minimum est-il DEJA le notre, a cette taille? La comparaison porte sur
+    // la taille autant que sur le GID: le minimum est par creneau, et un lot de
+    // 10 ne dit rien du creneau des 100.
+    const nous = (nos || []).some((l) => l.taille === taille && Number(l.prix) === minimum);
+    if (nous) {
+      // UN LOT A NOUS, PAS FORCEMENT CELUI-CI. C'est toute la difference, et
+      // elle a coute huit lots en jeu le 03/09: rendre null ici abandonnait
+      // tous les jumeaux restes plus chers des qu'UN SEUL avait touche le
+      // minimum. Ils n'etaient pas oublies par la passe — ils etaient decides,
+      // et decides a « ne rien faire », passe apres passe.
+      //
+      // ON S'ALIGNE, ON NE SOUS-COTE PAS. Descendre d'un kama sous notre propre
+      // lot serait exactement l'auto-sous-cotation que ce module interdit.
+      // L'alignement, lui, est borne: une fois au minimum, le lot rend null au
+      // passage suivant et ne bouge plus.
+      const actuel = Number(prixActuel) || 0;
+      // Sans prix connu — ou deja au minimum — il n'y a rien a emettre.
+      if (actuel <= minimum) return null;
+      return minimum;
+    }
     return minimum - 1;
   }
 
@@ -112,9 +137,9 @@ function decider({ marche, nos, taille, moyenUnitaire }) {
 //    extrapoler, et decider() renonce parce qu'un lot deja en vente peut
 //    attendre. Un lot qu'on n'a pas encore pose, lui, ne rapporte rien.
 //
-// L'ORDRE DES CAS COMPTE ICI, alors qu'il est indifferent chez decider(): le
-// garde-fou « minimum a 1 » passe AVANT le test « est-ce le notre », sans quoi
-// notre propre lot a 1 kama nous ferait poser a 1 kama.
+// L'ORDRE DES CAS COMPTE, ici comme chez decider(): le garde-fou « minimum a 1 »
+// passe AVANT le test « est-ce le notre », sans quoi notre propre lot a 1 kama
+// nous ferait poser a 1 kama.
 function deciderPose({ marche, nos, taille, moyenUnitaire }) {
   if (!Array.isArray(marche) || marche.length !== TAILLES.length) return null;
   const i = TAILLES.indexOf(taille);
