@@ -49,7 +49,20 @@ puisque c'est toi qui l'as lancé.
 
 ## La conception
 
-**Le déclencheur, c'est l'entrée en combat.** Sur chaque client connecté,
+**Le déclencheur tient en DEUX trames, et cette séparation a été apprise en
+jeu le 2026-09-03.**
+
+`kmu` dit **quoi** équiper : un groupe quitte la carte, on en connaît le
+niveau. Mais elle n'est reçue que par les clients présents sur la carte à cet
+instant. Mesuré : sur trois clients, un seul l'a eue, les deux autres étaient
+encore en chemin.
+
+`kmk`, la liste des combattants, dit **quand**, pour chaque personnage
+séparément : elle n'arrive qu'une fois le client réellement dans le combat.
+**Une mule encore en déplacement ne peut rien équiper, le jeu refuse.** On
+l'attend donc au lieu de tirer trop tôt.
+
+Sur chaque client connecté,
 chacun pour lui-même. On se greffe là où `abandon-combat.js` reconnaît déjà le
 combat.
 

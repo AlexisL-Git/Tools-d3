@@ -2,6 +2,7 @@
 const {
   lireStock, lirePile, lirePileMaj, lirePileDisparue, POSITION_INVENTAIRE,
 } = require('../hdv/trames');
+const { combattantsDe, TYPE_COMBATTANTS } = require('../abandon-combat');
 const { choisir, POSITION_PIERRE } = require('./pierres');
 const { trameEquiper, lirePosition, lireGroupeAttaque, lireGroupes } = require('./trames');
 
@@ -14,6 +15,12 @@ const DELAI_REPONSE_MS = 3000;
 // millisecondes d'ecart; cinq secondes couvrent largement l'ecart sans jamais
 // avaler deux combats successifs, la preparation durant a elle seule 18 s.
 const FENETRE_COMBAT_MS = 5000;
+
+// Le temps qu'on laisse a une mule pour arriver dans le combat apres que le
+// groupe a quitte la carte. Elle peut avoir la moitie de la carte a traverser,
+// et la phase de preparation dure 18 s: une minute est large des deux cotes,
+// assez pour les retardataires, trop court pour attraper le combat suivant.
+const FENETRE_ARRIVEE_MS = 60000;
 
 // La chasse a l'archimonstre: equiper la bonne pierre d'ame, et rien d'autre.
 //
@@ -87,28 +94,26 @@ function creerChasse({
     piles.push({ uid: uidPose, gid: attente.gid, qte: 1, avecEffets: true, pos: POSITION_PIERRE });
   }
 
-  // TOUS LES CLIENTS CONNECTES, PAS SEULEMENT CELUI QUI A VU LE GROUPE PARTIR.
+  // DEUX TRAMES, DEUX ROLES, ET C'EST TOUTE LA CONCEPTION DE CE MODULE.
   //
-  // Mesure du 03/09 au soir: sur trois clients, UN SEUL a recu le `kmu` du
-  // groupe. Les deux autres ont REJOINT le combat au lieu de le lancer, et un
-  // client qui rejoint ne voit pas le groupe quitter la carte. Declencher
-  // chacun sur sa propre trame laisserait donc les mules sans pierre, ce qui
-  // est exactement ce qui s'est passe.
+  // `kmu` dit QUOI EQUIPER: le groupe quitte la carte, on en connait le niveau.
+  // Mais elle n'est recue que par les clients presents sur la carte a cet
+  // instant. Mesure du 03/09 a 14h40: sur trois clients, UN SEUL l'a recue,
+  // les deux autres etant encore en chemin.
   //
-  // C'est aussi la logique d'OMNI: le maitre decide, les autres suivent.
-  const comptesConnectes = () => {
-    const c = superviseur.comptes;
-    return Array.isArray(c.tous) ? c.tous : [];
-  };
-
-  // UN SEUL DECLENCHEMENT PAR COMBAT. Quand plusieurs clients sont sur la carte
-  // ils recoivent tous le meme `kmu`, et sans cette garde on equiperait quatre
-  // fois de suite.
-  let dernier = null;
+  // `kmk` dit QUAND EQUIPER, pour chaque client separement: c'est la liste des
+  // combattants, et elle n'arrive qu'une fois le client REELLEMENT dans le
+  // combat. Une mule encore en deplacement ne peut rien equiper — le jeu
+  // refuse — donc on l'attend au lieu de tirer trop tot.
+  //
+  // Meme critere que src/abandon-combat.js pour reconnaitre un combat contre
+  // des monstres: au moins un identifiant NEGATIF dans la liste. `kmk` sert
+  // aussi a lister les acteurs d'une carte, ou tout est positif.
+  let combat = null;
   const maintenant = () => (typeof reglages.maintenant === 'function'
     ? reglages.maintenant() : Date.now());
 
-  function entrerEnCombat(pidSource, idGroupe) {
+  function noterGroupe(pidSource, idGroupe) {
     const carte = cartes.get(pidSource);
     const groupe = carte === undefined ? undefined : carte.get(idGroupe);
     // UN GROUPE INCONNU N'EQUIPE RIEN. La liste des acteurs arrive a l'arrivee
@@ -116,12 +121,23 @@ function creerChasse({
     // pas une invitation a deviner.
     if (groupe === undefined) { rendre(pidSource, { quoi: 'groupe-inconnu', idGroupe }); return; }
 
+    // Le meme depart vu par plusieurs clients ne rouvre pas un combat: sans
+    // cette garde, la seconde `kmu` remettrait a zero la liste de ceux qui sont
+    // deja equipes, et tout le monde recevrait un second ordre.
     const t = maintenant();
-    if (dernier !== null && dernier.idGroupe === idGroupe
-        && t - dernier.quand < FENETRE_COMBAT_MS) return;
-    dernier = { idGroupe, quand: t };
+    if (combat !== null && combat.idGroupe === idGroupe
+        && t - combat.quand < FENETRE_COMBAT_MS) return;
+    combat = { idGroupe, niveauMax: groupe.niveauMax, quand: t, faits: new Set() };
+  }
 
-    for (const etat of comptesConnectes()) equiperPour(etat.pid, groupe.niveauMax);
+  function rejointLeCombat(pid) {
+    if (combat === null) return;
+    // Un combat trop vieux n'est plus le notre: une mule qui traine ne doit pas
+    // faire equiper sur la foi d'un groupe vu il y a cinq minutes.
+    if (maintenant() - combat.quand > FENETRE_ARRIVEE_MS) { combat = null; return; }
+    if (combat.faits.has(pid)) return;
+    combat.faits.add(pid);
+    equiperPour(pid, combat.niveauMax);
   }
 
   function equiperPour(pid, niveauMax) {
@@ -281,7 +297,15 @@ function creerChasse({
 
     if (frame.type === 'kmu') {
       const idGroupe = lireGroupeAttaque(frame);
-      if (idGroupe !== null) entrerEnCombat(pid, idGroupe);
+      if (idGroupe !== null) noterGroupe(pid, idGroupe);
+      return;
+    }
+
+    // LA LISTE DES COMBATTANTS: ce client vient d'entrer dans le combat, et
+    // c'est seulement maintenant qu'il peut equiper. Elle arrive plusieurs fois
+    // pendant un meme combat, d'ou la liste de ceux qui sont deja servis.
+    if (frame.type === TYPE_COMBATTANTS) {
+      if (combattantsDe(frame) !== null) rejointLeCombat(pid);
     }
   }
 

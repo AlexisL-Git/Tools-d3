@@ -36,6 +36,22 @@ const ivq = (uid, pos) => ({ type: 'ivq', payload: [
   { no: 2, wire: WIRE.VARINT, value: BigInt(pos) },
 ] });
 
+
+// LA LISTE DES COMBATTANTS. Au moins un identifiant NEGATIF, sinon c est une
+// liste d acteurs de carte et pas un combat: meme critere qu abandon-combat.js.
+const kmk = (...ids) => ({ type: 'kmk', payload: ids.map((id) => ({
+  no: 2, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 3, wire: WIRE.VARINT, value: BigInt(id) },
+  ] })) });
+
+// Entrer en combat demande DEUX trames: kmu dit quel groupe, donc quel niveau,
+// et kmk dit que CE client y est vraiment. Une mule encore en deplacement ne
+// recoit pas la seconde, et le jeu lui refuserait l equipement.
+function entrer(chasse, pid, idGroupe = -300) {
+  if (idGroupe !== null) chasse.onTrame({ pid, dir: 'in', frame: kmu(idGroupe) });
+  chasse.onTrame({ pid, dir: 'in', frame: kmk(-1, -2, 777) });
+}
+
 // Une carte fabriquee: un groupe qui porte un seul monstre du niveau demande.
 function jssNiveau(niveau, idGroupe = -300) {
   const monstre = { no: 1, wire: WIRE.LEN, kind: 'message', value: [
@@ -74,21 +90,21 @@ function monte({ actif = true } = {}) {
 // qui est deja portee: rien a faire.
 test('la bonne pierre deja portee n envoie aucun ordre', () => {
   const { superviseur, chasse, rendus } = monte();
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-20000) });
+  entrer(chasse, 42, -20000);
   assert.strictEqual(superviseur.envois.length, 0);
   assert.strictEqual(rendus.at(-1).quoi, 'deja');
 });
 
 test('un groupe inconnu ne fait rien et le dit', () => {
   const { superviseur, chasse, rendus } = monte();
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-99999) });
+  entrer(chasse, 42, -99999);
   assert.strictEqual(superviseur.envois.length, 0);
   assert.strictEqual(rendus.at(-1).quoi, 'groupe-inconnu');
 });
 
 test('eteinte, la chasse ne fait rien du tout', () => {
   const { superviseur, chasse, rendus } = monte({ actif: false });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-20000) });
+  entrer(chasse, 42, -20000);
   assert.strictEqual(superviseur.envois.length, 0);
   assert.strictEqual(rendus.length, 0);
 });
@@ -96,7 +112,7 @@ test('eteinte, la chasse ne fait rien du tout', () => {
 test('un niveau 90 fait equiper la Grande pierre et attend la confirmation', () => {
   const { superviseur, chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   // Deux ordres: la purge de la Moyenne portee, puis la pose de la Grande.
   assert.strictEqual(superviseur.envois.length, 2);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
@@ -112,7 +128,7 @@ test('un niveau 90 fait equiper la Grande pierre et attend la confirmation', () 
 test('la confirmation arrive sur un uid neuf et conclut quand meme', () => {
   const { chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
   assert.strictEqual(rendus.at(-1).quoi, 'equipe');
   assert.strictEqual(rendus.at(-1).gid, 9688);
@@ -123,7 +139,7 @@ test('la confirmation arrive sur un uid neuf et conclut quand meme', () => {
 test('un retour en inventaire pendant l attente ne conclut rien', () => {
   const { chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(233525940, 63) });
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
 });
@@ -133,7 +149,7 @@ test('un retour en inventaire pendant l attente ne conclut rien', () => {
 test('l ordre ne porte qu une seule pierre, pas la pile entiere', () => {
   const { superviseur, chasse } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   const attendu = trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE });
   assert.deepStrictEqual(superviseur.envois[1].octets, attendu);
 });
@@ -143,11 +159,11 @@ test('l ordre ne porte qu une seule pierre, pas la pile entiere', () => {
 test('le combat suivant ne reequipe pas la pierre deja posee', () => {
   const { superviseur, chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
   // Un AUTRE groupe: le meme serait avale par la garde anti-doublon.
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90, -301) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-301) });
+  entrer(chasse, 42, -301);
   assert.strictEqual(superviseur.envois.length, 2);
   assert.strictEqual(rendus.at(-1).quoi, 'deja');
 });
@@ -156,7 +172,7 @@ test('le combat suivant ne reequipe pas la pierre deja posee', () => {
 test('sans la pierre de la tranche, rien n est envoye et le manque est dit', () => {
   const { superviseur, chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(160) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 0);
   assert.strictEqual(rendus.at(-1).quoi, 'manque');
   assert.strictEqual(rendus.at(-1).gid, 9690);
@@ -165,7 +181,7 @@ test('sans la pierre de la tranche, rien n est envoye et le manque est dit', () 
 test('un niveau au-dela de 190 ne fait rien et le dit', () => {
   const { superviseur, chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(200) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 0);
   assert.strictEqual(rendus.at(-1).quoi, 'hors-portee');
 });
@@ -183,7 +199,7 @@ test('une trame sortante est ignoree', () => {
 test('le compte rendu nomme le compte et la pierre separement', () => {
   const { chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(160) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(rendus.at(-1).compte, 'compte-42');
   assert.strictEqual(rendus.at(-1).nom, 'Gigantesque pierre d ame');
 });
@@ -193,7 +209,7 @@ test('le compte rendu nomme le compte et la pierre separement', () => {
 test('eteindre oublie l attente en cours', () => {
   const { chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   chasse.armer(false);
   chasse.armer(true);
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(233526391, POSITION_PIERRE) });
@@ -208,7 +224,7 @@ test('la position se met a jour meme eteinte', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(233526391, POSITION_PIERRE) });
   chasse.armer(true);
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   // Elle est deja la: aucun ordre, et le verdict le dit.
   assert.strictEqual(superviseur.envois.length, 0);
   assert.strictEqual(rendus.at(-1).quoi, 'deja');
@@ -251,7 +267,7 @@ test('une pile disparue n est plus proposee', () => {
   const { superviseur, chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) }); // la Grande
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 0);
   assert.strictEqual(rendus.at(-1).quoi, 'manque');
 });
@@ -261,7 +277,7 @@ test('une pile neuve devient equipable', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999001, 9688, 12, 63) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 2);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
   assert.deepStrictEqual(
@@ -275,7 +291,7 @@ test('une quantite mise a jour est suivie', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivj(233526391, 7) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999002, 9688, 3, 63) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   // 7 contre 3: la plus grosse pile reste celle d'origine.
   assert.deepStrictEqual(
     superviseur.envois[1].octets,
@@ -295,7 +311,7 @@ test('un ordre sans reponse finit par se dire', async () => {
   });
   chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
   await new Promise((r) => setTimeout(r, 40));
   assert.strictEqual(rendus.at(-1).quoi, 'sans-reponse');
@@ -311,7 +327,7 @@ test('une reponse a temps desarme le minuteur', async () => {
   });
   chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
   await new Promise((r) => setTimeout(r, 40));
   assert.strictEqual(rendus.at(-1).quoi, 'equipe');
@@ -326,7 +342,7 @@ const { POSITION_INVENTAIRE } = require('../src/hdv/trames');
 test('la purge part avant la pose, et porte la pile entiere', () => {
   const { superviseur, chasse } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 2);
   assert.deepStrictEqual(
     superviseur.envois[0].octets,
@@ -339,7 +355,7 @@ test('sans rien a l emplacement, aucune purge n est emise', () => {
   const { superviseur, chasse } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233525940) }); // la Moyenne s en va
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 1);
   assert.deepStrictEqual(
     superviseur.envois[0].octets,
@@ -355,7 +371,7 @@ test('une pierre pleine restee a l emplacement est purgee', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233525940) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999003, 7010, 1, POSITION_PIERRE) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 2);
   assert.deepStrictEqual(
     superviseur.envois[0].octets,
@@ -374,7 +390,7 @@ test('une pierre pleine restee a l emplacement est purgee', () => {
 test('une pile neuve a l emplacement confirme la pose', () => {
   const { chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
   chasse.onTrame({ pid: 42, dir: 'in', frame: iua(242186527, 9688, 1, POSITION_PIERRE) });
   assert.strictEqual(rendus.at(-1).quoi, 'equipe');
@@ -384,30 +400,73 @@ test('une pile neuve a l emplacement confirme la pose', () => {
 test('une pile neuve rangee ailleurs ne confirme rien', () => {
   const { chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   chasse.onTrame({ pid: 42, dir: 'in', frame: iua(242186528, 9688, 1, 63) });
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
 });
 
 // UNE MULE QUI REJOINT LE COMBAT NE VOIT PAS LE GROUPE PARTIR. Mesure du 03/09:
-// sur trois clients, un seul a recu le kmu du groupe. Un seul kmu doit donc
-// equiper tout le monde.
-test('un seul kmu equipe tous les clients connectes', () => {
+// sur trois clients, un seul a recu le kmu. Le niveau se retient donc une fois,
+// et chaque client s equipe quand SA liste de combattants arrive.
+test('un seul kmu suffit, chaque client s equipe en rejoignant', () => {
   const superviseur = doubleSuperviseur([42, 43, 44]);
   const rendus = [];
   const chasse = creerChasse({
     superviseur, actif: true, onCompteRendu: (r) => rendus.push(r),
   });
-  // Chaque client a son propre inventaire; seul le 42 voit la carte.
   for (const pid of [42, 43, 44]) {
     chasse.onTrame({ pid, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
   }
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  // Seul le maitre voit le groupe partir.
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  assert.strictEqual(superviseur.envois.length, 0, 'rien avant d etre dans le combat');
+  for (const pid of [42, 43, 44]) {
+    chasse.onTrame({ pid, dir: 'in', frame: kmk(-1, -2, 777) });
+  }
   for (const pid of [42, 43, 44]) {
     assert.strictEqual(superviseur.envoisDe(pid).length, 2, 'pid ' + pid);
   }
   assert.strictEqual(rendus.filter((r) => r.quoi === 'envoye').length, 3);
+});
+
+// LE COEUR DE LA DEMANDE DE JIBEF: une mule encore en deplacement ne peut rien
+// equiper, le jeu refuse. Elle doit etre servie quand elle ARRIVE, pas quand le
+// maitre attaque.
+test('une mule en retard est equipee a son arrivee, pas avant', () => {
+  const superviseur = doubleSuperviseur([42, 43]);
+  const chasse = creerChasse({ superviseur, actif: true });
+  for (const pid of [42, 43]) {
+    chasse.onTrame({ pid, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  }
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, 777) });
+  assert.strictEqual(superviseur.envoisDe(43).length, 0, 'la mule marche encore');
+  chasse.onTrame({ pid: 43, dir: 'in', frame: kmk(-1, 777) });
+  assert.strictEqual(superviseur.envoisDe(43).length, 2, 'elle est arrivee');
+});
+
+// kmk sert AUSSI a lister les acteurs d une carte, ou tout est positif.
+test('une liste d acteurs de carte n equipe personne', () => {
+  const superviseur = doubleSuperviseur([42]);
+  const chasse = creerChasse({ superviseur, actif: true });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(777, 888) });
+  assert.strictEqual(superviseur.envois.length, 0);
+});
+
+// Plusieurs kmk tombent pendant un meme combat: un seul ordre par client.
+test('une seconde liste de combattants ne rejoue rien', () => {
+  const superviseur = doubleSuperviseur([42]);
+  const chasse = creerChasse({ superviseur, actif: true });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
+  entrer(chasse, 42, -300);
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
+  assert.strictEqual(superviseur.envois.length, 2);
 });
 
 // Deux clients sur la carte recoivent le MEME kmu: sans garde, on equiperait
@@ -423,8 +482,8 @@ test('le meme groupe deux fois de suite n equipe qu une fois', () => {
   }
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
   chasse.onTrame({ pid: 43, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
-  chasse.onTrame({ pid: 43, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
+  entrer(chasse, 43, -300);
   assert.strictEqual(superviseur.envois.length, 4); // 2 clients x (purge + pose)
 });
 
@@ -437,8 +496,8 @@ test('le meme groupe hors de la fenetre equipe de nouveau', () => {
   });
   chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('chasse-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(90) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   horloge = 6000;
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 4);
 });
