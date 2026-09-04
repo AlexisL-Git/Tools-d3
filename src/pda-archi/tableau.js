@@ -1,5 +1,5 @@
 'use strict';
-const { ARCHIMONSTRES, estArchimonstre } = require('./archimonstres');
+const { collection } = require('./archimonstres');
 const { parZones } = require('./zones');
 
 // Du croisement « qui possede quoi » au tableau affichable. Fonction pure: ni
@@ -12,7 +12,21 @@ const { parZones } = require('./zones');
 // test, et une regle qui vit dans du HTML n en a pas.
 
 // Du plus faible au plus fort: c est l ordre dans lequel on chasse.
-const LIGNES = [...ARCHIMONSTRES].sort((a, b) => (a.niveau - b.niveau) || (a.id - b.id));
+//
+// TRIEES UNE FOIS PAR COLLECTION, au premier usage: la table ne bouge pas, et
+// le panneau peut se redessiner a chaque clic sans repayer le tri.
+const TRIEES = new Map();
+function lignesDe(quoi) {
+  if (!TRIEES.has(quoi)) {
+    const c = collection(quoi);
+    TRIEES.set(quoi, {
+      titre: c.titre,
+      parId: c.parId,
+      liste: [...c.entrees].sort((a, b) => (a.niveau - b.niveau) || (a.id - b.id)),
+    });
+  }
+  return TRIEES.get(quoi);
+}
 
 // `comptes` : [ { pid, nom, ames } ], ou `ames` est un Set d identifiants, ou
 // NULL quand l inventaire de ce personnage n a pas encore ete lu.
@@ -26,8 +40,13 @@ const LIGNES = [...ARCHIMONSTRES].sort((a, b) => (a.niveau - b.niveau) || (a.id 
 // `vise` est le personnage dont on a clique le bouton, ou null. Il ne change
 // rien au tableau lui-meme -- toutes les colonnes restent affichees -- il ne
 // sert qu'a la vue par zone, ou « manquant » veut alors dire manquant POUR LUI.
-function construire({ comptes, vise = null }) {
+// `quoi` choisit la collection: 'archi' pour les 286 archimonstres, 'boss' pour
+// les 51 boss du Dofus Ocre. Une cle inconnue rend les archimonstres -- le
+// panneau ne peut pas casser sur une faute de frappe.
+function construire({ comptes, vise = null, quoi = 'archi' }) {
   const liste = (comptes || []).filter((c) => c !== null && c !== undefined);
+  const { liste: LIGNES, parId, titre } = lignesDe(quoi);
+  const estDeLaTable = (id) => parId.has(id);
 
   const lignes = LIGNES.map((a) => ({
     id: a.id,
@@ -42,11 +61,11 @@ function construire({ comptes, vise = null }) {
         pid: c.pid, nom: c.nom, lu: false, possede: null, manquants: null, horsTableau: null,
       };
     }
-    // UNE PIERRE CAPTURE AUSSI LES BOSS. Trois des 143 ames mesurees le 04/09
-    // en etaient: Mansot Royal, Bouftou Royal, Mob l Eponge. Elles ne sont pas
-    // des lignes du tableau, et elles ne sont pas perdues non plus -- elles se
-    // comptent a part, sous le tableau.
-    const possede = [...c.ames].filter(estArchimonstre).length;
+    // CE QUI N EST PAS DE CETTE COLLECTION SE COMPTE A PART, jamais perdu et
+    // jamais invente en ligne fantome. Dans la vue des archimonstres ce sont
+    // les ames de boss -- trois des 143 mesurees le 04/09 -- et dans la vue des
+    // boss ce sont les archimonstres.
+    const possede = [...c.ames].filter(estDeLaTable).length;
     return {
       pid: c.pid,
       nom: c.nom,
@@ -63,6 +82,7 @@ function construire({ comptes, vise = null }) {
   const possedes = lignes.filter((l) => l.presents.length > 0).length;
 
   return {
+    titre,
     total: LIGNES.length,
     lignes,
     comptes: rendus,
@@ -70,7 +90,7 @@ function construire({ comptes, vise = null }) {
     manquants: LIGNES.length - possedes,
     // OU CHASSER, dans le meme aller-retour: le panneau bascule d'une vue a
     // l'autre sans rien redemander au process principal.
-    zones: parZones({ lignes, comptes: rendus, vise }),
+    zones: parZones({ lignes, comptes: rendus, vise, quoi }),
   };
 }
 

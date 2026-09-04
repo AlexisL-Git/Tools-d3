@@ -29,6 +29,20 @@ const path = require('node:path');
 // archimonstre ajoute par Ankama dans cet intervalle casserait un filtre par
 // plage sans un mot. La plage ne sert que de controle, dans le test.
 const RACINE = 'https://api.dofusdb.fr';
+
+// LA QUETE DU DOFUS OCRE, « L'éternelle moisson ». Ses objectifs nomment leur
+// monstre par IDENTIFIANT -- « Rapporter 1 âme de {monster,928} » -- et c'est
+// ce qui en fait la seule source fiable pour les boss.
+//
+// L HOMONYMIE EST REELLE, et un guide apparie par le nom: « Dragon Cochon »
+// existe en id 113 niveau 100 ET en id 7863 niveau 212, et le second a l ame
+// incapturable. Un tableau monte sur les noms aurait affiche 21 lignes
+// impossibles a cocher.
+//
+// 19 etapes: les trois premieres sont les 51 boss, les quinze suivantes les
+// 286 archimonstres, la derniere le Kralamoure.
+const QUETE_OCRE = 439;
+const ETAPES_BOSS = 3;
 const ZONE_VULKANIA = 50;
 const PAGE = 50;
 
@@ -115,8 +129,83 @@ async function principal() {
   const sansNom = carte.filter((z) => z.nom === '' || z.zone === '');
   if (sansNom.length > 0) throw new Error(`sous-zone sans nom ou sans zone : ${JSON.stringify(sansNom)}`);
 
+  // LES BOSS DU DOFUS OCRE, depuis les objectifs de la quete.
+  const etapes = (await tout(`quest-steps?questId=${QUETE_OCRE}&`))
+    .sort((x, y) => x.id - y.id);
+  const objectifs = [];
+  for (const e of etapes) {
+    const os = await tout(`quest-objectives?stepId=${e.id}&`);
+    objectifs.push({ etape: e.id, monstres: os.map(monstreDe).filter((m) => m !== null) });
+  }
+  const idsBoss = [...new Set(objectifs.slice(0, ETAPES_BOSS).flatMap((o) => o.monstres))];
+  const idsArchi = new Set(objectifs.slice(ETAPES_BOSS).flatMap((o) => o.monstres));
+  console.log(`quete ${QUETE_OCRE} : ${idsBoss.length} boss, ${idsArchi.size} archimonstres`);
+
+  // DEUX SOURCES INDEPENDANTES DOIVENT TOMBER D ACCORD. Les archimonstres sont
+  // tires du drapeau `isMiniBoss` moins Vulkania; la quete, elle, les enumere.
+  // Elles coincidaient a l identifiant pres le 04/09. Si Ankama touche a l une
+  // des deux, la fabrication s arrete ici plutot que d ecrire un fichier qui
+  // ment a moitie.
+  const ecartA = table.filter((a) => !idsArchi.has(a.id)).map((a) => a.nom);
+  const ecartB = [...idsArchi].filter((i) => !table.some((a) => a.id === i));
+  if (ecartA.length > 0 || ecartB.length > 0) {
+    throw new Error(`la quete et le drapeau divergent : ${ecartA.length} en trop (${ecartA.slice(0, 5)}), ${ecartB.length} manquants (${ecartB.slice(0, 5)})`);
+  }
+  console.log('les deux sources coincident sur les 286 archimonstres');
+
+  const boss = await parIds(idsBoss);
+  const tableBoss = idsBoss.map((id) => {
+    const m = boss.get(id);
+    if (m === undefined) throw new Error(`boss ${id} introuvable`);
+    return {
+      id,
+      nom: (m.name && m.name.fr) || '',
+      niveau: ((m.grades && m.grades[0]) || {}).level || 0,
+      sousZones: [...(m.subareas || [])].sort((x, y) => x - y),
+    };
+  }).sort((a, b) => (a.niveau - b.niveau) || a.nom.localeCompare(b.nom, 'fr') || (a.id - b.id));
+
+  const bossBoiteux = tableBoss.filter((b) => b.nom === '' || b.niveau === 0 || b.sousZones.length === 0);
+  if (bossBoiteux.length > 0) throw new Error(`boss incomplet : ${JSON.stringify(bossBoiteux)}`);
+  ecrire('boss-ocre.json', tableBoss, 'boss');
+
+  // Les sous-zones des boss doivent etre nommables elles aussi.
+  for (const b of tableBoss) {
+    for (const id of b.sousZones) {
+      if (carte.some((z) => z.id === id)) continue;
+      const sz = parId.get(id);
+      if (sz === undefined) throw new Error(`sous-zone ${id} inconnue (boss ${b.nom})`);
+      carte.push({ id, nom: (sz.name && sz.name.fr) || '', zone: zones.get(sz.areaId) || '' });
+    }
+  }
+  carte.sort((a, b) => a.id - b.id);
+  const encoreSansNom = carte.filter((z) => z.nom === '' || z.zone === '');
+  if (encoreSansNom.length > 0) throw new Error(`sous-zone sans nom : ${JSON.stringify(encoreSansNom)}`);
+
   ecrire('zones.json', carte, 'sous-zones');
   console.log(`zones distinctes : ${new Set(carte.map((z) => z.zone)).size}`);
+}
+
+// « Rapporter 1 âme de {monster,928} à {npc,6693} » -> 928. Le texte est la
+// seule place ou l identifiant du monstre soit sans ambiguite: les parametres
+// numeriques de l objectif ne disent pas lequel est lequel.
+function monstreDe(objectif) {
+  const t = (objectif.text && objectif.text.fr) || '';
+  const m = /\{monster,(\d+)\}/.exec(t);
+  return m === null ? null : Number(m[1]);
+}
+
+// L API plafonne a 50 par appel: on demande les monstres en deux fois plutot
+// qu un par un.
+async function parIds(ids) {
+  const out = new Map();
+  for (let i = 0; i < ids.length; i += 50) {
+    const lot = ids.slice(i, i + 50);
+    const q = lot.map((n) => `id[$in][]=${n}`).join('&');
+    const j = await lireJson(`${RACINE}/monsters?$limit=50&${q}`);
+    for (const m of j.data || []) out.set(m.id, m);
+  }
+  return out;
 }
 
 // Une ligne par entree: le fichier se relit dans un diff.

@@ -1593,8 +1593,11 @@ ipcMain.handle('majPrixHdv', async (_e, pid) => {
 // `vise` est le pid du personnage dont on a clique le bouton, ou rien. Il ne
 // change pas le tableau -- toutes les colonnes restent -- il ne sert qu'a la
 // vue par zone, ou « manquant » veut alors dire manquant POUR LUI.
-ipcMain.handle('tableauArchi', (_e, vise) => construireTableauArchi({
+ipcMain.handle('tableauArchi', (_e, vise, quoi) => construireTableauArchi({
   vise: Number.isFinite(vise) ? vise : null,
+  // La collection demandee. Une valeur inconnue rend les archimonstres: le
+  // panneau ne peut pas casser sur une faute de frappe.
+  quoi: typeof quoi === 'string' ? quoi : 'archi',
   comptes: (dernieresLignes || [])
     .filter((l) => l.pid !== null && l.pid !== undefined)
     .map((l) => ({

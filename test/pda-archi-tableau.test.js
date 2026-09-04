@@ -102,3 +102,54 @@ test('le personnage suivi vaut pour la vue par zone comme pour le filtre', () =>
   assert.notStrictEqual(zone, undefined, 'Mule1 doit manquer quelque part');
   assert.strictEqual(t.zones.every((z) => z.qui.includes(43)), true);
 });
+
+// --- La seconde collection: les boss du Dofus Ocre -------------------------
+//
+// Le meme croisement, la meme vue par zone, le meme bouton: seule la liste de
+// reference change. C'est ce qui rend cette seconde table presque gratuite.
+
+test('le tableau des boss porte 51 lignes', () => {
+  const t = construire({ comptes: [], quoi: 'boss' });
+  assert.strictEqual(t.total, 51);
+  assert.strictEqual(t.lignes.length, 51);
+});
+
+// Mob l'Éponge, l'une des trois ames de boss lues dans l'inventaire mesure.
+test('une ame de boss coche sa ligne dans le tableau des boss', () => {
+  const t = construire({ comptes: [{ pid: 1, nom: 'Jibef', ames: new Set([928]) }], quoi: 'boss' });
+  assert.deepStrictEqual(t.lignes.find((l) => l.id === 928).presents, [1]);
+  assert.strictEqual(t.comptes[0].possede, 1);
+  assert.strictEqual(t.comptes[0].manquants, 50);
+});
+
+// LE « HORS TABLEAU » CHANGE DE SENS AVEC LA COLLECTION, et c'est normal: une
+// ame d'archimonstre n'a rien a faire dans le tableau des boss, et
+// reciproquement. Elle est comptee a part, jamais perdue.
+test('une ame d archimonstre est hors tableau dans la vue des boss', () => {
+  const t = construire({ comptes: [{ pid: 1, nom: 'Jibef', ames: new Set([2272]) }], quoi: 'boss' });
+  assert.strictEqual(t.comptes[0].possede, 0);
+  assert.strictEqual(t.comptes[0].horsTableau, 1);
+});
+
+// Mesure du 04/09: les 51 boss se repartissent sur 18 zones, Amakna en tete
+// avec 10.
+test('la vue par zone marche aussi sur les boss', () => {
+  const t = construire({ comptes: [], quoi: 'boss' });
+  assert.strictEqual(t.zones.length, 18);
+  assert.deepStrictEqual(
+    t.zones.slice(0, 2).map((z) => [z.zone, z.manquants]),
+    [['Amakna', 10], ["Île d'Otomaï", 8]],
+  );
+});
+
+// Une cle inconnue ne casse pas le panneau: il montre la collection par defaut.
+test('une collection inconnue rend les archimonstres', () => {
+  assert.strictEqual(construire({ comptes: [], quoi: 'nawak' }).total, 286);
+});
+
+// Le panneau affiche le nom de la collection qu'il montre: sans lui, deux
+// tableaux de 51 et 286 lignes se ressemblent de loin.
+test('le tableau dit de quelle collection il parle', () => {
+  assert.strictEqual(construire({ comptes: [] }).titre, 'Archimonstres');
+  assert.strictEqual(construire({ comptes: [], quoi: 'boss' }).titre, 'Boss du Dofus Ocre');
+});

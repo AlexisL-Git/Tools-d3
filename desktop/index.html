@@ -642,7 +642,7 @@
      dans la fenetre, ferme par Echap ou par la croix. -->
 <div class="vue-archi" id="vueArchi" hidden>
   <div class="qdn-tete">
-    <b>Archimonstres</b>
+    <b id="arcTitre">Archimonstres</b>
     <span class="avis-nav" id="arcAvis"></span>
     <button class="arc-relire" id="arcRelire" title="Redemander l’inventaire de tous les personnages connectés">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -655,6 +655,11 @@
     <button id="arcFermer" title="Fermer (Échap)">✕</button>
   </div>
   <div class="arc-filtres">
+    <!-- DEUX AXES INDEPENDANTS: quoi on regarde, et comment. La quete du Dofus
+         Ocre demande les 286 archimonstres ET 51 boss: deux tables, un panneau. -->
+    <button data-quoi="archi">Archimonstres</button>
+    <button data-quoi="boss">Boss</button>
+    <span style="width:12px"></span>
     <button data-vue="liste">Liste</button>
     <button data-vue="zones">Par zone</button>
     <!-- Les filtres n'ont aucun effet sur la vue par zone: ils DISPARAISSENT
@@ -908,6 +913,7 @@
   let arcVise = null;     // le personnage dont on a clique le bouton
   let arcFiltre = 'tous';
   let arcVue = 'liste';
+  let arcQuoi = 'archi';
   let arcTable = null;
   // Les zones depliees, et les sous-zones depliees. Des Set et pas des
   // drapeaux: on peut en ouvrir plusieurs, et l'ouverture survit au redessin.
@@ -966,7 +972,7 @@
     try {
       // LE PERSONNAGE SUIVI PART AVEC LA DEMANDE: c'est lui qui decide de ce
       // que « manquant » veut dire dans la vue par zone.
-      arcTable = await window.app.tableauArchi(arcVise);
+      arcTable = await window.app.tableauArchi(arcVise, arcQuoi);
       dessinerArchi();
     } catch (e) {
       arcTable = null;
@@ -1083,9 +1089,11 @@
     vise.textContent = nomVise ? 'colonne suivie : ' + nomVise : '';
 
     for (const b of document.querySelectorAll('.arc-filtres button')) {
-      if (b.dataset.vue) b.classList.toggle('on', b.dataset.vue === arcVue);
+      if (b.dataset.quoi) b.classList.toggle('on', b.dataset.quoi === arcQuoi);
+      else if (b.dataset.vue) b.classList.toggle('on', b.dataset.vue === arcVue);
       else b.classList.toggle('on', b.dataset.filtre === arcFiltre);
     }
+    document.getElementById('arcTitre').textContent = arcTable.titre || 'Archimonstres';
     // LES FILTRES NE VALENT QUE POUR LA LISTE, et ils disparaissent ailleurs.
     // Les griser les laissait visibles, donc promettait encore un geste.
     document.getElementById('arcFiltresListe').hidden = arcVue !== 'liste';
@@ -1161,7 +1169,7 @@
         return;
       }
       await new Promise((f) => setTimeout(f, DELAI_RELECTURE_MS));
-      arcTable = await window.app.tableauArchi(arcVise);
+      arcTable = await window.app.tableauArchi(arcVise, arcQuoi);
       dessinerArchi();
       // Le compte des demandes PARTIES, pas des reponses: on ne sait pas ici ce
       // qui est revenu, et l'annoncer serait une promesse invention.
@@ -1180,7 +1188,20 @@
   document.getElementById('arcRelire').onclick = relireArchi;
   document.getElementById('arcFermer').onclick = fermerArchi;
   for (const b of document.querySelectorAll('.arc-filtres button')) {
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
+      // CHANGER DE COLLECTION DEMANDE UNE NOUVELLE TABLE: c'est le process
+      // principal qui croise les ames avec la liste de reference. Changer de
+      // vue, lui, ne fait que redessiner ce qu'on a deja -- la vue par zone
+      // voyage dans le meme aller-retour.
+      if (b.dataset.quoi) {
+        if (b.dataset.quoi === arcQuoi) return;
+        arcQuoi = b.dataset.quoi;
+        arcOuvertes.clear();
+        arcOuvertesSz.clear();
+        arcTable = await window.app.tableauArchi(arcVise, arcQuoi);
+        dessinerArchi();
+        return;
+      }
       if (b.dataset.vue) arcVue = b.dataset.vue;
       else arcFiltre = b.dataset.filtre;
       dessinerArchi();

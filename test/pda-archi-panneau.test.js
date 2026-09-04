@@ -109,19 +109,34 @@ const { construire } = require('../src/pda-archi/tableau');
 function noeud() {
   return {
     textContent: '', innerHTML: '', hidden: true, disabled: false, title: '',
-    dataset: {}, style: {}, children: [],
+    dataset: {}, style: {}, children: [], ecouteurs: [],
     classList: { toggle() {}, add() {}, remove() {}, contains: () => false },
-    addEventListener() {}, setAttribute() {},
+    addEventListener(t, f) { if (t === 'click') this.ecouteurs.push(f); },
+    setAttribute() {},
     append(...k) { this.children.push(...k); },
     appendChild(k) { this.children.push(k); },
     querySelectorAll: () => [], querySelector: () => null,
+    // Cliquer POUR DE VRAI: sans ca, le cablage d'un bouton n'est jamais
+    // execute, et c'est exactement la ou se cachaient les pannes muettes.
+    clic() { return Promise.all(this.ecouteurs.map((f) => f({ stopPropagation() {} }))); },
   };
+}
+
+// Les boutons de la barre de filtres, LUS DANS LE HTML plutot que recopies:
+// ajouter un bouton dans la page le fait entrer ici tout seul.
+function boutonsDeLaBarre() {
+  const barre = html.slice(html.indexOf('<div class="arc-filtres">'), html.indexOf('<div class="arc-corps"'));
+  return [...barre.matchAll(/data-(vue|filtre|quoi)="([^"]+)"/g)].map((m) => {
+    const n = noeud();
+    n.dataset[m[1]] = m[2];
+    return n;
+  });
 }
 
 // Ouvre le panneau comme le ferait un clic sur le bouton d'une ligne, et rend
 // les noeuds pour qu'on puisse regarder ce qui s'y est ecrit.
 async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false } = {}) {
-  const appels = { table: 0, relire: 0 };
+  const appels = { table: 0, relire: 0, args: [] };
   const table = construire({
     comptes: [
       { pid: 101, nom: 'Un', ames: new Set([2272]) },
@@ -130,13 +145,14 @@ async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false } = {
     vise,
   });
   const parId = new Map();
+  const boutons = boutonsDeLaBarre();
   const document = {
     getElementById: (id) => {
       if (!parId.has(id)) parId.set(id, noeud());
       return parId.get(id);
     },
     createElement: () => noeud(),
-    querySelectorAll: () => [],
+    querySelectorAll: (sel) => (sel === '.arc-filtres button' ? boutons : []),
     querySelector: () => null,
     addEventListener() {},
     body: noeud(),
@@ -153,8 +169,9 @@ async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false } = {
       app: {
         surEtat() {},
         surPdaArchiAlerte() {},
-        tableauArchi: async () => {
+        tableauArchi: async (...args) => {
           appels.table += 1;
+          appels.args.push(args);
           if (echoue) throw new Error('le service a refusé');
           return table;
         },
@@ -174,7 +191,7 @@ async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false } = {
   );
   if (vue !== 'liste') contexte.__vue(vue);
   await contexte.__ouvrir(vise);
-  return { parId, appels };
+  return { parId, appels, boutons };
 }
 
 test('un clic sur le bouton d une ligne ouvre le panneau', async () => {
@@ -240,4 +257,22 @@ test('les filtres ne s affichent pas dans la vue par zone', async () => {
 test('les filtres reviennent dans la vue liste', async () => {
   const { parId } = await ouvrirLePanneau({ vue: 'liste' });
   assert.strictEqual(parId.get('arcFiltresListe').hidden, false);
+});
+
+// LE SELECTEUR DE COLLECTION: les 286 archimonstres, ou les 51 boss du Dofus
+// Ocre. La quete demande les deux, ce sont deux tables et un seul panneau.
+//
+// Changer de collection DEMANDE UNE NOUVELLE TABLE, contrairement au changement
+// de vue qui redessine ce qu'on a deja: c'est le process principal qui croise.
+test('le selecteur de collection redemande la table des boss', async () => {
+  const { appels, boutons } = await ouvrirLePanneau();
+  assert.deepStrictEqual(appels.args, [[101, 'archi']]);
+  await boutons.find((b) => b.dataset.quoi === 'boss').clic();
+  assert.deepStrictEqual(appels.args.at(-1), [101, 'boss']);
+});
+
+test('le selecteur de vue, lui, ne redemande rien', async () => {
+  const { appels, boutons } = await ouvrirLePanneau();
+  await boutons.find((b) => b.dataset.vue === 'zones').clic();
+  assert.strictEqual(appels.table, 1, 'la vue par zone voyage deja avec la table');
 });

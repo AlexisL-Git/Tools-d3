@@ -1,5 +1,5 @@
 'use strict';
-const { ARCHIMONSTRES, SOUS_ZONES } = require('./archimonstres');
+const { collection, SOUS_ZONES } = require('./archimonstres');
 
 // OU CHASSER: les zones, triees par ce qu il y reste a prendre. Fonction pure:
 // ni trame, ni reseau, ni disque, ni Electron.
@@ -9,22 +9,28 @@ const { ARCHIMONSTRES, SOUS_ZONES } = require('./archimonstres');
 // « ou vit tel archimonstre », qui se lit deja dans le tableau.
 
 const PAR_SOUS_ZONE = new Map(SOUS_ZONES.map((s) => [s.id, s]));
-const PAR_ID = new Map(ARCHIMONSTRES.map((a) => [a.id, a]));
 
-// zone -> sous-zone -> [identifiants d archimonstres]
+// zone -> sous-zone -> [identifiants], une fois par collection.
 //
-// Calcule UNE FOIS au chargement: la table ne bouge pas, et le panneau peut se
-// redessiner a chaque clic sans repayer le croisement.
-const ARBRE = new Map();
-for (const a of ARCHIMONSTRES) {
-  for (const id of a.sousZones) {
-    const sz = PAR_SOUS_ZONE.get(id);
-    if (sz === undefined) continue;
-    if (!ARBRE.has(sz.zone)) ARBRE.set(sz.zone, new Map());
-    const parSz = ARBRE.get(sz.zone);
-    if (!parSz.has(id)) parSz.set(id, []);
-    parSz.get(id).push(a.id);
+// Calcule au PREMIER usage et garde: la table ne bouge pas, et le panneau peut
+// se redessiner a chaque clic sans repayer le croisement.
+const ARBRES = new Map();
+function arbreDe(quoi) {
+  if (ARBRES.has(quoi)) return ARBRES.get(quoi);
+  const arbre = new Map();
+  const c = collection(quoi);
+  for (const a of c.entrees) {
+    for (const id of a.sousZones) {
+      const sz = PAR_SOUS_ZONE.get(id);
+      if (sz === undefined) continue;
+      if (!arbre.has(sz.zone)) arbre.set(sz.zone, new Map());
+      const parSz = arbre.get(sz.zone);
+      if (!parSz.has(id)) parSz.set(id, []);
+      parSz.get(id).push(a.id);
+    }
   }
+  ARBRES.set(quoi, { arbre, parId: c.parId });
+  return ARBRES.get(quoi);
 }
 
 // Le plus fourni d abord, le nom pour departager: sans ce second critere, deux
@@ -50,7 +56,8 @@ const decroissant = (nomDe) => (a, b) => (b.manquants - a.manquants)
 //
 // `vise` est le personnage dont on a clique le bouton, ou null. Avec lui,
 // « manquant » se restreint a CE personnage.
-function parZones({ lignes, comptes, vise = null }) {
+function parZones({ lignes, comptes, vise = null, quoi = 'archi' }) {
+  const { arbre: ARBRE, parId: PAR_ID } = arbreDe(quoi);
   const presents = new Map((lignes || []).map((l) => [l.id, l.presents]));
 
   // UN INVENTAIRE PAS ENCORE LU N EST PAS UN INVENTAIRE VIDE. On ne sait pas ce

@@ -1,6 +1,7 @@
 'use strict';
 const TABLE = require('./archimonstres.json');
 const ZONES = require('./zones.json');
+const OCRE = require('./boss-ocre.json');
 
 // La table des archimonstres: qui existe, comment il s appelle, a quel niveau.
 //
@@ -27,6 +28,28 @@ const VULKANIA = { debut: 3178, fin: 3197 };
 // ferait porter au paquet des donnees que rien ne lit.
 const SOUS_ZONES = ZONES;
 
+// LES 51 BOSS DU DOFUS OCRE, tires des objectifs de la quete 439
+// « L'éternelle moisson ». Elle demande les 286 archimonstres ET ces 51 boss:
+// deux ensembles disjoints, verifie.
+//
+// LA QUETE EST LA SOURCE, PAS UN GUIDE. Ses objectifs nomment leur monstre par
+// identifiant, ce qui evite l homonymie -- et elle est reelle: « Dragon Cochon »
+// existe en id 113 niveau 100 et en id 7863 niveau 212, dont l ame est
+// incapturable.
+const BOSS = OCRE;
+
+// LES DEUX COLLECTIONS ONT LA MEME FORME, et c est ce qui permet a tableau.js
+// et zones.js de les traiter sans savoir laquelle ils croisent.
+const COLLECTIONS = new Map([
+  ['archi', { titre: 'Archimonstres', entrees: ARCHIMONSTRES }],
+  ['boss', { titre: 'Boss du Dofus Ocre', entrees: BOSS }],
+]);
+for (const c of COLLECTIONS.values()) c.parId = new Map(c.entrees.map((a) => [a.id, a]));
+
+// Une cle inconnue rend les archimonstres: le panneau ne peut pas casser sur
+// une faute de frappe, il montre la collection par defaut.
+const collection = (quoi) => COLLECTIONS.get(quoi) || COLLECTIONS.get('archi');
+
 const PAR_ID = new Map(ARCHIMONSTRES.map((a) => [a.id, a]));
 
 // UNE PIERRE CAPTURE AUSSI LES BOSS, et c est le cas NORMAL: l inventaire
@@ -40,4 +63,6 @@ const nomDe = (id) => {
   return a === undefined ? null : a.nom;
 };
 
-module.exports = { ARCHIMONSTRES, SOUS_ZONES, VULKANIA, estArchimonstre, nomDe };
+module.exports = {
+  ARCHIMONSTRES, BOSS, SOUS_ZONES, VULKANIA, collection, estArchimonstre, nomDe,
+};
