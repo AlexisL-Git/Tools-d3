@@ -1108,6 +1108,11 @@ app.whenReady().then(async () => {
         manque: `PdA archi : pas de ${r.nom} pour du niveau ${r.niveauMax}`,
         'hors-portee': `PdA archi : niveau ${r.niveauMax}, aucune pierre ne couvre`,
         'groupe-inconnu': 'PdA archi : groupe inconnu, rien equipe',
+        // Le combat est bien reconnu, mais personne n'a vu partir son groupe:
+        // OMNI lance en cours de combat, ou l'attaquant n'est pas un de nos
+        // clients. Sans niveau on ne choisit pas de pierre, et se taire est
+        // exactement ce qui a rendu le bug du 04/09 introuvable.
+        'niveau-inconnu': 'PdA archi : niveau du groupe inconnu, rien equipe',
         echec: 'PdA archi : ordre refuse',
         // Le serveur n'a rien repondu en 3 s alors qu'il repond en 40 ms.
         'sans-reponse': `PdA archi : ${r.gid} pas equipee, le serveur n a rien repondu`,

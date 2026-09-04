@@ -6,7 +6,7 @@ const path = require('node:path');
 const { decodeFrameRaw, encodeRaw, WIRE } = require('../src/codec/rawProto');
 const { lireStock, POSITION_INVENTAIRE } = require('../src/hdv/trames');
 const {
-  lireGroupes, lireGroupeAttaque, lirePosition, trameEquiper,
+  lireGroupes, lireGroupeAttaque, lirePosition, trameEquiper, lireEntreeCombat,
 } = require('../src/pda-archi/trames');
 
 const fixture = (nom) => decodeFrameRaw(
@@ -107,4 +107,47 @@ test('lireGroupeAttaque ignore un identifiant de joueur, positif', () => {
 test('lireGroupeAttaque retient un identifiant de groupe, negatif', () => {
   const groupe = { type: 'kmu', payload: [{ no: 2, wire: WIRE.VARINT, value: -20004n }] };
   assert.strictEqual(lireGroupeAttaque(groupe), -20004);
+});
+
+// LES DEUX FORMES MESUREES DE kae, journal-archi-bug.log du 04/09:
+//
+//   kae { 1={2=1 3=-20001 4=1 5=<0o> 6=1} 2=194 }   le groupe, chez l attaquant
+//   kae { 1={3=677158453542 4=1 5={…}} 2=194 }      un joueur, chez chacun
+test('lireEntreeCombat lit le combat et le combattant', () => {
+  const frame = { type: 'kae', payload: [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 2, wire: WIRE.VARINT, value: 1n },
+      { no: 3, wire: WIRE.VARINT, value: -20001n },
+    ] },
+    { no: 2, wire: WIRE.VARINT, value: 194n },
+  ] };
+  assert.deepStrictEqual(lireEntreeCombat(frame), { idCombat: 194, idActeur: -20001 });
+});
+
+// UN JOUEUR PORTE UN IDENTIFIANT GRAND ET POSITIF, et il faut le rendre tel
+// quel: c est lui qui dit « ce client est dans ce combat ».
+test('lireEntreeCombat rend aussi un combattant joueur', () => {
+  const frame = { type: 'kae', payload: [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 3, wire: WIRE.VARINT, value: 677158453542n },
+    ] },
+    { no: 2, wire: WIRE.VARINT, value: 194n },
+  ] };
+  assert.deepStrictEqual(
+    lireEntreeCombat(frame), { idCombat: 194, idActeur: 677158453542 },
+  );
+});
+
+test('lireEntreeCombat ignore une autre trame et un kae incomplet', () => {
+  assert.strictEqual(lireEntreeCombat({ type: 'kmk', payload: [] }), null);
+  assert.strictEqual(lireEntreeCombat({ type: 'kae', payload: [] }), null);
+  // Le combat sans combattant, et le combattant sans combat.
+  assert.strictEqual(lireEntreeCombat({ type: 'kae', payload: [
+    { no: 2, wire: WIRE.VARINT, value: 194n },
+  ] }), null);
+  assert.strictEqual(lireEntreeCombat({ type: 'kae', payload: [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 3, wire: WIRE.VARINT, value: 42n },
+    ] },
+  ] }), null);
 });
