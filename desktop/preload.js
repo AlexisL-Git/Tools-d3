@@ -27,6 +27,9 @@ contextBridge.exposeInMainWorld('app', {
   // est impossible. Les DEUX doivent exister cote main.js, voir l'avertissement
   // en tete de ce fichier.
   pdaArchiArmer: (actif) => ipcRenderer.invoke('pdaArchiArmer', actif),
+
+  // Le tableau des archimonstres, construit a la demande cote main.js.
+  tableauArchi: () => ipcRenderer.invoke('tableauArchi'),
   surPdaArchiAlerte: (rappel) => ipcRenderer.on('pdaArchiAlerte', (_e, a) => rappel(a)),
   basculerColonne: (nom, ids) => ipcRenderer.invoke('basculerColonne', nom, ids),
 

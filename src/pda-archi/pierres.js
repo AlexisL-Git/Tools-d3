@@ -59,12 +59,19 @@ function choisir({ niveauMax, piles }) {
   // la bonne pierre, plutot que de compter sur le serveur pour le faire.
   //
   // LE CAS QUI JUSTIFIE VRAIMENT CETTE PURGE: une pierre qui se remplit pendant
-  // le combat CHANGE D'OBJET, elle devient une « Pierre d'ame pleine », gid
-  // 7010, et reste a l'emplacement. Sans purge, on la prendrait pour une pierre
-  // etrangere qu'on remplace, ce qui va, mais si notre copie de l'inventaire
-  // avait pris du retard on croirait la bonne pierre en place et la chasse
-  // s'arreterait en silence apres la premiere capture. Sortir d'abord ne
-  // suppose rien.
+  // le combat CHANGE D'OBJET, et reste a l'emplacement. Sans purge, on la
+  // prendrait pour une pierre etrangere qu'on remplace, ce qui va, mais si
+  // notre copie de l'inventaire avait pris du retard on croirait la bonne
+  // pierre en place et la chasse s'arreterait en silence apres la premiere
+  // capture. Sortir d'abord ne suppose rien.
+  //
+  // CE N'EST PAS LE GID 7010. Ce commentaire l'a annonce du 03/09 au 04/09,
+  // ecrit sans qu'une pierre pleine ait jamais ete observee. La mesure du 04/09
+  // (2026-09-04-trames-ame-pleine.md) ne trouve AUCUNE pile de gid 7010, sur
+  // 674: chaque ame est son propre objet, `Pichakote le Degoutant` est le gid
+  // 34005, et les 143 ames d'un inventaire portent 143 gids distincts. Le
+  // raisonnement ci-dessus tient tel quel -- il compare des gids sans jamais en
+  // nommer un -- seul son exemple etait invente.
   const occupant = (piles || []).find((p) => p.pos === POSITION_PIERRE) || null;
   const purge = occupant === null || occupant.gid === voulue.gid
     ? null
@@ -74,7 +81,8 @@ function choisir({ niveauMax, piles }) {
   // quatre piles de pierres vides de l'inventaire le portent toutes. Le
   // raisonnement de l'hotel de vente, ou une ressource n'a pas d'effets, ne
   // s'applique pas: une pierre est de l'equipement. Et une pierre PLEINE n'est
-  // pas le meme objet, c'est le gid 7010, donc elle ne peut pas se glisser ici.
+  // pas le meme objet -- elle a son propre gid, un par archimonstre -- donc
+  // elle ne peut pas se glisser ici.
   const siennes = (piles || []).filter((p) => p.gid === voulue.gid);
   const portee = siennes.find((p) => p.pos === POSITION_PIERRE);
   if (portee !== undefined) return { quoi: 'deja', gid: voulue.gid };

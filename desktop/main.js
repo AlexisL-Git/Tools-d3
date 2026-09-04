@@ -15,6 +15,9 @@ const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { creerReprix } = require('../src/hdv/reprix');
 const { creerVente } = require('../src/hdv/vente');
 const { creerPdaArchi } = require('../src/pda-archi/pda-archi');
+const { creerCollection } = require('../src/pda-archi/collection');
+const { estArchimonstre } = require('../src/pda-archi/archimonstres');
+const { construire: construireTableauArchi } = require('../src/pda-archi/tableau');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients, fermerClients } = require('../src/comptes/clients');
@@ -66,6 +69,17 @@ let vente = null;
 // La pierre d'ame equipee a l'entree en combat. Declaree ici comme la vente: le panneau lit son
 // etat, l'interrupteur l'arme, et la perte du droit doit pouvoir la desarmer.
 let pdaArchi = null;
+
+// LES AMES CAPTUREES, POUR LE TABLEAU DES ARCHIMONSTRES.
+//
+// Creee tout de suite, et pas dans demarrer() comme les politiques: elle ne
+// depend de rien -- ni du superviseur, ni des reglages, ni d'un droit. Elle ne
+// fait qu'ecouter.
+//
+// ELLE N'EST PAS DERRIERE `protege`, et c'est voulu: src/droits/liste.js
+// verrouille des ACTIONS, ce qu'OMNI emet vers le jeu. Celle-ci n'emet rien,
+// elle lit et elle affiche.
+const collectionArchi = creerCollection();
 // LES DROITS ACCORDES A CETTE CLE. Relus par la veille toutes les 60 s: voir
 // sa creation dans app.whenReady(). null tant qu'elle n'existe pas encore --
 // jamais interroge avant, la fenetre n'est pas encore ouverte.
@@ -491,6 +505,10 @@ async function balayerProcess() {
     attacheA.delete(pid);
     erreurs.delete(pid);
     messages.delete(pid);
+    // Meme raison que les deux lignes ci-dessus, et elle compte davantage ici:
+    // un pid recycle par Windows heriterait de la COLLECTION du client
+    // precedent, et afficherait les archimonstres d'un autre personnage.
+    collectionArchi.oublier(pid);
     await superviseur.retirer(pid);
   }
 
@@ -658,6 +676,21 @@ async function envoyerEtat() {
   // La touche assignee a chaque compte, pour l'afficher sur sa ligne.
   const touches = favoris.touches();
   for (const l of lignes) l.touche = l.id === null ? null : (touches[l.id] || null);
+
+  // Le nombre d'archimonstres de chaque personnage, pour le bouton de sa ligne.
+  //
+  // `null`, ET SURTOUT PAS 0, tant que son inventaire n'a pas ete lu: `ivx`
+  // n'arrive qu'a la connexion, donc un client lance AVANT OMNI n'en enverra
+  // jamais. Un zero le ferait passer pour un personnage sans une seule ame.
+  //
+  // On compte ici plutot que de construire le tableau entier: cet envoi part a
+  // chaque tick, et croiser 286 lignes par personnage a ce rythme serait payer
+  // cher un chiffre.
+  const amesParPid = collectionArchi.etat();
+  for (const l of lignes) {
+    const ames = l.pid === null || l.pid === undefined ? undefined : amesParPid.get(l.pid);
+    l.archi = ames === undefined ? null : [...ames].filter(estArchimonstre).length;
+  }
 
   // L'embleme de chaque classe vue, s'il est deja en cache. Les absents sont
   // demandes SANS ATTENDRE: le tick suivant les affichera, et d'ici la
@@ -1271,6 +1304,8 @@ app.whenReady().then(async () => {
     protege('hdv', reprix.onTrame),
     protege('vente', vente.onTrame),
     protege('pda-archi', pdaArchi.onTrame),
+    // Sans porte: elle ne fait que lire l'inventaire pour le tableau.
+    collectionArchi.onTrame,
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -1524,6 +1559,27 @@ ipcMain.handle('majPrixHdv', async (_e, pid) => {
 // Le refus quand le droit manque est EXPLICITE, meme raison que pour le HDV
 // juste au-dessus: une case qui se decoche toute seule sans un mot est un
 // bouton qui « ne fait rien ».
+// LE TABLEAU DES ARCHIMONSTRES: 286 lignes, une colonne par personnage.
+//
+// Construit A LA DEMANDE, jamais dans l'envoi d'etat: le panneau ne l'affiche
+// que quand on ouvre la vue, et croiser 286 lignes par personnage a chaque tick
+// serait payer cher un tableau que personne ne regarde.
+//
+// LES NOMS VIENNENT DES DERNIERES LIGNES ENVOYEES, pas d'un nouveau
+// listerClients(): celui-ci passe par powershell, et ouvrir un tableau ne doit
+// pas attendre un process. Un personnage vu il y a une seconde est le bon.
+ipcMain.handle('tableauArchi', () => construireTableauArchi({
+  comptes: (dernieresLignes || [])
+    .filter((l) => l.pid !== null && l.pid !== undefined)
+    .map((l) => ({
+      pid: l.pid,
+      nom: l.personnage || l.nickname,
+      // `null` quand l'inventaire n'a pas ete lu, un Set vide quand il l'a ete
+      // et qu'il ne porte aucune ame. tableau.js compte sur la difference.
+      ames: collectionArchi.etat().get(l.pid) || null,
+    })),
+}));
+
 ipcMain.handle('pdaArchiArmer', async (_e, actif) => {
   if (pdaArchi === null) return { ok: false, raison: 'PdA archi : pas encore prete' };
   if (actif === true && !veille.droits().includes('pda-archi')) {

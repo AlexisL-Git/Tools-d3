@@ -320,6 +320,54 @@
      prevue; grisee, elle dit qu'elle existe et pourquoi elle n'agit pas. */
   .menu-hdv button.inerte { color: var(--attenue); }
 
+  /* ---------------- les archimonstres ---------------- */
+  /* Le bouton de la ligne porte le COMPTE de ce personnage. Un tiret, et pas un
+     zero, tant que son inventaire n'a pas ete lu: `ivx` n'arrive qu'a la
+     connexion, donc un client lance avant OMNI n'en enverra jamais. */
+  .archi {
+    width: 100%; height: 30px; padding: 0; border-radius: 8px;
+    background: transparent; border: 1px solid var(--filet); color: var(--attenue);
+    font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  .archi:hover:not(:disabled) { color: var(--texte); border-color: var(--accent); }
+  .archi:disabled { opacity: .3; cursor: not-allowed; }
+  .archi.pleine { color: var(--texte); }
+
+  /* Meme forme que « Quoi de neuf »: un panneau DANS la fenetre. */
+  .vue-archi {
+    position: absolute; inset: 38px 0 0 0; z-index: 20;
+    background: var(--fond); display: flex; flex-direction: column;
+  }
+  .arc-corps { flex: 1; overflow-y: auto; padding: 0 15px 14px; }
+  .arc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .arc-table th {
+    position: sticky; top: 0; z-index: 1; background: var(--fond);
+    padding: 9px 6px; border-bottom: 1px solid var(--filet);
+    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--attenue); font-weight: 700; text-align: center;
+  }
+  .arc-table th.gauche { text-align: left; }
+  .arc-table td { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .arc-table td.niv { text-align: right; color: var(--attenue); font-variant-numeric: tabular-nums; }
+  .arc-table td.case { text-align: center; color: var(--attenue); }
+  .arc-table td.case.a { color: var(--arme); }
+  /* La colonne du personnage dont on a clique le bouton. Le tableau montre
+     tout le monde; ce n'est qu'un reperage, jamais un filtre cache. */
+  .arc-table th.vise, .arc-table td.vise { background: rgba(255,255,255,.05); }
+  .arc-table tr.aucun td { color: var(--attenue); }
+  .arc-filtres { display: flex; align-items: center; gap: 6px; padding: 10px 15px 8px; }
+  .arc-filtres button {
+    padding: 5px 11px; border-radius: 7px; background: transparent;
+    border: 1px solid var(--filet); color: var(--attenue); font-size: 11.5px;
+  }
+  .arc-filtres button.on { color: var(--texte); border-color: var(--accent); }
+  .arc-pied {
+    padding: 9px 15px; border-top: 1px solid var(--filet);
+    font-size: 12px; color: var(--attenue);
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+  .arc-pied b { color: var(--texte); font-variant-numeric: tabular-nums; }
+
   .oter:hover { color: var(--alerte); background: rgba(242,84,91,.12); }
   .oter svg { width: 12px; height: 12px; }
 
@@ -336,7 +384,7 @@
   .defile { flex: 1; min-height: 0; overflow-y: auto; }
   .entete, .rang {
     display: grid; align-items: center;
-    grid-template-columns: 50px minmax(150px, 1.6fr) 92px repeat(5, 58px) 122px 44px 38px;
+    grid-template-columns: 50px minmax(150px, 1.6fr) 92px repeat(5, 58px) 122px 44px 52px 38px;
     gap: 9px; padding: 0 15px;
   }
   .entete {
@@ -498,6 +546,7 @@
     <div class="c"><button class="tete-colonne" data-colonne="echange"><span class="jauge"></span>Éch.</button></div>
     <div class="c">Commande</div>
     <div class="c">HDV</div>
+    <div class="c">Archi</div>
     <div></div>
   </div>
   <div id="liste"></div>
@@ -516,6 +565,23 @@
     <span class="texte"><span class="quoi" id="qdnMajQuoi"></span><span class="refs" id="qdnMajRefs"></span></span>
   </div>
   <div class="qdn-corps" id="qdnCorps"></div>
+</div>
+
+<!-- LE TABLEAU DES ARCHIMONSTRES. Meme forme que « Quoi de neuf »: un panneau
+     dans la fenetre, ferme par Echap ou par la croix. -->
+<div class="vue-archi" id="vueArchi" hidden>
+  <div class="qdn-tete">
+    <b>Archimonstres</b>
+    <button id="arcFermer" title="Fermer (Échap)">✕</button>
+  </div>
+  <div class="arc-filtres">
+    <button data-filtre="tous">Tous</button>
+    <button data-filtre="manquants">Manquants</button>
+    <button data-filtre="possedes">Possédés</button>
+    <span class="avis-nav" id="arcVise"></span>
+  </div>
+  <div class="arc-corps" id="arcCorps"></div>
+  <div class="arc-pied" id="arcPied"></div>
 </div>
 
 <div class="barre-nav">
@@ -744,6 +810,104 @@
     return null;
   }
 
+  // ---------------- le tableau des archimonstres ----------------
+  //
+  // IL NE DEMANDE RIEN AU JEU. L'inventaire arrive seul a la connexion, et
+  // main.js n'a qu'a croiser ce qu'il a deja: ouvrir le tableau ne coute pas un
+  // aller-retour, et il est juste au moment ou on le regarde.
+  //
+  // Il est CONSTRUIT A CHAQUE OUVERTURE, jamais garde: une pierre qui se
+  // remplit pendant la chasse arrive en `iua`, et un tableau garde en memoire
+  // vieillirait sans le dire.
+  let arcVise = null;     // le personnage dont on a clique le bouton
+  let arcFiltre = 'tous';
+  let arcTable = null;
+
+  const echapper = (t) => String(t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  function fermerArchi() {
+    document.getElementById('vueArchi').hidden = true;
+  }
+
+  async function ouvrirArchi(pid) {
+    arcVise = pid === undefined ? null : pid;
+    arcTable = await window.app.tableauArchi();
+    dessinerArchi();
+    document.getElementById('vueArchi').hidden = false;
+  }
+
+  // LE FILTRE PORTE SUR LA COLONNE VISEE quand il y en a une, sur le groupe
+  // sinon. « Manquants » ne veut pas dire la meme chose pour un personnage et
+  // pour l'equipe, et c'est justement la question qu'on se pose en cliquant le
+  // bouton d'une ligne.
+  function gardeLigne(ligne) {
+    if (arcFiltre === 'tous') return true;
+    const a = arcVise === null
+      ? ligne.presents.length > 0
+      : ligne.presents.includes(arcVise);
+    return arcFiltre === 'possedes' ? a : !a;
+  }
+
+  function dessinerArchi() {
+    const corps = document.getElementById('arcCorps');
+    const pied = document.getElementById('arcPied');
+    const vise = document.getElementById('arcVise');
+    if (arcTable === null) { corps.textContent = ''; pied.textContent = ''; return; }
+
+    const comptes = arcTable.comptes;
+    const nomVise = (comptes.find((c) => c.pid === arcVise) || {}).nom;
+    vise.textContent = nomVise ? 'colonne suivie : ' + nomVise : '';
+
+    for (const b of document.querySelectorAll('.arc-filtres button')) {
+      b.classList.toggle('on', b.dataset.filtre === arcFiltre);
+    }
+
+    const enTete = ['<th class="gauche">Archimonstre</th>', '<th>Niv</th>']
+      .concat(comptes.map((c) => '<th class="' + (c.pid === arcVise ? 'vise' : '')
+        + '">' + echapper(c.nom) + '</th>'))
+      .join('');
+
+    const lignes = arcTable.lignes.filter(gardeLigne);
+    const corpsHtml = lignes.map((l) => '<tr><td>' + echapper(l.nom) + '</td>'
+      + '<td class="niv">' + l.niveau + '</td>'
+      + comptes.map((c) => {
+        const a = l.presents.includes(c.pid);
+        return '<td class="case' + (a ? ' a' : '') + (c.pid === arcVise ? ' vise' : '')
+          + '">' + (a ? '✔' : '·') + '</td>';
+      }).join('') + '</tr>').join('');
+
+    // UN TABLEAU VIDE DOIT LE DIRE. Sans cette ligne, « aucun manquant » et
+    // « le tableau ne s'est pas construit » ont exactement la meme allure.
+    const vide = '<tr class="aucun"><td colspan="' + (comptes.length + 2) + '">'
+      + (comptes.length === 0
+        ? 'aucun personnage connecté'
+        : 'rien à afficher avec ce filtre') + '</td></tr>';
+
+    corps.innerHTML = '<table class="arc-table"><thead><tr>' + enTete + '</tr></thead>'
+      + '<tbody>' + (corpsHtml || vide) + '</tbody></table>';
+
+    // Le pied dit ce que le groupe possede, puis chaque personnage. Un
+    // inventaire pas encore lu y reste un tiret, jamais un zero.
+    // `horsTableau`, ce sont les ames de BOSS: une pierre en capture aussi, et
+    // trois des 143 ames mesurees le 04/09 en etaient. Les taire ferait un
+    // compte qui ne tombe pas juste; les compter dans le tableau inventerait
+    // des lignes qui n'existent pas.
+    const parCompte = comptes.map((c) => '<span>' + (c.lu
+      ? echapper(c.nom) + ' <b>' + c.possede + '</b>'
+        + (c.horsTableau > 0 ? ' (+' + c.horsTableau + ' hors tableau)' : '')
+      : echapper(c.nom) + ' <b>—</b>') + '</span>').join('');
+    pied.innerHTML = '<span>' + arcTable.total + ' archimonstres</span>'
+      + '<span>possédés <b>' + arcTable.possedes + '</b></span>'
+      + '<span>manquants <b>' + arcTable.manquants + '</b></span>'
+      + parCompte;
+  }
+
+  document.getElementById('arcFermer').onclick = fermerArchi;
+  for (const b of document.querySelectorAll('.arc-filtres button')) {
+    b.addEventListener('click', () => { arcFiltre = b.dataset.filtre; dessinerArchi(); });
+  }
+
   // Une seule saisie a la fois. Échap annule sans rien changer.
   let ecoute = null;
   window.addEventListener('keydown', (e) => {
@@ -751,6 +915,10 @@
     // en cours: pendant une saisie, Echap doit garder son sens d'annulation.
     if (e.key === 'Escape' && ecoute === null && !document.getElementById('quoiDeNeuf').hidden) {
       fermerQuoiDeNeuf();
+      return;
+    }
+    if (e.key === 'Escape' && ecoute === null && !document.getElementById('vueArchi').hidden) {
+      fermerArchi();
       return;
     }
     if (ecoute === null) return;
@@ -1116,6 +1284,18 @@
     });
     r.el.append(r.hdv, r.menuHdv);
 
+    // LE BOUTON ARCHI DE CETTE LIGNE. Il porte le compte de ce personnage et
+    // ouvre le tableau sur sa colonne. Il n'envoie AUCUN ordre au jeu: OMNI a
+    // deja tout ce qu'il faut, l'inventaire etant arrive seul a la connexion.
+    r.archi = document.createElement('button');
+    r.archi.className = 'archi';
+    r.archi.addEventListener('click', () => {
+      const l = r.ligne;
+      if (!l || l.pid === null || l.pid === undefined) return;
+      ouvrirArchi(l.pid);
+    });
+    r.el.append(r.archi);
+
     // Le pouvoir de coupure de CE client. Premier clic arme, second ferme, et
     // l armement retombe seul: meme regle que le bouton qui les ferme tous.
     r.fermerUn = document.createElement('button');
@@ -1223,6 +1403,18 @@
     r.fermerUn.disabled = !aUneFenetre;
     if (!aUneFenetre) r.fermerUn.classList.remove('confirme');
     if (!r.fermerUn.title) r.fermerUn.title = 'fermer ce client';
+
+    // LE COMPTE D'ARCHIMONSTRES. `null` veut dire « inventaire pas encore lu »,
+    // et il s'affiche `—`: un zero le ferait passer pour un personnage sans une
+    // seule ame, alors qu'on n'en sait rien. C'est la lecon du 03/09, un
+    // silence qui ressemble a une reponse.
+    const archiLu = l.archi !== null && l.archi !== undefined;
+    r.archi.textContent = archiLu ? String(l.archi) : '—';
+    r.archi.disabled = !archiLu;
+    r.archi.classList.toggle('pleine', archiLu && l.archi > 0);
+    r.archi.title = archiLu
+      ? l.archi + ' archimonstre(s) en inventaire — ouvrir le tableau'
+      : 'inventaire pas encore lu : ce client a-t-il été lancé après OMNI ?';
 
     // Le menu n'a de sens que sur un client en jeu, et seulement si la cle a
     // AU MOINS UN des deux droits: ses deux entrees se verrouillent
