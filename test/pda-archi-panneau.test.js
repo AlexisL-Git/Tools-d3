@@ -53,7 +53,7 @@ test('aucune regle hors du panneau ne definit une classe arc-', () => {
   const inconnues = regles.filter(
     (c) => !classesArchi.includes(c)
       && !['arc-table', 'arc-corps', 'arc-pied', 'arc-filtres', 'arc-relire',
-        'arc-filtres-liste'].includes(c),
+        'arc-filtres-liste', 'arc-onglets', 'arc-segmente', 'arc-discret'].includes(c),
   );
   assert.deepStrictEqual(inconnues, []);
 });
@@ -287,4 +287,19 @@ test('le selecteur de vue, lui, ne redemande rien', async () => {
 test('la vue par zone dit quand il ne reste plus rien', async () => {
   const { parId } = await ouvrirLePanneau({ vue: 'zones', complet: true });
   assert.match(parId.get('arcCorps').innerHTML, /plus rien/i);
+});
+
+// LES DEUX ONGLETS DE COLLECTION PORTENT UNE ICONE, et c'est ce qui les
+// distingue au premier coup d'oeil du reste de la barre. Un futur remaniement
+// qui les reduirait a du texte ferait retomber la barre dans ce qu'elle etait:
+// sept boutons identiques sur une ligne.
+test('chaque onglet de collection porte une icone', () => {
+  const barre = html.slice(html.indexOf('<div class="arc-filtres">'), html.indexOf('<div class="arc-corps"'));
+  for (const quoi of ['archi', 'boss']) {
+    const marque = barre.indexOf(`data-quoi="${quoi}"`);
+    assert.ok(marque >= 0, `le bouton ${quoi} est introuvable`);
+    const debut = barre.lastIndexOf('<button', marque);
+    assert.match(barre.slice(debut, barre.indexOf('</button>', marque)), /<svg/,
+      `le bouton ${quoi} n a pas d icone`);
+  }
 });
