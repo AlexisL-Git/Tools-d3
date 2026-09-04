@@ -78,6 +78,14 @@ test('un personnage dont l inventaire n est pas lu n apparait pas dans qui', () 
   assert.deepStrictEqual(zoneDe(arb, 'Amakna').qui, []);
 });
 
+// AUCUN INVENTAIRE LU: on ne peut dire a personne ce qui lui manque, alors on
+// montre ce qui existe. Un panneau ouvert avant que les clients soient la doit
+// lister le monde, pas seize zeros -- qui se liraient « tu as tout ».
+test('sans aucun inventaire lu, le monde entier reste a prendre', () => {
+  const arb = arbre({ comptes: [{ pid: 1, nom: 'Jamais lu', ames: null }] });
+  assert.strictEqual(zoneDe(arb, 'Amakna').manquants, 78);
+});
+
 // Meme regle que le filtre du tableau: avec un personnage suivi, « manquant »
 // veut dire manquant POUR LUI, pas pour l'equipe.
 test('avec un personnage vise, manquant veut dire manquant pour lui', () => {
@@ -87,6 +95,70 @@ test('avec un personnage vise, manquant veut dire manquant pour lui', () => {
   ];
   assert.strictEqual(zoneDe(arbre({ comptes, vise: 1 }), 'Amakna').manquants, 0);
   assert.strictEqual(zoneDe(arbre({ comptes, vise: 2 }), 'Amakna').manquants, 78);
-  // Sans personnage suivi, c'est l'equipe: ce que le premier possede est acquis.
-  assert.strictEqual(zoneDe(arbre({ comptes }), 'Amakna').manquants, 0);
+});
+
+// SANS PERSONNAGE VISE, C'EST « A AU MOINS UN ». Ce que le premier possede
+// n'efface donc rien: le second ne l'a pas, et la chasse sert aussi le second.
+// C'est ce qui distingue cette vue du tableau, ou une case cochee quelque part
+// suffit a l'equipe.
+test('sans personnage vise, il suffit qu un seul en manque', () => {
+  const comptes = [
+    { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
+    { pid: 2, nom: 'Vide', ames: new Set() },
+  ];
+  const amakna = zoneDe(arbre({ comptes }), 'Amakna');
+  assert.strictEqual(amakna.manquants, 78);
+  assert.deepStrictEqual(amakna.qui, [2]);
+});
+
+// --- Ce qu'il manque exactement, sous-zone par sous-zone -------------------
+//
+// Le troisieme niveau: la sous-zone dit COMBIEN, et depliee elle dit QUOI.
+// Sans lui, « Cimetière 6 » envoie chasser sans savoir quelle pierre preparer.
+
+test('une sous-zone dit quels archimonstres il y manque', () => {
+  const ames = new Set(TOUS.filter((id) => id !== TOFUMANCHOU));
+  const cim = sousZoneDe(arbre({ comptes: [{ pid: 1, nom: 'Jibef', ames }] }), 'Amakna', 'Cimetière');
+  assert.deepStrictEqual(cim.restants.map((r) => r.id), [TOFUMANCHOU]);
+  assert.strictEqual(cim.restants[0].nom, "Tofumanchou l'Empereur");
+  assert.ok(Number.isFinite(cim.restants[0].niveau));
+});
+
+// Le compte et la liste ne peuvent pas diverger: l'un est la longueur de
+// l'autre.
+test('le compte d une sous-zone est la longueur de sa liste', () => {
+  const arb = arbre({ comptes: [] });
+  const boiteuses = [];
+  for (const z of arb) {
+    for (const sz of z.sousZones) {
+      if (sz.restants.length !== sz.manquants) boiteuses.push(z.zone + '/' + sz.nom);
+    }
+  }
+  assert.deepStrictEqual(boiteuses, []);
+});
+
+// Meme ordre que le tableau: du plus faible au plus fort, c'est celui dans
+// lequel on chasse -- et celui qui dit quelle pierre preparer.
+test('les archimonstres d une sous-zone vont du plus bas niveau au plus haut', () => {
+  const sz = sousZoneDe(arbre({ comptes: [] }), 'Amakna', 'Cimetière');
+  const niveaux = sz.restants.map((r) => r.niveau);
+  assert.deepStrictEqual(niveaux, [...niveaux].sort((a, b) => a - b));
+});
+
+// Chaque archimonstre porte SES emblemes: dans une meme sous-zone, deux
+// personnages peuvent avoir besoin de deux monstres differents.
+test('chaque archimonstre manquant dit a qui il manque', () => {
+  const arb = arbre({
+    comptes: [
+      { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
+      { pid: 2, nom: 'ManqueUn', ames: new Set(TOUS.filter((id) => id !== TOFUMANCHOU)) },
+    ],
+  });
+  const cim = sousZoneDe(arb, 'Amakna', 'Cimetière');
+  assert.deepStrictEqual(cim.restants.map((r) => [r.id, r.qui]), [[TOFUMANCHOU, [2]]]);
+});
+
+test('une sous-zone complete n a plus rien a lister', () => {
+  const arb = arbre({ comptes: [{ pid: 1, nom: 'Jibef', ames: new Set(TOUS) }] });
+  assert.deepStrictEqual(sousZoneDe(arb, 'Amakna', 'Cimetière').restants, []);
 });

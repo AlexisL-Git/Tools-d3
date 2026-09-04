@@ -404,6 +404,16 @@
     border: 1px solid var(--filet); border-radius: 4px; padding: 1px 3px;
   }
 
+  /* Le troisieme niveau: ce qu'il manque nommement dans une sous-zone. */
+  .arc-archi {
+    display: flex; align-items: center; gap: 10px;
+    padding: 5px 6px 5px 56px; border-bottom: 1px solid rgba(255,255,255,.03);
+    font-size: 12px; color: var(--attenue);
+  }
+  .arc-niveau {
+    min-width: 30px; text-align: right; font-variant-numeric: tabular-nums;
+  }
+
   .arc-pied {
     padding: 9px 15px; border-top: 1px solid var(--filet);
     font-size: 12px; color: var(--attenue);
@@ -869,9 +879,10 @@
   let arcFiltre = 'tous';
   let arcVue = 'liste';
   let arcTable = null;
-  // Les zones depliees. Un Set et pas un drapeau: on peut en ouvrir plusieurs,
-  // et l'ouverture survit au redessin.
+  // Les zones depliees, et les sous-zones depliees. Des Set et pas des
+  // drapeaux: on peut en ouvrir plusieurs, et l'ouverture survit au redessin.
   const arcOuvertes = new Set();
+  const arcOuvertesSz = new Set();
 
   // LES CLASSES DU TABLEAU, DECLAREES EN UN SEUL ENDROIT ET TOUTES PREFIXEES.
   //
@@ -900,6 +911,8 @@
     zero: 'arc-zero',
     qui: 'arc-qui',
     abrev: 'arc-abrev',
+    archi: 'arc-archi',
+    niveau: 'arc-niveau',
   };
 
   // Assemble une liste de classes en ecartant les absentes.
@@ -945,27 +958,47 @@
   // du travail.
   function dessinerZones(corps) {
     const zones = arcTable.zones || [];
-    // UNE ZONE EST UN BOUTON, UNE SOUS-ZONE NE L'EST PAS: seule la premiere se
-    // deplie. Un bouton mort se prend le focus au clavier et reagit au survol
-    // en promettant un geste qui n'existe pas.
-    const ligne = (o, classe, indent, cliquable) => {
-      const zero = o.manquants === 0 ? ' ' + ARC.zero : '';
-      const qui = o.qui.map((pid) => emblemeDe(pid, nomDuPid(pid) + ' — il lui en manque ici')).join('');
-      const balise = cliquable ? 'button' : 'div';
-      return '<' + balise + ' class="' + classe + '"'
-        + (cliquable ? ' data-zone="' + echapper(o.zone) + '"' : '') + '>'
-        + '<span class="' + ARC.fleche + '">' + indent + '</span>'
-        + '<span class="' + ARC.nomZone + '">' + echapper(o.zone || o.nom) + '</span>'
-        + '<span class="' + ARC.qui + '">' + qui + '</span>'
-        + '<span class="' + ARC.nombre + zero + '">' + o.manquants + '</span>'
+
+    // UNE LIGNE NE SE DEPLIE QUE S'IL Y A QUELQUE CHOSE DESSOUS. Un bouton mort
+    // se prend le focus au clavier et promet un geste qui n'existe pas.
+    const ligne = (nom, manquants, qui, classe, data, ouvrable, ouverte) => {
+      const zero = manquants === 0 ? ' ' + ARC.zero : '';
+      const emblemes = qui.map((pid) => emblemeDe(pid, nomDuPid(pid) + ' — il lui en manque ici')).join('');
+      const balise = ouvrable ? 'button' : 'div';
+      return '<' + balise + ' class="' + classe + '"' + (ouvrable ? ' ' + data : '') + '>'
+        + '<span class="' + ARC.fleche + '">' + (ouvrable ? (ouverte ? '▾' : '▸') : '') + '</span>'
+        + '<span class="' + ARC.nomZone + '">' + echapper(nom) + '</span>'
+        + '<span class="' + ARC.qui + '">' + emblemes + '</span>'
+        + '<span class="' + ARC.nombre + zero + '">' + manquants + '</span>'
         + '</' + balise + '>';
     };
+
+    // Le troisieme niveau: ce qu'il manque NOMMEMENT. « Cimetière 6 » envoie
+    // chasser sans savoir quelle pierre preparer; le niveau, lui, le dit.
+    const archi = (r) => '<div class="' + ARC.archi + '">'
+      + '<span class="' + ARC.fleche + '"></span>'
+      + '<span class="' + ARC.nomZone + '">' + echapper(r.nom) + '</span>'
+      + '<span class="' + ARC.niveau + '">niv ' + r.niveau + '</span>'
+      + '<span class="' + ARC.qui + '">'
+      + r.qui.map((pid) => emblemeDe(pid, nomDuPid(pid) + ' — il lui manque celui-la')).join('')
+      + '</span></div>';
+
     corps.innerHTML = zones.map((z) => {
       const ouverte = arcOuvertes.has(z.zone);
-      return ligne(z, ARC.zone, ouverte ? '▾' : '▸', true)
-        + (ouverte ? z.sousZones.map((sz) => ligne(sz, ARC.sousZone, '', false)).join('') : '');
+      let html = ligne(z.zone, z.manquants, z.qui, ARC.zone,
+        'data-zone="' + echapper(z.zone) + '"', true, ouverte);
+      if (!ouverte) return html;
+      for (const sz of z.sousZones) {
+        const ouvrable = sz.restants.length > 0;
+        const szOuverte = arcOuvertesSz.has(sz.id);
+        html += ligne(sz.nom, sz.manquants, sz.qui, ARC.sousZone,
+          'data-sz="' + sz.id + '"', ouvrable, szOuverte);
+        if (ouvrable && szOuverte) html += sz.restants.map(archi).join('');
+      }
+      return html;
     }).join('');
-    for (const b of corps.querySelectorAll('.' + ARC.zone)) {
+
+    for (const b of corps.querySelectorAll('[data-zone]')) {
       b.addEventListener('click', () => {
         const z = b.dataset.zone;
         if (arcOuvertes.has(z)) arcOuvertes.delete(z);
@@ -973,18 +1006,14 @@
         dessinerArchi();
       });
     }
-  }
-
-  // LE FILTRE PORTE SUR LA COLONNE VISEE quand il y en a une, sur le groupe
-  // sinon. « Manquants » ne veut pas dire la meme chose pour un personnage et
-  // pour l'equipe, et c'est justement la question qu'on se pose en cliquant le
-  // bouton d'une ligne.
-  function gardeLigne(ligne) {
-    if (arcFiltre === 'tous') return true;
-    const a = arcVise === null
-      ? ligne.presents.length > 0
-      : ligne.presents.includes(arcVise);
-    return arcFiltre === 'possedes' ? a : !a;
+    for (const b of corps.querySelectorAll('[data-sz]')) {
+      b.addEventListener('click', () => {
+        const id = Number(b.dataset.sz);
+        if (arcOuvertesSz.has(id)) arcOuvertesSz.delete(id);
+        else arcOuvertesSz.add(id);
+        dessinerArchi();
+      });
+    }
   }
 
   function dessinerArchi() {
