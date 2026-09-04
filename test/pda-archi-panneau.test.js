@@ -52,7 +52,8 @@ test('aucune regle hors du panneau ne definit une classe arc-', () => {
   const regles = [...style.matchAll(/\.(arc-[a-z0-9-]+)/g)].map((m) => m[1]);
   const inconnues = regles.filter(
     (c) => !classesArchi.includes(c)
-      && !['arc-table', 'arc-corps', 'arc-pied', 'arc-filtres', 'arc-relire'].includes(c),
+      && !['arc-table', 'arc-corps', 'arc-pied', 'arc-filtres', 'arc-relire',
+        'arc-filtres-liste'].includes(c),
   );
   assert.deepStrictEqual(inconnues, []);
 });
@@ -226,4 +227,17 @@ test('le bouton rond dit ce qu il a fait', async () => {
   const { parId } = await ouvrirLePanneau();
   await parId.get('arcRelire').onclick();
   assert.match(parId.get('arcAvis').textContent, /2/);
+});
+
+// LES FILTRES DISPARAISSENT DANS LA VUE PAR ZONE. Ils n'y ont aucun effet: les
+// laisser, meme gris, promet un geste qui n'existe pas. Demande de Jibef le
+// 2026-09-04.
+test('les filtres ne s affichent pas dans la vue par zone', async () => {
+  const { parId } = await ouvrirLePanneau({ vue: 'zones' });
+  assert.strictEqual(parId.get('arcFiltresListe').hidden, true);
+});
+
+test('les filtres reviennent dans la vue liste', async () => {
+  const { parId } = await ouvrirLePanneau({ vue: 'liste' });
+  assert.strictEqual(parId.get('arcFiltresListe').hidden, false);
 });

@@ -377,6 +377,10 @@
     border: 1px solid var(--filet); color: var(--attenue); font-size: 11.5px;
   }
   .arc-filtres button.on { color: var(--texte); border-color: var(--accent); }
+  /* Le groupe des filtres, cache d'un bloc dans la vue par zone. Il garde le
+     meme espacement que les boutons de vue a sa gauche. */
+  .arc-filtres-liste { display: flex; gap: 6px; margin-left: 12px; }
+  .arc-filtres-liste[hidden] { display: none; }
   /* La vue par zone. Toutes ses classes sont prefixees `arc-`, comme celles du
      tableau, et pour la meme raison: voir le commentaire de la table ARC. */
   .arc-zone, .arc-sz {
@@ -653,10 +657,13 @@
   <div class="arc-filtres">
     <button data-vue="liste">Liste</button>
     <button data-vue="zones">Par zone</button>
-    <span style="width:12px"></span>
-    <button data-filtre="tous">Tous</button>
-    <button data-filtre="manquants">Manquants</button>
-    <button data-filtre="possedes">Possédés</button>
+    <!-- Les filtres n'ont aucun effet sur la vue par zone: ils DISPARAISSENT
+         plutot que de s'y griser. Un bouton gris promet encore quelque chose. -->
+    <span class="arc-filtres-liste" id="arcFiltresListe">
+      <button data-filtre="tous">Tous</button>
+      <button data-filtre="manquants">Manquants</button>
+      <button data-filtre="possedes">Possédés</button>
+    </span>
     <span class="avis-nav" id="arcVise"></span>
   </div>
   <div class="arc-corps" id="arcCorps"></div>
@@ -1078,10 +1085,10 @@
     for (const b of document.querySelectorAll('.arc-filtres button')) {
       if (b.dataset.vue) b.classList.toggle('on', b.dataset.vue === arcVue);
       else b.classList.toggle('on', b.dataset.filtre === arcFiltre);
-      // LES FILTRES NE VALENT QUE POUR LA LISTE. Les laisser cliquables dans la
-      // vue par zone promettrait un effet qu'ils n'ont pas.
-      if (b.dataset.filtre) b.disabled = arcVue !== 'liste';
     }
+    // LES FILTRES NE VALENT QUE POUR LA LISTE, et ils disparaissent ailleurs.
+    // Les griser les laissait visibles, donc promettait encore un geste.
+    document.getElementById('arcFiltresListe').hidden = arcVue !== 'liste';
 
     if (arcVue === 'zones') { dessinerZones(corps); dessinerPied(pied); return; }
 
