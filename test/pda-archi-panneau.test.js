@@ -51,7 +51,8 @@ test('aucune regle hors du panneau ne definit une classe arc-', () => {
   const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
   const regles = [...style.matchAll(/\.(arc-[a-z0-9-]+)/g)].map((m) => m[1]);
   const inconnues = regles.filter(
-    (c) => !classesArchi.includes(c) && !['arc-table', 'arc-corps', 'arc-pied', 'arc-filtres'].includes(c),
+    (c) => !classesArchi.includes(c)
+      && !['arc-table', 'arc-corps', 'arc-pied', 'arc-filtres', 'arc-relire'].includes(c),
   );
   assert.deepStrictEqual(inconnues, []);
 });
@@ -119,6 +120,7 @@ function noeud() {
 // Ouvre le panneau comme le ferait un clic sur le bouton d'une ligne, et rend
 // les noeuds pour qu'on puisse regarder ce qui s'y est ecrit.
 async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false } = {}) {
+  const appels = { table: 0, relire: 0 };
   const table = construire({
     comptes: [
       { pid: 101, nom: 'Un', ames: new Set([2272]) },
@@ -151,8 +153,13 @@ async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false } = {
         surEtat() {},
         surPdaArchiAlerte() {},
         tableauArchi: async () => {
+          appels.table += 1;
           if (echoue) throw new Error('le service a refusé');
           return table;
+        },
+        archiRelire: async () => {
+          appels.relire += 1;
+          return { ok: true, demandes: 2, total: 2 };
         },
       },
     },
@@ -166,23 +173,23 @@ async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false } = {
   );
   if (vue !== 'liste') contexte.__vue(vue);
   await contexte.__ouvrir(vise);
-  return parId;
+  return { parId, appels };
 }
 
 test('un clic sur le bouton d une ligne ouvre le panneau', async () => {
-  const parId = await ouvrirLePanneau();
+  const { parId } = await ouvrirLePanneau();
   assert.strictEqual(parId.get('vueArchi').hidden, false);
 });
 
 test('le tableau se remplit', async () => {
-  const parId = await ouvrirLePanneau();
+  const { parId } = await ouvrirLePanneau();
   const corps = parId.get('arcCorps').innerHTML;
   assert.ok(corps.includes('Pichakoté le Dégoutant'), 'le tableau doit nommer les archimonstres');
   assert.ok(parId.get('arcPied').innerHTML.includes('286'), 'le pied doit donner le total');
 });
 
 test('la vue par zone se remplit aussi', async () => {
-  const parId = await ouvrirLePanneau({ vue: 'zones' });
+  const { parId } = await ouvrirLePanneau({ vue: 'zones' });
   const corps = parId.get('arcCorps').innerHTML;
   assert.ok(corps.includes('Amakna'), 'la vue par zone doit nommer les zones');
 });
@@ -194,8 +201,29 @@ test('la vue par zone se remplit aussi', async () => {
 //
 // Le panneau doit donc s'ouvrir MEME EN ECHEC, et dire pourquoi.
 test('une ouverture qui echoue s ouvre quand meme et le dit', async () => {
-  const parId = await ouvrirLePanneau({ echoue: true });
+  const { parId } = await ouvrirLePanneau({ echoue: true });
   assert.strictEqual(parId.get('vueArchi').hidden, false);
   assert.match(parId.get('arcCorps').innerHTML, /n’a pas pu être construit/);
   assert.match(parId.get('arcCorps').innerHTML, /le service a refusé/);
+});
+
+// LE BOUTON ROND: redemander l'inventaire de tous les clients, sans
+// reconnexion. `ivx` ne tombe qu'a la connexion, donc sans lui une capture
+// faite en jouant n'apparaissait qu'apres un aller-retour par l'ecran de
+// connexion.
+//
+// Il fait DEUX choses, et l'ordre compte: il demande, puis il relit. Demander
+// sans relire ne montrerait rien; relire sans demander relirait l'ancien.
+test('le bouton rond redemande les inventaires puis relit le tableau', async () => {
+  const { parId, appels } = await ouvrirLePanneau();
+  assert.strictEqual(appels.table, 1);
+  await parId.get('arcRelire').onclick();
+  assert.strictEqual(appels.relire, 1, 'il doit demander');
+  assert.strictEqual(appels.table, 2, 'puis relire');
+});
+
+test('le bouton rond dit ce qu il a fait', async () => {
+  const { parId } = await ouvrirLePanneau();
+  await parId.get('arcRelire').onclick();
+  assert.match(parId.get('arcAvis').textContent, /2/);
 });

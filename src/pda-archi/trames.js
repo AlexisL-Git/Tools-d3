@@ -38,6 +38,34 @@ function trameEquiper({ uid, qte, position }) {
   return requete('iuk', [v(1, qte), v(2, uid), v(3, position)]);
 }
 
+// itr { 1: rangements demandes, 3: 1 } — REDEMANDER L'INVENTAIRE.
+//
+// Mesuree le 01/09 dans journal-hdv.log: le jeu l'emet lui-meme en ouvrant un
+// panneau de rangement, et le serveur repond par un `ivx` en 38 ms, trois fois
+// sur trois. C'est ce qui permet de rafraichir la collection d'archimonstres
+// sans se deconnecter -- `ivx` ne tombe autrement qu'a la connexion.
+//
+// LE CHAMP 2 N'EST PAS INTERPRETE, IL EST RECOPIE. C'est la liste des
+// rangements demandes, et deviner ce que valent ses deux octets ne rapporterait
+// rien: la reponse dit elle-meme, pile par pile, de quel rangement chacune
+// vient. Mesure du 04/09 sur la meme trame:
+//
+//   rangement 1  474 piles, toutes deja vues a la connexion  -> l'inventaire
+//   rangement 2  518 piles                                   -> la banque
+//   rangement 3   64 piles                                   -> un troisieme
+//   absent        16 piles, toutes deja vues                 -> l'equipement porte
+//
+// 474 + 16 = 490, exactement le contenu de la connexion. Le tri se fait donc a
+// la lecture, pas a la demande.
+const RANGEMENTS = Buffer.from([0x02, 0x03]);
+
+function trameLireInventaire() {
+  return requete('itr', [
+    { no: 2, wire: WIRE.LEN, kind: 'bytes', value: RANGEMENTS },
+    v(3, 1),
+  ]);
+}
+
 // --- Ce qu'on lit --------------------------------------------------------
 
 const champ = (payload, no) => (payload || []).find((f) => f.no === no) || null;
@@ -141,4 +169,6 @@ function lireGroupes(frame) {
   return groupes;
 }
 
-module.exports = { trameEquiper, lirePosition, lireGroupeAttaque, lireGroupes };
+module.exports = {
+  trameEquiper, trameLireInventaire, lirePosition, lireGroupeAttaque, lireGroupes,
+};

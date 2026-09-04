@@ -16,6 +16,7 @@ const { creerReprix } = require('../src/hdv/reprix');
 const { creerVente } = require('../src/hdv/vente');
 const { creerPdaArchi } = require('../src/pda-archi/pda-archi');
 const { creerCollection } = require('../src/pda-archi/collection');
+const { trameLireInventaire } = require('../src/pda-archi/trames');
 const { estArchimonstre } = require('../src/pda-archi/archimonstres');
 const { construire: construireTableauArchi } = require('../src/pda-archi/tableau');
 const { composer } = require('../src/composer');
@@ -1584,6 +1585,37 @@ ipcMain.handle('tableauArchi', (_e, vise) => construireTableauArchi({
       ames: collectionArchi.etat().get(l.pid) || null,
     })),
 }));
+
+// REDEMANDER L'INVENTAIRE DE TOUS LES CLIENTS, sans se deconnecter.
+//
+// `ivx` ne tombe qu'a la connexion: sans ce bouton, une capture faite pendant
+// la partie n'apparaissait qu'apres une reconnexion. `itr` est la demande que
+// le jeu emet lui-meme en ouvrant un panneau de rangement, et le serveur repond
+// en 38 ms (mesure du 01/09, trois fois sur trois).
+//
+// ELLE N'EST PAS VERROUILLABLE PAR CLE, et c'est un choix. Cette fonction emet
+// desormais quelque chose -- ce qui ne fait plus d'elle une pure lectrice -- mais
+// ce qu'elle emet est une LECTURE, celle que le client fait tout seul, et qui ne
+// change rien dans le jeu. Decision reversible: l'ajouter a src/droits/liste.js
+// et a serveur-maj/lib/fonctions.js serait deux lignes et un test.
+//
+// LA REPONSE ARRIVE PAR L'ECOUTE ORDINAIRE, pas ici: le `ivx` qui revient passe
+// par collectionArchi.onTrame comme n'importe quelle trame. Ce handler ne rend
+// donc que ce qu'il a pu DEMANDER, jamais ce qui est revenu -- et la page attend
+// avant de relire.
+ipcMain.handle('archiRelire', () => {
+  if (superviseur === null) return { ok: false, demandes: 0, total: 0 };
+  const pids = (dernieresLignes || [])
+    .filter((l) => l.pid !== null && l.pid !== undefined && l.etat !== 'hors-ligne')
+    .map((l) => l.pid);
+  let demandes = 0;
+  for (const pid of pids) {
+    const res = superviseur.emettre(pid, trameLireInventaire());
+    if (res !== null && res !== undefined && res.ok === true) demandes += 1;
+    else journal(pid, 'archi : la demande d inventaire n est pas partie');
+  }
+  return { ok: demandes > 0, demandes, total: pids.length };
+});
 
 ipcMain.handle('pdaArchiArmer', async (_e, actif) => {
   if (pdaArchi === null) return { ok: false, raison: 'PdA archi : pas encore prete' };

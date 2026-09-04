@@ -404,6 +404,20 @@
     border: 1px solid var(--filet); border-radius: 4px; padding: 1px 3px;
   }
 
+  /* Le bouton rond de l'en-tete: redemander les inventaires. Rond parce qu'il
+     REPETE quelque chose, la ou la croix voisine termine. */
+  .arc-relire {
+    margin-left: auto; width: 30px; height: 30px; padding: 0;
+    display: grid; place-items: center;
+    background: transparent; border: 1px solid var(--filet); border-radius: 50%;
+    color: var(--attenue);
+  }
+  .arc-relire:hover:not(:disabled) { color: var(--texte); border-color: var(--accent); }
+  .arc-relire:disabled { opacity: .4; cursor: progress; }
+  .arc-relire svg { width: 15px; height: 15px; }
+  /* La croix garde sa place a droite: c'est le bouton rond qui pousse. */
+  .qdn-tete .arc-relire + button { margin-left: 4px; }
+
   /* Le troisieme niveau: ce qu'il manque nommement dans une sous-zone. */
   .arc-archi {
     display: flex; align-items: center; gap: 10px;
@@ -625,6 +639,15 @@
 <div class="vue-archi" id="vueArchi" hidden>
   <div class="qdn-tete">
     <b>Archimonstres</b>
+    <span class="avis-nav" id="arcAvis"></span>
+    <button class="arc-relire" id="arcRelire" title="Redemander l’inventaire de tous les personnages connectés">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13.4 8.6a5.5 5.5 0 0 1-9.3 3.3"/>
+        <path d="M2.6 7.4a5.5 5.5 0 0 1 9.3-3.3"/>
+        <path d="M11.9 1.2v3h-3"/>
+        <path d="M4.1 14.8v-3h3"/>
+      </svg>
+    </button>
     <button id="arcFermer" title="Fermer (Échap)">✕</button>
   </div>
   <div class="arc-filtres">
@@ -1107,6 +1130,47 @@
       + parCompte;
   }
 
+  // LE DELAI N'EST PAS UN PARI. `itr` a ete mesuree le 01/09: le serveur repond
+  // par un `ivx` en 38 ms, trois fois sur trois. Dix fois cette mesure laisse
+  // toute la place, et reste imperceptible a la main.
+  const DELAI_RELECTURE_MS = 400;
+
+  // REDEMANDER, PUIS RELIRE, ET DANS CET ORDRE. Demander sans relire ne
+  // montrerait rien; relire sans demander relirait l'ancien.
+  //
+  // La reponse n'arrive PAS par ce chemin: le `ivx` revient par l'ecoute
+  // ordinaire et alimente la collection cote main.js. Ici on attend, puis on
+  // redemande le tableau -- c'est pour ca qu'il y a un delai plutot qu'une
+  // promesse a attendre.
+  async function relireArchi() {
+    const bouton = document.getElementById('arcRelire');
+    const avis = document.getElementById('arcAvis');
+    bouton.disabled = true;
+    avis.textContent = 'demande envoyée…';
+    try {
+      const r = await window.app.archiRelire();
+      if (!r || r.demandes === 0) {
+        avis.textContent = 'aucun personnage à interroger';
+        return;
+      }
+      await new Promise((f) => setTimeout(f, DELAI_RELECTURE_MS));
+      arcTable = await window.app.tableauArchi(arcVise);
+      dessinerArchi();
+      // Le compte des demandes PARTIES, pas des reponses: on ne sait pas ici ce
+      // qui est revenu, et l'annoncer serait une promesse invention.
+      avis.textContent = r.demandes === r.total
+        ? r.demandes + ' inventaire(s) redemandé(s)'
+        : r.demandes + ' inventaire(s) sur ' + r.total + ' — les autres n’ont pas répondu';
+    } catch (e) {
+      // Meme regle que l'ouverture: un bouton qui ne fait rien est le pire des
+      // echecs. Il dit ce qui a casse plutot que de se rallumer en silence.
+      avis.textContent = 'échec : ' + (e && e.message ? e.message : String(e));
+    } finally {
+      bouton.disabled = false;
+    }
+  }
+
+  document.getElementById('arcRelire').onclick = relireArchi;
   document.getElementById('arcFermer').onclick = fermerArchi;
   for (const b of document.querySelectorAll('.arc-filtres button')) {
     b.addEventListener('click', () => {

@@ -6,7 +6,7 @@ const path = require('node:path');
 const { decodeFrameRaw, encodeRaw, WIRE } = require('../src/codec/rawProto');
 const { lireStock, POSITION_INVENTAIRE } = require('../src/hdv/trames');
 const {
-  lireGroupes, lireGroupeAttaque, lirePosition, trameEquiper,
+  lireGroupes, lireGroupeAttaque, lirePosition, trameEquiper, trameLireInventaire,
 } = require('../src/pda-archi/trames');
 
 const fixture = (nom) => decodeFrameRaw(
@@ -107,4 +107,22 @@ test('lireGroupeAttaque ignore un identifiant de joueur, positif', () => {
 test('lireGroupeAttaque retient un identifiant de groupe, negatif', () => {
   const groupe = { type: 'kmu', payload: [{ no: 2, wire: WIRE.VARINT, value: -20004n }] };
   assert.strictEqual(lireGroupeAttaque(groupe), -20004);
+});
+
+// itr: REDEMANDER L'INVENTAIRE, sans se deconnecter.
+//
+// Mesuree le 01/09 dans journal-hdv.log, trois fois, emise par le jeu lui-meme
+// quand on ouvre un panneau de rangement. Le serveur repond par un `ivx` en
+// 38 ms. Les octets sont figes ici: cette requete doit reproduire OCTET POUR
+// OCTET celle du jeu, meme regle que toutes les autres de ce depot.
+//
+//   itr { 2 = <02 03>, 3 = 1 }
+//
+// Le champ 2 est la liste des rangements demandes. On ne l'interprete pas: on
+// le recopie. Ce que la reponse contient a ete mesure separement, et un champ
+// de chaque pile dit de quel rangement elle vient.
+test('trameLireInventaire reproduit les octets mesures de itr', () => {
+  const attendu = '122a0a1d0a13747970652e616e6b616d612e636f6d2f6974721206'
+    + '12020203180110ffffffffffffffffff01';
+  assert.strictEqual(trameLireInventaire().toString('hex'), attendu);
 });

@@ -152,3 +152,78 @@ test('l inventaire mesure donne 140 archimonstres et 3 ames de boss', () => {
   assert.strictEqual(t.comptes[0].manquants, 146);
   assert.strictEqual(t.possedes, 140);
 });
+
+// --- Le rangement d'ou vient la pile --------------------------------------
+//
+// Redemander l'inventaire (`itr`) ramene PLUS que l'inventaire: mesure du 04/09
+// sur la reponse du 01/09, croisee avec les uid de la connexion.
+//
+//   rangement 1  474 piles, toutes deja vues a la connexion  -> l'inventaire
+//   rangement 2  518 piles                                   -> la banque
+//   rangement 3   64 piles                                   -> un troisieme
+//   absent        16 piles, toutes deja vues                 -> l'equipement porte
+//
+// 474 + 16 = 490, exactement le contenu de la connexion. On ne garde donc que
+// le rangement 1 et les piles sans rangement: le rafraichissement voit alors
+// EXACTEMENT le meme perimetre que la connexion, et les comptes ne sautent pas.
+//
+// La banque est hors perimetre par decision de Jibef le 04/09; sans ce tri,
+// elle entrerait par la porte du rafraichissement.
+const pileAme = ({ uid, monstre, rangement }) => {
+  const detail = [
+    { no: 1, wire: WIRE.VARINT, value: 34005n },
+    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 6, wire: WIRE.LEN, kind: 'message', value: [
+        { no: 1, wire: WIRE.VARINT, value: BigInt(monstre) },
+        { no: 2, wire: WIRE.VARINT, value: 5n },
+      ] },
+      { no: 11, wire: WIRE.VARINT, value: 4058n },
+    ] },
+    { no: 3, wire: WIRE.VARINT, value: 1n },
+    { no: 4, wire: WIRE.VARINT, value: BigInt(uid) },
+  ];
+  if (rangement !== null) {
+    detail.push({ no: 5, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 1, wire: WIRE.VARINT, value: 1n },
+      { no: 2, wire: WIRE.VARINT, value: BigInt(rangement) },
+    ] });
+  }
+  return { no: 3, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 1, wire: WIRE.VARINT, value: 63n },
+    { no: 5, wire: WIRE.LEN, kind: 'message', value: detail },
+  ] };
+};
+
+const trameIvxAvecRangements = (piles) => ({
+  type: 'ivx',
+  payload: decodeRaw(encodeRaw(piles.map(pileAme))),
+});
+
+test('une ame de l inventaire est retenue', () => {
+  const ames = lireAmes(trameIvxAvecRangements([{ uid: 1, monstre: 2272, rangement: 1 }]));
+  assert.deepStrictEqual(ames, [{ uid: 1, monstres: [2272] }]);
+});
+
+test('une ame sans rangement est retenue: c est l equipement porte', () => {
+  const ames = lireAmes(trameIvxAvecRangements([{ uid: 1, monstre: 2272, rangement: null }]));
+  assert.deepStrictEqual(ames, [{ uid: 1, monstres: [2272] }]);
+});
+
+test('une ame de la banque est ignoree', () => {
+  const ames = lireAmes(trameIvxAvecRangements([{ uid: 2, monstre: 2276, rangement: 2 }]));
+  assert.deepStrictEqual(ames, []);
+});
+
+test('une ame du troisieme rangement est ignoree', () => {
+  const ames = lireAmes(trameIvxAvecRangements([{ uid: 3, monstre: 2276, rangement: 3 }]));
+  assert.deepStrictEqual(ames, []);
+});
+
+test('le tri se fait pile par pile, pas trame par trame', () => {
+  const ames = lireAmes(trameIvxAvecRangements([
+    { uid: 1, monstre: 2272, rangement: 1 },
+    { uid: 2, monstre: 2276, rangement: 2 },
+    { uid: 3, monstre: 2280, rangement: 1 },
+  ]));
+  assert.deepStrictEqual(ames.map((a) => a.uid), [1, 3]);
+});

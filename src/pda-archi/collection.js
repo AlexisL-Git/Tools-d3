@@ -73,10 +73,35 @@ function monstreDe(effet) {
 // UNE LISTE, MEME SI LA MESURE N EN A JAMAIS VU DEUX. Les 143 piles portent une
 // ame chacune, en quantite 1; mais la trame autorise plusieurs effets sur une
 // pile, et supposer l inverse couterait cher le jour ou c est faux.
+// LE RANGEMENT D OU VIENT LA PILE, champ 5 du detail: { 1: page, 2: rangement }.
+//
+// Il n apparait QUE dans la reponse a `itr`, jamais dans l `ivx` de connexion --
+// et c est ce qui rend le rafraichissement honnete. Mesure du 04/09, en croisant
+// les uid de la reponse avec ceux de la connexion:
+//
+//   rangement 1  474 piles, toutes deja vues a la connexion  -> l inventaire
+//   rangement 2  518 piles                                   -> la banque
+//   rangement 3   64 piles                                   -> un troisieme
+//   absent        16 piles, toutes deja vues                 -> l equipement porte
+//
+// 474 + 16 = 490, exactement le contenu de la connexion. En ne gardant que le
+// rangement 1 et les piles sans rangement, un rafraichissement voit EXACTEMENT
+// le meme perimetre qu une reconnexion: les comptes ne sautent pas, et la
+// banque -- hors perimetre par decision de Jibef -- n entre pas par cette porte.
+const INVENTAIRE = 1;
+
+function estAPortee(detail) {
+  const rangement = sousMessage(champ(detail, 5));
+  if (rangement === null) return true;
+  const no = entier(rangement, 2);
+  return no === null || no === INVENTAIRE;
+}
+
 function amesDe(el) {
   const e = sousMessage(el);
   const detail = sousMessage(champ(e, 5));
   if (detail === null) return null;
+  if (!estAPortee(detail)) return null;
   const uid = entier(detail, 4);
   if (uid === null) return null;
   const monstres = tous(detail, 2).map(monstreDe).filter((m) => m !== null);
