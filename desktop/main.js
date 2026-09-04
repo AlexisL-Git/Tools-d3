@@ -1568,7 +1568,12 @@ ipcMain.handle('majPrixHdv', async (_e, pid) => {
 // LES NOMS VIENNENT DES DERNIERES LIGNES ENVOYEES, pas d'un nouveau
 // listerClients(): celui-ci passe par powershell, et ouvrir un tableau ne doit
 // pas attendre un process. Un personnage vu il y a une seconde est le bon.
-ipcMain.handle('tableauArchi', () => construireTableauArchi({
+//
+// `vise` est le pid du personnage dont on a clique le bouton, ou rien. Il ne
+// change pas le tableau -- toutes les colonnes restent -- il ne sert qu'a la
+// vue par zone, ou « manquant » veut alors dire manquant POUR LUI.
+ipcMain.handle('tableauArchi', (_e, vise) => construireTableauArchi({
+  vise: Number.isFinite(vise) ? vise : null,
   comptes: (dernieresLignes || [])
     .filter((l) => l.pid !== null && l.pid !== undefined)
     .map((l) => ({

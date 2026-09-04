@@ -377,6 +377,33 @@
     border: 1px solid var(--filet); color: var(--attenue); font-size: 11.5px;
   }
   .arc-filtres button.on { color: var(--texte); border-color: var(--accent); }
+  /* La vue par zone. Toutes ses classes sont prefixees `arc-`, comme celles du
+     tableau, et pour la meme raison: voir le commentaire de la table ARC. */
+  .arc-zone, .arc-sz {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; text-align: left; background: transparent; border: 0;
+    padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,.04);
+    color: var(--texte); font-size: 13px;
+  }
+  .arc-zone:hover { background: rgba(255,255,255,.04); }
+  .arc-sz { padding-left: 30px; font-size: 12.5px; color: var(--attenue); cursor: default; }
+  .arc-fleche { width: 12px; color: var(--attenue); font-size: 10px; }
+  .arc-nom { flex: 1; min-width: 0; }
+  /* Le nombre est ce sur quoi on trie: il se lit en colonne, chiffres alignes. */
+  .arc-nb {
+    min-width: 34px; text-align: right; font-variant-numeric: tabular-nums;
+    font-weight: 700; color: var(--texte);
+  }
+  .arc-nb.arc-zero { color: var(--attenue); font-weight: 400; }
+  /* Qui a encore quelque chose a y prendre. Deux personnages de la meme classe
+     portent le meme embleme: le survol donne le nom, c'est ce qui les separe. */
+  .arc-qui { display: flex; gap: 4px; min-width: 96px; justify-content: flex-end; }
+  .arc-qui img { width: 18px; height: 18px; border-radius: 4px; }
+  .arc-qui .arc-abrev {
+    font-size: 9.5px; font-weight: 700; color: var(--attenue);
+    border: 1px solid var(--filet); border-radius: 4px; padding: 1px 3px;
+  }
+
   .arc-pied {
     padding: 9px 15px; border-top: 1px solid var(--filet);
     font-size: 12px; color: var(--attenue);
@@ -591,6 +618,9 @@
     <button id="arcFermer" title="Fermer (Échap)">✕</button>
   </div>
   <div class="arc-filtres">
+    <button data-vue="liste">Liste</button>
+    <button data-vue="zones">Par zone</button>
+    <span style="width:12px"></span>
     <button data-filtre="tous">Tous</button>
     <button data-filtre="manquants">Manquants</button>
     <button data-filtre="possedes">Possédés</button>
@@ -837,7 +867,11 @@
   // vieillirait sans le dire.
   let arcVise = null;     // le personnage dont on a clique le bouton
   let arcFiltre = 'tous';
+  let arcVue = 'liste';
   let arcTable = null;
+  // Les zones depliees. Un Set et pas un drapeau: on peut en ouvrir plusieurs,
+  // et l'ouverture survit au redessin.
+  const arcOuvertes = new Set();
 
   // LES CLASSES DU TABLEAU, DECLAREES EN UN SEUL ENDROIT ET TOUTES PREFIXEES.
   //
@@ -858,6 +892,14 @@
     presente: 'arc-a',
     visee: 'arc-vise',
     vide: 'arc-aucun',
+    zone: 'arc-zone',
+    sousZone: 'arc-sz',
+    fleche: 'arc-fleche',
+    nomZone: 'arc-nom',
+    nombre: 'arc-nb',
+    zero: 'arc-zero',
+    qui: 'arc-qui',
+    abrev: 'arc-abrev',
   };
 
   // Assemble une liste de classes en ecartant les absentes.
@@ -872,9 +914,65 @@
 
   async function ouvrirArchi(pid) {
     arcVise = pid === undefined ? null : pid;
-    arcTable = await window.app.tableauArchi();
+    // LE PERSONNAGE SUIVI PART AVEC LA DEMANDE: c'est lui qui decide de ce que
+    // « manquant » veut dire dans la vue par zone.
+    arcTable = await window.app.tableauArchi(arcVise);
     dessinerArchi();
     document.getElementById('vueArchi').hidden = false;
+  }
+
+  // L'embleme de classe d'un personnage, repris du cache de la liste des
+  // comptes -- rien n'est retelecharge. Sans embleme en cache, l'abreviation de
+  // classe tient la place, exactement comme sur sa ligne.
+  function emblemeDe(pid, titre) {
+    const l = (dernieresLignes || []).find((x) => x.pid === pid);
+    if (!l) return '';
+    if (l.embleme) {
+      return '<img src="' + l.embleme + '" alt="' + echapper(l.classe || '')
+        + '" title="' + echapper(titre) + '">';
+    }
+    return '<span class="' + ARC.abrev + '" title="' + echapper(titre) + '">'
+      + echapper((l.classe || '?').slice(0, 3)) + '</span>';
+  }
+
+  const nomDuPid = (pid) => {
+    const c = (arcTable.comptes || []).find((x) => x.pid === pid);
+    return c ? c.nom : String(pid);
+  };
+
+  // OU CHASSER: les zones triees par ce qu'il y reste a prendre, depliables en
+  // sous-zones. C'est la sous-zone qui dit ou aller; la zone dit ou est le gros
+  // du travail.
+  function dessinerZones(corps) {
+    const zones = arcTable.zones || [];
+    // UNE ZONE EST UN BOUTON, UNE SOUS-ZONE NE L'EST PAS: seule la premiere se
+    // deplie. Un bouton mort se prend le focus au clavier et reagit au survol
+    // en promettant un geste qui n'existe pas.
+    const ligne = (o, classe, indent, cliquable) => {
+      const zero = o.manquants === 0 ? ' ' + ARC.zero : '';
+      const qui = o.qui.map((pid) => emblemeDe(pid, nomDuPid(pid) + ' — il lui en manque ici')).join('');
+      const balise = cliquable ? 'button' : 'div';
+      return '<' + balise + ' class="' + classe + '"'
+        + (cliquable ? ' data-zone="' + echapper(o.zone) + '"' : '') + '>'
+        + '<span class="' + ARC.fleche + '">' + indent + '</span>'
+        + '<span class="' + ARC.nomZone + '">' + echapper(o.zone || o.nom) + '</span>'
+        + '<span class="' + ARC.qui + '">' + qui + '</span>'
+        + '<span class="' + ARC.nombre + zero + '">' + o.manquants + '</span>'
+        + '</' + balise + '>';
+    };
+    corps.innerHTML = zones.map((z) => {
+      const ouverte = arcOuvertes.has(z.zone);
+      return ligne(z, ARC.zone, ouverte ? '▾' : '▸', true)
+        + (ouverte ? z.sousZones.map((sz) => ligne(sz, ARC.sousZone, '', false)).join('') : '');
+    }).join('');
+    for (const b of corps.querySelectorAll('.' + ARC.zone)) {
+      b.addEventListener('click', () => {
+        const z = b.dataset.zone;
+        if (arcOuvertes.has(z)) arcOuvertes.delete(z);
+        else arcOuvertes.add(z);
+        dessinerArchi();
+      });
+    }
   }
 
   // LE FILTRE PORTE SUR LA COLONNE VISEE quand il y en a une, sur le groupe
@@ -900,8 +998,14 @@
     vise.textContent = nomVise ? 'colonne suivie : ' + nomVise : '';
 
     for (const b of document.querySelectorAll('.arc-filtres button')) {
-      b.classList.toggle('on', b.dataset.filtre === arcFiltre);
+      if (b.dataset.vue) b.classList.toggle('on', b.dataset.vue === arcVue);
+      else b.classList.toggle('on', b.dataset.filtre === arcFiltre);
+      // LES FILTRES NE VALENT QUE POUR LA LISTE. Les laisser cliquables dans la
+      // vue par zone promettrait un effet qu'ils n'ont pas.
+      if (b.dataset.filtre) b.disabled = arcVue !== 'liste';
     }
+
+    if (arcVue === 'zones') { dessinerZones(corps); dessinerPied(pied); return; }
 
     const enTete = ['<th class="' + ARC.gauche + '">Archimonstre</th>', '<th>Niv</th>']
       .concat(comptes.map((c) => '<th class="'
@@ -927,6 +1031,11 @@
     corps.innerHTML = '<table class="arc-table"><thead><tr>' + enTete + '</tr></thead>'
       + '<tbody>' + (corpsHtml || vide) + '</tbody></table>';
 
+    dessinerPied(pied);
+  }
+
+  function dessinerPied(pied) {
+    const comptes = arcTable.comptes;
     // Le pied dit ce que le groupe possede, puis chaque personnage. Un
     // inventaire pas encore lu y reste un tiret, jamais un zero.
     // `horsTableau`, ce sont les ames de BOSS: une pierre en capture aussi, et
@@ -945,7 +1054,11 @@
 
   document.getElementById('arcFermer').onclick = fermerArchi;
   for (const b of document.querySelectorAll('.arc-filtres button')) {
-    b.addEventListener('click', () => { arcFiltre = b.dataset.filtre; dessinerArchi(); });
+    b.addEventListener('click', () => {
+      if (b.dataset.vue) arcVue = b.dataset.vue;
+      else arcFiltre = b.dataset.filtre;
+      dessinerArchi();
+    });
   }
 
   // Une seule saisie a la fois. Échap annule sans rien changer.

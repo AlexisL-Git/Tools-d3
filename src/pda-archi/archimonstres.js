@@ -1,5 +1,6 @@
 'use strict';
 const TABLE = require('./archimonstres.json');
+const ZONES = require('./zones.json');
 
 // La table des archimonstres: qui existe, comment il s appelle, a quel niveau.
 //
@@ -18,6 +19,14 @@ const ARCHIMONSTRES = TABLE;
 // archimonstre ordinaire dans l intervalle.
 const VULKANIA = { debut: 3178, fin: 3197 };
 
+// OU CHASSER. Chaque archimonstre porte les identifiants des sous-zones ou il
+// se trouve; cette table les nomme et les rattache a leur zone.
+//
+// ELLE NE DECRIT QUE CE QUI SERT: le jeu compte 562 sous-zones, les
+// archimonstres n en citent que 111, reparties sur 16 zones. Embarquer le reste
+// ferait porter au paquet des donnees que rien ne lit.
+const SOUS_ZONES = ZONES;
+
 const PAR_ID = new Map(ARCHIMONSTRES.map((a) => [a.id, a]));
 
 // UNE PIERRE CAPTURE AUSSI LES BOSS, et c est le cas NORMAL: l inventaire
@@ -31,4 +40,4 @@ const nomDe = (id) => {
   return a === undefined ? null : a.nom;
 };
 
-module.exports = { ARCHIMONSTRES, VULKANIA, estArchimonstre, nomDe };
+module.exports = { ARCHIMONSTRES, SOUS_ZONES, VULKANIA, estArchimonstre, nomDe };

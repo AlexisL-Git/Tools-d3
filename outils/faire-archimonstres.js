@@ -68,8 +68,17 @@ async function tout(chemin) {
 }
 
 async function principal() {
-  const sousZones = await tout(`subareas?areaId=${ZONE_VULKANIA}&`);
-  const vulkania = new Set(sousZones.map((s) => s.id));
+  // TOUTES les sous-zones, et pas seulement celles de Vulkania: elles servent
+  // deux fois maintenant -- ecarter l ile saisonniere, et nommer l endroit ou
+  // chaque archimonstre se trouve.
+  const sousZones = await tout('subareas?');
+  const parId = new Map(sousZones.map((s) => [s.id, s]));
+  const zones = new Map((await tout('areas?')).map((z) => [z.id, (z.name && z.name.fr) || '']));
+  console.log(`sous-zones : ${sousZones.length} | zones : ${zones.size}`);
+
+  const vulkania = new Set(
+    sousZones.filter((s) => s.areaId === ZONE_VULKANIA).map((s) => s.id),
+  );
   console.log(`Vulkania : ${vulkania.size} sous-zones`);
 
   const miniBoss = await tout('monsters?isMiniBoss=true&');
@@ -84,17 +93,38 @@ async function principal() {
       id: m.id,
       nom: (m.name && m.name.fr) || '',
       niveau: ((m.grades && m.grades[0]) || {}).level || 0,
+      // TRIEES, pour que deux fabrications rendent le meme fichier: sans cela
+      // un diff montrerait du bruit a chaque regeneration.
+      sousZones: [...(m.subareas || [])].sort((x, y) => x - y),
     }))
     .sort((a, b) => (a.niveau - b.niveau) || a.nom.localeCompare(b.nom, 'fr') || (a.id - b.id));
 
-  const boiteux = table.filter((a) => a.nom === '' || a.niveau === 0);
+  const boiteux = table.filter((a) => a.nom === '' || a.niveau === 0 || a.sousZones.length === 0);
   if (boiteux.length > 0) throw new Error(`sans nom ou sans niveau : ${JSON.stringify(boiteux)}`);
 
-  // Une ligne par archimonstre: le fichier se relit dans un diff.
+  ecrire('archimonstres.json', table, 'archimonstres');
+
+  // LA TABLE DES ZONES NE DECRIT QUE CE QUI SERT. Le jeu compte 562 sous-zones;
+  // les archimonstres n en citent qu une centaine, et embarquer le reste ferait
+  // porter au paquet des donnees que rien ne lit.
+  const citees = [...new Set(table.flatMap((a) => a.sousZones))].sort((x, y) => x - y);
+  const carte = citees.map((id) => {
+    const s = parId.get(id);
+    return { id, nom: (s && s.name && s.name.fr) || '', zone: zones.get(s && s.areaId) || '' };
+  });
+  const sansNom = carte.filter((z) => z.nom === '' || z.zone === '');
+  if (sansNom.length > 0) throw new Error(`sous-zone sans nom ou sans zone : ${JSON.stringify(sansNom)}`);
+
+  ecrire('zones.json', carte, 'sous-zones');
+  console.log(`zones distinctes : ${new Set(carte.map((z) => z.zone)).size}`);
+}
+
+// Une ligne par entree: le fichier se relit dans un diff.
+function ecrire(nom, table, quoi) {
+  const cible = path.join(__dirname, '..', 'src', 'pda-archi', nom);
   const lignes = table.map((a) => `  ${JSON.stringify(a)}`).join(',\n');
-  const cible = path.join(__dirname, '..', 'src', 'pda-archi', 'archimonstres.json');
   fs.writeFileSync(cible, `[\n${lignes}\n]\n`, 'utf8');
-  console.log(`ecrit : ${cible} (${table.length} archimonstres)`);
+  console.log(`ecrit : ${cible} (${table.length} ${quoi})`);
 }
 
 principal().catch((e) => { console.error(e.message); process.exit(1); });

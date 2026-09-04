@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const {
-  ARCHIMONSTRES, VULKANIA, estArchimonstre, nomDe,
+  ARCHIMONSTRES, SOUS_ZONES, VULKANIA, estArchimonstre, nomDe,
 } = require('../src/pda-archi/archimonstres');
 
 // 286, et le chiffre est celui de Jibef. Le drapeau `isMiniBoss` des donnees du
@@ -57,4 +57,43 @@ test('un boss n est pas un archimonstre', () => {
 
 test('un archimonstre en est un', () => {
   assert.strictEqual(estArchimonstre(2272), true);
+});
+
+// --- Les zones -------------------------------------------------------------
+//
+// La table des sous-zones vit dans son PROPRE fichier: repeter « Amakna » 286
+// fois se relirait mal dans un diff et grossirait pour rien. Les archimonstres
+// n'en portent que les identifiants.
+
+test('chaque archimonstre est rattache a au moins une sous-zone', () => {
+  const sans = ARCHIMONSTRES.filter((a) => !Array.isArray(a.sousZones) || a.sousZones.length === 0);
+  assert.deepStrictEqual(sans.map((a) => a.nom), []);
+});
+
+test('toute sous-zone citee existe dans la table des zones', () => {
+  const connues = new Set(SOUS_ZONES.map((s) => s.id));
+  const orphelines = new Set();
+  for (const a of ARCHIMONSTRES) for (const s of a.sousZones) if (!connues.has(s)) orphelines.add(s);
+  assert.deepStrictEqual([...orphelines], []);
+});
+
+test('chaque sous-zone porte un nom et une zone', () => {
+  const boiteuses = SOUS_ZONES.filter(
+    (s) => typeof s.nom !== 'string' || s.nom === ''
+      || typeof s.zone !== 'string' || s.zone === '',
+  );
+  assert.deepStrictEqual(boiteuses, []);
+});
+
+// Aucune sous-zone inutile: le fichier ne decrit que ce que les archimonstres
+// citent, sinon il embarquerait les 562 sous-zones du jeu.
+test('la table des zones ne porte que des sous-zones utiles', () => {
+  const citees = new Set(ARCHIMONSTRES.flatMap((a) => a.sousZones));
+  const inutiles = SOUS_ZONES.filter((s) => !citees.has(s.id));
+  assert.deepStrictEqual(inutiles.map((s) => s.nom), []);
+});
+
+// Mesure du 04/09 sur DofusDB: 16 zones pour les 286 archimonstres retenus.
+test('les 286 se repartissent sur 16 zones', () => {
+  assert.strictEqual(new Set(SOUS_ZONES.map((s) => s.zone)).size, 16);
 });

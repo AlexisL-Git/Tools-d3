@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld('app', {
   pdaArchiArmer: (actif) => ipcRenderer.invoke('pdaArchiArmer', actif),
 
   // Le tableau des archimonstres, construit a la demande cote main.js.
-  tableauArchi: () => ipcRenderer.invoke('tableauArchi'),
+  tableauArchi: (vise) => ipcRenderer.invoke('tableauArchi', vise),
   surPdaArchiAlerte: (rappel) => ipcRenderer.on('pdaArchiAlerte', (_e, a) => rappel(a)),
   basculerColonne: (nom, ids) => ipcRenderer.invoke('basculerColonne', nom, ids),
 

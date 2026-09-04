@@ -81,3 +81,24 @@ test('le tableau dit ce que personne n a', () => {
   assert.strictEqual(t.possedes, 2);
   assert.strictEqual(t.manquants, 284);
 });
+
+// LA VUE PAR ZONE VOYAGE AVEC LE TABLEAU, dans le meme aller-retour: le
+// panneau bascule de l'une a l'autre sans rien redemander.
+test('le tableau porte aussi la vue par zone', () => {
+  const t = construire({ comptes: [] });
+  assert.strictEqual(t.zones[0].zone, 'Amakna');
+  assert.strictEqual(t.zones[0].manquants, 78);
+});
+
+test('le personnage suivi vaut pour la vue par zone comme pour le filtre', () => {
+  const t = construire({
+    comptes: [
+      { pid: 42, nom: 'Jibef', ames: new Set([PICHAKOTE]) },
+      { pid: 43, nom: 'Mule1', ames: new Set() },
+    ],
+    vise: 42,
+  });
+  const zone = t.zones.find((z) => z.sousZones.some((s) => s.qui.includes(43)));
+  assert.notStrictEqual(zone, undefined, 'Mule1 doit manquer quelque part');
+  assert.strictEqual(t.zones.every((z) => z.qui.includes(43)), true);
+});

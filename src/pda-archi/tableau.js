@@ -1,5 +1,6 @@
 'use strict';
 const { ARCHIMONSTRES, estArchimonstre } = require('./archimonstres');
+const { parZones } = require('./zones');
 
 // Du croisement « qui possede quoi » au tableau affichable. Fonction pure: ni
 // trame, ni reseau, ni disque, ni Electron.
@@ -22,7 +23,10 @@ const LIGNES = [...ARCHIMONSTRES].sort((a, b) => (a.niveau - b.niveau) || (a.id 
 // ferait passer un client lance avant OMNI pour un personnage sans une seule
 // ame -- exactement le silence qui ressemble a une reponse, et qui a coute la
 // soiree du 03/09.
-function construire({ comptes }) {
+// `vise` est le personnage dont on a clique le bouton, ou null. Il ne change
+// rien au tableau lui-meme -- toutes les colonnes restent affichees -- il ne
+// sert qu'a la vue par zone, ou « manquant » veut alors dire manquant POUR LUI.
+function construire({ comptes, vise = null }) {
   const liste = (comptes || []).filter((c) => c !== null && c !== undefined);
 
   const lignes = LIGNES.map((a) => ({
@@ -64,6 +68,9 @@ function construire({ comptes }) {
     comptes: rendus,
     possedes,
     manquants: LIGNES.length - possedes,
+    // OU CHASSER, dans le meme aller-retour: le panneau bascule d'une vue a
+    // l'autre sans rien redemander au process principal.
+    zones: parZones({ lignes, comptes: rendus, vise }),
   };
 }
 
