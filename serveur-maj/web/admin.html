@@ -71,7 +71,7 @@
 <div id="panneau" hidden>
   <div class="bandeau">
     <button id="tout-partout">tout accorder a tout le monde</button>
-    <span class="aide" style="margin:0">huit fonctions x tous les amis, en un clic</span>
+    <span class="aide" id="aide-tout-partout" style="margin:0">toutes les fonctions x tous les amis, en un clic</span>
   </div>
 
   <div class="groupes" id="groupes"></div>
@@ -275,6 +275,7 @@
     etiquette.textContent = 'donner a tous :';
     g.append(etiquette);
     const toutPartout = document.getElementById('tout-partout');
+    const aideToutPartout = document.getElementById('aide-tout-partout');
     if (droitsIndisponibles) {
       toutPartout.disabled = true;
       const note = document.createElement('span');
@@ -285,6 +286,11 @@
       return;
     }
     toutPartout.disabled = false;
+    // LE COMPTE SE LIT SUR LA LISTE SERVIE, il n'est pas ecrit dans la page.
+    // Il y disait « huit » alors qu'il y en avait dix: une dixieme fonction
+    // (pda-archi) est arrivee le 03/09 et personne n'a rouvert ce fichier.
+    aideToutPartout.textContent = fonctions.length
+      + ' fonctions x tous les amis, en un clic';
     toutPartout.onclick = async () => {
       for (const a of amis) for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
       rafraichir();
@@ -420,7 +426,7 @@
         tout.className = 'fantome';
         tout.textContent = 'tout';
         tout.onclick = async () => {
-          // La cle de Draxus doit tout avoir sans huit clics.
+          // La cle de Draxus doit tout avoir sans un clic par fonction.
           for (const f of fonctions) await api('droit', { cle: a.cle, fonction: f.nom, actif: true });
           rafraichir();
         };
