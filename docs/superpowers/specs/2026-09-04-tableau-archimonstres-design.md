@@ -80,49 +80,33 @@ archimonstre ajouté par Ankama dans cet intervalle casserait le filtre en
 silence. Le compte de 286 est figé dans le test — le jour où le jeu en ajoute
 un vrai, le test tombe et c'est ce qu'on veut.
 
-## Ce qui reste à mesurer, et c'est bloquant
+## La mesure : c'est oui
 
-**L'identité du monstre capturé se lit-elle dans l'inventaire ?**
+Faite le 04/09, consignée dans `2026-09-04-trames-ame-pleine.md`. Une seule
+`ivx` à la connexion, 674 piles, **143 âmes lisibles**.
 
-`lirePile()` ne retient aujourd'hui des effets qu'un booléen, `avecEffets` :
-le contenu du champ 2 du détail n'a jamais été décodé. Or c'est là — et nulle
-part ailleurs — que l'identifiant du monstre doit se trouver. Aucun journal du
-dépôt ne contient une seule pierre pleine : ni le gid 7010, ni les gids 9686 à
-9690 n'apparaissent dans `journal-hdv.log`.
+**Le critère de lecture est l'effet 4058.** Un effet d'`ivx` a la forme
+`{ 6 = { paramètres }, 11 = numéro de l'effet }`, et l'âme capturée est
+l'effet 4058, premier paramètre :
 
-**Tant que ce n'est pas mesuré, le reste de cette conception est un pari.**
-Estimation honnête : 90 % de chances que ce soit lisible, parce que le client
-affiche le nom du monstre dans l'infobulle de la pierre, et qu'il ne le demande
-pas au serveur à ce moment-là.
+    effet : 6={ 1=2272 2=5 } 11=4058     ->  Pichakoté le Dégoutant
 
-### La procédure
+**C'est l'effet qui sert de critère, pas le gid**, et c'est le seul point où la
+conception a changé : chaque âme est un objet différent — 143 âmes, 143 gids
+distincts, de 6716 à 34274 — tandis que l'effet, lui, est le même pour toutes.
+Le gid 7010 qu'annonçait le commentaire de `pierres.js` n'existe pas : aucune
+pile ne le porte, sur 674.
 
-`outils\lancer-mesure-archi.vbs` — écrit, copie de `lancer-mesure-hdv.vbs`,
-journal séparé `journal-archi.log`, octets bruts jusqu'à 256 Ko par trame.
+**Une âme, une pile.** Les 143 piles portent une âme chacune, en quantité 1.
+`lireAmes` rend quand même une liste : la trame autorise plusieurs effets, et
+supposer l'inverse coûterait cher le jour où c'est faux.
 
-1. Fermer OMNI et tous les clients Dofus.
-2. Lancer `outils\lancer-mesure-archi.vbs`.
-3. Connecter **le personnage qui porte des pierres d'âme pleines**. Rien
-   d'autre : `ivx` tombe à la connexion, sans ouvrir aucun panneau.
-4. Fermer OMNI.
+**Une pierre capture aussi les boss.** Trois des 143 âmes ne sont pas des
+archimonstres : `Mansot Royal`, `Bouftou Royal`, `Mob l'Éponge`. Le tableau ne
+peut donc pas traiter « âme hors table » comme une anomalie — c'est le cas
+normal. Elles se comptent à part, en une ligne sous le tableau.
 
-Ce qu'on cherchera dans les octets : une pile dont le gid est celui d'une
-pierre pleine, et, dans ses effets, un ou plusieurs identifiants qui tombent
-dans la liste de référence : un identifiant qui y figure ne peut pas être un
-hasard. **Pour cette preuve-là on prend les 306, Vulkania comprise** — le
-retrait est une décision d'affichage, il n'a rien à faire dans une mesure.
-
-**Le gid de la pierre pleine fait lui-même partie de la mesure.** 7010 est ce
-qu'annonce le commentaire de `pierres.js`, écrit le 03/09 sans qu'une pierre
-pleine ait jamais été observée ; rien ne dit encore s'il y en a un seul, ou un
-par taille de pierre.
-
-Le résultat sera consigné dans
-`docs/superpowers/specs/2026-09-04-trames-ame-pleine.md`, comme
-`2026-09-01-trames-hdv.md` l'a été pour l'hôtel de vente.
-
-**Une pierre pleine peut contenir plusieurs âmes.** Le décodage devra donc
-rendre une liste d'identifiants par pile, jamais un seul.
+**140 des 286 sont là**, 146 manquent, aucune de Vulkania.
 
 ## L'architecture
 
@@ -140,9 +124,9 @@ de le régénérer quand le jeu en ajoute ; c'est lui qui porte le filtre
 Module pur : ni Electron, ni Frida, ni disque, ni réseau — testable avec des
 trames figées, exactement comme `src/hdv/stock.js`.
 
-**Il ne garde que les âmes.** Décoder et conserver les effets des 471 piles
+**Il ne garde que les âmes.** Décoder et conserver les effets des 674 piles
 d'un inventaire coûterait de la mémoire pour rien : le module ne retient que
-les piles de pierres pleines, et d'elles ne retient que les identifiants de
+les piles portant un effet 4058, et d'elles ne retient que les identifiants de
 monstres.
 
     lireAmes(frame)  ->  [ { uid, monstres: [id, ...] } ]
@@ -159,7 +143,7 @@ chasse arrive en `iua` et coche sa case sans qu'on ait rien à demander.
 ### Le panneau
 
 Une colonne **« Archi »** dans la liste des personnages, à côté de « HDV ».
-Chaque ligne porte un bouton avec son compte (`47`), et le clic ouvre la vue
+Chaque ligne porte un bouton avec son compte (`140`), et le clic ouvre la vue
 superposée, à la manière de « Quoi de neuf » :
 
     ARCHIMONSTRES                      Jibef  Mule1  Mule2
@@ -169,7 +153,8 @@ superposée, à la manière de « Quoi de neuf » :
     Ratlbol l'Aigri             52       .      .      .
     ------------------------------------------------------
     filtre : ( ) tous  (•) manquants  ( ) possédés
-    286 archimonstres     possédés : 47     manquants : 239
+    286 archimonstres     possédés : 140     manquants : 146
+    + 3 âmes de boss, hors tableau
 
 **Un inventaire pas encore lu affiche `—`, jamais `0`.** Un trou dans ce qu'on
 sait n'est pas un zéro, et c'est la leçon la plus chère du 03/09 : un silence
@@ -186,8 +171,10 @@ deux lignes et un test.
 
 ## Les tests
 
-- `lireAmes` sur les octets réels de la mesure, figés dans le test.
-- Une pierre pleine à plusieurs âmes rend plusieurs identifiants.
+- `lireAmes` sur les 28 octets réels de la mesure, figés dans le test.
+- Une pile portant deux effets 4058 rend deux identifiants — cas non observé,
+  couvert quand même.
+- Une âme de boss ne devient pas une ligne du tableau, et n'est pas perdue.
 - `iua` coche, `ium` décoche, `ivx` remplace tout.
 - Un personnage jamais lu n'est pas un personnage à zéro.
 - `archimonstres.json` : 286 entrées, identifiants uniques, et aucun de la
@@ -214,9 +201,10 @@ le lève ou le confirme en une soirée. S'il n'y est pas, la fonction s'arrête 
 plutôt que d'aller demander chaque pierre au serveur, un aller-retour par
 objet — exactement le flot que l'hôtel de vente a appris à éviter.
 
-**Un archimonstre absent de DofusDB.** Une pierre porterait un identifiant hors
-de la table. Le tableau l'affichera en ligne supplémentaire, sous son numéro,
-plutôt que de la passer sous silence.
+**Une âme hors table.** Ce risque est levé, et retourné : la mesure montre que
+le cas normal est l'âme de **boss**, pas l'archimonstre oublié. Le compte à
+part sous le tableau le couvre. Resterait un archimonstre absent de DofusDB —
+il tomberait dans la même ligne, visible, jamais silencieux.
 
 **Le paquet à refabriquer.** Aucun : la fonction est du code applicatif, elle
 se met à jour toute seule chez les amis.
