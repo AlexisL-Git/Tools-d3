@@ -25,7 +25,8 @@ Quatre choix de Jibef, le 2026-09-04 :
 3. **Tous les personnages en colonnes**, une seule vue. Le bouton d'un
    personnage ouvre cette vue avec sa colonne surlignée — il n'ouvre pas un
    tableau qui lui serait propre.
-4. **La liste de référence vient de DofusDB**, figée dans le dépôt.
+4. **La liste de référence vient de DofusDB**, figée dans le dépôt, **sans
+   l'Archipel de Vulkania**.
 
 ## Ce qui est déjà acquis, sans aucune mesure
 
@@ -45,6 +46,7 @@ l'API DofusDB :
 | leur `race` | **78 pour les 306, sans exception** |
 | `soulCaptureForbidden` | faux pour les 306 |
 | `hideInBestiary` | faux pour les 306 |
+| moins ceux de Vulkania | **286** |
 
 Les noms ne laissent aucun doute : `Larvonika l'Instrument`, `Piradain le
 Pingre`, `Ratéhaifaim le Professeur`. Niveaux de 1 à 181, médiane 54. Réduite
@@ -59,11 +61,24 @@ un `correspondingMiniBossId` qui pointe vers le sien — `Larve Bleue` (31) →
 `Larvonika l'Instrument` (2574). La liste montée à la main qu'annonçait cette
 note n'est pas nécessaire.
 
-**306, et non 286.** Le chiffre de 286 est celui que Jibef avait en tête ; les
-données du jeu en donnent 306 aujourd'hui. L'écart n'est pas tranché — sans
-doute des ajouts postérieurs au décompte retenu. Le tableau affichera **ce que
-disent les données**, et son total nommera son propre chiffre plutôt que de
-promettre 286.
+**286, une fois Vulkania retirée.** Le drapeau seul en donne 306, mais vingt
+d'entre eux vivent dans l'Archipel de Vulkania — une île **saisonnière**, dont
+les archimonstres ne sont capturables que pendant l'événement. Les compter
+ferait vingt lignes définitivement vides onze mois sur douze. Signalé par
+Jibef le 04/09, puis vérifié :
+
+    zone 50, « Archipel de Vulkania » -> 13 sous-zones
+    306 archimonstres - 20 qui y vivent = 286
+
+Les vingt portent les identifiants **3178 à 3197**, contigus, et tous le même
+préfixe : `Krokette la Croustillante`, `Kroktail la Désaltérante`,
+`Krokrane la Distordue`. Niveaux 20, 50, 100 et 150, cinq par palier.
+
+**La règle d'exclusion est la zone, pas la plage d'identifiants.** 3178-3197
+n'est qu'un contrôle : c'est `subareas` ∈ zone 50 qui décide, sinon le premier
+archimonstre ajouté par Ankama dans cet intervalle casserait le filtre en
+silence. Le compte de 286 est figé dans le test — le jour où le jeu en ajoute
+un vrai, le test tombe et c'est ce qu'on veut.
 
 ## Ce qui reste à mesurer, et c'est bloquant
 
@@ -93,8 +108,9 @@ journal séparé `journal-archi.log`, octets bruts jusqu'à 256 Ko par trame.
 
 Ce qu'on cherchera dans les octets : une pile dont le gid est celui d'une
 pierre pleine, et, dans ses effets, un ou plusieurs identifiants qui tombent
-dans la liste des 306. C'est la liste de référence qui sert de preuve : un
-identifiant qui y figure ne peut pas être un hasard.
+dans la liste de référence : un identifiant qui y figure ne peut pas être un
+hasard. **Pour cette preuve-là on prend les 306, Vulkania comprise** — le
+retrait est une décision d'affichage, il n'a rien à faire dans une mesure.
 
 **Le gid de la pierre pleine fait lui-même partie de la mesure.** 7010 est ce
 qu'annonce le commentaire de `pierres.js`, écrit le 03/09 sans qu'une pierre
@@ -114,10 +130,10 @@ Trois pièces, dans l'ordre des dépendances.
 
 ### `src/pda-archi/archimonstres.json`
 
-Les archimonstres, figés depuis DofusDB : `{ id, nom, niveau }`. Aucun appel
-réseau dans OMNI. Un outil de fabrication séparé
-(`outils/faire-archimonstres.js`) permet de le régénérer quand le jeu en
-ajoute, et ne tourne jamais en production.
+Les 286, figés depuis DofusDB : `{ id, nom, niveau }`. Aucun appel réseau dans
+OMNI. Un outil de fabrication séparé (`outils/faire-archimonstres.js`) permet
+de le régénérer quand le jeu en ajoute ; c'est lui qui porte le filtre
+`isMiniBoss` et le retrait de la zone 50, et il ne tourne jamais en production.
 
 ### `src/pda-archi/collection.js`
 
@@ -153,7 +169,7 @@ superposée, à la manière de « Quoi de neuf » :
     Ratlbol l'Aigri             52       .      .      .
     ------------------------------------------------------
     filtre : ( ) tous  (•) manquants  ( ) possédés
-    306 archimonstres     possédés : 47     manquants : 259
+    286 archimonstres     possédés : 47     manquants : 239
 
 **Un inventaire pas encore lu affiche `—`, jamais `0`.** Un trou dans ce qu'on
 sait n'est pas un zéro, et c'est la leçon la plus chère du 03/09 : un silence
@@ -174,16 +190,22 @@ deux lignes et un test.
 - Une pierre pleine à plusieurs âmes rend plusieurs identifiants.
 - `iua` coche, `ium` décoche, `ivx` remplace tout.
 - Un personnage jamais lu n'est pas un personnage à zéro.
-- `archimonstres.json` : identifiants uniques, et le compte annoncé.
+- `archimonstres.json` : 286 entrées, identifiants uniques, et aucun de la
+  plage 3178-3197 — le contrôle de Vulkania.
 
 ## Hors sujet, volontairement
 
 - **La banque.** Choix 2 ci-dessus.
 - **L'historique des captures.** Choix 1 ci-dessus.
 - **Regrouper par zone.** Les `subareas` sont dans les données DofusDB — les
-  306 en ont toutes une — mais trier par niveau suffit pour commencer.
+  286 en ont toutes une, c'est d'ailleurs ce qui permet d'écarter Vulkania —
+  mais trier par niveau suffit pour commencer.
 - **Échanger ou vendre les âmes**, et la capture elle-même.
-- **Le sort des 20 archimonstres d'écart** entre 286 et 306.
+- **Les vingt archimonstres de Vulkania.** Ils ne sont pas dans le fichier.
+  Conséquence assumée : une âme de Vulkania en inventaire s'afficherait en
+  ligne supplémentaire sous son seul numéro, faute de nom. Si cela arrive
+  vraiment, les remettre dans le fichier avec un drapeau `vulkania`, hors
+  décompte, est un changement d'une ligne.
 
 ## Risques
 
