@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { decodeFrameRaw, WIRE } = require('../src/codec/rawProto');
+const { lireStock } = require('../src/hdv/trames');
 const { creerPdaArchi } = require('../src/pda-archi/pda-archi');
 const { POSITION_PIERRE } = require('../src/pda-archi/pierres');
 const { trameEquiper } = require('../src/pda-archi/trames');
@@ -30,7 +31,15 @@ function doubleSuperviseur(pids = [42]) {
   };
 }
 
-const kmu = (id) => ({ type: 'kmu', payload: [{ no: 2, wire: WIRE.VARINT, value: BigInt(id) }] });
+// kae { 1={ 3: le combattant }, 2: l identifiant du COMBAT }: un combattant
+// entre dans un combat. Le combattant NEGATIF est le groupe de monstres, et il
+// n est nomme que chez celui qui attaque.
+const kae = (idCombat, idActeur) => ({ type: 'kae', payload: [
+  { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 3, wire: WIRE.VARINT, value: BigInt(idActeur) },
+  ] },
+  { no: 2, wire: WIRE.VARINT, value: BigInt(idCombat) },
+] });
 const ivq = (uid, pos) => ({ type: 'ivq', payload: [
   { no: 1, wire: WIRE.VARINT, value: BigInt(uid) },
   { no: 2, wire: WIRE.VARINT, value: BigInt(pos) },
@@ -44,11 +53,25 @@ const kmk = (...ids) => ({ type: 'kmk', payload: ids.map((id) => ({
     { no: 3, wire: WIRE.VARINT, value: BigInt(id) },
   ] })) });
 
-// Entrer en combat demande DEUX trames: kmu dit quel groupe, donc quel niveau,
-// et kmk dit que CE client y est vraiment. Une mule encore en deplacement ne
-// recoit pas la seconde, et le jeu lui refuserait l equipement.
-function entrer(chasse, pid, idGroupe = -300) {
-  if (idGroupe !== null) chasse.onTrame({ pid, dir: 'in', frame: kmu(idGroupe) });
+// Entrer en combat, dans l ordre mesure le 04/09: la liste des combattants
+// arrive d abord, les kae ensuite, et le kae du joueur precede celui du groupe
+// d une milliseconde.
+//
+// `idGroupe` a null, c est un client qui REJOINT: il ne voit pas le groupe
+// entrer dans le combat, seulement les joueurs. Il ne peut donc rien apprendre
+// du niveau, et c est tout l interet de la cle par combat.
+//
+// Par defaut le combat est nomme d apres le groupe, pour que deux appels sur
+// des groupes differents soient deux combats. Les tests qui rejouent le MEME
+// groupe dans un AUTRE combat passent l identifiant a la main.
+function entrer(chasse, pid, idGroupe = -300, idCombat = idGroupe === null ? 1 : -idGroupe) {
+  // L ORDRE EST CELUI DE LA MESURE, et il compte: 117412 kmk, 117413 kae du
+  // joueur, 117413 kae du groupe, 117414 a 117415 cinq kmk de plus. Le kae du
+  // joueur precede celui du groupe, donc entre les deux le niveau du combat est
+  // legitimement inconnu -- et rien ne doit s en plaindre.
+  chasse.onTrame({ pid, dir: 'in', frame: kmk(-1, -2, 777) });
+  chasse.onTrame({ pid, dir: 'in', frame: kae(idCombat, 777) });
+  if (idGroupe !== null) chasse.onTrame({ pid, dir: 'in', frame: kae(idCombat, idGroupe) });
   chasse.onTrame({ pid, dir: 'in', frame: kmk(-1, -2, 777) });
 }
 
@@ -96,11 +119,16 @@ test('la bonne pierre deja portee n envoie aucun ordre', () => {
   assert.strictEqual(rendus.at(-1).quoi, 'deja');
 });
 
+// DEUX MESSAGES POUR UNE MEME CAUSE, ET C EST VOULU. Le groupe inconnu prive
+// le combat de son niveau, donc chaque personnage qui y entre le dit a son
+// tour. On prefere un panneau bavard a un personnage qui n equipe rien sans un
+// mot: c est exactement ce qui a rendu le bug du 04/09 introuvable.
 test('un groupe inconnu ne fait rien et le dit', () => {
   const { superviseur, chasse, rendus } = monte();
   entrer(chasse, 42, -99999);
   assert.strictEqual(superviseur.envois.length, 0);
-  assert.strictEqual(rendus.at(-1).quoi, 'groupe-inconnu');
+  assert.ok(rendus.some((r) => r.quoi === 'groupe-inconnu'), 'le groupe inconnu est dit');
+  assert.ok(rendus.some((r) => r.quoi === 'niveau-inconnu'), 'le niveau manquant aussi');
 });
 
 test('eteinte, la chasse ne fait rien du tout', () => {
@@ -162,7 +190,7 @@ test('le combat suivant ne reequipe pas la pierre deja posee', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
-  // Un AUTRE groupe: le meme serait avale par la garde anti-doublon.
+  // Un autre combat, sur un autre groupe.
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120, -301) });
   entrer(chasse, 42, -301);
   assert.strictEqual(superviseur.envois.length, 2);
@@ -192,7 +220,7 @@ test('un niveau au-dela de 190 ne fait rien et le dit', () => {
 // choses qu'on ne lit qu'en entree.
 test('une trame sortante est ignoree', () => {
   const { superviseur, chasse } = monte();
-  chasse.onTrame({ pid: 42, dir: 'out', frame: kmu(-20000) });
+  chasse.onTrame({ pid: 42, dir: 'out', frame: kae(1, -300) });
   assert.strictEqual(superviseur.envois.length, 0);
 });
 
@@ -410,7 +438,7 @@ test('une pile neuve rangee ailleurs ne confirme rien', () => {
 // UNE MULE QUI REJOINT LE COMBAT NE VOIT PAS LE GROUPE PARTIR. Mesure du 03/09:
 // sur trois clients, un seul a recu le kmu. Le niveau se retient donc une fois,
 // et chaque client s equipe quand SA liste de combattants arrive.
-test('un seul kmu suffit, chaque client s equipe en rejoignant', () => {
+test('un seul client voit le groupe, tous s equipent en rejoignant', () => {
   const superviseur = doubleSuperviseur([42, 43, 44]);
   const rendus = [];
   const chasse = creerPdaArchi({
@@ -420,12 +448,11 @@ test('un seul kmu suffit, chaque client s equipe en rejoignant', () => {
     chasse.onTrame({ pid, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   }
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
-  // Seul le maitre voit le groupe partir.
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  // Seul le maitre voit le groupe entrer dans le combat: c est lui qui en
+  // apprend le niveau, et il l apprend POUR LE COMBAT, pas pour lui.
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kae(300, -300) });
   assert.strictEqual(superviseur.envois.length, 0, 'rien avant d etre dans le combat');
-  for (const pid of [42, 43, 44]) {
-    chasse.onTrame({ pid, dir: 'in', frame: kmk(-1, -2, 777) });
-  }
+  for (const pid of [42, 43, 44]) entrer(chasse, pid, null, 300);
   for (const pid of [42, 43, 44]) {
     assert.strictEqual(superviseur.envoisDe(pid).length, 2, 'pid ' + pid);
   }
@@ -442,10 +469,9 @@ test('une mule en retard est equipee a son arrivee, pas avant', () => {
     chasse.onTrame({ pid, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   }
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, 777) });
+  entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envoisDe(43).length, 0, 'la mule marche encore');
-  chasse.onTrame({ pid: 43, dir: 'in', frame: kmk(-1, 777) });
+  entrer(chasse, 43, null, 300);
   assert.strictEqual(superviseur.envoisDe(43).length, 2, 'elle est arrivee');
 });
 
@@ -455,7 +481,7 @@ test('une liste d acteurs de carte n equipe personne', () => {
   const chasse = creerPdaArchi({ superviseur, actif: true });
   chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kmu(-300) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kae(300, -300) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(777, 888) });
   assert.strictEqual(superviseur.envois.length, 0);
 });
@@ -471,9 +497,8 @@ test('une seconde liste de combattants ne rejoue rien', () => {
   assert.strictEqual(superviseur.envois.length, 2);
 });
 
-// Deux clients sur la carte recoivent le MEME kmu: sans garde, on equiperait
-// deux fois de suite.
-test('le meme groupe deux fois de suite n equipe qu une fois', () => {
+// Deux clients dans le MEME combat: chacun son ordre, et un seul chacun.
+test('deux clients dans le meme combat s equipent une fois chacun', () => {
   const superviseur = doubleSuperviseur([42, 43]);
   const rendus = [];
   const chasse = creerPdaArchi({
@@ -489,17 +514,119 @@ test('le meme groupe deux fois de suite n equipe qu une fois', () => {
   assert.strictEqual(superviseur.envois.length, 4); // 2 clients x (purge + pose)
 });
 
-// La garde ne doit pas avaler un combat qui suit, sur le meme groupe, plus tard.
-test('le meme groupe hors de la fenetre equipe de nouveau', () => {
+// LE MEME GROUPE, SUR LA MEME CARTE, DANS DEUX COMBATS. Ce n est pas un cas
+// theorique: journal-chasse6.log du 03/09 montre le groupe -20002 en combat
+// 211 puis, plus tard, en combat 55. Une garde fondee sur l identifiant du
+// GROUPE aurait avale le second. Aucune horloge n intervient ici.
+test('le meme groupe dans un autre combat equipe de nouveau', () => {
   const superviseur = doubleSuperviseur([42]);
-  let horloge = 0;
+  const chasse = creerPdaArchi({ superviseur, actif: true });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300, 211);
+  // LES DEUX CONFIRMATIONS, comme le serveur les envoie: la pierre qui sort
+  // repart en inventaire, la neuve arrive a l emplacement. N en jouer qu une
+  // laisserait DEUX pierres en position 31 dans notre copie de l inventaire,
+  // et le combat suivant croirait la bonne deja portee.
+  const portee = lireStock(fixture('pda-archi-ivx-inventaire.hex'))
+    .find((p) => p.pos === POSITION_PIERRE);
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(portee.uid, POSITION_INVENTAIRE) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
+  // Le groupe est repeuple par des monstres plus faibles: une autre pierre.
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(80, -300) });
+  entrer(chasse, 42, -300, 55);
+  assert.strictEqual(superviseur.envois.length, 4);
+});
+
+// ===================================================================
+// LE BUG DU 04/09, ET LES TROIS SORTIES MUETTES QUI L ONT CAUSE.
+//
+// Jibef: « un perso qui rejoint un combat deja lance n equipe pas », sans
+// aucun message. Les trois tests qui suivent tiennent chacun l une des trois
+// gardes retirees. Ils echouent tous sur la version d avant.
+// ===================================================================
+
+// LA GARDE DES 60 SECONDES. Un retardataire arrive quand il arrive: il peut
+// avoir la moitie de la carte a traverser, et rien ne dit qu il le fera en une
+// minute. La preparation dure 18 s, mais un combat entier dure des minutes et
+// on peut y entrer tant qu il n a pas commence.
+test('un retardataire est equipe meme trois minutes apres', () => {
+  const superviseur = doubleSuperviseur([42, 43]);
+  const chasse = creerPdaArchi({ superviseur, actif: true });
+  for (const pid of [42, 43]) {
+    chasse.onTrame({ pid, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  }
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300, 194);
+  // Trois minutes plus tard, dans le monde reel. Ici: rien du tout, puisqu il
+  // n y a plus une seule horloge dans le module.
+  entrer(chasse, 43, null, 194);
+  assert.strictEqual(superviseur.envoisDe(43).length, 2, 'la mule equipe quand meme');
+});
+
+// LA LISTE DES DEJA SERVIS, ET C EST LE COEUR DU BUG. Elle vivait dans l objet
+// du combat en cours, qui n etait jamais referme: au combat suivant les quatre
+// personnages y figuraient encore, et tous sortaient par le `return` muet.
+test('un personnage servi au combat precedent est servi au suivant', () => {
+  const superviseur = doubleSuperviseur([42]);
+  const rendus = [];
   const chasse = creerPdaArchi({
-    superviseur, actif: true, reglages: { maintenant: () => horloge },
+    superviseur, actif: true, onCompteRendu: (r) => rendus.push(r),
   });
   chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
-  entrer(chasse, 42, -300);
-  horloge = 6000;
-  entrer(chasse, 42, -300);
-  assert.strictEqual(superviseur.envois.length, 4);
+  entrer(chasse, 42, -300, 194);
+  assert.strictEqual(superviseur.envois.length, 2, 'le premier combat');
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
+
+  // Le second combat demande la meme pierre, qui est desormais portee: la
+  // reponse attendue est donc un `deja`. C EST L ASSERTION QUI COMPTE -- avant
+  // la refonte il ne se passait RIEN et rien n etait dit.
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120, -301) });
+  entrer(chasse, 42, -301, 195);
+  assert.strictEqual(rendus.at(-1).quoi, 'deja', 'il a repondu au second combat');
+});
+
+// LE TROISIEME `return` MUET: aucun combat ouvert. Il ne peut plus se taire.
+test('un combat sans niveau connu le dit au lieu de se taire', () => {
+  const superviseur = doubleSuperviseur([42]);
+  const rendus = [];
+  const chasse = creerPdaArchi({
+    superviseur, actif: true, onCompteRendu: (r) => rendus.push(r),
+  });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  // Personne n a vu le groupe entrer: OMNI a ete lance en cours de combat.
+  entrer(chasse, 42, null, 194);
+  assert.strictEqual(superviseur.envois.length, 0);
+  assert.strictEqual(rendus.at(-1).quoi, 'niveau-inconnu');
+});
+
+// Le meme, une fois par combat et pas une par trame: `kmk` tombe six fois en
+// trois millisecondes au depart, puis a chaque tour.
+test('le niveau inconnu ne se dit qu une fois par combat', () => {
+  const superviseur = doubleSuperviseur([42]);
+  const rendus = [];
+  const chasse = creerPdaArchi({
+    superviseur, actif: true, onCompteRendu: (r) => rendus.push(r),
+  });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  entrer(chasse, 42, null, 194);
+  entrer(chasse, 42, null, 194);
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
+  assert.strictEqual(rendus.filter((r) => r.quoi === 'niveau-inconnu').length, 1);
+});
+
+// LA GARDE QUI RESTE, et elle ne repose sur aucune horloge: un ordre en vol.
+// Six `kmk` tombent en trois millisecondes et la confirmation ne revient qu a
+// 34 ms. Sans elle, six ordres pour une seule pierre.
+test('les kmk en rafale n envoient qu un seul ordre', () => {
+  const superviseur = doubleSuperviseur([42]);
+  const chasse = creerPdaArchi({ superviseur, actif: true });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300, 194);
+  for (let i = 0; i < 5; i += 1) {
+    chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
+  }
+  assert.strictEqual(superviseur.envois.length, 2, 'la purge et la pose, rien de plus');
 });

@@ -4,23 +4,19 @@ const {
 } = require('../hdv/trames');
 const { combattantsDe, TYPE_COMBATTANTS } = require('../abandon-combat');
 const { choisir, POSITION_PIERRE } = require('./pierres');
-const { trameEquiper, lirePosition, lireGroupeAttaque, lireGroupes } = require('./trames');
+const {
+  trameEquiper, lirePosition, lireGroupes, lireEntreeCombat,
+} = require('./trames');
 
 // Au-dela, on considere que l'ordre s'est perdu. Le serveur a repondu en 40 ms
 // a la mesure; trois secondes sont deux ordres de grandeur au-dessus, et il
 // reste quinze secondes de preparation pour reagir.
 const DELAI_REPONSE_MS = 3000;
 
-// Deux clients qui voient le meme groupe partir emettent leur `kmu` a quelques
-// millisecondes d'ecart; cinq secondes couvrent largement l'ecart sans jamais
-// avaler deux combats successifs, la preparation durant a elle seule 18 s.
-const FENETRE_COMBAT_MS = 5000;
-
-// Le temps qu'on laisse a une mule pour arriver dans le combat apres que le
-// groupe a quitte la carte. Elle peut avoir la moitie de la carte a traverser,
-// et la phase de preparation dure 18 s: une minute est large des deux cotes,
-// assez pour les retardataires, trop court pour attraper le combat suivant.
-const FENETRE_ARRIVEE_MS = 60000;
+// Combien de combats on retient le niveau. Un personnage n'est que dans un
+// combat a la fois, mais cette table est indexee par COMBAT et non par
+// personnage: sans borne elle grandirait a chaque combat de la session.
+const COMBATS_RETENUS = 32;
 
 // La chasse a l'archimonstre: equiper la bonne pierre d'ame, et rien d'autre.
 //
@@ -94,50 +90,78 @@ function creerPdaArchi({
     piles.push({ uid: uidPose, gid: attente.gid, qte: 1, avecEffets: true, pos: POSITION_PIERRE });
   }
 
-  // DEUX TRAMES, DEUX ROLES, ET C'EST TOUTE LA CONCEPTION DE CE MODULE.
+  // LA CLE EST LE COMBAT, ET C'EST TOUTE LA CONCEPTION DE CE MODULE.
   //
-  // `kmu` dit QUOI EQUIPER: le groupe quitte la carte, on en connait le niveau.
-  // Mais elle n'est recue que par les clients presents sur la carte a cet
-  // instant. Mesure du 03/09 a 14h40: sur trois clients, UN SEUL l'a recue,
-  // les deux autres etant encore en chemin.
+  // `kae` dit DANS QUEL COMBAT se trouve un client, et le nomme: un identifiant
+  // commun a tous les clients du meme combat, different au combat suivant. Elle
+  // dit aussi QUOI EQUIPER quand le combattant ajoute est le groupe de
+  // monstres, dont la carte donne le niveau.
   //
-  // `kmk` dit QUAND EQUIPER, pour chaque client separement: c'est la liste des
-  // combattants, et elle n'arrive qu'une fois le client REELLEMENT dans le
-  // combat. Une mule encore en deplacement ne peut rien equiper — le jeu
-  // refuse — donc on l'attend au lieu de tirer trop tot.
+  // `kmk` reste le signal « ce client est REELLEMENT dans le combat », mesure
+  // du 03/09: une mule encore en deplacement ne recoit pas la liste des
+  // combattants, et le jeu lui refuserait l'equipement.
   //
-  // Meme critere que src/abandon-combat.js pour reconnaitre un combat contre
-  // des monstres: au moins un identifiant NEGATIF dans la liste. `kmk` sert
-  // aussi a lister les acteurs d'une carte, ou tout est positif.
-  let combat = null;
-  const maintenant = () => (typeof reglages.maintenant === 'function'
-    ? reglages.maintenant() : Date.now());
+  // CE QUI A DISPARU LE 04/09, ET POURQUOI. La version precedente tenait UN
+  // combat, global, ouvert sur `kmu` et referme par le temps: une fenetre de
+  // 5 s contre les doublons, une de 60 s contre les retardataires, et la liste
+  // des personnages deja servis. Trois etats qui perimaient, et trois `return`
+  // MUETS quand ils perimaient. Jibef a vu un personnage rejoindre un combat
+  // deja lance sans rien equiper et sans un mot dans le journal: c'etait l'un
+  // de ces trois. Un identifiant de combat rend les trois inutiles.
+  //
+  // IL N'Y A PLUS AUCUNE HORLOGE ICI. Un retardataire servi au bout de trois
+  // minutes l'est comme celui qui arrive en deux secondes, puisque c'est le
+  // meme combat; et le combat suivant porte un autre identifiant meme sur le
+  // meme groupe et la meme carte (mesure: journal-chasse6.log, groupe -20002
+  // en combat 211 puis en combat 55).
+  const niveaux = new Map();    // idCombat -> niveauMax du groupe attaque
+  const combats = new Map();    // pid -> idCombat ou ce client se trouve
+  const servis = new Map();     // pid -> dernier idCombat pour lequel il a equipe
+  const sansNiveau = new Map(); // pid -> idCombat deja signale sans niveau
+  const enCombat = new Set();   // pid ayant recu une liste de combattants
 
-  function noterGroupe(pidSource, idGroupe) {
-    const carte = cartes.get(pidSource);
-    const groupe = carte === undefined ? undefined : carte.get(idGroupe);
-    // UN GROUPE INCONNU N'EQUIPE RIEN. La liste des acteurs arrive a l'arrivee
-    // sur la carte; un groupe qui n'y est pas est un trou dans ce qu'on sait,
-    // pas une invitation a deviner.
-    if (groupe === undefined) { rendre(pidSource, { quoi: 'groupe-inconnu', idGroupe }); return; }
-
-    // Le meme depart vu par plusieurs clients ne rouvre pas un combat: sans
-    // cette garde, la seconde `kmu` remettrait a zero la liste de ceux qui sont
-    // deja equipes, et tout le monde recevrait un second ordre.
-    const t = maintenant();
-    if (combat !== null && combat.idGroupe === idGroupe
-        && t - combat.quand < FENETRE_COMBAT_MS) return;
-    combat = { idGroupe, niveauMax: groupe.niveauMax, quand: t, faits: new Set() };
+  function noterNiveau(idCombat, niveauMax) {
+    if (niveaux.has(idCombat)) return;
+    niveaux.set(idCombat, niveauMax);
+    // Map garde l'ordre d'insertion: la premiere cle est la plus ancienne.
+    while (niveaux.size > COMBATS_RETENUS) niveaux.delete(niveaux.keys().next().value);
   }
 
-  function rejointLeCombat(pid) {
-    if (combat === null) return;
-    // Un combat trop vieux n'est plus le notre: une mule qui traine ne doit pas
-    // faire equiper sur la foi d'un groupe vu il y a cinq minutes.
-    if (maintenant() - combat.quand > FENETRE_ARRIVEE_MS) { combat = null; return; }
-    if (combat.faits.has(pid)) return;
-    combat.faits.add(pid);
-    equiperPour(pid, combat.niveauMax);
+  // Tout ce qu'il faut pour equiper: savoir dans quel combat est ce client, et
+  // connaitre le niveau de ce combat. Les deux arrivent dans un ordre qui
+  // varie — mesure du 04/09, le `kae` du joueur precede celui du groupe d'une
+  // milliseconde — donc on rappelle cette fonction chaque fois que l'un des
+  // deux progresse, plutot que de parier sur l'ordre.
+  // `signaler` n'est vrai que sur le chemin de `kmk`, et c'est une precaution
+  // contre un bandeau rouge a chaque combat. Mesure du 04/09: le `kae` du
+  // joueur precede celui du groupe d'une milliseconde, donc entre les deux le
+  // niveau est legitimement inconnu. Se plaindre la serait crier au loup une
+  // fois par combat. `kmk` retombe a chaque tour: un combat vraiment sans
+  // niveau sera signale au tour suivant, une seconde plus tard.
+  function tenter(pid, signaler = false) {
+    const idCombat = combats.get(pid);
+    if (idCombat === undefined) return;
+    if (!enCombat.has(pid)) return;
+    // DEJA SERVI POUR CE COMBAT. Pas une fenetre de temps, l'identifiant du
+    // combat lui-meme. `kmk` tombe six fois en trois millisecondes au depart
+    // (mesure du 04/09) puis de nouveau a chaque tour.
+    if (servis.get(pid) === idCombat) return;
+    // UN ORDRE EST DEJA EN VOL. La confirmation revient en 34 ms et cinq `kmk`
+    // tombent dans cet intervalle: sans cette garde, six ordres pour une pierre.
+    if (attentes.has(pid)) return;
+
+    const niveauMax = niveaux.get(idCombat);
+    if (niveauMax === undefined) {
+      // ON NE DEVINE PAS UN NIVEAU. Mais on ne se tait pas non plus: se taire
+      // est ce qui a rendu le bug du 04/09 introuvable. Une fois par combat.
+      if (signaler && sansNiveau.get(pid) !== idCombat) {
+        sansNiveau.set(pid, idCombat);
+        rendre(pid, { quoi: 'niveau-inconnu', idCombat });
+      }
+      return;
+    }
+    servis.set(pid, idCombat);
+    equiperPour(pid, niveauMax);
   }
 
   function equiperPour(pid, niveauMax) {
@@ -295,17 +319,46 @@ function creerPdaArchi({
 
     if (!allume) return;
 
-    if (frame.type === 'kmu') {
-      const idGroupe = lireGroupeAttaque(frame);
-      if (idGroupe !== null) noterGroupe(pid, idGroupe);
+    // L'ENTREE D'UN COMBATTANT DANS UN COMBAT, et elle porte deux choses.
+    if (frame.type === 'kae') {
+      const e = lireEntreeCombat(frame);
+      if (e === null) return;
+
+      // UN COMBATTANT NEGATIF EST LE GROUPE DE MONSTRES, et il n'est nomme que
+      // chez celui qui attaque. C'est lui qui donne le niveau du combat.
+      if (e.idActeur < 0) {
+        const carte = cartes.get(pid);
+        const groupe = carte === undefined ? undefined : carte.get(e.idActeur);
+        // UN GROUPE INCONNU N'EQUIPE RIEN, et le dit. La liste des acteurs
+        // arrive en meme temps que la carte; un groupe qui n'y est pas est un
+        // trou dans ce qu'on sait, pas une invitation a deviner.
+        if (groupe === undefined) {
+          rendre(pid, { quoi: 'groupe-inconnu', idGroupe: e.idActeur });
+          return;
+        }
+        noterNiveau(e.idCombat, groupe.niveauMax);
+        // LE NIVEAU PROFITE A TOUT LE MONDE, pas seulement a l'attaquant: ceux
+        // qui attendaient dans ce combat peuvent enfin etre servis.
+        for (const [autre, id] of combats) if (id === e.idCombat) tenter(autre);
+        return;
+      }
+
+      // UN COMBATTANT POSITIF EST UN JOUEUR, et peu importe lequel: si ce
+      // client recoit la trame, c'est qu'il est dans ce combat.
+      combats.set(pid, e.idCombat);
+      tenter(pid);
       return;
     }
 
-    // LA LISTE DES COMBATTANTS: ce client vient d'entrer dans le combat, et
-    // c'est seulement maintenant qu'il peut equiper. Elle arrive plusieurs fois
-    // pendant un meme combat, d'ou la liste de ceux qui sont deja servis.
+    // LA LISTE DES COMBATTANTS: ce client est REELLEMENT dans le combat, et
+    // c'est seulement maintenant qu'il peut equiper. Meme critere que
+    // src/abandon-combat.js pour reconnaitre un combat contre des monstres: au
+    // moins un identifiant NEGATIF. `kmk` sert aussi a lister les acteurs
+    // d'une carte, ou tout est positif.
     if (frame.type === TYPE_COMBATTANTS) {
-      if (combattantsDe(frame) !== null) rejointLeCombat(pid);
+      if (combattantsDe(frame) === null) return;
+      enCombat.add(pid);
+      tenter(pid, true);
     }
   }
 

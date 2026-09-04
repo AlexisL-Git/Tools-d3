@@ -107,6 +107,12 @@ function lirePosition(frame) {
 // kmu { 2: identifiant d'un acteur } dit qu'un acteur QUITTE LA CARTE. Un
 // groupe de monstres attaque la quitte, donc c'est bien le signal du combat.
 //
+// LA CHASSE NE S'EN SERT PLUS depuis le 04/09: elle lit `kae`, qui nomme le
+// combat lui-meme (voir plus bas). Cette lecture reste parce qu'elle est
+// mesuree et juste, et parce que « un acteur quitte la carte » servira
+// ailleurs. Ne pas la rebrancher sur la chasse: c'est en croyant qu'elle
+// disait « un combat commence » qu'on a bati trois etats qui perimaient.
+//
 // MAIS ELLE NE PARLE PAS QUE DE COMBAT, et c'est la lecon du 03/09 au soir:
 // chaque joueur qui s'en va en produit une aussi. La premiere mesure avait
 // donne `kmu { 2=-20000 }` juste au demarrage du combat, et on en avait
@@ -169,6 +175,43 @@ function lireGroupes(frame) {
   return groupes;
 }
 
+// kae { 1={ 3: identifiant du combattant }, 2: identifiant du COMBAT } dit
+// qu'un combattant est ajoute a un combat. Une trame par combattant, monstres
+// compris.
+//
+// C'EST ELLE QUI REMPLACE `kmu`, et le 04/09 a montre pourquoi il fallait le
+// remplacer. `kmu` ne dit que « un acteur quitte la carte »: pour en tirer un
+// combat il fallait un objet global, une fenetre de 5 s contre les doublons et
+// une de 60 s contre les retardataires. Trois etats qui peuvent perimer, et
+// trois sorties MUETTES quand ils perimaient. Le bug de Jibef etait la.
+//
+// `kae` porte l'identifiant du combat LUI-MEME. Plus aucune fenetre n'est
+// necessaire: on equipe une fois par combat et par personnage, point.
+//
+// MESURE, journal-archi-bug.log du 04/09 et journal-chasse6.log du 03/09:
+//
+//   kae { 1={2=1 3=-20001 4=1 5=<0o> 6=1} 2=194 }   le groupe, chez l'attaquant
+//   kae { 1={3=677158453542 4=1 5={…}} 2=194 }      un joueur, chez chacun
+//
+// L'IDENTIFIANT DE COMBAT EST BIEN CELUI D'UN COMBAT, et pas d'une carte: dans
+// journal-chasse6.log le MEME groupe `-20002`, sur la MEME carte, porte
+// `2=211` au premier combat et `2=55` au troisieme. Aucune autre lecture ne
+// survit a cette mesure.
+//
+// LE GROUPE N'EST NOMME QUE CHEZ L'ATTAQUANT. Ceux qui rejoignent ne recoivent
+// que les `kae` des joueurs. C'est sans importance: un seul client a besoin
+// d'apprendre le niveau, puisque la cle est le combat et non le personnage.
+function lireEntreeCombat(frame) {
+  if (!frame || frame.type !== 'kae') return null;
+  const idCombat = entier(frame.payload, 2);
+  if (idCombat === null) return null;
+  const acteur = sousMessage(champ(frame.payload, 1));
+  const idActeur = acteur === null ? null : entier(acteur, 3);
+  if (idActeur === null) return null;
+  return { idCombat, idActeur };
+}
+
 module.exports = {
   trameEquiper, trameLireInventaire, lirePosition, lireGroupeAttaque, lireGroupes,
+  lireEntreeCombat,
 };
