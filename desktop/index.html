@@ -371,15 +371,93 @@
     background: linear-gradient(rgba(255,255,255,.05), rgba(255,255,255,.05)), var(--fond);
   }
   .arc-table tr.arc-aucun td { color: var(--attenue); }
-  .arc-filtres { display: flex; align-items: center; gap: 6px; padding: 10px 15px 8px; }
-  .arc-filtres button {
-    padding: 5px 11px; border-radius: 7px; background: transparent;
-    border: 1px solid var(--filet); color: var(--attenue); font-size: 11.5px;
+  /* LA BARRE DE L'EN-TETE PORTE TROIS AXES, ET ILS ONT TROIS FORMES.
+     Elle a longtemps ete sept boutons rigoureusement identiques sur une ligne,
+     separes par deux espaces vides: rien ne disait que « Boss » et
+     « Possedes » ne sont pas la meme sorte de choix. L'espacement seul ne
+     porte pas une hierarchie -- la forme, si. */
+  .arc-filtres { display: flex; align-items: center; gap: 0; padding: 10px 15px 8px; }
+  .arc-filtres .avis-nav { margin-left: auto; }
+
+  /* 1. QUOI -- des ONGLETS, pas des boutons. Leur cadre retire, ils cessent de
+     ressembler au reste de la ligne, et le choix le plus structurant se lit en
+     premier. */
+  .arc-onglets { display: flex; gap: 4px; }
+  .arc-onglets button {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 10px 6px; background: transparent;
+    border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+    color: var(--attenue); font-size: 12.5px;
   }
-  .arc-filtres button.on { color: var(--texte); border-color: var(--accent); }
-  /* Le groupe des filtres, cache d'un bloc dans la vue par zone. Il garde le
-     meme espacement que les boutons de vue a sa gauche. */
-  .arc-filtres-liste { display: flex; gap: 6px; margin-left: 12px; }
+  .arc-onglets button svg { width: 16px; height: 16px; flex: none; }
+  /* TROIS SIGNAUX POUR L'ETAT, JAMAIS LA COULEUR SEULE: le trait sous
+     l'onglet, la graisse du texte, et l'icone qui se colore. Meme regle que
+     FORME plus bas, et pour la meme raison -- huit a dix pour cent des hommes
+     sont daltoniens. */
+  .arc-onglets button:not(.on) svg { filter: grayscale(1); opacity: .45; }
+  .arc-onglets button:hover { color: var(--texte); }
+  .arc-onglets button.on { color: var(--texte); border-bottom-color: var(--arme); font-weight: 700; }
+
+  /* 2 et 3. LE CONTROLE SEGMENTE. Des boutons COLLES se lisent comme un seul
+     objet -- « un choix parmi N » -- la ou des boutons separes se lisent comme
+     N actions independantes. C'est toute la difference, et elle ne coute que
+     des bordures partagees. */
+  /* La capsule porte la bordure, les segments n'en ont plus: c'est ce qui
+     permet a la pastille de glisser DERRIERE eux sans buter sur des cadres.
+     Colonnes egales, pour que la pastille se place sans mesurer quoi que ce
+     soit -- voir plus bas, c'est la clef de tout ce bloc. */
+  .arc-segmente {
+    position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    border: 1px solid var(--filet); border-radius: 7px; margin-left: 25px; --n: 2;
+  }
+  /* Le filet qui separe les groupes est porte par le groupe LUI-MEME: il
+     disparait donc avec lui, ce qu'un <span> pose a cote ne ferait pas.
+     Absolu, et non pose dans le flux: en grille il deviendrait une colonne. */
+  .arc-segmente::before {
+    content: ''; position: absolute; left: -13px; top: 50%; transform: translateY(-50%);
+    width: 1px; height: 18px; background: var(--filet);
+  }
+  .arc-segmente button {
+    position: relative; z-index: 1;
+    padding: 5px 12px; border: 0; border-radius: 6px; background: transparent;
+    color: var(--attenue); font-size: 11.5px; text-align: center;
+  }
+  .arc-segmente button:hover { color: var(--texte); }
+
+  /* LA PASTILLE SE PLACE SANS QU'ON MESURE RIEN, et c'est delibere. La lire au
+     `offsetLeft` du segment actif aurait demande du JS, or le panneau
+     s'execute aussi dans le DOM de facade de test/pda-archi-panneau.test.js,
+     qui n'a AUCUNE mise en page: toute geometrie y vaut undefined, donc NaN.
+     Des colonnes egales et un `:has()` donnent la meme chose en CSS pur,
+     invisible au harnais et increvable. */
+  .arc-pastille {
+    position: absolute; inset: 0 auto 0 0; width: calc(100% / var(--n));
+    background: var(--arme); border-radius: 6px;
+    transition: transform .18s ease;
+  }
+  .arc-segmente:has(> button:nth-of-type(2).on) .arc-pastille { transform: translateX(100%); }
+  .arc-segmente:has(> button:nth-of-type(3).on) .arc-pastille { transform: translateX(200%); }
+  /* Un glissement n'est pas une information: qui ne veut pas d'animation garde
+     tout le reste. */
+  @media (prefers-reduced-motion: reduce) { .arc-pastille { transition: none; } }
+
+  /* 2. COMMENT -- la pastille pleine. Le contraste le plus fort de la ligne
+     apres les onglets: c'est le deuxieme choix le plus utile du panneau.
+     `--arme` et `--arme-encre`, et pas `--accent` qui n'est defini nulle part
+     -- les regles de ce fichier qui l'invoquent sont mortes depuis toujours. */
+  .arc-segmente button.on { color: var(--arme-encre); font-weight: 700; }
+
+  /* 3. FILTRE -- meme forme, pastille discrete. Il reste subordonne aux deux
+     autres, et il disparait de toute facon en vue par zone. Ces regles
+     viennent APRES celles du segmente plein: a specificite egale, c'est la
+     derniere qui gagne. */
+  .arc-discret { --n: 3; }
+  .arc-discret button { font-size: 11px; padding: 4px 10px; }
+  .arc-discret button.on { color: var(--texte); font-weight: 700; }
+  .arc-discret .arc-pastille { background: rgba(255,255,255,.10); }
+
+  /* Les filtres n'ont aucun effet sur la vue par zone: ils disparaissent d'un
+     bloc plutot que de s'y griser. Un bouton grise promet encore quelque chose. */
   .arc-filtres-liste[hidden] { display: none; }
   /* La vue par zone. Toutes ses classes sont prefixees `arc-`, comme celles du
      tableau, et pour la meme raison: voir le commentaire de la table ARC. */
@@ -655,20 +733,66 @@
     <button id="arcFermer" title="Fermer (Échap)">✕</button>
   </div>
   <div class="arc-filtres">
-    <!-- DEUX AXES INDEPENDANTS: quoi on regarde, et comment. La quete du Dofus
-         Ocre demande les 286 archimonstres ET 51 boss: deux tables, un panneau. -->
-    <button data-quoi="archi">Archimonstres</button>
-    <button data-quoi="boss">Boss</button>
-    <span style="width:12px"></span>
-    <button data-vue="liste">Liste</button>
-    <button data-vue="zones">Par zone</button>
-    <!-- Les filtres n'ont aucun effet sur la vue par zone: ils DISPARAISSENT
-         plutot que de s'y griser. Un bouton gris promet encore quelque chose. -->
-    <span class="arc-filtres-liste" id="arcFiltresListe">
+    <!-- TROIS AXES, TROIS FORMES: ce qu'on regarde, comment, et quel
+         sous-ensemble. Le dessin de chaque groupe porte sa place dans la
+         hierarchie -- le detail est dans le CSS de .arc-filtres. La quete du
+         Dofus Ocre demande les 286 archimonstres ET 51 boss: deux tables, un
+         panneau.
+
+         LES DEUX ICONES SONT DESSINEES ICI, PAS TELECHARGEES NI EMBARQUEES.
+         src/comptes/emblemes.js a tranche ce debat pour les emblemes de
+         classe: mettre de l'art Ankama dans le paquet envoye aux amis, c'est
+         de la redistribution. Un dessin maison n'en est pas, ne demande aucun
+         reseau, aucun cache, et ne casse pas au prochain patch. A 16 px, la
+         silhouette fait tout le travail de reconnaissance -- un PNG de 400 px
+         descendu a cette taille serait moins net, pas plus fidele. -->
+    <div class="arc-onglets">
+      <button data-quoi="archi">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <defs>
+            <linearGradient id="arcAmeDeg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#8FEDFF"/>
+              <stop offset=".55" stop-color="#3FB8F0"/>
+              <stop offset="1" stop-color="#1478C8"/>
+            </linearGradient>
+          </defs>
+          <path d="M12 1.2c-1.5 3-3.9 4.4-5.3 6.6a7.9 7.9 0 1 0 10.6 0C15.9 5.6 13.5 4.2 12 1.2Z"
+                fill="url(#arcAmeDeg)" stroke="#0B3557" stroke-width="1.3" stroke-linejoin="round"/>
+          <path d="M6.9 13.6c.4-.5.7-1.5 1.2-1.5.5 0 .7.8 1.2.8.5 0 1-1 1.6-1s1.1 1 1.6 1c.5 0 .7-.8 1.2-.8.5 0 .8 1 1.2 1.5.5.6.3 1.7 0 2.2-.4.7-.2 1.6-.8 2.1-.5.5-.5 1.4-1.2 1.5-.6.1-.9-.5-1.5-.5h-1c-.6 0-.9.6-1.5.5-.7-.1-.7-1-1.2-1.5-.6-.5-.4-1.4-.8-2.1-.3-.5-.5-1.6 0-2.2Z"
+                fill="#0A2A45"/>
+          <path d="M10 14.9c.45 0 .8.7.8 1.6s-.35 1.6-.8 1.6-.8-.7-.8-1.6.35-1.6.8-1.6Z" fill="#7FE4FF"/>
+          <path d="M14 14.9c.45 0 .8.7.8 1.6s-.35 1.6-.8 1.6-.8-.7-.8-1.6.35-1.6.8-1.6Z" fill="#7FE4FF"/>
+        </svg>
+        <span>Archimonstres</span>
+      </button>
+      <button data-quoi="boss">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke-linecap="round">
+          <circle cx="10.4" cy="7.6" r="5.4" stroke="#79826F" stroke-width="2.4"/>
+          <g stroke-width="1.7">
+            <path d="M11.3 12.9 9.5 20.3" stroke="#98A18C"/>
+            <path d="M13.7 12.7 13.6 20.6" stroke="#98A18C"/>
+            <path d="M15.7 11.9 17.7 19.3" stroke="#98A18C"/>
+          </g>
+          <g stroke-width="1.5">
+            <path d="M9.7 18.3h1.9M9.6 20.1h1.6" stroke="#E29A3F"/>
+            <path d="M13.8 18.6h1.9M13.7 20.4h1.6" stroke="#E2B93F"/>
+            <path d="M17.1 17.6h1.9M17.4 19.1h1.6" stroke="#BFC24A"/>
+          </g>
+        </svg>
+        <span>Boss</span>
+      </button>
+    </div>
+    <div class="arc-segmente">
+      <span class="arc-pastille"></span>
+      <button data-vue="liste">Liste</button>
+      <button data-vue="zones">Par zone</button>
+    </div>
+    <div class="arc-segmente arc-discret arc-filtres-liste" id="arcFiltresListe">
+      <span class="arc-pastille"></span>
       <button data-filtre="tous">Tous</button>
       <button data-filtre="manquants">Manquants</button>
       <button data-filtre="possedes">Possédés</button>
-    </span>
+    </div>
     <span class="avis-nav" id="arcVise"></span>
   </div>
   <div class="arc-corps" id="arcCorps"></div>
