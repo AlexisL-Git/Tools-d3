@@ -346,15 +346,22 @@
     font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
     color: var(--attenue); font-weight: 700; text-align: center;
   }
-  .arc-table th.gauche { text-align: left; }
-  .arc-table td { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
-  .arc-table td.niv { text-align: right; color: var(--attenue); font-variant-numeric: tabular-nums; }
-  .arc-table td.case { text-align: center; color: var(--attenue); }
-  .arc-table td.case.a { color: var(--arme); }
+  .arc-table th.arc-gauche { text-align: left; }
+  /* `display` EXPLICITE, et ce n'est pas superflu. Le 04/09, les cellules
+     s'appelaient `case` -- un nom deja pris par le losange des cinq colonnes
+     d'une ligne, qui porte `display: grid`. Les <td> sortaient de la mise en
+     table et les quatre coches d'un archimonstre s'empilaient dans la premiere
+     colonne. Les noms sont prefixes depuis, mais poser le display ici rend le
+     tableau insensible a la prochaine collision, quelle qu'elle soit. */
+  .arc-table td { display: table-cell; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .arc-table th { display: table-cell; }
+  .arc-table td.arc-niv { text-align: right; color: var(--attenue); font-variant-numeric: tabular-nums; }
+  .arc-table td.arc-case { text-align: center; color: var(--attenue); }
+  .arc-table td.arc-case.arc-a { color: var(--arme); }
   /* La colonne du personnage dont on a clique le bouton. Le tableau montre
      tout le monde; ce n'est qu'un reperage, jamais un filtre cache. */
-  .arc-table th.vise, .arc-table td.vise { background: rgba(255,255,255,.05); }
-  .arc-table tr.aucun td { color: var(--attenue); }
+  .arc-table th.arc-vise, .arc-table td.arc-vise { background: rgba(255,255,255,.05); }
+  .arc-table tr.arc-aucun td { color: var(--attenue); }
   .arc-filtres { display: flex; align-items: center; gap: 6px; padding: 10px 15px 8px; }
   .arc-filtres button {
     padding: 5px 11px; border-radius: 7px; background: transparent;
@@ -823,6 +830,30 @@
   let arcFiltre = 'tous';
   let arcTable = null;
 
+  // LES CLASSES DU TABLEAU, DECLAREES EN UN SEUL ENDROIT ET TOUTES PREFIXEES.
+  //
+  // Ce n'est pas une coquetterie, c'est une reparation. Le 04/09, les cellules
+  // s'appelaient `case` -- un nom deja pris par le losange des cinq colonnes
+  // d'une ligne de compte, qui porte `display: grid`. Les <td> heritaient de ce
+  // display, sortaient de la mise en table, et les quatre coches d'un
+  // archimonstre s'empilaient VERTICALEMENT dans la premiere colonne au lieu de
+  // se repartir sur les quatre personnages.
+  //
+  // Le balisage etait juste et le code aussi: seul un nom etait deja pris, et
+  // rien ne pouvait le dire -- le navigateur n'a aucune raison de se plaindre.
+  // Un test lit cette table et refuse toute classe non prefixee.
+  const ARC = {
+    gauche: 'arc-gauche',
+    niv: 'arc-niv',
+    cellule: 'arc-case',
+    presente: 'arc-a',
+    visee: 'arc-vise',
+    vide: 'arc-aucun',
+  };
+
+  // Assemble une liste de classes en ecartant les absentes.
+  const classesDe = (...noms) => noms.filter(Boolean).join(' ');
+
   const echapper = (t) => String(t)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -863,23 +894,23 @@
       b.classList.toggle('on', b.dataset.filtre === arcFiltre);
     }
 
-    const enTete = ['<th class="gauche">Archimonstre</th>', '<th>Niv</th>']
-      .concat(comptes.map((c) => '<th class="' + (c.pid === arcVise ? 'vise' : '')
-        + '">' + echapper(c.nom) + '</th>'))
+    const enTete = ['<th class="' + ARC.gauche + '">Archimonstre</th>', '<th>Niv</th>']
+      .concat(comptes.map((c) => '<th class="'
+        + classesDe(c.pid === arcVise && ARC.visee) + '">' + echapper(c.nom) + '</th>'))
       .join('');
 
     const lignes = arcTable.lignes.filter(gardeLigne);
     const corpsHtml = lignes.map((l) => '<tr><td>' + echapper(l.nom) + '</td>'
-      + '<td class="niv">' + l.niveau + '</td>'
+      + '<td class="' + ARC.niv + '">' + l.niveau + '</td>'
       + comptes.map((c) => {
         const a = l.presents.includes(c.pid);
-        return '<td class="case' + (a ? ' a' : '') + (c.pid === arcVise ? ' vise' : '')
-          + '">' + (a ? '✔' : '·') + '</td>';
+        return '<td class="' + classesDe(ARC.cellule, a && ARC.presente,
+          c.pid === arcVise && ARC.visee) + '">' + (a ? '✔' : '·') + '</td>';
       }).join('') + '</tr>').join('');
 
     // UN TABLEAU VIDE DOIT LE DIRE. Sans cette ligne, « aucun manquant » et
     // « le tableau ne s'est pas construit » ont exactement la meme allure.
-    const vide = '<tr class="aucun"><td colspan="' + (comptes.length + 2) + '">'
+    const vide = '<tr class="' + ARC.vide + '"><td colspan="' + (comptes.length + 2) + '">'
       + (comptes.length === 0
         ? 'aucun personnage connecté'
         : 'rien à afficher avec ce filtre') + '</td></tr>';
