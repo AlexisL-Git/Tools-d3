@@ -1,5 +1,17 @@
 [
   {
+    "version": "0.3.3",
+    "le": "2026-09-04",
+    "notes": [
+      "Nouveau : la pierre d'âme s'équipe toute seule à l'entrée en combat, sur chacun de tes personnages, et c'est la bonne tranche qui est choisie selon le niveau du groupe que tu attaques. Un bouton dans la barre du bas l'allume, et une alerte sonore te prévient s'il n'y a plus de pierre à poser.",
+      "Un personnage qui rejoint un combat déjà lancé équipe sa pierre lui aussi, même s'il arrive plusieurs minutes après le reste du groupe. Et quand OMNI n'arrive pas à équiper, il le dit au lieu de se taire.",
+      "Nouveau panneau : ta collection d'archimonstres. Les 286 archimonstres du jeu, une coche par personnage — tu vois d'un coup d'œil qui a quoi et ce qu'il te manque. Un deuxième onglet fait la même chose pour les 51 boss du Dofus Ocre.",
+      "Une vue « où chasser » : les zones classées par ce qu'il te reste à y prendre, dépliables jusqu'à la sous-zone, avec les emblèmes de ceux qui ont encore quelque chose à y attraper. La première ligne te dit où poser ton groupe.",
+      "Rien n'est demandé au jeu pour tenir cette collection : OMNI écoute ton inventaire tel qu'il arrive à la connexion, et coche une pierre dès qu'elle se remplit pendant la chasse. Un bouton rond permet quand même de tout redemander sans te déconnecter.",
+      "Corrigé : quand tu acceptais une invitation de groupe, le panneau d'invitation restait ouvert sur chacune de tes mules au lieu de se fermer."
+    ]
+  },
+  {
     "version": "0.3.2",
     "le": "2026-09-03",
     "notes": [
