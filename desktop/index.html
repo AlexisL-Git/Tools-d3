@@ -402,43 +402,59 @@
      objet -- « un choix parmi N » -- la ou des boutons separes se lisent comme
      N actions independantes. C'est toute la difference, et elle ne coute que
      des bordures partagees. */
-  .arc-segmente { display: flex; }
+  /* La capsule porte la bordure, les segments n'en ont plus: c'est ce qui
+     permet a la pastille de glisser DERRIERE eux sans buter sur des cadres.
+     Colonnes egales, pour que la pastille se place sans mesurer quoi que ce
+     soit -- voir plus bas, c'est la clef de tout ce bloc. */
+  .arc-segmente {
+    position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    border: 1px solid var(--filet); border-radius: 7px; margin-left: 25px; --n: 2;
+  }
   /* Le filet qui separe les groupes est porte par le groupe LUI-MEME: il
-     disparait donc avec lui, ce qu'un <span> pose a cote ne ferait pas. */
+     disparait donc avec lui, ce qu'un <span> pose a cote ne ferait pas.
+     Absolu, et non pose dans le flux: en grille il deviendrait une colonne. */
   .arc-segmente::before {
-    content: ''; align-self: center; width: 1px; height: 18px;
-    background: var(--filet); margin: 0 12px;
+    content: ''; position: absolute; left: -13px; top: 50%; transform: translateY(-50%);
+    width: 1px; height: 18px; background: var(--filet);
   }
   .arc-segmente button {
-    padding: 5px 12px; border: 1px solid var(--filet); border-radius: 0;
-    background: transparent; color: var(--attenue); font-size: 11.5px;
-    margin-left: -1px;
+    position: relative; z-index: 1;
+    padding: 5px 12px; border: 0; border-radius: 6px; background: transparent;
+    color: var(--attenue); font-size: 11.5px; text-align: center;
   }
-  .arc-segmente button:first-of-type { border-radius: 7px 0 0 7px; margin-left: 0; }
-  .arc-segmente button:last-of-type { border-radius: 0 7px 7px 0; }
   .arc-segmente button:hover { color: var(--texte); }
-  /* Le segment actif passe DEVANT: la bordure du voisin, posee apres lui dans
-     le flux, mordrait sinon sur la sienne. */
-  .arc-segmente button.on { position: relative; z-index: 1; }
 
-  /* 2. COMMENT -- rempli. Le contraste le plus fort de la ligne apres les
-     onglets: c'est le deuxieme choix le plus utile du panneau. `--arme` et
-     `--arme-encre`, et pas `--accent` qui n'est defini nulle part -- les cinq
-     regles de ce fichier qui l'invoquent sont mortes depuis toujours. */
-  .arc-segmente button.on {
-    background: var(--arme); border-color: var(--arme);
-    color: var(--arme-encre); font-weight: 700;
+  /* LA PASTILLE SE PLACE SANS QU'ON MESURE RIEN, et c'est delibere. La lire au
+     `offsetLeft` du segment actif aurait demande du JS, or le panneau
+     s'execute aussi dans le DOM de facade de test/pda-archi-panneau.test.js,
+     qui n'a AUCUNE mise en page: toute geometrie y vaut undefined, donc NaN.
+     Des colonnes egales et un `:has()` donnent la meme chose en CSS pur,
+     invisible au harnais et increvable. */
+  .arc-pastille {
+    position: absolute; inset: 0 auto 0 0; width: calc(100% / var(--n));
+    background: var(--arme); border-radius: 6px;
+    transition: transform .18s ease;
   }
+  .arc-segmente:has(> button:nth-of-type(2).on) .arc-pastille { transform: translateX(100%); }
+  .arc-segmente:has(> button:nth-of-type(3).on) .arc-pastille { transform: translateX(200%); }
+  /* Un glissement n'est pas une information: qui ne veut pas d'animation garde
+     tout le reste. */
+  @media (prefers-reduced-motion: reduce) { .arc-pastille { transition: none; } }
 
-  /* 3. FILTRE -- meme forme, sans remplissage. Il reste subordonne aux deux
+  /* 2. COMMENT -- la pastille pleine. Le contraste le plus fort de la ligne
+     apres les onglets: c'est le deuxieme choix le plus utile du panneau.
+     `--arme` et `--arme-encre`, et pas `--accent` qui n'est defini nulle part
+     -- les regles de ce fichier qui l'invoquent sont mortes depuis toujours. */
+  .arc-segmente button.on { color: var(--arme-encre); font-weight: 700; }
+
+  /* 3. FILTRE -- meme forme, pastille discrete. Il reste subordonne aux deux
      autres, et il disparait de toute facon en vue par zone. Ces regles
      viennent APRES celles du segmente plein: a specificite egale, c'est la
      derniere qui gagne. */
+  .arc-discret { --n: 3; }
   .arc-discret button { font-size: 11px; padding: 4px 10px; }
-  .arc-discret button.on {
-    background: rgba(255,255,255,.07); border-color: var(--bord);
-    color: var(--texte); font-weight: 700;
-  }
+  .arc-discret button.on { color: var(--texte); font-weight: 700; }
+  .arc-discret .arc-pastille { background: rgba(255,255,255,.10); }
 
   /* Les filtres n'ont aucun effet sur la vue par zone: ils disparaissent d'un
      bloc plutot que de s'y griser. Un bouton grise promet encore quelque chose. */
@@ -767,10 +783,12 @@
       </button>
     </div>
     <div class="arc-segmente">
+      <span class="arc-pastille"></span>
       <button data-vue="liste">Liste</button>
       <button data-vue="zones">Par zone</button>
     </div>
     <div class="arc-segmente arc-discret arc-filtres-liste" id="arcFiltresListe">
+      <span class="arc-pastille"></span>
       <button data-filtre="tous">Tous</button>
       <button data-filtre="manquants">Manquants</button>
       <button data-filtre="possedes">Possédés</button>

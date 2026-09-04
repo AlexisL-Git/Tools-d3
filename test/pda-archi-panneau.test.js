@@ -53,7 +53,7 @@ test('aucune regle hors du panneau ne definit une classe arc-', () => {
   const inconnues = regles.filter(
     (c) => !classesArchi.includes(c)
       && !['arc-table', 'arc-corps', 'arc-pied', 'arc-filtres', 'arc-relire',
-        'arc-filtres-liste', 'arc-onglets', 'arc-segmente', 'arc-discret'].includes(c),
+        'arc-filtres-liste', 'arc-onglets', 'arc-segmente', 'arc-discret', 'arc-pastille'].includes(c),
   );
   assert.deepStrictEqual(inconnues, []);
 });
@@ -302,4 +302,16 @@ test('chaque onglet de collection porte une icone', () => {
     assert.match(barre.slice(debut, barre.indexOf('</button>', marque)), /<svg/,
       `le bouton ${quoi} n a pas d icone`);
   }
+});
+
+// DEPUIS LA PASTILLE, C'EST ELLE QUI PORTE L'ETAT ACTIF: les segments n'ont
+// plus de remplissage a eux. Un groupe segmente qui perdrait sa pastille
+// n'aurait donc plus AUCUN signal d'etat -- trois boutons identiques dont
+// aucun ne dit lequel est choisi.
+test('chaque groupe segmente porte sa pastille', () => {
+  const barre = html.slice(html.indexOf('<div class="arc-filtres">'), html.indexOf('<div class="arc-corps"'));
+  const groupes = barre.match(/class="arc-segmente[^"]*"/g) || [];
+  const pastilles = barre.match(/class="arc-pastille"/g) || [];
+  assert.ok(groupes.length >= 2, 'les deux groupes segmentes sont introuvables');
+  assert.strictEqual(pastilles.length, groupes.length, 'un groupe segmente n a pas de pastille');
 });
