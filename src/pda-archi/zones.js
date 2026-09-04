@@ -121,18 +121,26 @@ function parZones({ lignes, comptes, vise = null, quoi = 'archi' }) {
         restants,
       });
     }
-    sousZones.sort(decroissant((s) => s.nom));
+    // CE QUI EST FAIT DISPARAIT. Une sous-zone ou il ne reste rien n est pas
+    // une information: c est une ligne a sauter, et il y en a plus de cent.
+    // Demande de Jibef le 04/09.
+    const restantes = sousZones.filter((s) => s.manquants > 0);
+    restantes.sort(decroissant((s) => s.nom));
 
     // MAIS LE TOTAL DE LA ZONE NE LE COMPTE QU UNE FOIS. Sommer les sous-zones
     // gonflerait Amakna toute seule, et le tri par « ou il en manque le plus »
     // designerait la mauvaise region.
     const tous = [...new Set([...parSz.values()].flat())];
     const restantsZone = tous.filter(manque).map((m) => ({ qui: quiPour(m) }));
+    // Meme regle un cran au-dessus: une zone finie ne s affiche pas. Le test
+    // du niveau au-dessus garantit qu une zone gardee garde bien toutes ses
+    // sous-zones ou il reste quelque chose.
+    if (restantsZone.length === 0) continue;
     out.push({
       zone,
       manquants: restantsZone.length,
       qui: quiParmi(restantsZone),
-      sousZones,
+      sousZones: restantes,
     });
   }
   out.sort(decroissant((z) => z.zone));

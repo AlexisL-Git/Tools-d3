@@ -1006,6 +1006,11 @@
   // OU CHASSER: les zones triees par ce qu'il y reste a prendre, depliables en
   // sous-zones. C'est la sous-zone qui dit ou aller; la zone dit ou est le gros
   // du travail.
+  // Combien de personnages ont un inventaire lu. Sert a distinguer « tout est
+  // pris » de « on ne sait rien » -- deux listes vides qui ne veulent pas du
+  // tout dire la meme chose.
+  const comptesLus = () => (arcTable.comptes || []).filter((c) => c.lu).length;
+
   function dessinerZones(corps) {
     const zones = arcTable.zones || [];
 
@@ -1032,6 +1037,17 @@
       + '<span class="' + ARC.qui + '">'
       + r.qui.map((pid) => emblemeDe(pid, nomDuPid(pid) + ' — il lui manque celui-la')).join('')
       + '</span></div>';
+
+    // UNE LISTE VIDE DOIT LE DIRE. Depuis que les zones terminees
+    // disparaissent, une collection finie rend zero ligne -- et un panneau
+    // blanc ne se distingue pas d'un panneau casse.
+    if (zones.length === 0) {
+      corps.innerHTML = '<div class="' + ARC.archi + '">'
+        + (comptesLus() === 0
+          ? 'aucun inventaire lu : lance tes clients après OMNI, ou clique sur le bouton rond'
+          : 'plus rien à chasser ici — tout est pris') + '</div>';
+      return;
+    }
 
     corps.innerHTML = zones.map((z) => {
       const ouverte = arcOuvertes.has(z.zone);

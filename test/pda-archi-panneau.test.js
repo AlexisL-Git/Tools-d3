@@ -135,13 +135,17 @@ function boutonsDeLaBarre() {
 
 // Ouvre le panneau comme le ferait un clic sur le bouton d'une ligne, et rend
 // les noeuds pour qu'on puisse regarder ce qui s'y est ecrit.
-async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false } = {}) {
+async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false, complet = false } = {}) {
   const appels = { table: 0, relire: 0, args: [] };
+  const { ARCHIMONSTRES } = require('../src/pda-archi/archimonstres');
+  const tout = new Set(ARCHIMONSTRES.map((a) => a.id));
   const table = construire({
-    comptes: [
-      { pid: 101, nom: 'Un', ames: new Set([2272]) },
-      { pid: 102, nom: 'Deux', ames: new Set() },
-    ],
+    comptes: complet
+      ? [{ pid: 101, nom: 'Un', ames: tout }, { pid: 102, nom: 'Deux', ames: tout }]
+      : [
+        { pid: 101, nom: 'Un', ames: new Set([2272]) },
+        { pid: 102, nom: 'Deux', ames: new Set() },
+      ],
     vise,
   });
   const parId = new Map();
@@ -275,4 +279,12 @@ test('le selecteur de vue, lui, ne redemande rien', async () => {
   const { appels, boutons } = await ouvrirLePanneau();
   await boutons.find((b) => b.dataset.vue === 'zones').clic();
   assert.strictEqual(appels.table, 1, 'la vue par zone voyage deja avec la table');
+});
+
+// PLUS RIEN A CHASSER DOIT SE DIRE. Depuis que les zones terminees
+// disparaissent, une collection finie rend une liste vide -- et un panneau
+// blanc ne se distingue pas d'un panneau casse.
+test('la vue par zone dit quand il ne reste plus rien', async () => {
+  const { parId } = await ouvrirLePanneau({ vue: 'zones', complet: true });
+  assert.match(parId.get('arcCorps').innerHTML, /plus rien/i);
 });

@@ -93,7 +93,8 @@ test('avec un personnage vise, manquant veut dire manquant pour lui', () => {
     { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
     { pid: 2, nom: 'Vide', ames: new Set() },
   ];
-  assert.strictEqual(zoneDe(arbre({ comptes, vise: 1 }), 'Amakna').manquants, 0);
+  // Pour le premier il ne reste rien, donc la zone ne s'affiche plus du tout.
+  assert.strictEqual(zoneDe(arbre({ comptes, vise: 1 }), 'Amakna'), undefined);
   assert.strictEqual(zoneDe(arbre({ comptes, vise: 2 }), 'Amakna').manquants, 78);
 });
 
@@ -158,7 +159,49 @@ test('chaque archimonstre manquant dit a qui il manque', () => {
   assert.deepStrictEqual(cim.restants.map((r) => [r.id, r.qui]), [[TOFUMANCHOU, [2]]]);
 });
 
-test('une sous-zone complete n a plus rien a lister', () => {
+// LE COMPTE ET LA LISTE NE PEUVENT PAS DIVERGER, a aucun niveau: une sous-zone
+// affichee a toujours quelque chose a lister, et une sous-zone qui n'a rien a
+// lister n'est plus affichee.
+test('toute sous-zone affichee a quelque chose a lister', () => {
+  const ames = new Set(TOUS.filter((id) => id !== TOFUMANCHOU));
+  const arb = arbre({ comptes: [{ pid: 1, nom: 'Jibef', ames }] });
+  const muettes = arb.flatMap((z) => z.sousZones).filter((s) => s.restants.length === 0);
+  assert.deepStrictEqual(muettes, []);
+});
+
+// --- Ce qui est fait disparait ---------------------------------------------
+//
+// Une zone ou il ne reste rien n'est pas une information: c'est une ligne a
+// sauter, et il y en a seize. Demande de Jibef le 2026-09-04. La regle vaut aux
+// deux niveaux, et elle vit ICI plutot que dans l'affichage: « ou chasser » ne
+// veut rien dire d'autre.
+
+test('une sous-zone entierement faite disparait', () => {
+  // Tout sauf Tofumanchou: seules ses deux sous-zones restent en Amakna.
+  const ames = new Set(TOUS.filter((id) => id !== TOFUMANCHOU));
+  const amakna = zoneDe(arbre({ comptes: [{ pid: 1, nom: 'Jibef', ames }] }), 'Amakna');
+  assert.deepStrictEqual(
+    amakna.sousZones.map((s) => s.nom).sort(),
+    ['Cimetière', 'Cryptes du cimetière'],
+  );
+});
+
+test('une zone entierement faite disparait', () => {
+  const ames = new Set(TOUS.filter((id) => id !== TOFUMANCHOU));
+  const arb = arbre({ comptes: [{ pid: 1, nom: 'Jibef', ames }] });
+  assert.deepStrictEqual(arb.map((z) => z.zone), ['Amakna']);
+});
+
+test('tout fait ne laisse aucune zone', () => {
   const arb = arbre({ comptes: [{ pid: 1, nom: 'Jibef', ames: new Set(TOUS) }] });
-  assert.deepStrictEqual(sousZoneDe(arb, 'Amakna', 'Cimetière').restants, []);
+  assert.deepStrictEqual(arb, []);
+});
+
+// La regle ne doit pas manger ce qui reste: une zone gardee garde TOUTES ses
+// sous-zones ou il reste quelque chose.
+test('une zone gardee garde ses sous-zones non faites', () => {
+  const arb = arbre({ comptes: [] });
+  const vides = arb.flatMap((z) => z.sousZones).filter((s) => s.manquants === 0);
+  assert.deepStrictEqual(vides, []);
+  assert.ok(arb.every((z) => z.sousZones.length > 0), 'aucune zone sans sous-zone');
 });
