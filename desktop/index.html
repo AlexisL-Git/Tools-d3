@@ -339,9 +339,12 @@
     background: var(--fond); display: flex; flex-direction: column;
   }
   .arc-corps { flex: 1; overflow-y: auto; padding: 0 15px 14px; }
-  .arc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  /* `separate` ET PAS `collapse`, pour l'en-tete collant: avec les bordures
+     fusionnees, celle de l'en-tete appartient au tableau et reste en haut de la
+     page pendant que l'en-tete descend -- le filet se detache de sa ligne. */
+  .arc-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
   .arc-table th {
-    position: sticky; top: 0; z-index: 1; background: var(--fond);
+    position: sticky; top: 0; z-index: 3; background: var(--fond);
     padding: 9px 6px; border-bottom: 1px solid var(--filet);
     font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
     color: var(--attenue); font-weight: 700; text-align: center;
@@ -359,8 +362,14 @@
   .arc-table td.arc-case { text-align: center; color: var(--attenue); }
   .arc-table td.arc-case.arc-a { color: var(--arme); }
   /* La colonne du personnage dont on a clique le bouton. Le tableau montre
-     tout le monde; ce n'est qu'un reperage, jamais un filtre cache. */
-  .arc-table th.arc-vise, .arc-table td.arc-vise { background: rgba(255,255,255,.05); }
+     tout le monde; ce n'est qu'un reperage, jamais un filtre cache.
+     LE VOILE SE POSE EN PLUS DU FOND, JAMAIS A LA PLACE. Cette regle vient
+     apres celle de l'en-tete: ecrite `background: rgba(...)`, elle REMPLACAIT
+     `var(--fond)`, l'en-tete collant devenait translucide, et les coches lui
+     passaient au travers pendant le defilement. Signale par Jibef le 04/09. */
+  .arc-table th.arc-vise, .arc-table td.arc-vise {
+    background: linear-gradient(rgba(255,255,255,.05), rgba(255,255,255,.05)), var(--fond);
+  }
   .arc-table tr.arc-aucun td { color: var(--attenue); }
   .arc-filtres { display: flex; align-items: center; gap: 6px; padding: 10px 15px 8px; }
   .arc-filtres button {

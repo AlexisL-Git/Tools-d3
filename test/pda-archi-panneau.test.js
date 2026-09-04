@@ -63,3 +63,29 @@ test('chaque classe declaree est stylee quelque part', () => {
   const sansStyle = classesArchi.filter((c) => !style.includes('.' + c));
   assert.deepStrictEqual(sansStyle, []);
 });
+
+// L'EN-TETE COLLE DOIT ETRE OPAQUE, SINON IL NE COLLE A RIEN.
+//
+// Le 04/09, la colonne suivie recevait `background: rgba(255,255,255,.05)` --
+// un voile, pose pour la reperer. Mais cette regle vient APRES celle qui donne
+// `var(--fond)` a l'en-tete: elle ne posait pas un voile PAR-DESSUS le fond,
+// elle REMPLACAIT le fond. L'en-tete devenait donc translucide, et les coches
+// lui passaient au travers pendant le defilement.
+//
+// La regle: toute declaration de fond qui touche l'en-tete du tableau doit
+// contenir la couleur de fond opaque. Un voile se pose en PLUS, jamais A LA
+// PLACE.
+test('tout fond pose sur l en-tete du tableau reste opaque', () => {
+  const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  const sansStyleDeCommentaire = style.replace(/\/\*[\s\S]*?\*\//g, '');
+  const regles = [...sansStyleDeCommentaire.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+
+  const fautives = [];
+  for (const [, selecteur, corps] of regles) {
+    if (!selecteur.includes('.arc-table th')) continue;
+    for (const [, valeur] of corps.matchAll(/background(?:-color)?\s*:\s*([^;]+)/g)) {
+      if (!valeur.includes('var(--fond)')) fautives.push(selecteur.trim() + ' -> ' + valeur.trim());
+    }
+  }
+  assert.deepStrictEqual(fautives, []);
+});
