@@ -89,3 +89,113 @@ test('tout fond pose sur l en-tete du tableau reste opaque', () => {
   }
   assert.deepStrictEqual(fautives, []);
 });
+
+// LE PANNEAU S'OUVRE VRAIMENT, et c'est le seul test qui execute son code.
+//
+// Le 04/09, une reecriture de `dessinerZones` a emporte la fonction qui la
+// suivait, `gardeLigne`. `dessinerArchi()` levait donc un ReferenceError -- et
+// comme l'erreur tombait dans une fonction `async` dont personne n'attrapait le
+// rejet, le clic sur le bouton ne faisait RIEN. Pas de message, pas de trace,
+// rien. Ni le navigateur ni les tests de source ne pouvaient le dire.
+//
+// Le DOM de facade ne simule que ce que ce chemin touche. Il n'a pas vocation a
+// grandir: le jour ou il faudrait vraiment un navigateur, c'est qu'il faut un
+// vrai navigateur.
+const vm = require('node:vm');
+const { construire } = require('../src/pda-archi/tableau');
+
+function noeud() {
+  return {
+    textContent: '', innerHTML: '', hidden: true, disabled: false, title: '',
+    dataset: {}, style: {}, children: [],
+    classList: { toggle() {}, add() {}, remove() {}, contains: () => false },
+    addEventListener() {}, setAttribute() {},
+    append(...k) { this.children.push(...k); },
+    appendChild(k) { this.children.push(k); },
+    querySelectorAll: () => [], querySelector: () => null,
+  };
+}
+
+// Ouvre le panneau comme le ferait un clic sur le bouton d'une ligne, et rend
+// les noeuds pour qu'on puisse regarder ce qui s'y est ecrit.
+async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false } = {}) {
+  const table = construire({
+    comptes: [
+      { pid: 101, nom: 'Un', ames: new Set([2272]) },
+      { pid: 102, nom: 'Deux', ames: new Set() },
+    ],
+    vise,
+  });
+  const parId = new Map();
+  const document = {
+    getElementById: (id) => {
+      if (!parId.has(id)) parId.set(id, noeud());
+      return parId.get(id);
+    },
+    createElement: () => noeud(),
+    querySelectorAll: () => [],
+    querySelector: () => null,
+    addEventListener() {},
+    body: noeud(),
+  };
+  const contexte = {
+    document,
+    console,
+    setTimeout,
+    clearTimeout,
+    setInterval: () => 0,
+    clearInterval: () => {},
+    window: {
+      addEventListener() {},
+      app: {
+        surEtat() {},
+        surPdaArchiAlerte() {},
+        tableauArchi: async () => {
+          if (echoue) throw new Error('le service a refusé');
+          return table;
+        },
+      },
+    },
+  };
+  contexte.window.document = document;
+  vm.createContext(contexte);
+  const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+  vm.runInContext(
+    script + '\n;globalThis.__ouvrir = ouvrirArchi; globalThis.__vue = (v) => { arcVue = v; };',
+    contexte,
+  );
+  if (vue !== 'liste') contexte.__vue(vue);
+  await contexte.__ouvrir(vise);
+  return parId;
+}
+
+test('un clic sur le bouton d une ligne ouvre le panneau', async () => {
+  const parId = await ouvrirLePanneau();
+  assert.strictEqual(parId.get('vueArchi').hidden, false);
+});
+
+test('le tableau se remplit', async () => {
+  const parId = await ouvrirLePanneau();
+  const corps = parId.get('arcCorps').innerHTML;
+  assert.ok(corps.includes('Pichakoté le Dégoutant'), 'le tableau doit nommer les archimonstres');
+  assert.ok(parId.get('arcPied').innerHTML.includes('286'), 'le pied doit donner le total');
+});
+
+test('la vue par zone se remplit aussi', async () => {
+  const parId = await ouvrirLePanneau({ vue: 'zones' });
+  const corps = parId.get('arcCorps').innerHTML;
+  assert.ok(corps.includes('Amakna'), 'la vue par zone doit nommer les zones');
+});
+
+// UN CLIC QUI NE FAIT RIEN EST LE PIRE DES ECHECS DE CE PROJET, et celui-ci
+// s'est produit deux fois sur ce seul panneau. `ouvrirArchi` est `async`: toute
+// exception y devient un rejet que personne n'attrape, et le panneau reste
+// simplement ferme. L'utilisateur, lui, voit un bouton casse.
+//
+// Le panneau doit donc s'ouvrir MEME EN ECHEC, et dire pourquoi.
+test('une ouverture qui echoue s ouvre quand meme et le dit', async () => {
+  const parId = await ouvrirLePanneau({ echoue: true });
+  assert.strictEqual(parId.get('vueArchi').hidden, false);
+  assert.match(parId.get('arcCorps').innerHTML, /n’a pas pu être construit/);
+  assert.match(parId.get('arcCorps').innerHTML, /le service a refusé/);
+});

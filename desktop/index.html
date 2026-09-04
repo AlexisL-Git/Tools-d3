@@ -927,10 +927,24 @@
 
   async function ouvrirArchi(pid) {
     arcVise = pid === undefined ? null : pid;
-    // LE PERSONNAGE SUIVI PART AVEC LA DEMANDE: c'est lui qui decide de ce que
-    // « manquant » veut dire dans la vue par zone.
-    arcTable = await window.app.tableauArchi(arcVise);
-    dessinerArchi();
+    // LE PANNEAU S'OUVRE MEME EN ECHEC, ET DIT POURQUOI.
+    //
+    // Cette fonction est `async`: toute exception y devient un rejet que
+    // personne n'attrape, et sans ce filet le panneau reste simplement ferme --
+    // l'utilisateur voit un bouton qui « ne fait rien ». C'est arrive le 04/09,
+    // une fonction disparue dans une reecriture, et rien nulle part ne l'a dit.
+    try {
+      // LE PERSONNAGE SUIVI PART AVEC LA DEMANDE: c'est lui qui decide de ce
+      // que « manquant » veut dire dans la vue par zone.
+      arcTable = await window.app.tableauArchi(arcVise);
+      dessinerArchi();
+    } catch (e) {
+      arcTable = null;
+      document.getElementById('arcCorps').innerHTML = '<div class="' + ARC.archi + '">'
+        + 'Le tableau n’a pas pu être construit : '
+        + echapper(e && e.message ? e.message : String(e)) + '</div>';
+      document.getElementById('arcPied').textContent = '';
+    }
     document.getElementById('vueArchi').hidden = false;
   }
 
@@ -1014,6 +1028,18 @@
         dessinerArchi();
       });
     }
+  }
+
+  // LE FILTRE PORTE SUR LA COLONNE VISEE quand il y en a une, sur le groupe
+  // sinon. « Manquants » ne veut pas dire la meme chose pour un personnage et
+  // pour l'equipe, et c'est justement la question qu'on se pose en cliquant le
+  // bouton d'une ligne.
+  function gardeLigne(ligne) {
+    if (arcFiltre === 'tous') return true;
+    const a = arcVise === null
+      ? ligne.presents.length > 0
+      : ligne.presents.includes(arcVise);
+    return arcFiltre === 'possedes' ? a : !a;
   }
 
   function dessinerArchi() {
