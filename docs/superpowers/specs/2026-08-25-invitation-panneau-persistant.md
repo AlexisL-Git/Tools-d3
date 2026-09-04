@@ -1,8 +1,16 @@
 # Le panneau d'invitation reste ouvert après une acceptation automatique
 
 **Date :** 2026-08-25
-**Statut :** constat établi par la mesure. **Non résolu, reporté volontairement.**
-Aucune conception n'est engagée ici.
+**Statut :** constat établi par la mesure. **Repris et clos le 2026-09-04** —
+voir `2026-09-04-panneau-invitation-masquage-design.md`.
+
+> **La mesure prescrite plus bas n'a pas été faite, et ne doit pas l'être :**
+> son résultat était déductible. Le serveur reçoit des octets identiques qu'un
+> humain clique ou qu'OMNI injecte, donc ce qu'il renvoie est le même dans les
+> deux cas, donc les deux listes à comparer sont identiques par construction.
+> La fermeture du panneau est locale au clic, et aucune injection vers le
+> client ne la déclenchera. La correction retenue ne ferme pas le panneau :
+> elle retire l'invitation du flux descendant, pour qu'il ne s'ouvre jamais.
 
 ## Le symptôme
 

@@ -8,6 +8,7 @@ const { creerDuplicateur, ETALEMENT_REJEU } = require('../src/duplicateur');
 const { creerGardeCombat } = require('../src/garde-combat');
 const { creerAbandonGroupe } = require('../src/abandon-combat');
 const { creerPasseur } = require('../src/passeur');
+const { creerMasque, composerDescendant } = require('../src/masque');
 const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/songes');
@@ -299,6 +300,16 @@ const reglagesInvitation = { actif: false };
 const reglagesNoAnim = { actif: false };
 const reglagesEchange = { actif: false };
 const reglagesSonge = { actif: false };
+
+// LES TRAMES QU'OMNI ACCEPTE A LA PLACE DU JOUEUR NE DOIVENT PAS ATTEINDRE SON
+// CLIENT: sinon le panneau d'invitation, et la fenetre de proposition
+// d'echange, restent affiches pour toujours sur chaque compte invite --
+// l'acceptation part sur la socket amont, le client ne la voit jamais passer,
+// et rien dans ce qui redescend ne ferme ce que seul son propre clic ferme. La
+// demonstration complete est en tete de src/masque.js.
+const masque = creerMasque({
+  onCompteRendu: ({ pid, conn, raison }) => journal(pid, `masque (connexion ${conn}) : ${raison}`),
+});
 
 // Suspendre n'efface rien: les cases par compte restent ou elles sont, et on
 // reprend exactement dans l'etat d'avant.
@@ -956,7 +967,7 @@ app.whenReady().then(async () => {
     // demande un listerClients(), qui passe par powershell. Le faire a chaque
     // changement de fenetre serait hors de proportion.
     onEnAvant: () => rafraichirOverlay(),
-    transformerEntrant: creerTransformateurFlux({
+    transformerEntrant: composerDescendant(creerTransformateurFlux({
       reglages: reglagesNoAnim,
       // CRITICAL de revue finale: sans ce predicat, le transformateur ne
       // consultait que le drapeau general (noAnim.size > 0) et armait DONC
@@ -981,7 +992,10 @@ app.whenReady().then(async () => {
         return etat !== null && Boolean(etat.noAnim);
       },
       onCompteRendu: ({ conn, pid, raison }) => journal(pid, `no-anim (connexion ${conn}) : ${raison}`),
-    }),
+    // ... puis, apres lui, le masquage des trames qu'OMNI a acceptees a la
+    // place du joueur. Le no-anim REECRIT, le masque RETIRE: dans cet ordre,
+    // le masque travaille sur ce que le client verrait vraiment.
+    }), (buf, conn) => masque.transformer(buf, conn)),
     onSouris: ({ clic }) => jouerSouris(clic),
   });
 
@@ -1269,6 +1283,7 @@ app.whenReady().then(async () => {
     protege('invitation', creerAccepteur({
       superviseur,
       reglages: reglagesInvitation,
+      masquer: (pid, brute) => masque.marquer(pid, brute),
       onCompteRendu: ({ pid, ok, raison, groupe }) => {
         if (ok) journal(pid, `invitation : acceptee (groupe ${groupe})`);
         else journal(pid, `invitation : ${raison}`);
@@ -1278,6 +1293,11 @@ app.whenReady().then(async () => {
       superviseur,
       reglages: reglagesEchange,
       delai: DELAI_REACTION,
+      // PAS DE `masquer:` ICI, ET C'EST UNE MESURE, PAS UN OUBLI. Essai en jeu
+      // du 2026-09-04: `kfz` masquee, le compte invite ne voit plus du tout
+      // qu'il est en echange -- il ne peut donc plus rien y deposer. Cette
+      // trame ne fait pas qu'ouvrir un panneau, elle EST ce qui apprend
+      // l'echange au client. Voir le spec du 2026-09-04.
       onCompteRendu: ({ pid, ok, raison, validation, retardMs }) => {
         if (ok) journal(pid, `echange : ${validation ? 'valide' : 'accepte'} apres ${retardMs} ms`);
         else journal(pid, `echange : ${raison}`);

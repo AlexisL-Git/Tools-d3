@@ -56,8 +56,13 @@ const champ = (frame, no) => (frame.payload || []).find((f) => f.no === no) || n
 // reglages      — { actif }, RELU a chaque trame pour que l'interrupteur
 //                 general prenne effet aussitot
 // onCompteRendu — recoit ce qui a ete emis, ou refuse et pourquoi
-function creerAccepteur({ superviseur, reglages, onCompteRendu = () => {} }) {
-  return function onTrame({ pid, dir, frame }) {
+// masquer       — (pid, brute) appele pour l'invitation REELLEMENT acceptee,
+//                 afin qu'elle n'atteigne jamais le client: sans cela son
+//                 panneau reste affiche pour toujours. Le pourquoi est
+//                 demontre dans src/masque.js. Inerte par defaut, comme
+//                 partout ailleurs ici: ne rien fournir ne change rien.
+function creerAccepteur({ superviseur, reglages, onCompteRendu = () => {}, masquer = () => {} }) {
+  return function onTrame({ pid, dir, frame, brute }) {
     if (dir !== 'in' || frame === null || frame === undefined) return;
     if (frame.type !== TYPE_INVITATION) return;
 
@@ -86,6 +91,10 @@ function creerAccepteur({ superviseur, reglages, onCompteRendu = () => {} }) {
     if (groupe === null) return refus('invitation refusee : aucun identifiant de groupe dans la trame');
 
     const res = superviseur.emettre(pid, construireAcceptation(groupe.value));
+    // Masquee SEULEMENT si l'acceptation est partie. Si elle a echoue, le
+    // panneau doit rester: il porte alors la seule invitation encore
+    // acceptable, a la main.
+    if (res.ok) masquer(pid, brute);
     onCompteRendu({ pid, ok: res.ok, raison: res.raison, octets: res.octets, groupe: groupe.value });
   };
 }

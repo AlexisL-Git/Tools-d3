@@ -159,3 +159,38 @@ test('une invitation sans identifiant de groupe est refusee, pas acceptee a l av
   assert.strictEqual(sup.emis.length, 0);
   assert.match(rendu[0].raison, /identifiant/);
 });
+
+// LE PANNEAU D'INVITATION. Voir src/masque.js: il ne peut pas etre ferme par
+// le reseau, seulement empeche de s'ouvrir. L'accepteur est le seul a savoir
+// quelle trame a ete acceptee -- et c'est lui, jamais un filtre recopie
+// ailleurs, qui designe ce qui doit etre masque au client.
+const BRUTE = Buffer.from('0a37 0a35 0a13'.replace(/ /g, ''), 'hex');
+const evenementBrut = (frame, brute, pid = 1) => ({ pid, dir: 'in', frame, brute });
+
+test('l invitation acceptee est marquee, pour ne jamais atteindre le client', () => {
+  const sup = fauxSuperviseur();
+  const masquees = [];
+  creerAccepteur({
+    superviseur: sup, reglages: { actif: true },
+    masquer: (pid, brute) => masquees.push({ pid, brute }),
+  })(evenementBrut(invitation(AMI), BRUTE));
+  assert.strictEqual(sup.emis.length, 1);
+  assert.strictEqual(masquees.length, 1);
+  assert.strictEqual(masquees[0].pid, 1);
+  assert.ok(masquees[0].brute.equals(BRUTE));
+});
+
+// Une invitation qu'on n'accepte pas doit rester VISIBLE: la masquer
+// ferait disparaitre en silence l'invitation d'un vrai ami.
+test('une invitation refusee n est jamais marquee', () => {
+  const sup = fauxSuperviseur();
+  const masquees = [];
+  const a = creerAccepteur({
+    superviseur: sup, reglages: { actif: true },
+    masquer: (pid, brute) => masquees.push({ pid, brute }),
+  });
+  a(evenementBrut(invitation(ETRANGER), BRUTE));
+  a(evenementBrut(invitationSansGroupe(AMI), BRUTE));
+  assert.strictEqual(sup.emis.length, 0);
+  assert.strictEqual(masquees.length, 0);
+});
