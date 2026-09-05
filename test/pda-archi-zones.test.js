@@ -13,9 +13,7 @@ const TOUS = ARCHIMONSTRES.map((a) => a.id);
 const TOFUMANCHOU = 2357;
 
 // L'arbre, tel que le panneau le recevra.
-const arbre = ({ comptes, vise = null }) => parZones({
-  ...construire({ comptes }), vise,
-});
+const arbre = ({ comptes }) => parZones(construire({ comptes }));
 
 const zoneDe = (arb, nom) => arb.find((z) => z.zone === nom);
 const sousZoneDe = (arb, zone, nom) => zoneDe(arb, zone).sousZones.find((s) => s.nom === nom);
@@ -86,23 +84,18 @@ test('sans aucun inventaire lu, le monde entier reste a prendre', () => {
   assert.strictEqual(zoneDe(arb, 'Amakna').manquants, 78);
 });
 
-// Meme regle que le filtre du tableau: avec un personnage suivi, « manquant »
-// veut dire manquant POUR LUI, pas pour l'equipe.
-test('avec un personnage vise, manquant veut dire manquant pour lui', () => {
-  const comptes = [
-    { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
-    { pid: 2, nom: 'Vide', ames: new Set() },
-  ];
-  // Pour le premier il ne reste rien, donc la zone ne s'affiche plus du tout.
-  assert.strictEqual(zoneDe(arbre({ comptes, vise: 1 }), 'Amakna'), undefined);
-  assert.strictEqual(zoneDe(arbre({ comptes, vise: 2 }), 'Amakna').manquants, 78);
-});
-
-// SANS PERSONNAGE VISE, C'EST « A AU MOINS UN ». Ce que le premier possede
+// « A AU MOINS UN », ET SANS AUCUNE EXCEPTION. Ce que le premier possede
 // n'efface donc rien: le second ne l'a pas, et la chasse sert aussi le second.
 // C'est ce qui distingue cette vue du tableau, ou une case cochee quelque part
 // suffit a l'equipe.
-test('sans personnage vise, il suffit qu un seul en manque', () => {
+//
+// IL A EXISTE UNE AUTRE LECTURE, et c'est le bug du 05/09: un parametre `vise`
+// restreignait « manquant » au personnage dont on avait clique le bouton. Or le
+// panneau s'ouvre TOUJOURS par ce bouton -- il n'existe aucun autre chemin --
+// donc la vue par zone ne montrait jamais que la chasse d'un seul: un
+// personnage complet effacait des zones ou ses trois mules n'avaient rien
+// pris, et c'etaient justement les plus fournies. Le parametre a disparu.
+test('il suffit qu un seul compte en manque pour que la zone reste', () => {
   const comptes = [
     { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
     { pid: 2, nom: 'Vide', ames: new Set() },
@@ -110,6 +103,16 @@ test('sans personnage vise, il suffit qu un seul en manque', () => {
   const amakna = zoneDe(arbre({ comptes }), 'Amakna');
   assert.strictEqual(amakna.manquants, 78);
   assert.deepStrictEqual(amakna.qui, [2]);
+});
+
+// L'AUTRE MOITIE DE LA MEME REGLE: une zone ne disparait que quand TOUS les
+// comptes lus l'ont finie.
+test('une zone finie par tous les comptes disparait', () => {
+  const comptes = [
+    { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
+    { pid: 2, nom: 'Complet aussi', ames: new Set(TOUS) },
+  ];
+  assert.deepStrictEqual(arbre({ comptes }), []);
 });
 
 // --- Ce qu'il manque exactement, sous-zone par sous-zone -------------------

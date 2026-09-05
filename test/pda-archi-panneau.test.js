@@ -135,19 +135,28 @@ function boutonsDeLaBarre() {
 
 // Ouvre le panneau comme le ferait un clic sur le bouton d'une ligne, et rend
 // les noeuds pour qu'on puisse regarder ce qui s'y est ecrit.
-async function ouvrirLePanneau({ vise = 101, vue = 'liste', echoue = false, complet = false } = {}) {
+async function ouvrirLePanneau({
+  vise = 101, vue = 'liste', echoue = false, complet = false, viseComplet = false,
+} = {}) {
   const appels = { table: 0, relire: 0, args: [] };
   const { ARCHIMONSTRES } = require('../src/pda-archi/archimonstres');
   const tout = new Set(ARCHIMONSTRES.map((a) => a.id));
-  const table = construire({
-    comptes: complet
-      ? [{ pid: 101, nom: 'Un', ames: tout }, { pid: 102, nom: 'Deux', ames: tout }]
-      : [
-        { pid: 101, nom: 'Un', ames: new Set([2272]) },
-        { pid: 102, nom: 'Deux', ames: new Set() },
-      ],
-    vise,
-  });
+  // `viseComplet`: celui dont on clique le bouton a TOUT, l'autre n'a RIEN.
+  // C'est la configuration du bug du 05/09, et elle ne ressemble a aucune des
+  // deux autres.
+  const comptes = () => {
+    if (complet) {
+      return [{ pid: 101, nom: 'Un', ames: tout }, { pid: 102, nom: 'Deux', ames: tout }];
+    }
+    if (viseComplet) {
+      return [{ pid: 101, nom: 'Un', ames: tout }, { pid: 102, nom: 'Deux', ames: new Set() }];
+    }
+    return [
+      { pid: 101, nom: 'Un', ames: new Set([2272]) },
+      { pid: 102, nom: 'Deux', ames: new Set() },
+    ];
+  };
+  const table = construire({ comptes: comptes() });
   const parId = new Map();
   const boutons = boutonsDeLaBarre();
   const document = {
@@ -270,15 +279,27 @@ test('les filtres reviennent dans la vue liste', async () => {
 // de vue qui redessine ce qu'on a deja: c'est le process principal qui croise.
 test('le selecteur de collection redemande la table des boss', async () => {
   const { appels, boutons } = await ouvrirLePanneau();
-  assert.deepStrictEqual(appels.args, [[101, 'archi']]);
+  assert.deepStrictEqual(appels.args, [['archi']]);
   await boutons.find((b) => b.dataset.quoi === 'boss').clic();
-  assert.deepStrictEqual(appels.args.at(-1), [101, 'boss']);
+  assert.deepStrictEqual(appels.args.at(-1), ['boss']);
 });
 
 test('le selecteur de vue, lui, ne redemande rien', async () => {
   const { appels, boutons } = await ouvrirLePanneau();
   await boutons.find((b) => b.dataset.vue === 'zones').clic();
   assert.strictEqual(appels.table, 1, 'la vue par zone voyage deja avec la table');
+});
+
+// LE BOUTON D'UN PERSONNAGE COMPLET NE VIDE PAS LA VUE PAR ZONE, et c'est le
+// bug du 05/09. Le panneau s'ouvre TOUJOURS par le bouton d'une ligne: quand
+// « manquant » se restreignait a ce personnage, ouvrir depuis celui qui avait
+// tout affichait « plus rien a chasser » alors que ses trois mules n'avaient
+// rien pris. On lisait donc une collection finie qui ne l'etait pas.
+test('ouverte d un complet, la vue par zone montre ce qui manque aux autres', async () => {
+  const { parId } = await ouvrirLePanneau({ vue: 'zones', viseComplet: true });
+  const corps = parId.get('arcCorps').innerHTML;
+  assert.ok(corps.includes('Amakna'), 'Deux n a rien pris en Amakna');
+  assert.doesNotMatch(corps, /plus rien/i);
 });
 
 // PLUS RIEN A CHASSER DOIT SE DIRE. Depuis que les zones terminees

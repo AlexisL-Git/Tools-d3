@@ -90,17 +90,27 @@ test('le tableau porte aussi la vue par zone', () => {
   assert.strictEqual(t.zones[0].manquants, 78);
 });
 
-test('le personnage suivi vaut pour la vue par zone comme pour le filtre', () => {
+// CE QU'UN SEUL POSSEDE NE FERME L'ENDROIT A PERSONNE, et c'est la correction
+// du 05/09. La vue par zone compte pour le GROUPE: le panneau s'ouvre par le
+// bouton d'une ligne, mais le personnage de cette ligne n'y decide plus de ce
+// qui manque -- il cachait des zones ou les trois autres avaient tout a
+// prendre.
+test('ce qu un personnage possede laisse la zone aux autres', () => {
   const t = construire({
     comptes: [
       { pid: 42, nom: 'Jibef', ames: new Set([PICHAKOTE]) },
       { pid: 43, nom: 'Mule1', ames: new Set() },
     ],
-    vise: 42,
   });
   const zone = t.zones.find((z) => z.sousZones.some((s) => s.qui.includes(43)));
   assert.notStrictEqual(zone, undefined, 'Mule1 doit manquer quelque part');
   assert.strictEqual(t.zones.every((z) => z.qui.includes(43)), true);
+  // Pichakoté n'est plus a prendre que pour Mule1, et il reste donc affiche.
+  const restant = t.zones
+    .flatMap((z) => z.sousZones).flatMap((s) => s.restants)
+    .find((r) => r.id === PICHAKOTE);
+  assert.notStrictEqual(restant, undefined, 'Pichakoté manque encore a Mule1');
+  assert.deepStrictEqual(restant.qui, [43]);
 });
 
 // --- La seconde collection: les boss du Dofus Ocre -------------------------

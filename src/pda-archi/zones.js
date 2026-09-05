@@ -54,9 +54,18 @@ const decroissant = (nomDe) => (a, b) => (b.manquants - a.manquants)
 // produisait aussi des lignes a `0` portant quand meme des emblemes, faute de
 // compter la meme chose que `qui`.
 //
-// `vise` est le personnage dont on a clique le bouton, ou null. Avec lui,
-// « manquant » se restreint a CE personnage.
-function parZones({ lignes, comptes, vise = null, quoi = 'archi' }) {
+// « A AU MOINS UN » VAUT AUSSI QUAND ON OUVRE LE PANNEAU SUR QUELQU UN, et
+// c est la correction du 05/09. Le bouton d une ligne passait son personnage
+// ici, et « manquant » se restreignait alors a LUI SEUL: un personnage complet
+// effacait la zone entiere pendant que ses trois mules n y avaient rien pris.
+// Or le panneau s ouvre TOUJOURS par ce bouton -- il n existe aucun autre
+// chemin -- donc la vue par zone ne montrait jamais que la chasse d un seul.
+//
+// La colonne suivie garde tout son sens la ou elle en a un: le surlignage et
+// le filtre de la liste, cote panneau. Elle ne cache plus un endroit ou il
+// reste quelqu un a servir. Une zone ne disparait que quand TOUS les comptes
+// lus l ont finie.
+function parZones({ lignes, comptes, quoi = 'archi' }) {
   const { arbre: ARBRE, parId: PAR_ID } = arbreDe(quoi);
   const presents = new Map((lignes || []).map((l) => [l.id, l.presents]));
 
@@ -72,14 +81,10 @@ function parZones({ lignes, comptes, vise = null, quoi = 'archi' }) {
   const manque = (id) => {
     const p = presents.get(id);
     if (p === undefined) return false;
-    if (vise !== null) return !p.includes(vise);
     // AUCUN INVENTAIRE LU: on ne peut dire a personne ce qui lui manque, alors
     // on montre ce qui existe. Un panneau ouvert avant que les clients soient
     // la doit lister le monde, pas seize zeros.
     if (lus.length === 0) return p.length === 0;
-    // AUCUN INVENTAIRE LU: on ne peut dire a personne ce qui lui manque, alors
-    // on montre ce qui existe. Un panneau ouvert avant que les clients soient
-    // la doit lister le monde, pas seize zeros.
     return lus.some((c) => !p.includes(c.pid));
   };
 

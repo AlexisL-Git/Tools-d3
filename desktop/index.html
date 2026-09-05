@@ -1094,9 +1094,12 @@
     // l'utilisateur voit un bouton qui « ne fait rien ». C'est arrive le 04/09,
     // une fonction disparue dans une reecriture, et rien nulle part ne l'a dit.
     try {
-      // LE PERSONNAGE SUIVI PART AVEC LA DEMANDE: c'est lui qui decide de ce
-      // que « manquant » veut dire dans la vue par zone.
-      arcTable = await window.app.tableauArchi(arcVise, arcQuoi);
+      // LE PERSONNAGE SUIVI NE PART PAS AVEC LA DEMANDE, et c'est la
+      // correction du 05/09. Il decidait de ce que « manquant » veut dire dans
+      // la vue par zone, et cachait donc les endroits qu'il avait finis alors
+      // que les trois autres y avaient tout a prendre. Il ne sert plus qu'ici:
+      // surligner sa colonne, et filtrer la liste.
+      arcTable = await window.app.tableauArchi(arcQuoi);
       dessinerArchi();
     } catch (e) {
       arcTable = null;
@@ -1309,7 +1312,7 @@
         return;
       }
       await new Promise((f) => setTimeout(f, DELAI_RELECTURE_MS));
-      arcTable = await window.app.tableauArchi(arcVise, arcQuoi);
+      arcTable = await window.app.tableauArchi(arcQuoi);
       dessinerArchi();
       // Le compte des demandes PARTIES, pas des reponses: on ne sait pas ici ce
       // qui est revenu, et l'annoncer serait une promesse invention.
@@ -1338,7 +1341,7 @@
         arcQuoi = b.dataset.quoi;
         arcOuvertes.clear();
         arcOuvertesSz.clear();
-        arcTable = await window.app.tableauArchi(arcVise, arcQuoi);
+        arcTable = await window.app.tableauArchi(arcQuoi);
         dessinerArchi();
         return;
       }

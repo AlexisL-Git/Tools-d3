@@ -1595,11 +1595,12 @@ ipcMain.handle('majPrixHdv', async (_e, pid) => {
 // listerClients(): celui-ci passe par powershell, et ouvrir un tableau ne doit
 // pas attendre un process. Un personnage vu il y a une seconde est le bon.
 //
-// `vise` est le pid du personnage dont on a clique le bouton, ou rien. Il ne
-// change pas le tableau -- toutes les colonnes restent -- il ne sert qu'a la
-// vue par zone, ou « manquant » veut alors dire manquant POUR LUI.
-ipcMain.handle('tableauArchi', (_e, vise, quoi) => construireTableauArchi({
-  vise: Number.isFinite(vise) ? vise : null,
+// LE PERSONNAGE SUIVI NE TRAVERSE PLUS L'IPC, et c'est la correction du 05/09.
+// Un `vise` partait avec la demande et restreignait « manquant » a lui seul
+// dans la vue par zone: un personnage complet effacait des zones ou les trois
+// autres avaient tout a prendre. La colonne suivie ne vit plus que dans le
+// panneau, ou elle surligne et filtre la liste sans rien croiser.
+ipcMain.handle('tableauArchi', (_e, quoi) => construireTableauArchi({
   // La collection demandee. Une valeur inconnue rend les archimonstres: le
   // panneau ne peut pas casser sur une faute de frappe.
   quoi: typeof quoi === 'string' ? quoi : 'archi',

@@ -37,13 +37,17 @@ function lignesDe(quoi) {
 // ferait passer un client lance avant OMNI pour un personnage sans une seule
 // ame -- exactement le silence qui ressemble a une reponse, et qui a coute la
 // soiree du 03/09.
-// `vise` est le personnage dont on a clique le bouton, ou null. Il ne change
-// rien au tableau lui-meme -- toutes les colonnes restent affichees -- il ne
-// sert qu'a la vue par zone, ou « manquant » veut alors dire manquant POUR LUI.
+//
+// LE PERSONNAGE SUIVI N'ENTRE PAS ICI, et c'est la correction du 05/09. Il a
+// existe un parametre `vise` qui restreignait « manquant » a un seul
+// personnage dans la vue par zone; il cachait des endroits ou les trois autres
+// avaient encore tout a prendre. La colonne suivie ne vit plus que dans le
+// panneau, ou elle surligne et filtre la liste sans rien croiser.
+//
 // `quoi` choisit la collection: 'archi' pour les 286 archimonstres, 'boss' pour
 // les 51 boss du Dofus Ocre. Une cle inconnue rend les archimonstres -- le
 // panneau ne peut pas casser sur une faute de frappe.
-function construire({ comptes, vise = null, quoi = 'archi' }) {
+function construire({ comptes, quoi = 'archi' }) {
   const liste = (comptes || []).filter((c) => c !== null && c !== undefined);
   const { liste: LIGNES, parId, titre } = lignesDe(quoi);
   const estDeLaTable = (id) => parId.has(id);
@@ -90,7 +94,7 @@ function construire({ comptes, vise = null, quoi = 'archi' }) {
     manquants: LIGNES.length - possedes,
     // OU CHASSER, dans le meme aller-retour: le panneau bascule d'une vue a
     // l'autre sans rien redemander au process principal.
-    zones: parZones({ lignes, comptes: rendus, vise, quoi }),
+    zones: parZones({ lignes, comptes: rendus, quoi }),
   };
 }
 

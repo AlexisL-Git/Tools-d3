@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld('app', {
   pdaArchiArmer: (actif) => ipcRenderer.invoke('pdaArchiArmer', actif),
 
   // Le tableau des archimonstres, construit a la demande cote main.js.
-  tableauArchi: (vise, quoi) => ipcRenderer.invoke('tableauArchi', vise, quoi),
+  tableauArchi: (quoi) => ipcRenderer.invoke('tableauArchi', quoi),
   // Redemander l'inventaire de tous les clients, sans reconnexion.
   archiRelire: () => ipcRenderer.invoke('archiRelire'),
   surPdaArchiAlerte: (rappel) => ipcRenderer.on('pdaArchiAlerte', (_e, a) => rappel(a)),
