@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.3.4",
+    "le": "2026-09-06",
+    "notes": [
+      "Corrigé : à partir du deuxième combat d une session, tes personnages pouvaient ne plus équiper leur pierre d âme — souvent tes mules, et pas toujours les mêmes. OMNI envoyait l ordre avant que le personnage soit vraiment entré dans le combat, et le jeu le refusait sans rien dire. Il attend maintenant le bon signal, et réessaie si rien ne répond au lieu d abandonner le personnage pour tout le combat.",
+      "Corrigé : un personnage pouvait se retrouver complètement nu. L emplacement était vidé AVANT que la nouvelle pierre y soit posée — si la pose ne passait pas, il ne restait rien. Le ménage se fait désormais après, et seulement s il y a vraiment quelque chose à enlever : au pire tu gardes une pierre mal adaptée, ce qui vaut toujours mieux que pas de pierre du tout.",
+      "Corrigé : ouvrir ton banquier, ou cliquer le bouton rond « relire les inventaires », faisait entrer le contenu de ta banque dans le stock de pierres de la chasse. OMNI tentait alors d équiper une pierre rangée en banque, pendant que l emplacement était déjà libéré. Seul ce que le personnage a sur lui compte maintenant.",
+      "Corrigé, vue « où chasser » : des zones disparaissaient de la liste, et c étaient justement les plus fournies. OMNI ne regardait que le personnage depuis lequel tu avais ouvert le panneau ; une zone ne s efface que quand TOUS tes comptes l ont finie.",
+      "Hôtel de vente, garde-fou : six lots sont partis à 7 000 002 kamas pour un objet qui en vaut 152 — sous-coter d un kama le prix délirant d un concurrent donne un prix délirant. Tout prix posé est désormais borné à cinq fois le prix moyen de l objet et à son cinquième. Un lot hors de ces bornes est laissé de côté, jamais posé au plafond : sur un marché illisible, OMNI préfère ne rien faire.",
+      "Les lots déjà en vente à un prix aberrant ne se corrigent pas tout seuls — retire-les à la main, OMNI ne peut plus les toucher (le meilleur prix du créneau, c est le tien).",
+      "Et la passe te dit maintenant ce qu elle n a PAS fait : un tableau des lots écartés s ouvre à la fin, avec le prix visé et la raison, regroupé par objet. Avant, ils étaient seulement comptés.",
+      "Nouveau panneau dans la barre du bas : le rythme des passes hôtel de vente. Trois profils — prudent, normal, rapide — et un réglage fin dépliable, qui pilotent d un coup les deux fonctions HDV. La cadence obtenue s affiche en lots par seconde, et un bandeau te prévient au-delà de 1,5 : c est la vitesse qui avait paru trop vive le 01/09. Si tu ne touches à rien, tes cadences restent exactement celles d avant.",
+      "À savoir : les correctifs de la pierre d âme sont établis par la mesure et par les tests, mais pas encore revus en jeu sur une longue session. Si un personnage se retrouve encore sans pierre, dis-le."
+    ]
+  },
+  {
     "version": "0.3.3",
     "le": "2026-09-04",
     "notes": [
