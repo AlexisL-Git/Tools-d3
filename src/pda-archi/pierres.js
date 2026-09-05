@@ -64,12 +64,16 @@ function choisir({ niveauMax, piles }) {
   // pas: c'est toujours « voila ce qui traine a l'emplacement », seul le moment
   // ou l'ordre part a bouge.
   //
-  // LE CAS QUI JUSTIFIE VRAIMENT CETTE PURGE: une pierre qui se remplit pendant
-  // le combat CHANGE D'OBJET, et reste a l'emplacement. Sans purge, on la
-  // prendrait pour une pierre etrangere qu'on remplace, ce qui va, mais si
-  // notre copie de l'inventaire avait pris du retard on croirait la bonne
-  // pierre en place et la chasse s'arreterait en silence apres la premiere
-  // capture. Sortir d'abord ne suppose rien.
+  // UNE PIERRE QUI SE REMPLIT NE RESTE PAS A L'EMPLACEMENT, et ce commentaire a
+  // affirme le contraire du 03/09 au 05/09. Observation d'Alexis en jeu le
+  // 05/09: a la capture, la pierre repart en INVENTAIRE avec l'ame du monstre.
+  // Le jeu la desequipe donc lui-meme, et l'emplacement est VIDE au combat
+  // suivant -- il n'y a alors rien a purger du tout.
+  //
+  // CE QUI RESTE A PURGER est ce qu'on n'a pas mis la: une pierre d'un autre
+  // calibre, portee a la main ou laissee par une session precedente. Le cas est
+  // rare, la garde reste -- on ne supprime pas une garde parce qu'elle sert
+  // moins souvent qu'on ne le croyait.
   //
   // CE N'EST PAS LE GID 7010. Ce commentaire l'a annonce du 03/09 au 04/09,
   // ecrit sans qu'une pierre pleine ait jamais ete observee. La mesure du 04/09

@@ -387,9 +387,14 @@ test('sans rien a l emplacement, aucune purge n est emise', () => {
   );
 });
 
-// LE CAS QUI JUSTIFIE LA PURGE. Une pierre qui se remplit pendant le combat
-// devient une « Pierre d'ame pleine », gid 7010, et reste a l'emplacement. Elle
-// doit en sortir, sinon elle occupe la place sans jamais rien capturer.
+// CE QUI RESTE A PURGER: un objet qu'OMNI n'a pas mis la. Une pierre d'un autre
+// calibre portee a la main, ou laissee par une session precedente.
+//
+// CE N'EST PAS UNE PIERRE PLEINE, contrairement a ce que ce test a raconte du
+// 03/09 au 05/09. Ni le gid 7010, qui n'existe pas (mesure du 04/09), ni meme
+// le principe: a la capture, la pierre repart en inventaire avec l'ame, donc le
+// jeu la desequipe lui-meme et l'emplacement est vide (Alexis, en jeu, 05/09).
+// Le gid ci-dessous reste arbitraire, et c'est tout ce que le test demande.
 test('une pierre pleine restee a l emplacement est purgee', () => {
   const { superviseur, chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233525940) });
@@ -769,4 +774,83 @@ test('ouvrir le banquier n ecrase pas la copie de l inventaire', () => {
   entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 0, 'la Moyenne portee suffit');
   assert.strictEqual(rendus.at(-1).quoi, 'deja');
+});
+
+// --- Le bug du 05/09 au matin: la garde morte ------------------------------
+//
+// Mesure en jeu, journal-dev.log du 05/09, quatre combats de suite:
+//
+//   combat 3  10:27:43   4068 muet
+//   combat 4  10:28:55   4068 et 23436 muets
+//   combat 5  10:30:39   4068 muet
+//   combat 6  10:32:03   4068, 5464 et 23436 muets
+//
+// L'attaquant 24772 reussit QUATRE FOIS SUR QUATRE, et c'est le seul qui envoie
+// APRES les autres -- +29 ms a chaque fois. Les mules tirent toutes dans la
+// meme milliseconde, avant lui, et ce sont elles qui echouent.
+//
+// Aux combats 1 et 2 c'etait l'inverse: les mules servies 2,6 a 6,4 s APRES
+// l'attaquant, et rien ne ratait.
+//
+// LA CAUSE: `enCombat` etait un Set qu'on ne vidait jamais. Des le deuxieme
+// combat de la session, la garde de la ligne 180 laissait tout passer, et le
+// declencheur devenait `kae` -- « un combattant est ajoute au combat » -- au
+// lieu de `kmk` -- « ce client a recu la liste, il y est vraiment ». Le jeu
+// refuse un changement d'equipement a un client qui n'y est pas encore.
+//
+// C'est la derniere des trois sorties muettes du 04/09: `servis` et `sansNiveau`
+// avaient bien ete reindexes par combat, `enCombat` est reste monotone.
+test('un second combat attend la liste des combattants, pas le seul kae', () => {
+  const { superviseur, chasse } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300, 194);
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
+  const apres = superviseur.envois.length;
+
+  // Un autre combat, qui demande l'Enorme. Le `kae` seul ne doit RIEN faire.
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(180, -301) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kae(195, 777) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kae(195, -301) });
+  assert.strictEqual(superviseur.envois.length, apres, 'rien tant que kmk n est pas tombe');
+
+  // `kmk` retombe a chaque tour: celui qui suit le `kae` sert le personnage.
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
+  assert.strictEqual(superviseur.envois.length, apres + 1, 'servi sur kmk');
+});
+
+// UN SILENCE N'EST PLUS UNE FIN. `servis` verrouillait le personnage pour tout
+// le combat des le premier envoi: un ordre ignore le laissait sans pierre
+// jusqu'au bout, alors qu'il reste quinze secondes de preparation et que `kmk`
+// retombe a chaque tour. On rend la main au tour suivant.
+test('un silence laisse une seconde chance dans le meme combat', async () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const chasse = creerPdaArchi({
+    superviseur, actif: true, reglages: { delaiReponseMs: 5 }, onCompteRendu: (r) => rendus.push(r),
+  });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300);
+  assert.strictEqual(superviseur.envois.length, 1);
+  await new Promise((r) => setTimeout(r, 30));
+  assert.strictEqual(rendus.at(-1).quoi, 'sans-reponse');
+  chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
+  assert.strictEqual(superviseur.envois.length, 2, 'une seconde tentative');
+});
+
+// MAIS ON NE MITRAILLE PAS LE SERVEUR. Trois tentatives par combat, pas plus:
+// au-dela, c'est que ce n'est pas une question de rythme.
+test('les tentatives d un meme combat sont bornees a trois', async () => {
+  const superviseur = doubleSuperviseur();
+  const chasse = creerPdaArchi({
+    superviseur, actif: true, reglages: { delaiReponseMs: 5 },
+  });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300);
+  for (let i = 0; i < 6; i += 1) {
+    await new Promise((r) => setTimeout(r, 15));
+    chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
+  }
+  assert.strictEqual(superviseur.envois.length, 3);
 });

@@ -19,6 +19,11 @@ const DELAI_REPONSE_MS = 3000;
 // personnage: sans borne elle grandirait a chaque combat de la session.
 const COMBATS_RETENUS = 32;
 
+// Combien de fois on retente dans un MEME combat quand le serveur ne repond
+// pas. Trois: au-dela, ce n'est pas une question de rythme, et mitrailler un
+// serveur qui se tait n'a jamais rien equipe.
+const ESSAIS_MAX = 3;
+
 // La chasse a l'archimonstre: equiper la bonne pierre d'ame, et rien d'autre.
 //
 // Conception: docs/superpowers/specs/2026-09-03-pda-archi-design.md.
@@ -154,7 +159,22 @@ function creerPdaArchi({
   const combats = new Map();    // pid -> idCombat ou ce client se trouve
   const servis = new Map();     // pid -> dernier idCombat pour lequel il a equipe
   const sansNiveau = new Map(); // pid -> idCombat deja signale sans niveau
-  const enCombat = new Set();   // pid ayant recu une liste de combattants
+  const essais = new Map();     // pid -> { idCombat, n } tentatives de ce combat
+  // ET IL EST INDEXE PAR COMBAT, COMME SES TROIS VOISINS. C'etait un Set qu'on
+  // ne vidait JAMAIS, et c'est le bug du 05/09 au matin: des le deuxieme combat
+  // de la session la garde de `tenter` laissait tout passer, et le declencheur
+  // devenait `kae` -- « un combattant est ajoute au combat » -- au lieu de
+  // `kmk` -- « ce client a recu la liste, il y est vraiment ». Le jeu refuse un
+  // changement d'equipement a un client qui n'y est pas encore, en silence.
+  //
+  // Mesure, journal-dev.log du 05/09: aux combats 1 et 2 les mules etaient
+  // servies 2,6 a 6,4 s APRES l'attaquant et rien ne ratait; aux combats 3 a 6
+  // elles tiraient toutes 29 ms AVANT lui, et l'attaquant -- seul a envoyer
+  // assez tard -- reussissait quatre fois sur quatre pendant qu'elles echouaient.
+  //
+  // C'est la derniere des trois sorties muettes du 04/09: `servis` et
+  // `sansNiveau` avaient ete reindexes par combat, celui-ci est reste monotone.
+  const enCombat = new Map(); // pid -> idCombat dont il a recu la liste
 
   function noterNiveau(idCombat, niveauMax) {
     if (niveaux.has(idCombat)) return;
@@ -177,7 +197,7 @@ function creerPdaArchi({
   function tenter(pid, signaler = false) {
     const idCombat = combats.get(pid);
     if (idCombat === undefined) return;
-    if (!enCombat.has(pid)) return;
+    if (enCombat.get(pid) !== idCombat) return;
     // DEJA SERVI POUR CE COMBAT. Pas une fenetre de temps, l'identifiant du
     // combat lui-meme. `kmk` tombe six fois en trois millisecondes au depart
     // (mesure du 04/09) puis de nouveau a chaque tour.
@@ -197,6 +217,10 @@ function creerPdaArchi({
       return;
     }
     servis.set(pid, idCombat);
+    const fait = essais.get(pid);
+    essais.set(pid, {
+      idCombat, n: (fait !== undefined && fait.idCombat === idCombat ? fait.n : 0) + 1,
+    });
     equiperPour(pid, niveauMax);
   }
 
@@ -231,6 +255,14 @@ function creerPdaArchi({
     const minuteur = ms > 0 ? setTimeout(() => {
       attentes.delete(pid);
       rendre(pid, { quoi: 'sans-reponse', gid: verdict.gid, niveauMax });
+      // UN SILENCE N'EST PLUS UNE FIN. `servis` verrouillait le personnage pour
+      // tout le combat des le premier envoi: un ordre ignore le laissait sans
+      // pierre jusqu'au bout, alors qu'il reste quinze secondes de preparation
+      // et que `kmk` retombe a chaque tour. On rend la main, trois fois au plus.
+      const fait = essais.get(pid);
+      if (fait !== undefined && fait.n < ESSAIS_MAX && servis.get(pid) === fait.idCombat) {
+        servis.delete(pid);
+      }
     }, ms) : null;
     if (minuteur !== null && typeof minuteur.unref === 'function') minuteur.unref();
     attentes.set(pid, {
@@ -399,7 +431,10 @@ function creerPdaArchi({
     // d'une carte, ou tout est positif.
     if (frame.type === TYPE_COMBATTANTS) {
       if (combattantsDe(frame) === null) return;
-      enCombat.add(pid);
+      // `kmk` tombe AVANT le `kae` du client puis retombe a chaque tour (mesure
+      // du 04/09): le premier note un combat encore inconnu, ce qui ne sert a
+      // rien et ne coute rien, et c'est celui d'apres qui sert le personnage.
+      enCombat.set(pid, combats.get(pid));
       tenter(pid, true);
     }
   }
