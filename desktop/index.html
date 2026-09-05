@@ -600,6 +600,9 @@
   .eca-nb { text-align: right; font-variant-numeric: tabular-nums; }
   .eca-borne { text-align: right; font-variant-numeric: tabular-nums; color: var(--alerte); }
   .eca-motif { color: var(--attenue); }
+  /* LE GID NU EST UN REPLI, et il le montre: un objet que la table ne nomme pas
+     est un objet ajoute au jeu depuis sa fabrication. */
+  .eca-gid { color: var(--attenue); font-variant-numeric: tabular-nums; }
   /* La ligne de compte rendu devient cliquable quand il y a quelque chose a
      ouvrir, et le dit: un texte qui reagit au clic sans le montrer ne sera
      jamais clique. */
@@ -1264,13 +1267,24 @@
       ? 'Lots non mis en vente'
       : 'Lots non repricés';
     document.getElementById('ecaAvis').textContent = ligne.personnage || ligne.nickname || '';
+    // LE NOM D'ABORD, LE GID EN INFOBULLE. C'est le nom qui se lit -- « six lots
+    // de Poil de Bouftou », pas « six lots de 13731 » -- mais c'est le gid qui
+    // se recopie dans le jeu quand on va verifier, donc il reste a portee de
+    // survol. Un objet absent de la table montre son numero, comme avant elle.
+    // `Number` ET PAS `echapper` DANS L'ATTRIBUT: echapper() traite `&`, `<` et
+    // `>`, pas le guillemet, et un guillemet dans un attribut ouvre la porte.
+    // Un gid est un entier decode d'une trame; le passer par Number le dit.
+    const nomObjet = (x) => (x.nom
+      ? '<td title="gid ' + Number(x.gid) + '">' + echapper(x.nom) + '</td>'
+      : '<td class="eca-gid">' + echapper(x.gid) + '</td>');
+
     // LA BORNE PORTE SON SENS. « 7 600 » tout seul ne dit pas si on etait
     // au-dessus ou en dessous, et c'est precisement ce qu'on vient verifier.
     const rangs = e.lignes.map((x) => {
       const signe = HAUT.has(x.motif) ? '>' : BAS.has(x.motif) ? '<' : '';
       const borne = x.borne === null || x.borne === undefined ? '—' : signe + ' ' + enChiffres(x.borne);
       return '<tr>'
-        + '<td>' + echapper(x.gid) + '</td>'
+        + nomObjet(x)
         + '<td class="eca-nb">' + echapper(x.taille) + '</td>'
         + '<td class="eca-nb">' + echapper(x.lots) + '</td>'
         + '<td class="eca-nb">' + enChiffres(x.moyenUnitaire) + '</td>'
@@ -1285,12 +1299,11 @@
       + '<th>moyen / u</th><th>prix visé</th><th>borne</th>'
       + '<th class="arc-gauche">motif</th>'
       + '</tr></thead><tbody>' + rangs + '</tbody></table>';
-    // IL N'Y A PAS DE NOM D'OBJET DANS OMNI, seulement des gid: ivi ne porte
-    // que des prix. Le dire dans le pied vaut mieux que de laisser chercher.
+    // LE PIED NE S'EXCUSE PLUS. Il annoncait que « OMNI ne connait pas les
+    // noms », ce qui etait vrai avant src/hdv/objets.js et ne l'est plus.
     document.getElementById('ecaPied').innerHTML = '<span><b>' + e.lots + '</b> lots écartés, '
       + '<b>' + e.lignes.length + '</b> lignes</span>'
-      + (e.tronque ? '<span>liste tronquée</span>' : '')
-      + '<span>« objet » est le GID du jeu : OMNI ne connaît pas les noms.</span>';
+      + (e.tronque ? '<span>liste tronquée</span>' : '');
     document.getElementById('vueEcartes').hidden = false;
   }
 

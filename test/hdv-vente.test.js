@@ -620,8 +620,11 @@ test('un marche delirant ecarte le paquet, et le bilan dit pourquoi', () => {
   const fin = rendus.find((r) => r.fini);
   assert.strictEqual(fin.bilan.poses, 0);
   assert.strictEqual(fin.bilan.sautes, 6);
+  // LE NOM FAIT PARTIE DU BILAN, pose par noterEcart: c'est « six lots de
+  // Pierre Medicinale a 7 000 001 » que le tableau doit pouvoir afficher, pas
+  // « six lots de 13731 ».
   assert.deepStrictEqual(fin.bilan.ecartes, [{
-    gid: 13731, taille: 10, lots: 6, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152,
+    gid: 13731, nom: 'Pierre Médicinale', taille: 10, lots: 6, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152,
   }]);
 });
 

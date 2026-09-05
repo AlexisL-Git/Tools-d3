@@ -7,10 +7,39 @@ const ligne = (sur = {}) => ({
   gid: 13731, taille: 10, lots: 1, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152, ...sur,
 });
 
-test('une ligne inconnue est ajoutee telle quelle', () => {
+test('une ligne inconnue est ajoutee telle quelle, son nom en plus', () => {
   const ecartes = [];
   noterEcart(ecartes, ligne());
-  assert.deepStrictEqual(ecartes, [ligne()]);
+  assert.deepStrictEqual(ecartes, [{ ...ligne(), nom: 'Pierre Médicinale' }]);
+});
+
+// LE NOM SE POSE ICI PARCE QUE C'EST ICI QUE LA LIGNE NAIT, et que les deux
+// passes y passent: la mise en vente comme la mise a jour des prix. Le poser
+// plus loin le ferait poser deux fois, ou une seule.
+test('la ligne porte le nom de l objet, pas seulement son gid', () => {
+  const ecartes = [];
+  noterEcart(ecartes, ligne({ gid: 289 }));
+  assert.strictEqual(ecartes[0].nom, 'Blé');
+});
+
+// UN GID INCONNU NE DOIT RIEN CASSER. La table date du jour ou on l'a
+// fabriquee; un objet ajoute par Ankama depuis passera par la, et il doit
+// s'ecarter comme les autres — l'affichage retombera sur son numero.
+test('un gid absent de la table laisse un nom nul, la ligne reste', () => {
+  const ecartes = [];
+  noterEcart(ecartes, ligne({ gid: 999999 }));
+  assert.strictEqual(ecartes.length, 1);
+  assert.strictEqual(ecartes[0].nom, null);
+});
+
+// LA LIGNE DE L'APPELANT N'EST PAS TOUCHEE. vente.js et reprix.js construisent
+// leur objet et le passent; noterEcart en garde une copie nommee plutot que
+// d'ecrire dans le leur.
+test('la ligne passee par l appelant n est pas modifiee', () => {
+  const ecartes = [];
+  const brute = ligne();
+  noterEcart(ecartes, brute);
+  assert.strictEqual('nom' in brute, false);
 });
 
 // LE GROUPEMENT EST LA RAISON D'ETRE DU MODULE. Un marche delirant ecarte un

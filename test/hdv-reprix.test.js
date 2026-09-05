@@ -560,8 +560,10 @@ test('un marche delirant ecarte le lot, et le bilan dit pourquoi', () => {
   dire(kbt(13731, [0, 7000002, 0, 0]));
   assert.ok(!types().includes('kch'), 'aucune mise a jour de prix ne doit partir');
   const fin = rendu.find((x) => x.fini);
+  // Le nom vient de noterEcart, cote a cote avec le gid: les deux passes le
+  // portent, sinon le tableau nommerait selon celle qui a tourne en dernier.
   assert.deepStrictEqual(fin.bilan.ecartes, [{
-    gid: 13731, taille: 10, lots: 1, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152,
+    gid: 13731, nom: 'Pierre Médicinale', taille: 10, lots: 1, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152,
   }]);
 });
 
