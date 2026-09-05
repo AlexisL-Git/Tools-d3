@@ -4,6 +4,7 @@ const {
   lirePrixMarche, lireStatsPrix, lireStock, lirePileMaj, lirePileDisparue, lirePrixMoyens,
 } = require('./trames');
 const { deciderPose } = require('./prix');
+const { noterEcart } = require('./ecartes');
 const { candidats, paquets } = require('./stock');
 
 // Poser des lots en hotel de vente, un compte a la fois.
@@ -242,6 +243,9 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         // sans cette garde on parle dans la session de quelqu'un d'autre.
         if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
         passe.bilan.objetsAbandonnes += 1;
+        ecarter(pid, passe, {
+          gid: paquet.gid, taille: paquet.taille, lots: passe.file.length, motif: 'sans-reponse',
+        });
         avancer(pid, passe, passe.file.length);
         passe.file = [];
         paquetSuivant(pid, passe);
@@ -256,25 +260,50 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
     return passe.poses.filter((l) => l.gid === passe.gid);
   }
 
-  // LE PRIX DU PAQUET, DECIDE UNE FOIS. Un paquet sans prix decidable — le
-  // marche est a 1 kama, ou l'extrapolation sort du garde-fou — n'emet rien du
-  // tout: ses lots sont comptes sautes et on passe a l'objet suivant.
-  function decidePaquet(pid, passe, marche) {
+  // Le prix moyen a l'unite tel qu'ivi le connait, ou 0. Il decide de l'ordre
+  // des lots, des bornes du garde-fou, et il est affiche dans le tableau des
+  // ecartes: la meme valeur doit sortir des trois endroits.
+  function moyenDe(pid, gid) {
     const moyens = prixMoyens.get(pid);
-    const prix = deciderPose({
+    return (moyens && moyens.get(gid)) || 0;
+  }
+
+  // TOUT LOT QUI N'EST PAS PARTI PASSE PAR ICI, et pas seulement ceux que le
+  // garde-fou ecarte: a la mise en vente, un lot non pose est de la marchandise
+  // qui reste au sac. Le compteur `sautes` dit combien, le tableau dit lesquels.
+  function ecarter(pid, passe, { gid, taille, lots, motif, vise = null, borne = null }) {
+    noterEcart(passe.bilan.ecartes, {
+      gid, taille, lots, motif, vise, borne, moyenUnitaire: moyenDe(pid, gid),
+    });
+    passe.bilan.sautes += lots;
+  }
+
+  // LE PRIX DU PAQUET, DECIDE UNE FOIS. Un paquet sans prix decidable — le
+  // marche est a 1 kama, le prix moyen est inconnu, ou le marche sort du
+  // garde-fou — n'emet rien du tout: ses lots sont comptes sautes, la raison
+  // est notee, et on passe a l'objet suivant.
+  function decidePaquet(pid, passe, marche) {
+    const d = deciderPose({
       marche,
       nos: nosDuPaquet(passe),
       taille: passe.paquet.taille,
-      moyenUnitaire: (moyens && moyens.get(passe.gid)) || 0,
+      moyenUnitaire: moyenDe(pid, passe.gid),
     });
-    if (prix === null) {
-      passe.bilan.sautes += passe.file.length;
+    if (d.prix === null) {
+      ecarter(pid, passe, {
+        gid: passe.gid,
+        taille: passe.paquet.taille,
+        lots: passe.file.length,
+        motif: d.motif,
+        vise: d.vise,
+        borne: d.borne,
+      });
       avancer(pid, passe, passe.file.length);
       passe.file = [];
       paquetSuivant(pid, passe);
       return;
     }
-    passe.prix = prix;
+    passe.prix = d.prix;
     passe.premier = true;
     poserSuivant(pid, passe);
   }
@@ -294,7 +323,9 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       // fondu entre-temps, emettre dessus poserait un lot qu'on n'a plus.
       if (reste === undefined || reste < lot.taille) {
         passe.file.shift();
-        passe.bilan.sautes += 1;
+        ecarter(pid, passe, {
+          gid: lot.gid, taille: lot.taille, lots: 1, motif: 'pile-fondue',
+        });
         avancer(pid, passe, 1);
         continue;
       }
@@ -379,7 +410,9 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       // Tire au depart pour que deux passes ne pausent pas au meme rang.
       avantPause: auHasard(AVANT_PAUSE_MIN, AVANT_PAUSE_MAX),
       restant: lots.length,
-      bilan: { lots: lots.length, poses: 0, sautes: 0, echecs: 0, objetsAbandonnes: 0 },
+      bilan: {
+        lots: lots.length, poses: 0, sautes: 0, echecs: 0, objetsAbandonnes: 0, ecartes: [],
+      },
     };
     passes.set(pid, passe);
     // LE SEUL COMPTE RENDU MARQUE `debut`, emis AVANT la premiere trame: il

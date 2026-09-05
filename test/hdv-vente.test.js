@@ -605,3 +605,22 @@ test('les lots d un objet abandonne sortent du decompte', async () => {
   const fin = rendus.find((r) => r.fini);
   assert.strictEqual(fin.bilan.objetsAbandonnes, 2);
 });
+
+// --- LE TABLEAU DES ECARTES ---------------------------------------------
+//
+// Le bilan ne comptait que des lots « sautes », sans jamais dire pourquoi. Six
+// lots partis a 7 000 002 kamas le 05/09 n'auraient rien coute si la passe
+// avait su le dire — d'ou ce tableau, groupe par (gid, taille, motif) et non
+// par lot: 6495 lots de mesure font 1530 paquets, une ligne par lot serait
+// illisible autant qu'inutile.
+test('un marche delirant ecarte le paquet, et le bilan dit pourquoi', () => {
+  const { vente, rendus } = venteAvecPile({ qte: 60, moyen: 152 });
+  vente.lancer(42);
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [0, 7000002, 0, 0]) });
+  const fin = rendus.find((r) => r.fini);
+  assert.strictEqual(fin.bilan.poses, 0);
+  assert.strictEqual(fin.bilan.sautes, 6);
+  assert.deepStrictEqual(fin.bilan.ecartes, [{
+    gid: 13731, taille: 10, lots: 6, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152,
+  }]);
+});

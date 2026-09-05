@@ -269,7 +269,7 @@ test('la passe se termine en se desabonnant, et rend son bilan', () => {
   dire(kgp(13731, [19, 190, 2699, 18000]));
   assert.deepStrictEqual(types(), ['keh', 'kbz', 'kch', 'keh']);
   const fin = rendu.find((x) => x.fini);
-  assert.deepStrictEqual(fin.bilan, { total: 1, maj: 1, laisses: 0, echecs: 0 });
+  assert.deepStrictEqual(fin.bilan, { total: 1, maj: 1, laisses: 0, echecs: 0, ecartes: [] });
 });
 
 // --- Ce qui ne doit pas la perturber -------------------------------------
@@ -544,4 +544,50 @@ test('le second objet attend, il ne suit pas le premier dans la foulee', async (
   assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['keh', 'kbz', 'keh']);
   await new Promise((res) => setTimeout(res, 70));
   assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['keh', 'kbz', 'keh', 'keh', 'kbz']);
+});
+
+// --- LE TABLEAU DES ECARTES ---------------------------------------------
+//
+// Le 05/09: un concurrent a 7 000 002 kamas le lot de 10, pour une marchandise
+// qui en vaut 152 l'unite. Sous-coter d'un kama un prix delirant donne un prix
+// delirant, et le bilan ne comptait alors que des lots « laisses », sans jamais
+// distinguer « rien a faire » de « on a refuse d'y aller ».
+test('un marche delirant ecarte le lot, et le bilan dit pourquoi', () => {
+  const { r, dire, types, rendu } = monter();
+  dire(kby([{ uid: 10, gid: 13731, taille: 10, prix: 1520 }]));
+  dire(ivi([[13731, 152]]));
+  r.lancer(1);
+  dire(kbt(13731, [0, 7000002, 0, 0]));
+  assert.ok(!types().includes('kch'), 'aucune mise a jour de prix ne doit partir');
+  const fin = rendu.find((x) => x.fini);
+  assert.deepStrictEqual(fin.bilan.ecartes, [{
+    gid: 13731, taille: 10, lots: 1, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152,
+  }]);
+});
+
+// LE TABLEAU NE MONTRE QUE LES ECARTS, et c'est ce qui le rend lisible. Laisser
+// un lot deja au meilleur prix est le cas NORMAL d'une passe de mise a jour:
+// sur un stock reel il concerne la grande majorite des lots, et les lister
+// noierait les trois lignes qui comptent.
+test('un lot deja au meilleur prix n entre pas dans le tableau des ecartes', () => {
+  const { r, dire, rendu } = monter();
+  dire(kby([{ uid: 10, gid: 13731, taille: 100, prix: 1222 }]));
+  dire(ivi([[13731, 32]]));
+  r.lancer(1);
+  dire(kbt(13731, [19, 190, 1222, 18000]));
+  const fin = rendu.find((x) => x.fini);
+  assert.strictEqual(fin.bilan.laisses, 1);
+  assert.deepStrictEqual(fin.bilan.ecartes, []);
+});
+
+// Un lot ecarte par le garde-fou n'est pas « deja au meilleur prix »: melanger
+// les deux dans le meme compteur rendrait le message du panneau faux.
+test('un lot ecarte ne compte pas comme un lot laisse', () => {
+  const { r, dire, rendu } = monter();
+  dire(kby([{ uid: 10, gid: 13731, taille: 10, prix: 1520 }]));
+  dire(ivi([[13731, 152]]));
+  r.lancer(1);
+  dire(kbt(13731, [0, 7000002, 0, 0]));
+  const fin = rendu.find((x) => x.fini);
+  assert.strictEqual(fin.bilan.laisses, 0);
 });

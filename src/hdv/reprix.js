@@ -3,7 +3,8 @@ const {
   trameMajPrix, trameAbonner, trameDesabonner, trameStats,
   lirePrixMarche, lireStatsPrix, lireNosLots, lireLotPose, lireLotRetire, lirePrixMoyens,
 } = require('./trames');
-const { decider } = require('./prix');
+const { decider, MOTIFS_GARDE_FOU } = require('./prix');
+const { noterEcart } = require('./ecartes');
 
 // Remettre nos lots en vente au prix du marche, un compte a la fois.
 //
@@ -260,7 +261,8 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       const lot = passe.file.shift();
       avancer(pid, passe, 1);
       const moyens = prixMoyens.get(pid);
-      const prix = decider({
+      const moyenUnitaire = (moyens && moyens.get(passe.gid)) || 0;
+      const d = decider({
         marche: passe.marche,
         nos: nosDuGid(pid, passe.gid),
         taille: lot.taille,
@@ -268,12 +270,36 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         // est figee au lancement, mais chaque lot n'y passe qu'une fois: son
         // prix y est donc bien celui d'avant sa propre mise a jour.
         prixActuel: lot.prix,
-        moyenUnitaire: (moyens && moyens.get(passe.gid)) || 0,
+        moyenUnitaire,
       });
 
-      // Rien a faire sur ce lot: le marche n'a pas bouge, donc la lecture reste
-      // valable et on enchaine sans attendre de kgp.
-      if (prix === null) { passe.bilan.laisses += 1; continue; }
+      // RIEN A FAIRE ET AVOIR REFUSE D'Y ALLER NE SONT PAS LA MEME CHOSE, et
+      // les melanger dans `laisses` rendrait le message du panneau faux: « deja
+      // au meilleur prix » est le cas normal d'une passe de mise a jour, alors
+      // qu'un ecart du garde-fou est precisement ce qu'il faut aller regarder.
+      //
+      // SEULS LES ECARTS ENTRENT DANS LE TABLEAU. Sur un stock reel, les lots
+      // laisses sont l'immense majorite: les lister noierait les trois lignes
+      // qui comptent sous deux cents lignes de bruit.
+      if (d.prix === null) {
+        if (MOTIFS_GARDE_FOU.has(d.motif)) {
+          noterEcart(passe.bilan.ecartes, {
+            gid: passe.gid,
+            taille: lot.taille,
+            lots: 1,
+            motif: d.motif,
+            vise: d.vise,
+            borne: d.borne,
+            moyenUnitaire,
+          });
+        } else {
+          // Le marche n'a pas bouge, donc la lecture reste valable et on
+          // enchaine sans attendre de kgp.
+          passe.bilan.laisses += 1;
+        }
+        continue;
+      }
+      const prix = d.prix;
 
       passe.fraiche = false;
       passe.attenteUid = lot.uid;
@@ -418,7 +444,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       // passes ne pausent pas au meme rang.
       avantPause: auHasard(AVANT_PAUSE_MIN, AVANT_PAUSE_MAX),
       restant: mes.length,
-      bilan: { total: mes.length, maj: 0, laisses: 0, echecs: 0 },
+      bilan: { total: mes.length, maj: 0, laisses: 0, echecs: 0, ecartes: [] },
     };
     passes.set(pid, passe);
     // LE SEUL COMPTE RENDU MARQUE `debut`, et il est emis AVANT la premiere

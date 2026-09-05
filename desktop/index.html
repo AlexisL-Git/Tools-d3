@@ -517,6 +517,18 @@
   }
   .arc-pied b { color: var(--texte); font-variant-numeric: tabular-nums; }
 
+  /* LE TABLEAU DES ECARTES emprunte .arc-table: meme grille, meme en-tete
+     collant, meme lecture. Il n'ajoute que ce qui lui est propre -- des
+     nombres alignes a droite, et le motif en clair. */
+  .eca-nb { text-align: right; font-variant-numeric: tabular-nums; }
+  .eca-borne { text-align: right; font-variant-numeric: tabular-nums; color: var(--alerte); }
+  .eca-motif { color: var(--attenue); }
+  /* La ligne de compte rendu devient cliquable quand il y a quelque chose a
+     ouvrir, et le dit: un texte qui reagit au clic sans le montrer ne sera
+     jamais clique. */
+  .motif.cliquable { cursor: pointer; text-decoration: underline dotted; }
+  .motif.cliquable:hover { color: var(--texte); }
+
   .oter:hover { color: var(--alerte); background: rgba(242,84,91,.12); }
   .oter svg { width: 12px; height: 12px; }
 
@@ -797,6 +809,20 @@
   </div>
   <div class="arc-corps" id="arcCorps"></div>
   <div class="arc-pied" id="arcPied"></div>
+</div>
+
+<!-- CE QUI N'EST PAS PARTI A LA DERNIERE PASSE D'HOTEL DE VENTE.
+     Meme forme que le panneau des archimonstres, et pour la meme raison: un
+     tableau ne tient pas sur la ligne d'un compte, et une fenetre modale se
+     ferait fermer par le premier clic de travers. -->
+<div class="vue-archi" id="vueEcartes" hidden>
+  <div class="qdn-tete">
+    <b id="ecaTitre">Lots écartés</b>
+    <span class="avis-nav" id="ecaAvis"></span>
+    <button id="ecaFermer" title="Fermer (Échap)">✕</button>
+  </div>
+  <div class="arc-corps" id="ecaCorps"></div>
+  <div class="arc-pied" id="ecaPied"></div>
 </div>
 
 <div class="barre-nav">
@@ -1081,6 +1107,72 @@
   const echapper = (t) => String(t)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+  // LES MOTIFS D'ECART, EN CLAIR. Les identifiants viennent de src/hdv/prix.js,
+  // qui ne connait que des decisions; les mots francais sont une affaire
+  // d'affichage et restent ici. Un motif inconnu s'affiche tel quel plutot que
+  // de disparaitre: mieux vaut un mot technique qu'une case vide.
+  const MOTIF_ECARTE = {
+    'trop-haut': 'marché trop haut',
+    'trop-bas': 'marché trop bas',
+    'moyen-inconnu': 'prix moyen inconnu',
+    'deduction-trop-haute': 'déduction trop haute',
+    'deduction-trop-basse': 'déduction trop basse',
+    'marche-a-1-kama': 'marché à 1 kama',
+    'aucun-voisin': 'aucun prix de référence',
+    'deja-au-minimum': 'déjà au meilleur prix',
+    'pile-fondue': 'la pile a fondu entre-temps',
+    'sans-reponse': 'pas de réponse du serveur',
+    'taille-hors-creneaux': 'taille hors créneaux',
+    'marche-illisible': 'marché illisible',
+  };
+  const HAUT = new Set(['trop-haut', 'deduction-trop-haute']);
+  const BAS = new Set(['trop-bas', 'deduction-trop-basse']);
+  const enChiffres = (n) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('fr-FR'));
+
+  function fermerEcartes() {
+    document.getElementById('vueEcartes').hidden = true;
+  }
+
+  // LE TABLEAU DE LA DERNIERE PASSE, pour un compte. Il ne demande rien a
+  // main.js: tout est deja sur la ligne, pose par envoyerEtat. Un panneau qui
+  // aurait a redemander ses donnees s'ouvrirait vide le temps d'un aller-retour.
+  function ouvrirEcartes(ligne) {
+    const e = ligne && ligne.hdvEcartes;
+    if (!e) return;
+    document.getElementById('ecaTitre').textContent = e.quoi === 'vente'
+      ? 'Lots non mis en vente'
+      : 'Lots non repricés';
+    document.getElementById('ecaAvis').textContent = ligne.personnage || ligne.nickname || '';
+    // LA BORNE PORTE SON SENS. « 7 600 » tout seul ne dit pas si on etait
+    // au-dessus ou en dessous, et c'est precisement ce qu'on vient verifier.
+    const rangs = e.lignes.map((x) => {
+      const signe = HAUT.has(x.motif) ? '>' : BAS.has(x.motif) ? '<' : '';
+      const borne = x.borne === null || x.borne === undefined ? '—' : signe + ' ' + enChiffres(x.borne);
+      return '<tr>'
+        + '<td>' + echapper(x.gid) + '</td>'
+        + '<td class="eca-nb">' + echapper(x.taille) + '</td>'
+        + '<td class="eca-nb">' + echapper(x.lots) + '</td>'
+        + '<td class="eca-nb">' + enChiffres(x.moyenUnitaire) + '</td>'
+        + '<td class="eca-nb">' + enChiffres(x.vise) + '</td>'
+        + '<td class="eca-borne">' + echapper(borne) + '</td>'
+        + '<td class="eca-motif">' + echapper(MOTIF_ECARTE[x.motif] || x.motif) + '</td>'
+        + '</tr>';
+    }).join('');
+    document.getElementById('ecaCorps').innerHTML = '<table class="arc-table">'
+      + '<thead><tr>'
+      + '<th class="arc-gauche">objet</th><th>lot</th><th>lots</th>'
+      + '<th>moyen / u</th><th>prix visé</th><th>borne</th>'
+      + '<th class="arc-gauche">motif</th>'
+      + '</tr></thead><tbody>' + rangs + '</tbody></table>';
+    // IL N'Y A PAS DE NOM D'OBJET DANS OMNI, seulement des gid: ivi ne porte
+    // que des prix. Le dire dans le pied vaut mieux que de laisser chercher.
+    document.getElementById('ecaPied').innerHTML = '<span><b>' + e.lots + '</b> lots écartés, '
+      + '<b>' + e.lignes.length + '</b> lignes</span>'
+      + (e.tronque ? '<span>liste tronquée</span>' : '')
+      + '<span>« objet » est le GID du jeu : OMNI ne connaît pas les noms.</span>';
+    document.getElementById('vueEcartes').hidden = false;
+  }
+
   function fermerArchi() {
     document.getElementById('vueArchi').hidden = true;
   }
@@ -1330,6 +1422,7 @@
 
   document.getElementById('arcRelire').onclick = relireArchi;
   document.getElementById('arcFermer').onclick = fermerArchi;
+  document.getElementById('ecaFermer').onclick = fermerEcartes;
   for (const b of document.querySelectorAll('.arc-filtres button')) {
     b.addEventListener('click', async () => {
       // CHANGER DE COLLECTION DEMANDE UNE NOUVELLE TABLE: c'est le process
@@ -1362,6 +1455,12 @@
     }
     if (e.key === 'Escape' && ecoute === null && !document.getElementById('vueArchi').hidden) {
       fermerArchi();
+      return;
+    }
+    // Le tableau des ecartes passe APRES celui des archimonstres, comme le
+    // devlog passe avant: l'ordre de ces gardes est l'ordre d'empilement.
+    if (e.key === 'Escape' && ecoute === null && !document.getElementById('vueEcartes').hidden) {
+      fermerEcartes();
       return;
     }
     if (ecoute === null) return;
@@ -1769,6 +1868,11 @@
 
     r.motif = document.createElement('div');
     r.motif.className = 'motif';
+    // LE COMPTE RENDU OUVRE SON PROPRE DETAIL. C'est le seul endroit ou le
+    // nombre de lots ecartes est affiche, donc le seul endroit ou on pense a
+    // demander lesquels: un bouton ailleurs dans le menu serait cherche apres
+    // coup, ou jamais.
+    r.motif.addEventListener('click', () => ouvrirEcartes(r.ligne));
     r.el.append(r.motif);
 
     return r;
@@ -1905,6 +2009,8 @@
 
     r.motif.hidden = !l.message;
     r.motif.textContent = l.message || '';
+    r.motif.classList.toggle('cliquable', Boolean(l.hdvEcartes));
+    r.motif.title = l.hdvEcartes ? 'voir les lots écartés et pourquoi' : '';
   }
 
   window.app.surEtat((etat) => {

@@ -15,6 +15,7 @@ const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/son
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const { creerReprix } = require('../src/hdv/reprix');
 const { creerVente } = require('../src/hdv/vente');
+const { PLAFOND_ECARTES } = require('../src/hdv/ecartes');
 const { creerPdaArchi } = require('../src/pda-archi/pda-archi');
 const { creerCollection } = require('../src/pda-archi/collection');
 const { trameLireInventaire } = require('../src/pda-archi/trames');
@@ -110,6 +111,31 @@ const avecTrafic = new Set();   // pid -> au moins une trame decodee a traverse
 const attacheA = new Map();     // pid -> instant de l'attache reussie
 const erreurs = new Map();      // pid -> message d'echec d'attache
 const messages = new Map();     // pid -> dernier refus de rejeu, pour l'affichage
+// CE QUI N'EST PAS PARTI A LA DERNIERE PASSE D'HOTEL DE VENTE, et pourquoi.
+//
+// Le bilan d'une passe ne vit que le temps du compte rendu; le panneau, lui,
+// est redessine a chaque tick. Sans cette carte, le tableau des ecartes
+// disparaitrait au premier rafraichissement — c'est-a-dire dans les deux
+// secondes, avant meme d'avoir ete lu.
+//
+// pid -> { quoi: 'vente' | 'prix', lots, lignes: [...], tronque }
+const ecartesHdv = new Map();
+
+// UNE PASSE SANS ECART EFFACE LA PRECEDENTE. Sans cette suppression, un tableau
+// vieux d'une heure resterait consultable sous un compte rendu tout neuf qui,
+// lui, dit que tout est parti — et c'est l'ancien qu'on croirait.
+//
+// Rend le nombre de LOTS ecartes, pas de lignes: c'est ce que le compte rendu
+// annonce, et une ligne peut porter six lots.
+function retenirEcartes(pid, quoi, ecartes) {
+  const lignes = ecartes || [];
+  if (lignes.length === 0) { ecartesHdv.delete(pid); return 0; }
+  const lots = lignes.reduce((n, e) => n + e.lots, 0);
+  ecartesHdv.set(pid, { quoi, lots, lignes, tronque: lignes.length >= PLAFOND_ECARTES });
+  return lots;
+}
+
+const suffixeEcartes = (lots) => (lots > 0 ? `, ${lots} écartés — clic pour le détail` : '');
 // LE COUT CACHE DE listerClients(): un lancement de powershell.exe, entre 150
 // et 400 ms. Il etait paye a CHAQUE envoi d'etat, donc a chaque clic, et
 // l'interface ne repondait qu'au retour du process — c'est tout le « delai
@@ -517,6 +543,7 @@ async function balayerProcess() {
     attacheA.delete(pid);
     erreurs.delete(pid);
     messages.delete(pid);
+    ecartesHdv.delete(pid);
     // Meme raison que les deux lignes ci-dessus, et elle compte davantage ici:
     // un pid recycle par Windows heriterait de la COLLECTION du client
     // precedent, et afficherait les archimonstres d'un autre personnage.
@@ -665,6 +692,10 @@ async function envoyerEtat() {
     l.hdvEnCours = aUnPid ? reprix.enCours(l.pid) : false;
     l.hdvPiles = aUnPid && vente !== null ? vente.pilesConnues(l.pid) : 0;
     l.hdvVenteEnCours = aUnPid && vente !== null ? vente.enCours(l.pid) : false;
+    // Le tableau de la DERNIERE passe finie, s'il y a eu des ecartes. Il part
+    // avec la ligne parce qu'il se lit avec elle: le compte rendu annonce le
+    // nombre, le tableau dit lesquels.
+    l.hdvEcartes = aUnPid ? (ecartesHdv.get(l.pid) || null) : null;
   }
 
   // La carte des pids et la liste des pids affiches, tenues a jour ici:
@@ -1025,11 +1056,13 @@ app.whenReady().then(async () => {
       }
       if (r.fini) {
         const b = r.bilan;
-        messages.set(r.pid, r.raison
+        const ecartes = retenirEcartes(r.pid, 'prix', b.ecartes);
+        messages.set(r.pid, (r.raison
           ? `HDV : arrêt — ${r.raison} (${b.maj} mis à jour)`
-          : `HDV : ${b.maj} mis à jour, ${b.laisses} déjà au meilleur prix, ${b.echecs} échoués`);
-        journal(r.pid, `hdv fin : ${b.maj} maj, ${b.laisses} laisses, ${b.echecs} echecs`
-          + (r.raison ? ` — ${r.raison}` : ''));
+          : `HDV : ${b.maj} mis à jour, ${b.laisses} déjà au meilleur prix, ${b.echecs} échoués`)
+          + suffixeEcartes(ecartes));
+        journal(r.pid, `hdv fin : ${b.maj} maj, ${b.laisses} laisses, ${b.echecs} echecs, `
+          + `${ecartes} ecartes` + (r.raison ? ` — ${r.raison}` : ''));
         envoyerEtat();
         return;
       }
@@ -1069,11 +1102,14 @@ app.whenReady().then(async () => {
       }
       if (r.fini) {
         const b = r.bilan;
-        messages.set(r.pid, r.raison
+        const ecartes = retenirEcartes(r.pid, 'vente', b.ecartes);
+        messages.set(r.pid, (r.raison
           ? `HDV : arrêt — ${r.raison} (${b.poses} lots posés)`
-          : `HDV : ${b.poses} lots posés, ${b.sautes} sautés, ${b.echecs} échoués`);
+          : `HDV : ${b.poses} lots posés, ${b.sautes} sautés, ${b.echecs} échoués`)
+          + suffixeEcartes(ecartes));
         journal(r.pid, `vente fin : ${b.poses} poses, ${b.sautes} sautes, ${b.echecs} echecs, `
-          + `${b.objetsAbandonnes} objets abandonnes` + (r.raison ? ` — ${r.raison}` : ''));
+          + `${b.objetsAbandonnes} objets abandonnes, ${ecartes} ecartes`
+          + (r.raison ? ` — ${r.raison}` : ''));
         envoyerEtat();
         return;
       }
