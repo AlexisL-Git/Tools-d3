@@ -53,8 +53,9 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   // aussi passeTour, invitation et delai (vides/nuls ici): voir le test
   // dedie plus bas pour le contenu complet. `overlay` s'y est ajoute le
   // 2026-08-29: une position d'ecran, un sens et un booleen, rien qui
-  // designe une personne.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
+  // designe une personne. `hdvRythme` s'y ajoute le 2026-09-05: quatre
+  // facteurs sans unite et une expiration en millisecondes, cinq nombres.
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -105,7 +106,7 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
@@ -624,4 +625,89 @@ test('apprendre deux fois la meme cle ne fait qu une entree', (t) => {
   f.apprendreCombat('ioy:25088');
   f.apprendreCombat('ioy:25088');
   assert.deepStrictEqual(f.combats(), ['ioy:25088']);
+});
+
+// --- LE RYTHME DES PASSES HDV -------------------------------------------
+//
+// Cinq nombres, et rien d'autre: quatre facteurs sans unite et une expiration
+// en millisecondes. Aucune donnee personnelle, comme le reste du fichier.
+//
+// ILS SONT RELATIFS ET NON ABSOLUS, parce que reprix.js et vente.js n'ont pas
+// les memes bornes de depart -- la demonstration est en tete de reprix.js.
+
+test('sans fichier, le rythme HDV est neutre', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  assert.deepStrictEqual(f.hdvRythme(),
+    { lot: 1, objet: 1, pause: 1, frequencePause: 1, reponseMs: 4000 });
+});
+
+test('un rythme regle survit a un rechargement', (t) => {
+  const p = fichierTemporaire(t);
+  const a = new Favoris(p);
+  a.charger();
+  a.reglerHdvRythme({ lot: 1.6, objet: 1.6, pause: 1.6, frequencePause: 1.6 });
+
+  const b = new Favoris(p);
+  b.charger();
+  assert.deepStrictEqual(b.hdvRythme(),
+    { lot: 1.6, objet: 1.6, pause: 1.6, frequencePause: 1.6, reponseMs: 4000 });
+});
+
+// Un reglage partiel ne remet pas les autres a leur defaut: le panneau envoie
+// le champ qui vient de bouger, pas les cinq a chaque frappe.
+test('regler un seul facteur laisse les autres en place', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  f.reglerHdvRythme({ lot: 2 });
+  f.reglerHdvRythme({ pause: 3 });
+  assert.deepStrictEqual(f.hdvRythme(),
+    { lot: 2, objet: 1, pause: 3, frequencePause: 1, reponseMs: 4000 });
+});
+
+// SOUS 0,25 LA RAFALE TOMBERAIT SOUS 25 MS: ce n'est plus une frappe, c'est un
+// envoi automatique. Au-dela de 4 une passe de 300 lots depasserait l'heure
+// sans que rien ne le laisse deviner. Le panneau borne ses curseurs, mais c'est
+// ICI que ca compte: le fichier se relit a la main.
+test('un facteur hors bornes est ramene dans les bornes', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  f.reglerHdvRythme({ lot: 0.01, objet: 99 });
+  assert.strictEqual(f.hdvRythme().lot, 0.25);
+  assert.strictEqual(f.hdvRythme().objet, 4);
+});
+
+test('l expiration de reponse a ses propres bornes', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  f.reglerHdvRythme({ reponseMs: 10 });
+  assert.strictEqual(f.hdvRythme().reponseMs, 500);
+  f.reglerHdvRythme({ reponseMs: 999999 });
+  assert.strictEqual(f.hdvRythme().reponseMs, 30000);
+});
+
+// Meme discipline que `touches` et `overlay`: un champ dont la forme est
+// inconnue retombe sur le defaut sans faire echouer le chargement.
+test('un rythme de forme inconnue laisse les defauts', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({
+    favoris: [3], hdvRythme: { lot: 'vite', objet: null, pause: 2, frequencePause: [] },
+  }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.deepStrictEqual(f.hdvRythme(),
+    { lot: 1, objet: 1, pause: 2, frequencePause: 1, reponseMs: 4000 });
+  assert.deepStrictEqual(f.tous(), [3]);
+});
+
+// LA CLE ABSENTE VAUT « COMPORTEMENT D'AVANT », et c'est toute la migration.
+// Le fichier d'un ami qui monte de version n'a pas `hdvRythme`: il doit
+// retrouver exactement les cadences mesurees en jeu, pas un defaut invente.
+test('un fichier d une version anterieure garde le rythme d origine', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({ delai: 0, favoris: [3], passeTour: [] }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.deepStrictEqual(f.hdvRythme(),
+    { lot: 1, objet: 1, pause: 1, frequencePause: 1, reponseMs: 4000 });
 });

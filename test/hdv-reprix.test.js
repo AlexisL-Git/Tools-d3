@@ -591,3 +591,129 @@ test('un lot ecarte ne compte pas comme un lot laisse', () => {
   const fin = rendu.find((x) => x.fini);
   assert.strictEqual(fin.bilan.laisses, 0);
 });
+
+// --- LES FACTEURS DE RYTHME REGLABLES ------------------------------------
+//
+// UN SEUL JEU DE REGLAGES PILOTE LES DEUX FONCTIONS HDV, ET IL EST RELATIF.
+// Il ne stocke pas des millisecondes mais des FACTEURS appliques aux bornes de
+// chaque module. Chacune part donc de SA base, corrigee apres essai en jeu, et
+// aucune ne se fait ecraser par l'autre: ici un lot s'espace de 900 a 2600 ms,
+// la-bas vente.js y met une rafale de 90 a 260. Des bornes absolues partagees
+// auraient force a elire un gagnant, et le perdant retrouvait soit la cadence
+// signalee le 01/09, soit une rafale qui n'en est plus une.
+//
+// Les fonctions restent PURES: le hasard ET les reglages entrent par argument,
+// donc tout se teste aux deux bornes sans piloter d'horloge.
+const { AVANT_PAUSE_MIN, AVANT_PAUSE_MAX, compteurInitial } = require('../src/hdv/reprix');
+
+test('le facteur lot etire les bornes du delai entre lots', () => {
+  assert.strictEqual(rythme(5, () => 0, { lot: 2 }).ms, DELAI_MIN * 2);
+  assert.strictEqual(rythme(5, () => 0.9999, { lot: 2 }).ms, DELAI_MAX * 2);
+});
+
+// Les facteurs sont INDEPENDANTS: allonger la pause sans ralentir la cadence
+// ordinaire est precisement ce qu'un jeu unique absolu ne savait pas faire.
+test('le facteur pause n etire que la pause, pas le delai ordinaire', () => {
+  assert.strictEqual(rythme(1, () => 0, { pause: 2 }).ms, DELAI_MIN + PAUSE_MIN * 2);
+});
+
+// IL DIVISE, IL NE MULTIPLIE PAS. Le compteur dit « combien de lots avant la
+// prochaine pause »: l'augmenter rendrait les pauses plus RARES, donc le
+// reglage pointerait a l'envers de tous les autres. Exprime en frequence,
+// x2 veut dire deux fois plus souvent, et « plus » vaut « plus prudent »
+// partout dans le panneau.
+test('le facteur de frequence des pauses divise le compteur rearme', () => {
+  assert.strictEqual(rythme(1, () => 0, { frequencePause: 2 }).compteur,
+    Math.round(AVANT_PAUSE_MIN / 2));
+  assert.strictEqual(rythme(1, () => 0.9999, { frequencePause: 2 }).compteur,
+    Math.round(AVANT_PAUSE_MAX / 2));
+});
+
+// Un compteur nul ferait pauser a CHAQUE lot: c'est la fonction qui doit s'en
+// proteger, pas la borne admissible du panneau.
+test('le compteur rearme ne descend jamais sous un lot', () => {
+  const r = rythme(1, () => 0, { frequencePause: 1000 });
+  assert.ok(r.compteur >= 1, `compteur=${r.compteur} ferait pauser chaque lot`);
+});
+
+test('un reglage absent ou aberrant laisse le rythme d origine', () => {
+  assert.strictEqual(rythme(5, () => 0).ms, DELAI_MIN);
+  assert.strictEqual(rythme(5, () => 0, {}).ms, DELAI_MIN);
+  assert.strictEqual(rythme(5, () => 0, { lot: 'vite' }).ms, DELAI_MIN);
+  assert.strictEqual(rythme(5, () => 0, { lot: null }).ms, DELAI_MIN);
+});
+
+test('le facteur objet etire les bornes du delai entre objets', () => {
+  assert.strictEqual(rythmeObjet(() => 0, { objet: 2 }), DELAI_OBJET_MIN * 2);
+  assert.strictEqual(rythmeObjet(() => 0.9999, { objet: 2 }), DELAI_OBJET_MAX * 2);
+});
+
+// LE PREMIER TIRAGE DU COMPTEUR EST HORS DES FONCTIONS DE RYTHME: il se fait a
+// la creation de la passe. Sans cette fonction, il ignorerait le reglage et
+// seule la DEUXIEME pause l'honorerait — un ecart invisible pendant vingt lots.
+test('le compteur initial d une passe honore la frequence des pauses', () => {
+  assert.strictEqual(compteurInitial(() => 0), AVANT_PAUSE_MIN);
+  assert.strictEqual(compteurInitial(() => 0.9999), AVANT_PAUSE_MAX);
+  assert.strictEqual(compteurInitial(() => 0, { frequencePause: 2 }),
+    Math.round(AVANT_PAUSE_MIN / 2));
+});
+
+// L'EXPIRATION SE REGLE, MAIS PAS PAR UN FACTEUR. Elle ne suit pas les profils:
+// c'est une valeur de robustesse, pas de realisme, et un profil « rapide » qui
+// raccourcirait l'attente d'une reponse serveur abandonnerait des gid pour rien.
+// Elle vit donc dans le meme sac de reglages, en millisecondes absolues.
+test('l expiration de reponse se regle depuis le sac de rythme', async () => {
+  const sup = fauxSuperviseur(1);
+  const rendu = [];
+  const r = creerReprix({
+    superviseur: sup,
+    reglages: { delaiMs: 0, delaiObjetMs: 0, rythme: { reponseMs: 15 } },
+    onCompteRendu: (x) => rendu.push(x),
+  });
+  const dire = (f) => r.onTrame({ pid: 1, dir: 'in', frame: f, brute: Buffer.alloc(0) });
+  dire(kby([{ uid: 10, gid: 13731, taille: 100, prix: 5000 }]));
+  dire(ivi([[13731, 32]]));
+  r.lancer(1);
+  await new Promise((res) => setTimeout(res, 60));
+  const fin = rendu.find((x) => x.fini);
+  assert.ok(fin, 'sans reglage lu, l attente resterait a 4000 ms et rien n aurait expire');
+  assert.strictEqual(fin.bilan.echecs, 1);
+});
+
+// LE REGLAGE DOIT ATTEINDRE LE TIRAGE, ET RIEN D'AUTRE NE LE PROUVE. Les
+// fonctions de rythme sont testees pures, la persistance l'est dans
+// comptes-favoris, et pont-ipc verifie que les trois fichiers du bureau
+// s'accordent. Il restait ce maillon-la: est-ce que `reglages.rythme` arrive
+// jusqu'a l'appel? Une rupture ici ne casse rien -- le panneau bouge, le
+// fichier s'ecrit, et les passes gardent leur ancien rythme sans un mot. C'est
+// le mode d'echec le plus couteux du projet.
+//
+// Il se mesure par ou il se voit: le temps. A x0,25 le delai de lot tient 225 a
+// 650 ms, donc le second kch EST parti a 750 ms. Au rythme d'origine il
+// tiendrait 900 a 2600, donc il ne le serait PAS. Les deux fenetres ne se
+// touchent pas: l'assertion ne peut pas passer par hasard.
+test('le facteur de rythme atteint vraiment le tirage du delai', async () => {
+  const sup = fauxSuperviseur(1);
+  const r = creerReprix({
+    superviseur: sup,
+    reglages: { delaiObjetMs: 0, delaiReponseMs: 0, rythme: { lot: 0.25 } },
+    onCompteRendu: () => {},
+  });
+  const dire = (f) => r.onTrame({ pid: 1, dir: 'in', frame: f, brute: Buffer.alloc(0) });
+  dire(kby([
+    { uid: 10, gid: 13731, taille: 100, prix: 5000 },
+    { uid: 11, gid: 13731, taille: 10, prix: 500 },
+  ]));
+  dire(ivi([[13731, 32]]));
+  r.lancer(1);
+  dire(kbt(13731, [19, 190, 2700, 18000]));
+  dire(ken(10));
+  dire(kes(99, 13731, 100, 2699));
+  dire(kgp(13731, [19, 190, 2699, 18000]));
+  const kch = () => sup.emis.filter((e) => e.frame.type === 'kch').length;
+  assert.strictEqual(kch(), 1, 'le premier lot ne paie pas le delai');
+  await new Promise((res) => setTimeout(res, 750));
+  assert.strictEqual(kch(), 2,
+    'a x0,25 le second lot part avant 650 ms; au rythme d origine il attendrait 900 ms au moins');
+  r.arreter(1);
+});

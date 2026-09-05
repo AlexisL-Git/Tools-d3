@@ -81,27 +81,73 @@ const DELAI_OBJET_MAX = 1400;
 // 30 ms sur les mesures; deux secondes laissent une marge tres large.
 const DELAI_REPONSE = 4000;
 
-const auHasard = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
-
-// Le rythme d'un lot au suivant, en fonction du nombre de lots restants avant
-// la prochaine pause. Fonction PURE: le hasard entre par l'argument, donc elle
-// se teste aux deux bornes sans piloter d'horloge.
+// LES REGLAGES DE RYTHME SONT RELATIFS, ET C'EST LA SEULE FORME QUI TIENNE.
 //
-// Rend le delai a attendre et le compteur pour le lot suivant.
-// Le temps de passer d'un objet au suivant. Pure, comme rythme().
-function rythmeObjet(hasard = Math.random) {
-  return DELAI_OBJET_MIN + Math.floor(hasard() * (DELAI_OBJET_MAX - DELAI_OBJET_MIN + 1));
+// Un seul jeu pilote les deux fonctions HDV depuis le panneau. Or les bornes
+// ci-dessus ne sont pas celles de vente.js: ici un lot s'espace de 900 a
+// 2600 ms et un objet de 400 a 1400; la-bas la rafale tient 90 a 260 et
+// l'objet 900 a 2600. Les deux jeux ont ete corriges separement APRES essai en
+// jeu. Partager des MILLISECONDES aurait force a elire un gagnant, et le
+// perdant retrouvait soit la cadence signalee le 01/09, soit une rafale qui
+// n'en est plus une. Partager des FACTEURS laisse chacune partir de sa base.
+const RYTHME_NEUTRE = { lot: 1, objet: 1, pause: 1, frequencePause: 1 };
+
+// Un facteur absent, aberrant ou nul vaut 1. Le module ne fait pas confiance a
+// ce qui lui arrive -- le fichier de reglages se relit a la main -- mais il ne
+// refuse pas de tourner pour autant.
+const facteur = (r, nom) => {
+  const v = (r === null || typeof r !== 'object') ? undefined : r[nom];
+  return Number.isFinite(v) && v > 0 ? v : 1;
+};
+
+// LE FACTEUR S'APPLIQUE AUX BORNES, AVANT LE TIRAGE. L'intervalle garde ainsi
+// son ratio, donc l'irregularite qui casse la cadence reste proportionnelle a
+// la cadence. Multiplier le RESULTAT donnerait la meme moyenne et un etalement
+// qui, lui, ne suivrait pas: a x2 les bornes donnent 1800-5200, la ou le
+// resultat mis a l'echelle resterait large de 1700 ms.
+const echelle = (v, f) => Math.round(v * f);
+
+// Combien de lots avant la prochaine pause.
+//
+// EXTRAITE DE rythme() PARCE QUE LA CREATION D'UNE PASSE EN A BESOIN AUSSI. Le
+// premier tirage se fait la-bas; s'il n'appelait pas ceci, il ignorerait le
+// reglage et seule la DEUXIEME pause l'honorerait -- un ecart invisible pendant
+// vingt lots, c'est-a-dire tout ce qu'il faut pour ne jamais le remarquer.
+//
+// PLANCHER A 1: un compteur nul ferait pauser a chaque lot. C'est la fonction
+// qui s'en protege, pas la borne admissible du panneau.
+function compteurInitial(hasard = Math.random, reglageRythme = RYTHME_NEUTRE) {
+  const f = facteur(reglageRythme, 'frequencePause');
+  const min = Math.max(1, Math.round(AVANT_PAUSE_MIN / f));
+  const max = Math.max(1, Math.round(AVANT_PAUSE_MAX / f));
+  return min + Math.floor(hasard() * (max - min + 1));
 }
 
-function rythme(compteur, hasard = Math.random) {
+// Le temps de passer d'un objet au suivant. Pure, comme rythme(): le hasard ET
+// les reglages entrent par argument, donc tout se teste aux deux bornes sans
+// piloter d'horloge.
+function rythmeObjet(hasard = Math.random, reglageRythme = RYTHME_NEUTRE) {
+  const f = facteur(reglageRythme, 'objet');
+  const min = echelle(DELAI_OBJET_MIN, f);
+  const max = echelle(DELAI_OBJET_MAX, f);
+  return min + Math.floor(hasard() * (max - min + 1));
+}
+
+// Le rythme d'un lot au suivant, en fonction du nombre de lots restants avant
+// la prochaine pause. Pure, meme raison.
+//
+// Rend le delai a attendre et le compteur pour le lot suivant.
+function rythme(compteur, hasard = Math.random, reglageRythme = RYTHME_NEUTRE) {
   const entre = (min, max) => min + Math.floor(hasard() * (max - min + 1));
-  let ms = entre(DELAI_MIN, DELAI_MAX);
+  const fLot = facteur(reglageRythme, 'lot');
+  let ms = entre(echelle(DELAI_MIN, fLot), echelle(DELAI_MAX, fLot));
   let suivant = compteur - 1;
   // Le compteur est REARME en meme temps que la pause est servie: sans cela il
   // resterait a zero, et tous les lots suivants pauseraient aussi.
   if (suivant <= 0) {
-    ms += entre(PAUSE_MIN, PAUSE_MAX);
-    suivant = entre(AVANT_PAUSE_MIN, AVANT_PAUSE_MAX);
+    const fPause = facteur(reglageRythme, 'pause');
+    ms += entre(echelle(PAUSE_MIN, fPause), echelle(PAUSE_MAX, fPause));
+    suivant = compteurInitial(hasard, reglageRythme);
   }
   return { ms, compteur: suivant };
 }
@@ -117,17 +163,22 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
   const delaiEnvoi = (passe) => {
     const r = reglages.delaiMs;
     if (Number.isFinite(r)) return r;
-    const { ms, compteur } = rythme(passe.avantPause);
+    const { ms, compteur } = rythme(passe.avantPause, Math.random, reglages.rythme);
     passe.avantPause = compteur;
     return ms;
   };
   const delaiObjet = () => {
     const r = reglages.delaiObjetMs;
-    return Number.isFinite(r) ? r : rythmeObjet();
+    return Number.isFinite(r) ? r : rythmeObjet(Math.random, reglages.rythme);
   };
   const delaiReponse = () => {
     const r = reglages.delaiReponseMs;
-    return Number.isFinite(r) ? r : DELAI_REPONSE;
+    if (Number.isFinite(r)) return r;
+    // L'EXPIRATION N'EST PAS UN FACTEUR ET NE SUIT PAS LES PROFILS. Ce n'est
+    // pas un reglage de realisme mais de robustesse: un profil « rapide » n'a
+    // aucune raison de raccourcir l'attente d'une reponse du serveur.
+    const v = facteur(reglages.rythme, 'reponseMs');
+    return v > 1 ? v : DELAI_REPONSE;
   };
 
   // Un delai nul s'execute TOUT DE SUITE plutot qu'au tour de boucle suivant:
@@ -442,7 +493,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       minuteurs: new Set(),
       // Lots restants avant la prochaine pause. Tire au depart pour que deux
       // passes ne pausent pas au meme rang.
-      avantPause: auHasard(AVANT_PAUSE_MIN, AVANT_PAUSE_MAX),
+      avantPause: compteurInitial(Math.random, reglages.rythme),
       restant: mes.length,
       bilan: { total: mes.length, maj: 0, laisses: 0, echecs: 0, ecartes: [] },
     };
@@ -471,5 +522,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
 
 module.exports = {
   creerReprix, rythme, rythmeObjet,
+  compteurInitial,
   DELAI_MIN, DELAI_MAX, PAUSE_MIN, PAUSE_MAX, DELAI_OBJET_MIN, DELAI_OBJET_MAX, DELAI_REPONSE,
+  AVANT_PAUSE_MIN, AVANT_PAUSE_MAX,
 };

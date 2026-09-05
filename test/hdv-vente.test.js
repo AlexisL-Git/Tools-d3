@@ -624,3 +624,126 @@ test('un marche delirant ecarte le paquet, et le bilan dit pourquoi', () => {
     gid: 13731, taille: 10, lots: 6, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152,
   }]);
 });
+
+// --- LES FACTEURS DE RYTHME REGLABLES ------------------------------------
+//
+// Le meme jeu de reglages qu'en face, et RELATIF pour la meme raison: la
+// rafale part de 90-260 et le delai d'objet de 900-2600, quand reprix.js part
+// de 900-2600 et 400-1400. Un facteur commun applique a des bases differentes
+// ralentit les deux fonctions sans rien ecraser; des millisecondes communes
+// auraient efface l'une des deux mesures faites en jeu.
+const {
+  AVANT_PAUSE_MIN, AVANT_PAUSE_MAX, compteurInitial,
+} = require('../src/hdv/vente');
+
+// LE FACTEUR « LOT » TOMBE SUR LA RAFALE, et c'est le bon etage: poser quatre
+// lots identiques, c'est taper Entree quatre fois. C'est le geste que reprix.js
+// appelle « d'un lot au suivant », a une echelle de temps pres.
+test('le facteur lot etire les bornes de la rafale', () => {
+  const { rythmeRafale, DELAI_RAFALE_MIN, DELAI_RAFALE_MAX } = require('../src/hdv/vente');
+  assert.strictEqual(rythmeRafale(() => 0, { lot: 2 }), DELAI_RAFALE_MIN * 2);
+  assert.strictEqual(rythmeRafale(() => 0.999999, { lot: 2 }), DELAI_RAFALE_MAX * 2);
+});
+
+test('le facteur objet etire le delai d une visite a la suivante', () => {
+  const { rythmeVisite, DELAI_OBJET_MIN, DELAI_OBJET_MAX } = require('../src/hdv/vente');
+  assert.strictEqual(rythmeVisite(5, () => 0, { objet: 2 }).ms, DELAI_OBJET_MIN * 2);
+  assert.strictEqual(rythmeVisite(5, () => 0.999999, { objet: 2 }).ms, DELAI_OBJET_MAX * 2);
+});
+
+test('le facteur pause n etire que la pause, pas le delai de visite', () => {
+  const { rythmeVisite, DELAI_OBJET_MIN, PAUSE_MIN } = require('../src/hdv/vente');
+  assert.strictEqual(rythmeVisite(1, () => 0, { pause: 2 }).ms, DELAI_OBJET_MIN + PAUSE_MIN * 2);
+});
+
+// ICI LE COMPTEUR SE COMPTE EN VISITES D'OBJET, pas en lots comme en face: la
+// rafale est le geste atomique, on ne la coupe pas en son milieu. Le reglage,
+// lui, est le meme des deux cotes.
+test('le facteur de frequence des pauses divise le compteur rearme', () => {
+  const { rythmeVisite } = require('../src/hdv/vente');
+  assert.strictEqual(rythmeVisite(1, () => 0, { frequencePause: 2 }).compteur,
+    Math.round(AVANT_PAUSE_MIN / 2));
+  assert.strictEqual(rythmeVisite(1, () => 0.999999, { frequencePause: 2 }).compteur,
+    Math.round(AVANT_PAUSE_MAX / 2));
+});
+
+test('le compteur rearme ne descend jamais sous une visite', () => {
+  const { rythmeVisite } = require('../src/hdv/vente');
+  const r = rythmeVisite(1, () => 0, { frequencePause: 1000 });
+  assert.ok(r.compteur >= 1, `compteur=${r.compteur} ferait pauser chaque visite`);
+});
+
+test('un reglage absent ou aberrant laisse le rythme d origine', () => {
+  const { rythmeVisite, DELAI_OBJET_MIN } = require('../src/hdv/vente');
+  assert.strictEqual(rythmeVisite(5, () => 0).ms, DELAI_OBJET_MIN);
+  assert.strictEqual(rythmeVisite(5, () => 0, {}).ms, DELAI_OBJET_MIN);
+  assert.strictEqual(rythmeVisite(5, () => 0, { objet: 'vite' }).ms, DELAI_OBJET_MIN);
+});
+
+test('le compteur initial d une passe honore la frequence des pauses', () => {
+  assert.strictEqual(compteurInitial(() => 0), AVANT_PAUSE_MIN);
+  assert.strictEqual(compteurInitial(() => 0.999999), AVANT_PAUSE_MAX);
+  assert.strictEqual(compteurInitial(() => 0, { frequencePause: 2 }),
+    Math.round(AVANT_PAUSE_MIN / 2));
+});
+
+// Meme regle qu'en face: l'expiration vit dans le sac de rythme mais n'est pas
+// un facteur, parce que c'est de la robustesse et non du realisme.
+test('l expiration de reponse se regle depuis le sac de rythme', async () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const vente = creerVente({
+    superviseur,
+    reglages: { delaiObjetMs: 0, delaiRafaleMs: 0, rythme: { reponseMs: 5 } },
+    onCompteRendu: (r) => rendus.push(r),
+  });
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
+  const pile = (gid, qte, uid) => ({
+    no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      vint(1, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, gid), vint(3, qte), vint(4, uid)] },
+    ] });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [pile(13731, 100, 1)]) });
+  vente.lancer(42);
+  await new Promise((r) => setTimeout(r, 30));
+  const fin = rendus.find((r) => r.fini);
+  assert.ok(fin, 'sans reglage lu, l attente resterait a 4000 ms et rien n aurait expire');
+  assert.strictEqual(fin.bilan.objetsAbandonnes, 1);
+});
+
+// LE MEME MAILLON QU'EN FACE, verifie de la meme facon: `reglages.rythme`
+// arrive-t-il jusqu'au tirage? Une rupture ici laisserait le panneau bouger, le
+// fichier s'ecrire, et les passes garder leur ancien rythme sans un mot.
+//
+// A x4 la rafale tient 360 a 1040 ms. A 300 ms le second lot n'est donc PAS
+// parti, alors qu'au rythme d'origine (90 a 260) il le serait deja: les deux
+// fenetres ne se touchent pas. Et il finit par partir, ce qui distingue un
+// delai applique d'une passe simplement bloquee.
+test('le facteur de rythme atteint vraiment le tirage de la rafale', async () => {
+  const superviseur = doubleSuperviseur();
+  const vente = creerVente({
+    superviseur,
+    reglages: { delaiObjetMs: 0, delaiReponseMs: 0, rythme: { lot: 4 } },
+  });
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      vint(1, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 200), vint(4, 84496683)] },
+    ] },
+  ]) });
+  vente.lancer(42);
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
+  const poses = () => superviseur.envois
+    .filter((e) => decodeFrameRaw(e.octets).type === 'kge').length;
+  assert.strictEqual(poses(), 1, 'le premier lot du paquet ne paie pas la rafale');
+
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 100) });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.strictEqual(poses(), 1,
+    'a x4 la rafale dure 360 ms au moins; au rythme d origine le lot serait deja parti');
+
+  await new Promise((r) => setTimeout(r, 900));
+  assert.strictEqual(poses(), 2, 'le lot part bien, la passe n est pas bloquee');
+  vente.arreter(42);
+});

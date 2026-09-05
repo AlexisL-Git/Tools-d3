@@ -67,12 +67,50 @@ const AVANT_PAUSE_MAX = 30;
 // 30 ms sur les mesures.
 const DELAI_REPONSE = 4000;
 
-const auHasard = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+// LES REGLAGES DE RYTHME SONT RELATIFS. La demonstration complete est en tete
+// de src/hdv/reprix.js; en deux lignes: un seul jeu pilote les deux fonctions
+// depuis le panneau, mais leurs bornes ne sont pas les memes -- ici la rafale
+// tient 90 a 260 ms et l'objet 900 a 2600, la-bas le lot tient 900 a 2600 et
+// l'objet 400 a 1400. Un facteur commun applique a des bases differentes
+// ralentit les deux sans qu'aucune mesure faite en jeu soit ecrasee.
+const RYTHME_NEUTRE = { lot: 1, objet: 1, pause: 1, frequencePause: 1 };
 
-// Le temps entre deux lots d'un meme paquet. Pure: le hasard entre par
-// argument, donc les bornes se testent sans piloter d'horloge.
-function rythmeRafale(hasard = Math.random) {
-  return DELAI_RAFALE_MIN + Math.floor(hasard() * (DELAI_RAFALE_MAX - DELAI_RAFALE_MIN + 1));
+const facteur = (r, nom) => {
+  const v = (r === null || typeof r !== 'object') ? undefined : r[nom];
+  return Number.isFinite(v) && v > 0 ? v : 1;
+};
+
+// Le facteur porte sur les BORNES, avant le tirage: l'intervalle garde son
+// ratio, donc l'irregularite reste proportionnelle a la cadence.
+const echelle = (v, f) => Math.round(v * f);
+
+// Combien de VISITES D'OBJET avant la prochaine pause -- des lots en face, et
+// c'est la seule difference. Extraite pour que le premier tirage, fait a la
+// creation de la passe, honore le reglage comme les suivants.
+//
+// ELLE PORTE LE MEME NOM QUE CELLE DE reprix.js, ET C'EST VOLONTAIRE CETTE
+// FOIS. La regle posee plus bas pour rythmeVisite interdit de partager un nom
+// quand les signatures different; ici elles sont identiques, et le role aussi.
+// Deux modules freres, une meme question, un meme nom.
+//
+// PLANCHER A 1: un compteur nul ferait pauser a chaque visite.
+function compteurInitial(hasard = Math.random, reglageRythme = RYTHME_NEUTRE) {
+  const f = facteur(reglageRythme, 'frequencePause');
+  const min = Math.max(1, Math.round(AVANT_PAUSE_MIN / f));
+  const max = Math.max(1, Math.round(AVANT_PAUSE_MAX / f));
+  return min + Math.floor(hasard() * (max - min + 1));
+}
+
+// Le temps entre deux lots d'un meme paquet. Pure: le hasard ET les reglages
+// entrent par argument, donc les bornes se testent sans piloter d'horloge.
+//
+// C'EST L'ETAGE « LOT » DU REGLAGE, comme le delai entre kch de reprix.js: le
+// meme geste -- passer d'un lot au suivant -- a une echelle de temps pres.
+function rythmeRafale(hasard = Math.random, reglageRythme = RYTHME_NEUTRE) {
+  const f = facteur(reglageRythme, 'lot');
+  const min = echelle(DELAI_RAFALE_MIN, f);
+  const max = echelle(DELAI_RAFALE_MAX, f);
+  return min + Math.floor(hasard() * (max - min + 1));
 }
 
 // Le temps d'une visite d'objet a la suivante, avec la pause quand le compteur
@@ -85,13 +123,15 @@ function rythmeRafale(hasard = Math.random) {
 // prend un compteur et rend { ms, compteur }. Deux modules freres, deux
 // signatures, un seul nom: la confusion serait garantie au premier qui lit les
 // deux.
-function rythmeVisite(compteur, hasard = Math.random) {
+function rythmeVisite(compteur, hasard = Math.random, reglageRythme = RYTHME_NEUTRE) {
   const entre = (min, max) => min + Math.floor(hasard() * (max - min + 1));
-  let ms = entre(DELAI_OBJET_MIN, DELAI_OBJET_MAX);
+  const fObjet = facteur(reglageRythme, 'objet');
+  let ms = entre(echelle(DELAI_OBJET_MIN, fObjet), echelle(DELAI_OBJET_MAX, fObjet));
   let suivant = compteur - 1;
   if (suivant <= 0) {
-    ms += entre(PAUSE_MIN, PAUSE_MAX);
-    suivant = entre(AVANT_PAUSE_MIN, AVANT_PAUSE_MAX);
+    const fPause = facteur(reglageRythme, 'pause');
+    ms += entre(echelle(PAUSE_MIN, fPause), echelle(PAUSE_MAX, fPause));
+    suivant = compteurInitial(hasard, reglageRythme);
   }
   return { ms, compteur: suivant };
 }
@@ -110,17 +150,21 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
   const delaiObjetMs = (passe) => {
     const r = reglages.delaiObjetMs;
     if (Number.isFinite(r)) return r;
-    const { ms, compteur } = rythmeVisite(passe.avantPause);
+    const { ms, compteur } = rythmeVisite(passe.avantPause, Math.random, reglages.rythme);
     passe.avantPause = compteur;
     return ms;
   };
   const delaiRafaleMs = () => {
     const r = reglages.delaiRafaleMs;
-    return Number.isFinite(r) ? r : rythmeRafale();
+    return Number.isFinite(r) ? r : rythmeRafale(Math.random, reglages.rythme);
   };
   const delaiReponseMs = () => {
     const r = reglages.delaiReponseMs;
-    return Number.isFinite(r) ? r : DELAI_REPONSE;
+    if (Number.isFinite(r)) return r;
+    // L'EXPIRATION N'EST PAS UN FACTEUR ET NE SUIT PAS LES PROFILS: robustesse,
+    // pas realisme. Meme raison qu'en face.
+    const v = facteur(reglages.rythme, 'reponseMs');
+    return v > 1 ? v : DELAI_REPONSE;
   };
 
   // Un delai nul s'execute TOUT DE SUITE plutot qu'au tour de boucle suivant:
@@ -408,7 +452,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       poses: [],
       minuteurs: new Set(),
       // Tire au depart pour que deux passes ne pausent pas au meme rang.
-      avantPause: auHasard(AVANT_PAUSE_MIN, AVANT_PAUSE_MAX),
+      avantPause: compteurInitial(Math.random, reglages.rythme),
       restant: lots.length,
       bilan: {
         lots: lots.length, poses: 0, sautes: 0, echecs: 0, objetsAbandonnes: 0, ecartes: [],
@@ -512,7 +556,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
 }
 
 module.exports = {
-  creerVente, rythmeRafale, rythmeVisite,
+  creerVente, rythmeRafale, rythmeVisite, compteurInitial,
   DELAI_RAFALE_MIN, DELAI_RAFALE_MAX, DELAI_OBJET_MIN, DELAI_OBJET_MAX,
-  PAUSE_MIN, PAUSE_MAX, DELAI_REPONSE,
+  PAUSE_MIN, PAUSE_MAX, DELAI_REPONSE, AVANT_PAUSE_MIN, AVANT_PAUSE_MAX,
 };

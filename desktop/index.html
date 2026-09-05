@@ -517,6 +517,83 @@
   }
   .arc-pied b { color: var(--texte); font-variant-numeric: tabular-nums; }
 
+  /* LE RYTHME DES PASSES HDV. Meme forme que les trois panneaux precedents: un
+     panneau DANS la fenetre, pas une fenetre modale. */
+  .ry-corps { flex: 1; overflow-y: auto; padding: 15px 15px 20px; }
+  .ry-intro {
+    margin: 0 0 15px; max-width: 66ch;
+    font-size: 12.5px; line-height: 1.6; color: var(--attenue);
+  }
+  .ry-intro b { color: var(--texte); font-weight: 700; }
+  .ry-profils { display: flex; gap: 8px; margin-bottom: 15px; }
+  .ry-profils button {
+    padding: 7px 16px; border-radius: 999px;
+    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
+    font: inherit; font-size: 11.5px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+  }
+  .ry-profils button:hover { color: var(--texte); border-color: var(--attenue); }
+  .ry-profils button.on { color: var(--arme); border-color: var(--arme); }
+
+  /* LA CADENCE RESULTANTE, EN CLAIR ET RECALCULEE A CHAQUE MOUVEMENT.
+     Tout le raisonnement des deux modules est ecrit en cadence mesuree, pas en
+     millisecondes: sans ce retour, « x0,6 » reste un chiffre abstrait -- et
+     c'est cette abstraction qui avait laisse partir la premiere version a 2,5
+     lots par seconde, jusqu'a se faire signaler en jeu. */
+  .ry-cadence {
+    padding: 12px 14px; border: 1px solid var(--filet); border-radius: 6px;
+    background: var(--releve); font-size: 12.5px; line-height: 1.75;
+  }
+  .ry-cadence b { color: var(--texte); font-variant-numeric: tabular-nums; }
+  .ry-cadence div { color: var(--attenue); }
+  /* LE SEUIL SIGNALE EN JEU. Rouge, comme tout ce qui dit « anomalie » dans ce
+     panneau: ce n'est pas une preference de gout, c'est une cadence dont on
+     sait qu'elle s'est fait remarquer. */
+  .ry-cadence .alerte {
+    margin-top: 8px; padding: 8px 10px; border-radius: 5px;
+    border: 1px solid var(--alerte); color: var(--alerte);
+    font-size: 11.5px; line-height: 1.5;
+  }
+  .ry-cadence .note {
+    margin-top: 6px; font-size: 11.5px; line-height: 1.5; color: var(--attenue); opacity: .8;
+  }
+
+  .ry-fin { margin-top: 18px; }
+  .ry-fin summary {
+    cursor: pointer; font-size: 11.5px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--attenue);
+  }
+  .ry-fin summary:hover { color: var(--texte); }
+  .ry-reglage {
+    display: grid; grid-template-columns: 168px 1fr 58px; align-items: center;
+    gap: 6px 13px; margin-top: 15px; font-size: 12.5px;
+  }
+  .ry-reglage > span { color: var(--attenue); }
+  .ry-reglage input[type=range] { width: 100%; accent-color: var(--arme); }
+  .ry-reglage output {
+    font-variant-numeric: tabular-nums; color: var(--texte); text-align: right;
+  }
+  .ry-detail {
+    grid-column: 2 / -1;
+    font-size: 11.5px; line-height: 1.5; color: var(--attenue);
+    font-variant-numeric: tabular-nums;
+  }
+  /* L'EXPIRATION N'EST PAS UN CURSEUR, et sa forme le dit: c'est une valeur
+     absolue en millisecondes, que les profils ne touchent pas. */
+  .ry-absolu {
+    display: grid; grid-template-columns: 168px auto 1fr; align-items: center;
+    gap: 6px 13px; margin-top: 20px; padding-top: 16px;
+    border-top: 1px solid var(--filet); font-size: 12.5px;
+  }
+  .ry-absolu > span { color: var(--attenue); }
+  .ry-absolu input {
+    width: 78px; padding: 4px 6px; font: inherit; font-size: 13px;
+    background: var(--fond); color: var(--texte);
+    border: 1px solid var(--bord); border-radius: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .ry-absolu .ry-detail { grid-column: 1 / -1; max-width: 66ch; }
+
   /* LE TABLEAU DES ECARTES emprunte .arc-table: meme grille, meme en-tete
      collant, meme lecture. Il n'ajoute que ce qui lui est propre -- des
      nombres alignes a droite, et le motif en clair. */
@@ -825,6 +902,49 @@
   <div class="arc-pied" id="ecaPied"></div>
 </div>
 
+<!-- LE RYTHME DES PASSES HDV. Meme forme que « Quoi de neuf »: un panneau DANS
+     la fenetre, ferme par Echap ou par la croix.
+     IL EST GLOBAL, ET SON BOUTON EST DANS LA BARRE DU BAS -- pas dans le menu
+     HDV d'une ligne. Cette barre porte deja les reglages qui valent pour tout
+     OMNI (le delai du passe-tour, la pierre d'ame, l'overlay); un reglage
+     general accroche a la ligne d'un compte se lirait comme un reglage DE ce
+     compte, et c'est exactement le malentendu que les cinq interrupteurs
+     generaux avaient produit avant d'etre supprimes. -->
+<div class="vue-archi" id="vueRythme" hidden>
+  <div class="qdn-tete">
+    <b>Rythme des passes HDV</b>
+    <span class="avis-nav" id="ryProfil"></span>
+    <button id="ryFermer" title="Fermer (Échap)">✕</button>
+  </div>
+  <div class="ry-corps">
+    <p class="ry-intro">
+      Ces réglages sont <b>relatifs</b> : ils multiplient les délais mesurés en jeu au
+      lieu de les remplacer. L’actualisation espace ses lots de 900 à 2600 ms, la mise
+      en vente y met une rafale de 90 à 260 — un même facteur ralentit les deux, chacune
+      depuis sa propre base, sans en écraser aucune.
+    </p>
+    <div class="ry-profils">
+      <button data-profil="1.6">Prudent</button>
+      <button data-profil="1">Normal</button>
+      <button data-profil="0.6">Rapide</button>
+    </div>
+    <div class="ry-cadence" id="ryCadence"></div>
+    <details class="ry-fin">
+      <summary>Réglage fin</summary>
+      <div id="ryReglages"></div>
+      <div class="ry-absolu">
+        <span>Expiration de réponse</span>
+        <input id="ryReponse" type="number" min="500" max="30000" step="100" value="4000">
+        <span>ms</span>
+        <div class="ry-detail">
+          Au-delà, on considère que le serveur ne répondra pas et l’objet est abandonné.
+          C’est de la robustesse, pas du réalisme : les profils n’y touchent pas.
+        </div>
+      </div>
+    </details>
+  </div>
+</div>
+
 <div class="barre-nav">
   <span class="avis-nav" id="avisNav"></span>
   <label class="champ-delai">Délai <input id="delai" type="number" min="0" step="0.1" value="0"> s</label>
@@ -834,6 +954,7 @@
        porte l'etat d'OMNI lui-meme. Emplacement choisi par Jibef le 03/09 sur
        le labo, apres avoir compare quatre positions. -->
   <button class="maitre-inter" id="interPdaArchi"><span class="temoin"></span><span>Équiper PdA</span></button>
+  <button class="pose" id="brythme" title="le rythme des passes HDV, commun aux deux fonctions">Rythme HDV</button>
   <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
 </div>
@@ -1445,6 +1566,206 @@
   }
 
   // Une seule saisie a la fois. Échap annule sans rien changer.
+  // --- LE RYTHME DES PASSES HDV ------------------------------------------
+  //
+  // CINQ NOMBRES, ET LE PROFIL N'EN EST PAS UN. Cliquer « Prudent » ecrit 1,6
+  // dans les quatre facteurs, rien de plus; le profil affiche en tete n'est
+  // que la LECTURE de ces quatre valeurs. Stocker un nom de profil EN PLUS des
+  // facteurs aurait fait deux niveaux que rien ne relie a l'ecran, et une
+  // valeur fine invisible sous un profil qui dit autre chose -- le defaut meme
+  // qu'on a corrige en supprimant les cinq interrupteurs generaux.
+  const RY_PROFILS = [
+    { nom: 'Prudent', valeur: 1.6 },
+    { nom: 'Normal', valeur: 1 },
+    { nom: 'Rapide', valeur: 0.6 },
+  ];
+  const RY_FACTEURS = [
+    { cle: 'lot', libelle: 'Entre deux lots' },
+    { cle: 'objet', libelle: 'Entre deux objets' },
+    { cle: 'pause', libelle: 'Longueur des pauses' },
+    { cle: 'frequencePause', libelle: 'Fréquence des pauses' },
+  ];
+
+  // Le dernier rythme connu du process principal, et les bornes de depart des
+  // deux modules. Les bornes VIENNENT de main.js plutot que d'etre recopiees
+  // ici: recopiees, elles auraient derive au premier ajustement mesure en jeu.
+  let ryRythme = { lot: 1, objet: 1, pause: 1, frequencePause: 1, reponseMs: 4000 };
+  let ryBornes = null;
+
+  // L'ESTIMATION DE DUREE, SUR UN STOCK DE REFERENCE.
+  //
+  // vente.js mesure 300 lots en 5 min 43 s a facteur 1. On retrouve ce chiffre
+  // avec 165 objets pour ces 300 lots, soit 1,8 lot par objet: c'est la forme
+  // de stock prise pour l'estimation. Elle est DITE a l'ecran plutot que
+  // sous-entendue -- un stock fait de grosses piles n'aura pas la meme, et une
+  // estimation dont on ignore l'hypothese ne vaut pas mieux qu'un chiffre rond.
+  const RY_LOTS = 300;
+  const RY_OBJETS = 165;
+
+  const ryMoy = (b) => (b[0] + b[1]) / 2;
+
+  // Combien de lots (ou de visites) avant chaque pause, le facteur applique.
+  // Jamais zero: les fonctions de rythme planchent a 1, on planche pareil.
+  const ryAvantPause = (b, r) => Math.max(1, ryMoy(b.avantPause) / r.frequencePause);
+
+  // LES DEUX FORMULES NE SONT PAS LA MEME A UN NOM PRES. L'actualisation compte
+  // ses pauses EN LOTS, la mise en vente EN VISITES D'OBJET -- la rafale est le
+  // geste atomique, on ne la coupe pas en son milieu.
+  function ryDureeReprix(b, r) {
+    const parLot = ryMoy(b.lot) * r.lot + ryMoy(b.pause) * r.pause / ryAvantPause(b, r);
+    return RY_LOTS * parLot + RY_OBJETS * ryMoy(b.objet) * r.objet;
+  }
+  function ryDureeVente(b, r) {
+    const parVisite = ryMoy(b.objet) * r.objet + ryMoy(b.pause) * r.pause / ryAvantPause(b, r);
+    // k lots dans un paquet, c'est k-1 intervalles de rafale: sur l'ensemble,
+    // autant d'intervalles que de lots, moins le nombre d'objets.
+    return RY_OBJETS * parVisite + Math.max(0, RY_LOTS - RY_OBJETS) * ryMoy(b.lot) * r.lot;
+  }
+
+  function ryDuree(ms) {
+    const s = Math.round(ms / 1000);
+    const m = Math.floor(s / 60);
+    return m ? m + ' min ' + String(s % 60).padStart(2, '0') + ' s' : s + ' s';
+  }
+  const ryNombre = (v, d) => v.toFixed(d).replace('.', ',');
+  const ryIntervalle = (b, f) => Math.round(b[0] * f) + '–' + Math.round(b[1] * f) + ' ms';
+
+  function ryProfilDe(r) {
+    const trouve = RY_PROFILS.find(
+      (p) => RY_FACTEURS.every((f) => Math.abs(r[f.cle] - p.valeur) < 0.001));
+    return trouve ? trouve.nom : 'Personnalisé';
+  }
+
+  function ryDetail(cle, r) {
+    if (ryBornes === null) return '';
+    if (cle === 'frequencePause') {
+      const b = ryBornes.reprix.avantPause;
+      const min = Math.max(1, Math.round(b[0] / r.frequencePause));
+      const max = Math.max(1, Math.round(b[1] / r.frequencePause));
+      return 'une pause toutes les ' + min + ' à ' + max
+        + ' — des lots à l’actualisation, des objets à la vente';
+    }
+    return 'actualisation ' + ryIntervalle(ryBornes.reprix[cle], r[cle])
+      + '  ·  vente ' + ryIntervalle(ryBornes.vente[cle], r[cle]);
+  }
+
+  // Une ligne de cadence: ce que ca donne, en duree et en lots par seconde.
+  function ryLigneCadence(quoi, ms) {
+    const el = document.createElement('div');
+    el.append(quoi + ' : ');
+    const duree = document.createElement('b');
+    duree.textContent = ryDuree(ms);
+    el.append(duree, ' pour ' + RY_LOTS + ' lots, soit ');
+    const cadence = document.createElement('b');
+    cadence.textContent = ryNombre(RY_LOTS / (ms / 1000), 2);
+    el.append(cadence, ' lot/s');
+    return el;
+  }
+
+  function ryDessiner() {
+    const r = ryRythme;
+    const profil = ryProfilDe(r);
+    document.getElementById('ryProfil').textContent = profil;
+    for (const b of document.querySelectorAll('.ry-profils button')) {
+      b.classList.toggle('on',
+        profil !== 'Personnalisé' && Math.abs(Number(b.dataset.profil) - r.lot) < 0.001);
+    }
+    for (const f of RY_FACTEURS) {
+      if (document.activeElement !== f.curseur) f.curseur.value = String(r[f.cle]);
+      f.sortie.textContent = '×' + ryNombre(r[f.cle], 2);
+      f.detail.textContent = ryDetail(f.cle, r);
+    }
+    const champ = document.getElementById('ryReponse');
+    if (document.activeElement !== champ) champ.value = String(r.reponseMs);
+
+    const cad = document.getElementById('ryCadence');
+    cad.textContent = '';
+    if (ryBornes === null) return;
+    cad.append(ryLigneCadence('Mise en vente', ryDureeVente(ryBornes.vente, r)));
+    cad.append(ryLigneCadence('Actualisation', ryDureeReprix(ryBornes.reprix, r)));
+    // LE SEUIL N'EST PAS UN AVIS, C'EST UNE MESURE. vente.js: descendre a
+    // 1,5-2,6 lots par seconde donnerait « exactement la cadence qui avait paru
+    // trop vive », signalee en jeu le 01/09. Le panneau laisse y aller -- c'est
+    // la machine de qui regle -- mais il ne laisse pas y aller sans le savoir.
+    const vite = Math.max(RY_LOTS / (ryDureeVente(ryBornes.vente, r) / 1000),
+      RY_LOTS / (ryDureeReprix(ryBornes.reprix, r) / 1000));
+    if (vite >= 1.5) {
+      const al = document.createElement('div');
+      al.className = 'alerte';
+      al.textContent = '⚠ À ' + ryNombre(vite, 2) + ' lot/s, tu retrouves la cadence'
+        + ' qui s’est fait signaler en jeu le 01/09 (« ça met en vente un peu trop'
+        + ' vite »). Les bornes actuelles ont justement été corrigées pour en sortir.';
+      cad.append(al);
+    }
+    const note = document.createElement('div');
+    note.className = 'note';
+    note.textContent = 'Estimation sur un stock de ' + RY_LOTS + ' lots répartis sur '
+      + RY_OBJETS + ' objets (1,8 lot par objet), la forme mesurée en jeu le 01/09.'
+      + ' Un stock fait de grosses piles ira plus vite, un stock émietté plus lentement.';
+    cad.append(note);
+  }
+
+  function ryConstruire() {
+    const hote = document.getElementById('ryReglages');
+    for (const f of RY_FACTEURS) {
+      const ligne = document.createElement('div');
+      ligne.className = 'ry-reglage';
+      const nom = document.createElement('span');
+      nom.textContent = f.libelle;
+      f.curseur = document.createElement('input');
+      f.curseur.type = 'range';
+      f.curseur.min = '0.25';
+      f.curseur.max = '4';
+      f.curseur.step = '0.05';
+      f.sortie = document.createElement('output');
+      f.detail = document.createElement('div');
+      f.detail.className = 'ry-detail';
+      // LE CURSEUR MONTRE SON EFFET AVANT LE LACHER, MAIS N'ECRIT QU'AU LACHER.
+      // `input` redessine la cadence a chaque mouvement, `change` seul part vers
+      // le disque: ecrire a chaque mouvement ferait une ecriture de favoris.json
+      // et un envoi d'etat complet par pixel parcouru.
+      f.curseur.addEventListener('input', () => {
+        ryRythme = Object.assign({}, ryRythme, { [f.cle]: Number(f.curseur.value) });
+        ryDessiner();
+      });
+      f.curseur.addEventListener('change', () => {
+        window.app.reglerHdvRythme({ [f.cle]: Number(f.curseur.value) });
+      });
+      ligne.append(nom, f.curseur, f.sortie, f.detail);
+      hote.append(ligne);
+    }
+
+    for (const b of document.querySelectorAll('.ry-profils button')) {
+      b.addEventListener('click', () => {
+        const v = Number(b.dataset.profil);
+        const partiel = {};
+        for (const f of RY_FACTEURS) partiel[f.cle] = v;
+        ryRythme = Object.assign({}, ryRythme, partiel);
+        ryDessiner();
+        window.app.reglerHdvRythme(partiel);
+      });
+    }
+
+    document.getElementById('ryReponse').addEventListener('change', (e) => {
+      window.app.reglerHdvRythme({ reponseMs: e.target.value });
+    });
+    ryDessiner();
+  }
+
+  function fermerRythme() {
+    document.getElementById('vueRythme').hidden = true;
+  }
+  function ouvrirRythme() {
+    document.getElementById('vueRythme').hidden = false;
+    ryDessiner();
+  }
+  document.getElementById('ryFermer').onclick = fermerRythme;
+  document.getElementById('brythme').onclick = () => {
+    if (document.getElementById('vueRythme').hidden) ouvrirRythme();
+    else fermerRythme();
+  };
+  ryConstruire();
+
   let ecoute = null;
   window.addEventListener('keydown', (e) => {
     // Echap ferme le devlog — mais seulement si aucune saisie de touche n'est
@@ -1461,6 +1782,10 @@
     // devlog passe avant: l'ordre de ces gardes est l'ordre d'empilement.
     if (e.key === 'Escape' && ecoute === null && !document.getElementById('vueEcartes').hidden) {
       fermerEcartes();
+      return;
+    }
+    if (e.key === 'Escape' && ecoute === null && !document.getElementById('vueRythme').hidden) {
+      fermerRythme();
       return;
     }
     if (ecoute === null) return;
@@ -2058,6 +2383,28 @@
 
     const champDelai = document.getElementById('delai');
     if (document.activeElement !== champDelai) champDelai.value = etat.delai;
+
+    // LE RYTHME AFFICHE EST CELUI DU DISQUE, PAS CELUI QU'ON VIENT D'ENVOYER:
+    // favoris borne a l'ecriture, et un panneau qui montrerait la valeur emise
+    // laisserait croire qu'un x9 a ete pris. Un curseur en cours de deplacement
+    // n'est pas ecrase, comme le champ de delai juste au-dessus.
+    if (etat.hdvBornes) ryBornes = etat.hdvBornes;
+    if (etat.hdvRythme) {
+      const actif = document.activeElement;
+      const enMain = RY_FACTEURS.some((f) => f.curseur === actif)
+        || actif === document.getElementById('ryReponse');
+      if (!enMain) ryRythme = etat.hdvRythme;
+      ryDessiner();
+    }
+
+    // Meme porte que le menu HDV d'une ligne: au moins un des deux droits.
+    const bry = document.getElementById('brythme');
+    const droitRythme = droitsCourants.includes('hdv') || droitsCourants.includes('vente');
+    bry.disabled = !droitRythme;
+    bry.title = droitRythme
+      ? 'le rythme des passes HDV, commun aux deux fonctions'
+      : 'pas activé sur ta clé';
+    if (!droitRythme) fermerRythme();
 
     // Le bouton dit ce qu'il VA faire, et son cyan dit ce qui est. Un bouton
     // « Overlay » qui reste identique ouverte ou fermee laisserait chercher

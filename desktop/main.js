@@ -13,8 +13,29 @@ const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/songes');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
-const { creerReprix } = require('../src/hdv/reprix');
-const { creerVente } = require('../src/hdv/vente');
+const hdvReprix = require('../src/hdv/reprix');
+const hdvVente = require('../src/hdv/vente');
+const { creerReprix } = hdvReprix;
+const { creerVente } = hdvVente;
+
+// LES BORNES DE DEPART DES DEUX MODULES, envoyees telles quelles au panneau.
+// Il en a besoin pour montrer ce qu'un facteur DONNE en millisecondes -- « x1,6 »
+// ne veut rien dire tant qu'on ne voit pas 1440-4160. Les recopier dans la page
+// les aurait laissees deriver au premier ajustement mesure en jeu.
+const HDV_BORNES = {
+  reprix: {
+    lot: [hdvReprix.DELAI_MIN, hdvReprix.DELAI_MAX],
+    objet: [hdvReprix.DELAI_OBJET_MIN, hdvReprix.DELAI_OBJET_MAX],
+    pause: [hdvReprix.PAUSE_MIN, hdvReprix.PAUSE_MAX],
+    avantPause: [hdvReprix.AVANT_PAUSE_MIN, hdvReprix.AVANT_PAUSE_MAX],
+  },
+  vente: {
+    lot: [hdvVente.DELAI_RAFALE_MIN, hdvVente.DELAI_RAFALE_MAX],
+    objet: [hdvVente.DELAI_OBJET_MIN, hdvVente.DELAI_OBJET_MAX],
+    pause: [hdvVente.PAUSE_MIN, hdvVente.PAUSE_MAX],
+    avantPause: [hdvVente.AVANT_PAUSE_MIN, hdvVente.AVANT_PAUSE_MAX],
+  },
+};
 const { PLAFOND_ECARTES } = require('../src/hdv/ecartes');
 const { creerPdaArchi } = require('../src/pda-archi/pda-archi');
 const { creerCollection } = require('../src/pda-archi/collection');
@@ -30,7 +51,7 @@ const { creerEmblemes } = require('../src/comptes/emblemes');
 const { ordonner } = require('../src/comptes/ordre');
 const { pourOverlay } = require('../src/comptes/overlay');
 const { COLONNES, parNom, cibleBascule, etatColonne } = require('../src/comptes/colonnes');
-const { Favoris } = require('../src/comptes/favoris');
+const { Favoris, RYTHME_HDV_DEFAUT } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
 const { lireDevlog, CHEMIN: CHEMIN_DEVLOG } = require('./devlog');
 const { estSouris, depuisBouton } = require('../src/comptes/raccourcis');
@@ -326,6 +347,20 @@ const reglagesInvitation = { actif: false };
 const reglagesNoAnim = { actif: false };
 const reglagesEchange = { actif: false };
 const reglagesSonge = { actif: false };
+
+// LE RYTHME DES DEUX PASSES HDV, dans un objet a part parce qu'il ne se lit pas
+// comme les cinq precedents: eux portent un `actif`, lui porte cinq nombres.
+//
+// PASSE PAR REFERENCE AUX DEUX MODULES, ET RELU A CHAQUE TIRAGE. C'est ce qui
+// permet de changer de profil pendant qu'une passe tourne: elle prend le
+// nouveau rythme au lot suivant. Reconstruire les modules aurait ete l'autre
+// facon de faire, et elle est impossible ici -- ils portent l'ecoute permanente
+// des kby et des ivx, celles qui n'arrivent qu'a l'ouverture du HDV. Les
+// reconstruire perdrait le stock deja ecoute.
+//
+// Le champ est REMPLACE (jamais mute) a chaque reglage: favoris.hdvRythme()
+// rend une copie, donc rien ici ne peut modifier ce qui part sur le disque.
+const reglagesHdv = { rythme: { ...RYTHME_HDV_DEFAUT } };
 
 // LES TRAMES QU'OMNI ACCEPTE A LA PLACE DU JOUEUR NE DOIVENT PAS ATTEINDRE SON
 // CLIENT: sinon le panneau d'invitation, et la fenetre de proposition
@@ -755,6 +790,8 @@ async function envoyerEtat() {
     sansMaitre: superviseur.maitre === null,
     erreurComptes,
     delai: favoris.delai(),
+    hdvRythme: favoris.hdvRythme(),
+    hdvBornes: HDV_BORNES,
     avisBascule: avisCourant(),
     // Pour que le bouton de la barre du bas dise s'il ouvre ou s'il ferme.
     overlayOuvert: overlay !== null && !overlay.isDestroyed(),
@@ -978,6 +1015,8 @@ app.whenReady().then(async () => {
   // Le delai enregistre doit survivre au redemarrage de l'application, pas
   // seulement a celui d'un client.
   reglagesPasseTour.delaiMs = Math.round(favoris.delai() * 1000);
+  // Meme raison pour le rythme des passes HDV.
+  reglagesHdv.rythme = favoris.hdvRythme();
 
   superviseur = new Superviseur({
     // L'interrupteur unique est relu du fichier juste apres la construction,
@@ -1045,6 +1084,7 @@ app.whenReady().then(async () => {
   // seule trame qui dit ce qu'on vend.
   reprix = creerReprix({
     superviseur,
+    reglages: reglagesHdv,
     onCompteRendu: (r) => {
       // Un refus au lancement: le bouton a ete clique et rien ne va partir.
       // C'est exactement ce que l'utilisateur ne peut pas deviner.
@@ -1093,6 +1133,7 @@ app.whenReady().then(async () => {
   // c'est le CLIENT qui la demande, de lui-meme: OMNI n'emet aucun itr.
   vente = creerVente({
     superviseur,
+    reglages: reglagesHdv,
     onCompteRendu: (r) => {
       if (r.ok === false) {
         messages.set(r.pid, `HDV : ${r.raison}`);
@@ -1959,6 +2000,24 @@ ipcMain.handle('reglerDelai', async (_e, secondes) => {
   if (!Number.isFinite(v) || v < 0) return;
   favoris.reglerDelai(v);
   reglagesPasseTour.delaiMs = Math.round(v * 1000);
+  await envoyerEtat();
+});
+
+// Le panneau envoie le champ qui vient de bouger, pas les cinq: favoris fusionne
+// et BORNE, puis on relit la version bornee. Renvoyer ce qu'on vient de recevoir
+// afficherait une valeur que le disque ne porte pas.
+ipcMain.handle('reglerHdvRythme', async (_e, partiel) => {
+  if (partiel === null || typeof partiel !== 'object') return;
+  // Les champs arrivent du DOM, donc en chaines. Meme conversion que
+  // reglerDelai, faite ici pour que favoris n'ait a connaitre que des nombres.
+  const nombres = {};
+  for (const [nom, valeur] of Object.entries(partiel)) {
+    const v = Number(valeur);
+    if (Number.isFinite(v)) nombres[nom] = v;
+  }
+  favoris.reglerHdvRythme(nombres);
+  reglagesHdv.rythme = favoris.hdvRythme();
+  journal('hdv', `rythme : ${JSON.stringify(reglagesHdv.rythme)}`);
   await envoyerEtat();
 });
 

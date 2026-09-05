@@ -19,6 +19,36 @@ const path = require('node:path');
 // oublier, et une entree fausse eternelle est le defaut qu'on corrige.
 const MS_OUBLI = 30 * 24 * 60 * 60 * 1000;
 
+// LE RYTHME DES PASSES HDV: quatre facteurs sans unite et une expiration en
+// millisecondes. Meme nature que le reste du fichier -- des nombres, rien qui
+// designe une personne.
+//
+// POURQUOI DES FACTEURS ET PAS DES MILLISECONDES. Un seul jeu pilote les deux
+// fonctions HDV, mais elles ne partent pas des memes bornes: reprix.js espace
+// ses lots de 900 a 2600 ms quand vente.js y met une rafale de 90 a 260. Des
+// millisecondes communes auraient force a elire un gagnant, et le perdant
+// retrouvait la cadence signalee en jeu le 01/09. La demonstration complete
+// est en tete de src/hdv/reprix.js.
+//
+// TOUT A 1 VAUT « COMPORTEMENT D'AVANT », et c'est toute la migration: le
+// fichier d'un ami qui monte de version n'a pas la cle et retrouve exactement
+// les cadences mesurees. La forme suffit, aucun drapeau de version.
+const RYTHME_HDV_DEFAUT = { lot: 1, objet: 1, pause: 1, frequencePause: 1, reponseMs: 4000 };
+const FACTEURS_HDV = ['lot', 'objet', 'pause', 'frequencePause'];
+
+// SOUS 0,25 LA RAFALE TOMBE SOUS 25 MS -- ce n'est plus une frappe. Au-dela de
+// 4, une passe de 300 lots depasse l'heure sans que rien ne le laisse deviner.
+// Le panneau borne deja ses curseurs; ces bornes-ci sont celles qui comptent,
+// parce que le fichier se relit a la main.
+const FACTEUR_MIN = 0.25;
+const FACTEUR_MAX = 4;
+// L'expiration n'est pas un facteur et ne suit pas les profils: c'est de la
+// robustesse, pas du realisme. Elle a donc ses propres bornes.
+const REPONSE_MIN = 500;
+const REPONSE_MAX = 30000;
+
+const borner = (v, min, max) => Math.min(max, Math.max(min, v));
+
 class Favoris {
   constructor(chemin) {
     this.chemin = chemin;
@@ -81,6 +111,8 @@ class Favoris {
     // fichier, et c'est voulu: une pierre d'ame capture aussi les monstres
     // ordinaires, donc allumee en permanence elle gacherait les grosses pierres.
     this._pdaArchi = false;
+    // Voir RYTHME_HDV_DEFAUT: neutre au depart, donc identique a l'existant.
+    this._hdvRythme = { ...RYTHME_HDV_DEFAUT };
   }
 
   // Le seul sens autre qu'horizontal. Ecrit une fois ici plutot que teste a
@@ -155,6 +187,22 @@ class Favoris {
         if (Number.isInteger(o.y)) this._overlay.y = o.y;
       }
       if (typeof json.pdaArchi === 'boolean') this._pdaArchi = json.pdaArchi;
+      // Meme discipline que `touches` et `overlay`: chaque champ n'est repris
+      // que si sa forme est connue, et il est BORNE a la lecture -- un fichier
+      // edite a la main ne doit pas pouvoir imposer une cadence que le panneau
+      // refuserait.
+      if (json.hdvRythme !== null && typeof json.hdvRythme === 'object'
+          && !Array.isArray(json.hdvRythme)) {
+        const o = json.hdvRythme;
+        for (const nom of FACTEURS_HDV) {
+          if (Number.isFinite(o[nom])) {
+            this._hdvRythme[nom] = borner(o[nom], FACTEUR_MIN, FACTEUR_MAX);
+          }
+        }
+        if (Number.isFinite(o.reponseMs)) {
+          this._hdvRythme.reponseMs = Math.round(borner(o.reponseMs, REPONSE_MIN, REPONSE_MAX));
+        }
+      }
     } catch (e) {
       // Fichier absent ou corrompu: on repart d'une liste vide plutot que de
       // faire echouer le demarrage de l'application.
@@ -171,6 +219,7 @@ class Favoris {
       this._combats = new Map();
       this._overlay = { ouvert: false, sens: 'horizontal', x: null, y: null };
       this._pdaArchi = false;
+      this._hdvRythme = { ...RYTHME_HDV_DEFAUT };
     }
     if (reecrire) this._ecrire();
     return this;
@@ -358,6 +407,28 @@ class Favoris {
     this._ecrire();
   }
 
+  // LE RYTHME DES PASSES HDV. Rendu par COPIE: main.js en garde une reference
+  // que les deux modules relisent a chaque tirage, et une copie garantit qu'ils
+  // ne peuvent pas modifier ce qui sera ecrit sur le disque.
+  hdvRythme() {
+    return { ...this._hdvRythme };
+  }
+
+  // PARTIEL PAR CONSTRUCTION: le panneau envoie le champ qui vient de bouger,
+  // pas les cinq a chaque frappe. Un champ absent garde donc sa valeur.
+  reglerHdvRythme(partiel) {
+    if (partiel === null || typeof partiel !== 'object') return;
+    for (const nom of FACTEURS_HDV) {
+      if (Number.isFinite(partiel[nom])) {
+        this._hdvRythme[nom] = borner(partiel[nom], FACTEUR_MIN, FACTEUR_MAX);
+      }
+    }
+    if (Number.isFinite(partiel.reponseMs)) {
+      this._hdvRythme.reponseMs = Math.round(borner(partiel.reponseMs, REPONSE_MIN, REPONSE_MAX));
+    }
+    this._ecrire();
+  }
+
   // L'interrupteur de la pierre d'ame equipee a l'entree en combat.
   pdaArchi() {
     return this._pdaArchi;
@@ -385,6 +456,7 @@ class Favoris {
         combats: [...this._combats].map(([cle, le]) => ({ cle, le })),
         overlay: this.overlay(),
         pdaArchi: this._pdaArchi,
+        hdvRythme: this.hdvRythme(),
       };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
     } catch (e) {
@@ -394,4 +466,4 @@ class Favoris {
   }
 }
 
-module.exports = { Favoris, MS_OUBLI };
+module.exports = { Favoris, MS_OUBLI, RYTHME_HDV_DEFAUT };

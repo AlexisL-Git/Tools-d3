@@ -67,6 +67,8 @@ contextBridge.exposeInMainWorld('app', {
   boutonSouris: (clic) => ipcRenderer.invoke('boutonSouris', clic),
 
   reglerDelai: (secondes) => ipcRenderer.invoke('reglerDelai', secondes),
+  // Le rythme des passes HDV. Partiel: le champ qui vient de bouger, pas les cinq.
+  reglerHdvRythme: (partiel) => ipcRenderer.invoke('reglerHdvRythme', partiel),
   // Les notes de version, lues au premier clic sur le numero. Lecture seule,
   // sans parametre: c'est le seul canal qui rend des donnees plutot que
   // d'emettre un ordre.
