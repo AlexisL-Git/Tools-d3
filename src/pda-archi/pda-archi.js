@@ -1,6 +1,7 @@
 'use strict';
 const {
   lireStock, lirePile, lirePileMaj, lirePileDisparue, POSITION_INVENTAIRE,
+  RANGEMENT_INVENTAIRE,
 } = require('../hdv/trames');
 const { combattantsDe, TYPE_COMBATTANTS } = require('../abandon-combat');
 const { choisir, POSITION_PIERRE } = require('./pierres');
@@ -90,6 +91,41 @@ function creerPdaArchi({
     piles.push({ uid: uidPose, gid: attente.gid, qte: 1, avecEffets: true, pos: POSITION_PIERRE });
   }
 
+  // LE FILET SE TEND APRES LE SAUT, ET C'EST LA CORRECTION DU 05/09.
+  //
+  // La purge partait AVANT la pose. Elle reussissait -- c'est un ordre banal --
+  // et quand la pose qui suivait n'aboutissait pas, le personnage restait NU
+  // pour tout le combat, `servis` interdisant la moindre nouvelle tentative.
+  // N'importe quelle cause suffisait: uid perime, ordre perdu, refus du serveur.
+  // Le compte rendu disait « le serveur n a rien repondu », ce qui etait vrai et
+  // ne disait pas le pire.
+  //
+  // CE QUE JIBEF VOULAIT RESTE ENTIER: rien d'etranger ne demeure a
+  // l'emplacement. Seul le moment change. Et le serveur desequipe tout seul --
+  // mesure du 03/09, poser en 31 renvoie en 63 ce qui s'y trouvait -- donc dans
+  // le cas ordinaire notre copie voit deja la pierre partie et il n'y a rien a
+  // faire. La purge redevient ce qu'elle aurait toujours du etre: un filet pour
+  // le cas ou le serveur ne l'a pas fait.
+  //
+  // UN FILET NE SE TEND PAS AVANT LE SAUT: pas de pose confirmee, pas de purge,
+  // et le personnage garde sa pierre inadaptee. Elle vaut infiniment mieux que
+  // pas de pierre.
+  function purgerApresPose(pid, attente) {
+    const purge = attente.purge;
+    if (purge === null || purge === undefined) return;
+    // ON NE PURGE QUE CE QU'ON CROIT ENCORE EN PLACE. Un uid deja renvoye en
+    // inventaire par le serveur n'a pas besoin d'un ordre de plus.
+    const piles = stocks.get(pid);
+    if (piles !== undefined) {
+      const occupant = piles.find((p) => p.uid === purge.uid);
+      if (occupant === undefined || occupant.pos !== POSITION_PIERRE) return;
+      occupant.pos = POSITION_INVENTAIRE;
+    }
+    superviseur.emettre(pid, trameEquiper({
+      uid: purge.uid, qte: purge.qte, position: POSITION_INVENTAIRE,
+    }));
+  }
+
   // LA CLE EST LE COMBAT, ET C'EST TOUTE LA CONCEPTION DE CE MODULE.
   //
   // `kae` dit DANS QUEL COMBAT se trouve un client, et le nomme: un identifiant
@@ -171,21 +207,6 @@ function creerPdaArchi({
       return;
     }
 
-    // LA PURGE D'ABORD. On sort ce qui occupe l'emplacement avant de poser,
-    // plutot que de compter sur le serveur pour le faire tout seul. Il le fait,
-    // c'est mesure, mais un ordre qui ne suppose rien vaut mieux qu'un ordre
-    // qui suppose. Demande de Jibef le 2026-09-03 apres avoir vu une pierre
-    // etrangere rester en place.
-    //
-    // ELLE N'EST PAS ATTENDUE. Sa confirmation arriverait avant celle de la
-    // pose, et les deux se ressemblent: attendre les deux compliquerait le
-    // suivi pour rien. Si la purge echoue, la pose la remplace de toute facon.
-    if (verdict.purge !== null && verdict.purge !== undefined) {
-      superviseur.emettre(pid, trameEquiper({
-        uid: verdict.purge.uid, qte: verdict.purge.qte, position: POSITION_INVENTAIRE,
-      }));
-    }
-
     // UNE SEULE PIERRE, PAS LA PILE ENTIERE. Le client, lui, deplace tout le
     // tas quand on equipe a la main (mesure du 03/09, une pile de 89 partie en
     // un ordre a 89). On ne l'imite PAS: decision de Jibef le 2026-09-03, il
@@ -212,7 +233,9 @@ function creerPdaArchi({
       rendre(pid, { quoi: 'sans-reponse', gid: verdict.gid, niveauMax });
     }, ms) : null;
     if (minuteur !== null && typeof minuteur.unref === 'function') minuteur.unref();
-    attentes.set(pid, { uid: verdict.uid, gid: verdict.gid, minuteur });
+    attentes.set(pid, {
+      uid: verdict.uid, gid: verdict.gid, minuteur, purge: verdict.purge || null,
+    });
     rendre(pid, { quoi: 'envoye', gid: verdict.gid, niveauMax });
   }
 
@@ -222,8 +245,25 @@ function creerPdaArchi({
     // L'ECOUTE PERMANENTE TOURNE MEME ETEINTE. Elle ne coute que de la memoire,
     // et sans elle allumer l'interrupteur devant un combat n'aurait aucun effet
     // avant le prochain changement de carte.
-    if (frame.type === 'ivx' || frame.type === 'iwb') {
-      const piles = lireStock(frame);
+    //
+    // LA BANQUE EST HORS PERIMETRE, et c'est le bug du 05/09: des personnages
+    // se retrouvaient NUS. Meme decision que le tableau des archimonstres
+    // (src/pda-archi/collection.js), pour la meme raison, et il a fallu la
+    // prendre deux fois parce que la chasse a ete concue la veille de la mesure.
+    //
+    // DEUX PORTES, ET IL FAUT LES DEUX. `iwb` d'abord: ouvrir le banquier
+    // livrait 814 piles qui REMPLACAIENT tout ce qu'on savait de l'inventaire
+    // (mesure, test/fixtures/hdv-iwb.hex) -- et aucune ne porte de rangement,
+    // donc seul le type de trame les arrete. `ivx` ensuite: le bouton rond
+    // « relire les inventaires » demande les rangements 2 et 3 A TOUS LES
+    // CLIENTS d'un coup, et la reponse marque alors chaque pile.
+    //
+    // CE QUE COUTAIT UNE PILE DE BANQUE: `choisir` prend la plus grosse pile,
+    // et on stocke ses pierres a la banque, pas dans ses poches. L'ordre
+    // partait donc sur un uid qu'on ne peut pas equiper.
+    if (frame.type === 'ivx') {
+      const piles = lireStock(frame)
+        .filter((p) => p.rangement === null || p.rangement === RANGEMENT_INVENTAIRE);
       // Une trame qui ne rend aucune pile n'efface pas ce qu'on sait.
       if (piles.length > 0) stocks.set(pid, piles);
       return;
@@ -261,6 +301,7 @@ function creerPdaArchi({
       const attente = attentes.get(pid);
       if (allume && attente !== undefined && pile.pos === POSITION_PIERRE) {
         oublier(pid);
+        purgerApresPose(pid, attente);
         rendre(pid, { quoi: 'equipe', gid: pile.gid });
       }
       return;
@@ -312,6 +353,7 @@ function creerPdaArchi({
       if (allume && attente !== undefined && maj.pos === POSITION_PIERRE) {
         oublier(pid);
         noterPierrePosee(pid, attente, maj.uid);
+        purgerApresPose(pid, attente);
         rendre(pid, { quoi: 'equipe', gid: attente.gid });
       }
       return;

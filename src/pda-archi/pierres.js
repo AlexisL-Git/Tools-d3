@@ -55,8 +55,14 @@ function choisir({ niveauMax, piles }) {
   const voulue = tranche(niveauMax);
   if (voulue === null) return { quoi: 'hors-portee', niveauMax };
 
-  // CE QUI OCCUPE L'EMPLACEMENT, quoi que ce soit. On le sortira avant de poser
-  // la bonne pierre, plutot que de compter sur le serveur pour le faire.
+  // CE QUI OCCUPE L'EMPLACEMENT, quoi que ce soit. On le sortira de la, plutot
+  // que de compter sur le serveur pour le faire.
+  //
+  // APRES LA POSE, ET PAS AVANT -- correction du 05/09, voir purgerApresPose()
+  // dans pda-archi.js. Sortir d'abord laissait le personnage NU chaque fois que
+  // la pose qui suivait n'aboutissait pas. Ce que `choisir` rend ici ne change
+  // pas: c'est toujours « voila ce qui traine a l'emplacement », seul le moment
+  // ou l'ordre part a bouge.
   //
   // LE CAS QUI JUSTIFIE VRAIMENT CETTE PURGE: une pierre qui se remplit pendant
   // le combat CHANGE D'OBJET, et reste a l'emplacement. Sans purge, on la

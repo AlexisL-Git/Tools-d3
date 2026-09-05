@@ -234,8 +234,13 @@ test('lireStock : la pile posee au sol figure dans l inventaire mesure', () => {
   const pile = lireStock(frame(hex)).find((p) => p.uid === 84495873);
   // `pos` s'est ajoute le 03/09 pour la chasse a l'archimonstre: c'est la
   // position d'equipement, 63 valant « range », donc pas equipe.
+  //
+  // `rangement` s'est ajoute le 05/09, pour la meme chasse: d'ou vient la pile,
+  // 1 l'inventaire et 2 la banque. Il est `null` ici, et il l'est dans TOUTES
+  // les captures du depot -- le serveur ne le marque que dans la reponse a
+  // `itr`, jamais dans l'ivx de connexion.
   assert.deepStrictEqual(pile, {
-    uid: 84495873, gid: 13731, qte: 286, avecEffets: false, pos: 63,
+    uid: 84495873, gid: 13731, qte: 286, avecEffets: false, pos: 63, rangement: null,
   });
 });
 

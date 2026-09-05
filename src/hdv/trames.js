@@ -1,5 +1,5 @@
 'use strict';
-const { encodeRaw, WIRE } = require('../codec/rawProto');
+const { encodeRaw, decodeRaw, WIRE } = require('../codec/rawProto');
 
 // Les trames de l'hotel de vente: ce qu'on emet, ce qu'on lit.
 //
@@ -20,6 +20,10 @@ const TAILLES = [1, 10, 100, 1000];
 // LE ZERO PROTOBUF NE S'ECRIT PAS: un champ 1 absent vaut 0, l'amulette, et
 // surtout PAS 63. Mesure du 03/09: sur 471 piles, une seule est dans ce cas.
 const POSITION_INVENTAIRE = 63;
+
+// Le rangement a portee de main. Voir rangementDe() plus bas: la banque est le
+// 2, un troisieme rangement le 3, et l'absence de rangement vaut l'inventaire.
+const RANGEMENT_INVENTAIRE = 1;
 
 // --- Ce qu'on emet -------------------------------------------------------
 
@@ -219,6 +223,32 @@ function lireNosLots(frame) {
 // coup les equipements ET les consommables, qui relevent d'autres hotels. Sans
 // ce tri il faudrait demander la categorie de chaque GID, un aller-retour par
 // objet.
+//
+// LE CHAMP 5 DU DETAIL DIT D'OU VIENT LA PILE: { 1: page, 2: rangement }.
+//
+// Il n'apparait QUE dans la reponse a `itr`, jamais dans l'`ivx` de connexion
+// ni dans `iwb` -- mesure du 04/09, detaillee dans src/pda-archi/collection.js.
+// `null` veut donc dire deux choses a la fois: soit la trame ne le porte pas,
+// soit c'est l'equipement porte. Les deux se traitent pareil, ils sont a
+// portee de main.
+//
+//   1  l'inventaire        2  la banque        3  un troisieme
+function rangementDe(detail) {
+  const f = champ(detail, 5);
+  if (f === null) return null;
+  let bloc = null;
+  if (Array.isArray(f.value)) bloc = f.value;
+  else {
+    const brut = Buffer.isBuffer(f.raw) ? f.raw : (Buffer.isBuffer(f.value) ? f.value : null);
+    if (brut === null) return null;
+    try {
+      const d = decodeRaw(brut);
+      bloc = d.length > 0 ? d : null;
+    } catch (e) { return null; }
+  }
+  return bloc === null ? null : entier(bloc, 2);
+}
+
 function lirePile(el) {
   if (el.kind !== 'message') return null;
   const detail = champ(el.value, 5);
@@ -229,7 +259,8 @@ function lirePile(el) {
   if (gid === null || qte === null || uid === null) return null;
   const avecEffets = (detail.value || []).some((f) => f.no === 2);
   const p = entier(el.value, 1);
-  return { uid, gid, qte, avecEffets, pos: p === null ? 0 : p };
+  const rangement = rangementDe(detail.value);
+  return { uid, gid, qte, avecEffets, pos: p === null ? 0 : p, rangement };
 }
 
 // ivx { 3: [ pile ] } — l'inventaire, et l'inventaire + la banque quand le
@@ -318,7 +349,7 @@ function lirePrixMoyens(frame) {
 }
 
 module.exports = {
-  TAILLES, POSITION_INVENTAIRE,
+  TAILLES, POSITION_INVENTAIRE, RANGEMENT_INVENTAIRE,
   trameMajPrix, trameAbonner, trameDesabonner, trameStats, trameMettreEnVente,
   lirePrixMarche, lireStatsPrix, lireNosLots, lireLotPose, lireLotRetire, lirePrixMoyens,
   lireStock, lirePile, lirePileMaj, lirePileDisparue,

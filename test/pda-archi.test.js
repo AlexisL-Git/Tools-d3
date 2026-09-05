@@ -142,8 +142,9 @@ test('un niveau 90 fait equiper la Grande pierre et attend la confirmation', () 
   const { superviseur, chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
-  // Deux ordres: la purge de la Moyenne portee, puis la pose de la Grande.
-  assert.strictEqual(superviseur.envois.length, 2);
+  // UN SEUL ORDRE, la pose. La Moyenne portee ne sort qu'une fois la Grande
+  // confirmee -- correction du 05/09, voir purgerApresPose().
+  assert.strictEqual(superviseur.envois.length, 1);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
   assert.strictEqual(rendus.at(-1).gid, 9688);
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(233526391, POSITION_PIERRE) });
@@ -180,7 +181,7 @@ test('l ordre ne porte qu une seule pierre, pas la pile entiere', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
   const attendu = trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE });
-  assert.deepStrictEqual(superviseur.envois[1].octets, attendu);
+  assert.deepStrictEqual(superviseur.envois[0].octets, attendu);
 });
 
 // Le combat suivant ne doit RIEN renvoyer: la pierre posee est en 31, et notre
@@ -308,10 +309,10 @@ test('une pile neuve devient equipable', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999001, 9688, 12, 63) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
-  assert.strictEqual(superviseur.envois.length, 2);
+  assert.strictEqual(superviseur.envois.length, 1);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
   assert.deepStrictEqual(
-    superviseur.envois[1].octets,
+    superviseur.envois[0].octets,
     trameEquiper({ uid: 999001, qte: 1, position: POSITION_PIERRE }),
   );
 });
@@ -324,7 +325,7 @@ test('une quantite mise a jour est suivie', () => {
   entrer(chasse, 42, -300);
   // 7 contre 3: la plus grosse pile reste celle d'origine.
   assert.deepStrictEqual(
-    superviseur.envois[1].octets,
+    superviseur.envois[0].octets,
     trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE }),
   );
 });
@@ -368,17 +369,10 @@ test('une reponse a temps desarme le minuteur', async () => {
 const { POSITION_INVENTAIRE } = require('../src/hdv/trames');
 
 // L'inventaire mesure porte la Moyenne (9687, uid 233525940, 47 unites) a
-// l'emplacement. Elle doit en sortir AVANT que la Grande y entre.
-test('la purge part avant la pose, et porte la pile entiere', () => {
-  const { superviseur, chasse } = monte();
-  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
-  entrer(chasse, 42, -300);
-  assert.strictEqual(superviseur.envois.length, 2);
-  assert.deepStrictEqual(
-    superviseur.envois[0].octets,
-    trameEquiper({ uid: 233525940, qte: 47, position: POSITION_INVENTAIRE }),
-  );
-});
+// l'emplacement. Elle doit en sortir -- mais APRES que la Grande y soit entree,
+// et c'est la correction du 05/09: le test qui tenait l'ordre inverse a ete
+// remplace par « la purge part apres la confirmation de la pose », plus bas,
+// qui verifie aussi qu'elle porte la pile entiere.
 
 // Rien a l'emplacement, rien a purger: un seul ordre.
 test('sans rien a l emplacement, aucune purge n est emise', () => {
@@ -402,12 +396,15 @@ test('une pierre pleine restee a l emplacement est purgee', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999003, 7010, 1, POSITION_PIERRE) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
+  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+  assert.strictEqual(superviseur.envois.length, 1, 'la pose d abord');
+  // La pierre pleine ne sort qu'une fois la neuve en place.
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
   assert.strictEqual(superviseur.envois.length, 2);
   assert.deepStrictEqual(
-    superviseur.envois[0].octets,
+    superviseur.envois[1].octets,
     trameEquiper({ uid: 999003, qte: 1, position: POSITION_INVENTAIRE }),
   );
-  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
 });
 
 // --- Les deux corrections du 03/09, 14h40 ----------------------------------
@@ -454,7 +451,7 @@ test('un seul client voit le groupe, tous s equipent en rejoignant', () => {
   assert.strictEqual(superviseur.envois.length, 0, 'rien avant d etre dans le combat');
   for (const pid of [42, 43, 44]) entrer(chasse, pid, null, 300);
   for (const pid of [42, 43, 44]) {
-    assert.strictEqual(superviseur.envoisDe(pid).length, 2, 'pid ' + pid);
+    assert.strictEqual(superviseur.envoisDe(pid).length, 1, 'pid ' + pid);
   }
   assert.strictEqual(rendus.filter((r) => r.quoi === 'envoye').length, 3);
 });
@@ -472,7 +469,7 @@ test('une mule en retard est equipee a son arrivee, pas avant', () => {
   entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envoisDe(43).length, 0, 'la mule marche encore');
   entrer(chasse, 43, null, 300);
-  assert.strictEqual(superviseur.envoisDe(43).length, 2, 'elle est arrivee');
+  assert.strictEqual(superviseur.envoisDe(43).length, 1, 'elle est arrivee');
 });
 
 // kmk sert AUSSI a lister les acteurs d une carte, ou tout est positif.
@@ -494,7 +491,7 @@ test('une seconde liste de combattants ne rejoue rien', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
-  assert.strictEqual(superviseur.envois.length, 2);
+  assert.strictEqual(superviseur.envois.length, 1);
 });
 
 // Deux clients dans le MEME combat: chacun son ordre, et un seul chacun.
@@ -511,7 +508,7 @@ test('deux clients dans le meme combat s equipent une fois chacun', () => {
   chasse.onTrame({ pid: 43, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300);
   entrer(chasse, 43, -300);
-  assert.strictEqual(superviseur.envois.length, 4); // 2 clients x (purge + pose)
+  assert.strictEqual(superviseur.envois.length, 2); // 2 clients x la pose
 });
 
 // LE MEME GROUPE, SUR LA MEME CARTE, DANS DEUX COMBATS. Ce n est pas un cas
@@ -535,7 +532,9 @@ test('le meme groupe dans un autre combat equipe de nouveau', () => {
   // Le groupe est repeuple par des monstres plus faibles: une autre pierre.
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(80, -300) });
   entrer(chasse, 42, -300, 55);
-  assert.strictEqual(superviseur.envois.length, 4);
+  // Une pose par combat, et AUCUNE purge: le serveur ayant renvoye la Moyenne
+  // en 63 de lui-meme, notre copie le sait et le filet ne se tend pas.
+  assert.strictEqual(superviseur.envois.length, 2);
 });
 
 // ===================================================================
@@ -561,7 +560,7 @@ test('un retardataire est equipe meme trois minutes apres', () => {
   // Trois minutes plus tard, dans le monde reel. Ici: rien du tout, puisqu il
   // n y a plus une seule horloge dans le module.
   entrer(chasse, 43, null, 194);
-  assert.strictEqual(superviseur.envoisDe(43).length, 2, 'la mule equipe quand meme');
+  assert.strictEqual(superviseur.envoisDe(43).length, 1, 'la mule equipe quand meme');
 });
 
 // LA LISTE DES DEJA SERVIS, ET C EST LE COEUR DU BUG. Elle vivait dans l objet
@@ -576,7 +575,7 @@ test('un personnage servi au combat precedent est servi au suivant', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
   entrer(chasse, 42, -300, 194);
-  assert.strictEqual(superviseur.envois.length, 2, 'le premier combat');
+  assert.strictEqual(superviseur.envois.length, 1, 'le premier combat');
   chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
 
   // Le second combat demande la meme pierre, qui est desormais portee: la
@@ -628,5 +627,146 @@ test('les kmk en rafale n envoient qu un seul ordre', () => {
   for (let i = 0; i < 5; i += 1) {
     chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
   }
-  assert.strictEqual(superviseur.envois.length, 2, 'la purge et la pose, rien de plus');
+  assert.strictEqual(superviseur.envois.length, 1, 'la pose, rien de plus');
+});
+
+// --- Le bug du 05/09: des personnages nus ----------------------------------
+//
+// Deux defauts distincts, trouves en cherchant pourquoi plusieurs personnages
+// se retrouvaient SANS pierre d'ame. Ils se combinent, mais chacun mord seul.
+
+// PREMIER DEFAUT: LA PURGE DETRUISAIT D'ABORD ET DEMANDAIT ENSUITE.
+//
+// L'ordre etait: sortir la pierre portee, puis poser la neuve, sans jamais
+// verifier que la seconde arrive. Toute cause d'echec de la pose -- uid perime,
+// ordre perdu, refus du serveur -- laissait donc le personnage NU, et `servis`
+// interdisait la moindre nouvelle tentative sur ce combat.
+//
+// Le serveur desequipe tout seul, c'est mesure le 03/09: la purge n'a jamais
+// ete la que comme filet, apres que Jibef a vu une pierre etrangere rester en
+// place. Un filet ne se tend pas avant le saut.
+test('la pose part seule: rien n est purge tant qu elle n est pas confirmee', () => {
+  const { superviseur, chasse } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300);
+  assert.strictEqual(superviseur.envois.length, 1, 'un seul ordre, la pose');
+  assert.deepStrictEqual(
+    superviseur.envois[0].octets,
+    trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE }),
+  );
+});
+
+// LE PERSONNAGE GARDE SA PIERRE QUAND LA POSE ECHOUE. C'est tout l'objet de la
+// correction: une pierre inadaptee vaut infiniment mieux que pas de pierre.
+test('une pose sans reponse ne desequipe rien', async () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const chasse = creerPdaArchi({
+    superviseur, actif: true, reglages: { delaiReponseMs: 5 }, onCompteRendu: (r) => rendus.push(r),
+  });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300);
+  await new Promise((r) => setTimeout(r, 30));
+  assert.strictEqual(rendus.at(-1).quoi, 'sans-reponse');
+  const versInventaire = superviseur.envois.filter((e) => e.octets.equals(
+    trameEquiper({ uid: 233525940, qte: 47, position: POSITION_INVENTAIRE }),
+  ));
+  assert.strictEqual(versInventaire.length, 0, 'la Moyenne portee n a pas bouge');
+});
+
+// LE FILET SE TEND APRES LE SAUT. Une fois la pose confirmee, ce qui occupait
+// encore l'emplacement en sort -- c'est exactement ce que Jibef demandait.
+test('la purge part apres la confirmation de la pose', () => {
+  const { superviseur, chasse, rendus } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300);
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
+  assert.strictEqual(rendus.at(-1).quoi, 'equipe');
+  assert.strictEqual(superviseur.envois.length, 2, 'la pose, puis la purge');
+  assert.deepStrictEqual(
+    superviseur.envois[1].octets,
+    trameEquiper({ uid: 233525940, qte: 47, position: POSITION_INVENTAIRE }),
+  );
+});
+
+// LE SERVEUR L'A DEJA FAIT: rien a purger. Mesure du 03/09, poser en 31 renvoie
+// en 63 ce qui s'y trouvait. La purge ne doit alors pas exister.
+test('un desequipement fait par le serveur dispense de purger', () => {
+  const { superviseur, chasse } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300);
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(233525940, POSITION_INVENTAIRE) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ivq(999999, POSITION_PIERRE) });
+  assert.strictEqual(superviseur.envois.length, 1, 'la pose seule');
+});
+
+// SECOND DEFAUT: LA BANQUE ENTRAIT DANS LE STOCK DE LA CHASSE.
+//
+// `collection.js` a appris la lecon le 04/09 -- la reponse a `itr` porte, pile
+// par pile, son rangement: 1 l'inventaire, 2 la banque, 3 un troisieme, absent
+// l'equipement porte -- et elle filtre. La chasse, concue la veille, ne l'a
+// jamais apprise: elle avalait tout.
+//
+// Le bouton rond « relire les inventaires » (desktop/main.js) demande les
+// rangements 2 et 3 A TOUS LES CLIENTS CONNECTES. Un clic, et chaque
+// personnage voyait la banque entrer dans sa copie d'inventaire.
+
+// Une pile de la reponse a `itr`: le detail porte en champ 5 { 1: page,
+// 2: rangement }. Absent chez l'equipement porte, et dans l'ivx de connexion.
+function pileRangee({ pos, gid, qte, uid, rangement }) {
+  const detail = [
+    { no: 1, wire: WIRE.VARINT, value: BigInt(gid) },
+    { no: 3, wire: WIRE.VARINT, value: BigInt(qte) },
+    { no: 4, wire: WIRE.VARINT, value: BigInt(uid) },
+  ];
+  if (rangement !== null) {
+    detail.push({ no: 5, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 1, wire: WIRE.VARINT, value: 0n },
+      { no: 2, wire: WIRE.VARINT, value: BigInt(rangement) },
+    ] });
+  }
+  return { no: 3, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 1, wire: WIRE.VARINT, value: BigInt(pos) },
+    { no: 5, wire: WIRE.LEN, kind: 'message', value: detail },
+  ] };
+}
+
+// LA PLUS GROSSE PILE EST EN BANQUE, et c'est le cas ordinaire: on stocke ses
+// pierres a la banque, pas dans ses poches. `choisir` prenait donc l'uid de la
+// banque -- un uid qu'on ne peut pas equiper.
+test('la banque n entre pas dans le stock de la chasse', () => {
+  const superviseur = doubleSuperviseur();
+  const rendus = [];
+  const chasse = creerPdaArchi({ superviseur, actif: true, onCompteRendu: (r) => rendus.push(r) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: { type: 'ivx', payload: [
+    pileRangee({ pos: POSITION_PIERRE, gid: 9687, qte: 1, uid: 111, rangement: null }),
+    pileRangee({ pos: 63, gid: 9688, qte: 3, uid: 222, rangement: 1 }),
+    pileRangee({ pos: 63, gid: 9688, qte: 50, uid: 333, rangement: 2 }),
+    pileRangee({ pos: 63, gid: 9688, qte: 90, uid: 444, rangement: 3 }),
+  ] } });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(124) });
+  entrer(chasse, 42, -300);
+  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+  assert.deepStrictEqual(
+    superviseur.envois[0].octets,
+    trameEquiper({ uid: 222, qte: 1, position: POSITION_PIERRE }),
+    'la pile de l inventaire, pas celle de la banque',
+  );
+});
+
+// `iwb` REMPLACAIT TOUT LE STOCK PAR LA BANQUE. Il suffisait d'ouvrir le
+// banquier. Mesure reelle, test/fixtures/hdv-iwb.hex: 814 piles, toutes en
+// position 63, AUCUNE marque de rangement -- un filtre par rangement ne les
+// arreterait donc pas, seul le type de trame le peut.
+//
+// C'est deja la decision de Jibef pour le tableau (collection.js): la banque
+// est hors perimetre.
+test('ouvrir le banquier n ecrase pas la copie de l inventaire', () => {
+  const { superviseur, chasse, rendus } = monte();
+  chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-iwb.hex') });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(80) });
+  entrer(chasse, 42, -300);
+  assert.strictEqual(superviseur.envois.length, 0, 'la Moyenne portee suffit');
+  assert.strictEqual(rendus.at(-1).quoi, 'deja');
 });
