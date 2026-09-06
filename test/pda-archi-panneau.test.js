@@ -53,7 +53,8 @@ test('aucune regle hors du panneau ne definit une classe arc-', () => {
   const inconnues = regles.filter(
     (c) => !classesArchi.includes(c)
       && !['arc-table', 'arc-corps', 'arc-pied', 'arc-filtres', 'arc-relire',
-        'arc-filtres-liste', 'arc-onglets', 'arc-segmente', 'arc-discret', 'arc-pastille'].includes(c),
+        'arc-filtres-liste', 'arc-onglets', 'arc-segmente', 'arc-discret', 'arc-pastille',
+        'arc-cherche'].includes(c),
   );
   assert.deepStrictEqual(inconnues, []);
 });
@@ -108,7 +109,7 @@ const { construire } = require('../src/pda-archi/tableau');
 
 function noeud() {
   return {
-    textContent: '', innerHTML: '', hidden: true, disabled: false, title: '',
+    textContent: '', innerHTML: '', hidden: true, disabled: false, title: '', value: '',
     dataset: {}, style: {}, children: [], ecouteurs: [],
     classList: { toggle() {}, add() {}, remove() {}, contains: () => false },
     addEventListener(t, f) { if (t === 'click') this.ecouteurs.push(f); },
@@ -335,4 +336,75 @@ test('chaque groupe segmente porte sa pastille', () => {
   const pastilles = barre.match(/class="arc-pastille"/g) || [];
   assert.ok(groupes.length >= 2, 'les deux groupes segmentes sont introuvables');
   assert.strictEqual(pastilles.length, groupes.length, 'un groupe segmente n a pas de pastille');
+});
+
+// LA BARRE DE RECHERCHE. Deux cent quatre-vingt-six lignes ne se parcourent
+// pas a l oeil: quand on veut savoir si on a DEJA celui-la, on tape son nom. Elle
+// vit avec les trois filtres -- meme place, meme visibilite -- parce que c est
+// le meme geste: restreindre ce que la liste montre.
+const chercher = (parId, texte) => {
+  const champ = parId.get('arcChercheTexte');
+  champ.value = texte;
+  return champ.oninput();
+};
+
+test('la recherche ne garde que les lignes dont le nom correspond', async () => {
+  const { parId } = await ouvrirLePanneau();
+  await chercher(parId, 'pichakoté');
+  const corps = parId.get('arcCorps').innerHTML;
+  assert.ok(corps.includes('Pichakoté le Dégoutant'), 'celui qu on cherche doit rester');
+  assert.ok(!corps.includes('Arachitik'), 'les autres doivent partir');
+});
+
+// TAPER LES ACCENTS AU CLAVIER POUR TROUVER « Pichakote », C EST LA RECHERCHE
+// QUI NE SERT A RIEN. La comparaison se fait donc sur des noms mis a plat.
+test('la recherche ignore la casse et les accents', async () => {
+  const { parId } = await ouvrirLePanneau();
+  await chercher(parId, 'PICHAKOTE');
+  assert.ok(parId.get('arcCorps').innerHTML.includes('Pichakoté le Dégoutant'));
+});
+
+// LES DEUX FILTRES SE CUMULENT, ils ne se remplacent pas: « manquants » plus un
+// nom, c est la question « celui-la, est-ce qu il me manque ? ». Ici 101
+// possede Pichakote: en manquants, la recherche ne doit rien rendre.
+test('la recherche se cumule avec le filtre plutot que de le remplacer', async () => {
+  const { parId, boutons } = await ouvrirLePanneau();
+  await chercher(parId, 'pichakoté');
+  await boutons.find((b) => b.dataset.filtre === 'manquants').clic();
+  assert.ok(!parId.get('arcCorps').innerHTML.includes('Pichakoté le Dégoutant'),
+    '101 le possede: il ne peut pas etre dans ses manquants');
+  await boutons.find((b) => b.dataset.filtre === 'possedes').clic();
+  assert.ok(parId.get('arcCorps').innerHTML.includes('Pichakoté le Dégoutant'),
+    'en possedes, il revient');
+});
+
+// Un nom qui ne correspond a rien doit le DIRE. Une table vide et une table
+// cassee ont exactement la meme allure.
+test('une recherche sans resultat le dit', async () => {
+  const { parId } = await ouvrirLePanneau();
+  await chercher(parId, 'zzzzz');
+  assert.match(parId.get('arcCorps').innerHTML, /rien à afficher/);
+});
+
+// MEME REGLE QUE LES TROIS FILTRES: sans effet sur la vue par zone, elle en
+// disparait plutot que d y promettre un geste qui ne fait rien.
+test('la barre de recherche disparait dans la vue par zone', async () => {
+  const { parId } = await ouvrirLePanneau({ vue: 'zones' });
+  assert.strictEqual(parId.get('arcCherche').hidden, true);
+});
+
+test('la barre de recherche revient dans la vue liste', async () => {
+  const { parId } = await ouvrirLePanneau({ vue: 'liste' });
+  assert.strictEqual(parId.get('arcCherche').hidden, false);
+});
+
+// ECHAP VIDE AVANT DE FERMER. Le panneau se ferme a Echap; un champ de
+// recherche rempli fait du meme geste une perte de contexte brutale.
+test('echap vide la recherche et ne ferme pas le panneau', async () => {
+  const { parId } = await ouvrirLePanneau();
+  await chercher(parId, 'pichakoté');
+  const garde = parId.get('arcChercheTexte').onkeydown({ key: 'Escape', stopPropagation() {} });
+  await garde;
+  assert.strictEqual(parId.get('arcChercheTexte').value, '');
+  assert.ok(parId.get('arcCorps').innerHTML.includes('Arachitik'), 'la liste entiere revient');
 });
