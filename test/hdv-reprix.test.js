@@ -57,10 +57,12 @@ function fauxSuperviseur(pid = 1) {
 // assertion porte sur un etat stable. Les minuteurs ont leur propre test.
 const REGLAGES = { delaiMs: 0, delaiObjetMs: 0, delaiReponseMs: 0 };
 
-function monter(pid = 1) {
+function monter(pid = 1, garde) {
   const sup = fauxSuperviseur(pid);
   const rendu = [];
-  const r = creerReprix({ superviseur: sup, reglages: REGLAGES, onCompteRendu: (x) => rendu.push(x) });
+  const r = creerReprix({
+    superviseur: sup, reglages: { ...REGLAGES, garde }, onCompteRendu: (x) => rendu.push(x),
+  });
   const dire = (frame) => r.onTrame({ pid, dir: 'in', frame, brute: Buffer.alloc(0) });
   return { sup, rendu, r, dire, types: () => sup.emis.map((e) => e.frame.type) };
 }
@@ -718,4 +720,46 @@ test('le facteur de rythme atteint vraiment le tirage du delai', async () => {
   assert.strictEqual(kch(), 2,
     'a x0,25 le second lot part avant 650 ms; au rythme d origine il attendrait 900 ms au moins');
   r.arreter(1);
+});
+
+// --- LES GARDE-FOUS REGLES DEPUIS OMNI -----------------------------------
+//
+// La regle est testee chez prix.js; ce qui se verifie ici est qu'elle ARRIVE
+// jusqu'au lot, et qu'elle passe par les reglages plutot que par une constante.
+
+test('le plafond regle arrete une mise a jour que le facteur laissait passer', () => {
+  // Moyen a 300 000 l'unite: le facteur 5 autorise 15 millions pour un lot de
+  // 10. Seul un plafond peut arreter un marche a 1,2 million.
+  const { r, dire, types, rendu } = monter(1, { plafond: 1000000 });
+  dire(kby([{ uid: 10, gid: 13731, taille: 10, prix: 1520 }]));
+  dire(ivi([[13731, 300000]]));
+  r.lancer(1);
+  dire(kbt(13731, [0, 1200001, 0, 0]));
+  assert.ok(!types().includes('kch'), 'aucune mise a jour de prix ne doit partir');
+  const fin = rendu.find((x) => x.fini);
+  assert.strictEqual(fin.bilan.ecartes.length, 1);
+  assert.strictEqual(fin.bilan.ecartes[0].motif, 'au-dessus-du-plafond');
+  assert.strictEqual(fin.bilan.ecartes[0].borne, 1000000);
+});
+
+// Le temoin du contraire: sans plafond, le meme marche fait emettre.
+test('sans plafond, la meme mise a jour part', () => {
+  const { r, dire, types } = monter();
+  dire(kby([{ uid: 10, gid: 13731, taille: 10, prix: 1520 }]));
+  dire(ivi([[13731, 300000]]));
+  r.lancer(1);
+  dire(kbt(13731, [0, 1200001, 0, 0]));
+  assert.ok(types().includes('kch'), 'la mise a jour de prix doit partir');
+});
+
+test('le facteur regle resserre l actualisation', () => {
+  const { r, dire, rendu } = monter(1, { facteur: 1.5 });
+  dire(kby([{ uid: 10, gid: 13731, taille: 10, prix: 1520 }]));
+  dire(ivi([[13731, 152]]));
+  r.lancer(1);
+  dire(kbt(13731, [0, 3001, 0, 0]));
+  const fin = rendu.find((x) => x.fini);
+  assert.strictEqual(fin.bilan.ecartes.length, 1);
+  assert.strictEqual(fin.bilan.ecartes[0].motif, 'trop-haut');
+  assert.strictEqual(fin.bilan.ecartes[0].borne, 2280);
 });

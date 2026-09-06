@@ -55,7 +55,8 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   // 2026-08-29: une position d'ecran, un sens et un booleen, rien qui
   // designe une personne. `hdvRythme` s'y ajoute le 2026-09-05: quatre
   // facteurs sans unite et une expiration en millisecondes, cinq nombres.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
+  // `hdvGarde` le meme jour: un facteur et un plafond en kamas, deux nombres.
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -106,7 +107,7 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
@@ -710,4 +711,115 @@ test('un fichier d une version anterieure garde le rythme d origine', (t) => {
   f.charger();
   assert.deepStrictEqual(f.hdvRythme(),
     { lot: 1, objet: 1, pause: 1, frequencePause: 1, reponseMs: 4000 });
+});
+
+// --- LES GARDE-FOUS DE PRIX HDV -----------------------------------------
+//
+// Deux nombres: un facteur d'ecart au prix moyen, et un plafond absolu en
+// kamas sur le prix du LOT -- le nombre qu'on tape dans le jeu.
+//
+// LEURS DEUX VALEURS NEUTRES NE SONT PAS LA MEME. Le facteur neutre est 5,
+// celui qui vivait en dur dans prix.js; le plafond neutre est 0, qui veut dire
+// « aucun plafond ». Un plafond dont la valeur neutre serait un nombre aurait
+// change le comportement de tout le monde a la mise a jour.
+
+test('sans fichier, les garde-fous valent ceux d avant', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  assert.deepStrictEqual(f.hdvGarde(), { facteur: 5, plafond: 0 });
+});
+
+test('un garde-fou regle survit a un rechargement', (t) => {
+  const p = fichierTemporaire(t);
+  const a = new Favoris(p);
+  a.charger();
+  a.reglerHdvGarde({ facteur: 3, plafond: 1000000 });
+
+  const b = new Favoris(p);
+  b.charger();
+  assert.deepStrictEqual(b.hdvGarde(), { facteur: 3, plafond: 1000000 });
+});
+
+// Partiel comme le rythme: le panneau envoie le champ qui vient de bouger.
+test('regler le plafond seul laisse le facteur en place', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  f.reglerHdvGarde({ plafond: 3000000 });
+  assert.deepStrictEqual(f.hdvGarde(), { facteur: 5, plafond: 3000000 });
+});
+
+// SOUS 1,5 LE GARDE-FOU REFUSE TOUT CE QUI N'EST PAS LE PRIX MOYEN, et sous 1
+// il inverserait plancher et plafond. Au-dela de 20, il ne garde plus rien:
+// l'incident du 05/09 etait a un facteur 4600, mais un facteur 50 laisse deja
+// passer le genre d'ordre de grandeur qu'on cherche a arreter.
+test('un facteur hors bornes est ramene dans les bornes', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  f.reglerHdvGarde({ facteur: 0.5 });
+  assert.strictEqual(f.hdvGarde().facteur, 1.5);
+  f.reglerHdvGarde({ facteur: 999 });
+  assert.strictEqual(f.hdvGarde().facteur, 20);
+});
+
+// ZERO RESTE ZERO: c'est « aucun plafond », pas une valeur a remonter dans les
+// bornes. Un plafond negatif, lui, n'a pas de sens et vaut « aucun ».
+test('le plafond accepte zero, refuse le negatif, et se borne en haut', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  f.reglerHdvGarde({ plafond: 0 });
+  assert.strictEqual(f.hdvGarde().plafond, 0);
+  f.reglerHdvGarde({ plafond: -5 });
+  assert.strictEqual(f.hdvGarde().plafond, 0);
+  f.reglerHdvGarde({ plafond: 99999999999 });
+  assert.strictEqual(f.hdvGarde().plafond, 1000000000);
+});
+
+// Un plafond en dessous de 1000 kamas ecarterait la quasi-totalite d'un stock
+// sans que ce soit jamais ce qu'on voulait dire.
+test('un plafond trop bas mais non nul est remonte au plancher', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  f.reglerHdvGarde({ plafond: 12 });
+  assert.strictEqual(f.hdvGarde().plafond, 1000);
+});
+
+test('le plafond est un entier', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  f.reglerHdvGarde({ plafond: 1000000.7 });
+  assert.strictEqual(f.hdvGarde().plafond, 1000001);
+});
+
+// Meme discipline que le rythme: une forme inconnue laisse le defaut sans
+// faire echouer le chargement.
+test('un garde-fou de forme inconnue laisse les defauts', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({
+    favoris: [3], hdvGarde: { facteur: 'large', plafond: [] },
+  }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.deepStrictEqual(f.hdvGarde(), { facteur: 5, plafond: 0 });
+  assert.deepStrictEqual(f.tous(), [3]);
+});
+
+// LA CLE ABSENTE VAUT « COMPORTEMENT D'AVANT », comme pour le rythme: le
+// fichier d'un ami qui monte de version retrouve le facteur 5 en dur de
+// prix.js et aucun plafond.
+test('un fichier d une version anterieure garde les garde-fous d origine', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({ delai: 0, favoris: [3], passeTour: [] }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.deepStrictEqual(f.hdvGarde(), { facteur: 5, plafond: 0 });
+});
+
+// La copie protege ce qui sera ecrit sur le disque: main.js garde une reference
+// que les deux modules relisent a chaque lot.
+test('les garde-fous sont rendus par copie', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  const g = f.hdvGarde();
+  g.plafond = 42;
+  assert.strictEqual(f.hdvGarde().plafond, 0);
 });

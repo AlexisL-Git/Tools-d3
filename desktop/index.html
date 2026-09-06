@@ -594,6 +594,27 @@
   }
   .ry-absolu .ry-detail { grid-column: 1 / -1; max-width: 66ch; }
 
+  /* LES DEUX SECTIONS DU PANNEAU. Il n'en portait qu'une, elle n'avait donc pas
+     besoin d'un titre; a deux, sans titres, on ne sait plus a quoi se rapporte
+     un curseur. */
+  .ry-titre {
+    margin: 0 0 12px; font-size: 11.5px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--texte);
+  }
+  .ry-titre + .ry-intro { margin-top: -4px; }
+  .ry-section + .ry-section { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--filet); }
+
+  /* LES RACCOURCIS DU PLAFOND, memes pilules que les profils de rythme en plus
+     petit: ce sont les deux valeurs qu'on cite quand on en parle. */
+  .gf-rapides { display: flex; align-items: center; gap: 7px; }
+  .gf-rapides button {
+    padding: 3px 11px; border-radius: 999px;
+    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
+    font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  .gf-rapides button:hover { color: var(--texte); border-color: var(--attenue); }
+  .gf-rapides button.on { color: var(--arme); border-color: var(--arme); }
+
   /* LE TABLEAU DES ECARTES emprunte .arc-table: meme grille, meme en-tete
      collant, meme lecture. Il n'ajoute que ce qui lui est propre -- des
      nombres alignes a droite, et le motif en clair. */
@@ -915,11 +936,44 @@
      generaux avaient produit avant d'etre supprimes. -->
 <div class="vue-archi" id="vueRythme" hidden>
   <div class="qdn-tete">
-    <b>Rythme des passes HDV</b>
+    <b>Réglages HDV</b>
     <span class="avis-nav" id="ryProfil"></span>
     <button id="ryFermer" title="Fermer (Échap)">✕</button>
   </div>
   <div class="ry-corps">
+    <!-- LES GARDE-FOUS PASSENT AVANT LE RYTHME, et l'ordre est un choix: le
+         rythme decide de la discretion, les garde-fous decident de KAMAS. Six
+         lots partis a 7 000 002 le 05/09 pour une marchandise a 1520 disent
+         lequel des deux se regarde en premier quand on ouvre ce panneau. -->
+    <section class="ry-section">
+      <h3 class="ry-titre">Garde-fous de prix</h3>
+      <p class="ry-intro">
+        Aucun prix n’est émis sans passer par ces deux bornes, dans les deux fonctions.
+        L’<b>écart</b> se mesure au prix moyen de l’objet, qui bouge avec le marché ;
+        le <b>plafond</b>, lui, ne bouge pas — c’est le filet quand le prix moyen
+        lui-même n’est pas fiable.
+      </p>
+      <div class="ry-reglage">
+        <span>Écart maximum</span>
+        <input id="gfFacteur" type="range" min="1.5" max="20" step="0.5" value="5">
+        <output id="gfFacteurSortie"></output>
+        <div class="ry-detail" id="gfFacteurDetail"></div>
+      </div>
+      <div class="ry-absolu">
+        <span>Prix plafond</span>
+        <input id="gfPlafond" type="number" min="0" max="1000000000" step="100000" value="0">
+        <span class="gf-rapides">
+          kamas par lot
+          <button data-plafond="0">Aucun</button>
+          <button data-plafond="1000000">1 M</button>
+          <button data-plafond="3000000">3 M</button>
+        </span>
+        <div class="ry-detail" id="gfPlafondDetail"></div>
+      </div>
+    </section>
+
+    <section class="ry-section">
+    <h3 class="ry-titre">Rythme des passes</h3>
     <p class="ry-intro">
       Ces réglages sont <b>relatifs</b> : ils multiplient les délais mesurés en jeu au
       lieu de les remplacer. L’actualisation espace ses lots de 900 à 2600 ms, la mise
@@ -945,6 +999,7 @@
         </div>
       </div>
     </details>
+    </section>
   </div>
 </div>
 
@@ -957,7 +1012,7 @@
        porte l'etat d'OMNI lui-meme. Emplacement choisi par Jibef le 03/09 sur
        le labo, apres avoir compare quatre positions. -->
   <button class="maitre-inter" id="interPdaArchi"><span class="temoin"></span><span>Équiper PdA</span></button>
-  <button class="pose" id="brythme" title="le rythme des passes HDV, commun aux deux fonctions">Rythme HDV</button>
+  <button class="pose" id="brythme" title="le rythme des passes HDV et les garde-fous de prix, communs aux deux fonctions">Réglage HDV</button>
   <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
 </div>
@@ -1241,6 +1296,7 @@
     'moyen-inconnu': 'prix moyen inconnu',
     'deduction-trop-haute': 'déduction trop haute',
     'deduction-trop-basse': 'déduction trop basse',
+    'au-dessus-du-plafond': 'au-dessus du plafond',
     'marche-a-1-kama': 'marché à 1 kama',
     'aucun-voisin': 'aucun prix de référence',
     'deja-au-minimum': 'déjà au meilleur prix',
@@ -1249,7 +1305,7 @@
     'taille-hors-creneaux': 'taille hors créneaux',
     'marche-illisible': 'marché illisible',
   };
-  const HAUT = new Set(['trop-haut', 'deduction-trop-haute']);
+  const HAUT = new Set(['trop-haut', 'deduction-trop-haute', 'au-dessus-du-plafond']);
   const BAS = new Set(['trop-bas', 'deduction-trop-basse']);
   const enChiffres = (n) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('fr-FR'));
 
@@ -1765,12 +1821,84 @@
     ryDessiner();
   }
 
+  // --- LES GARDE-FOUS DE PRIX HDV ----------------------------------------
+  //
+  // DEUX NOMBRES, ET LEURS NEUTRES NE SONT PAS LE MEME. Le facteur neutre est
+  // 5, la constante qui vivait en dur dans prix.js; le plafond neutre est 0,
+  // qui veut dire « aucun ». Un plafond par defaut aurait change le
+  // comportement de tout le monde a la mise a jour.
+  let gfGarde = { facteur: 5, plafond: 0 };
+
+  const GF_RAPIDES = [0, 1000000, 3000000];
+
+  // Le plafond s'ecrit en kamas, donc en grands nombres: 1 000 000 se relit,
+  // 1000000 se compte.
+  const gfKamas = (n) => Number(n).toLocaleString('fr-FR');
+
+  // CE QUE LE FACTEUR VEUT DIRE, SUR UN EXEMPLE PLUTOT QU'EN TOUTES LETTRES.
+  // « x5 » ne dit rien tant qu'on n'a pas fait la multiplication de tete; la
+  // Pierre medicinale a 152 kamas l'unite est l'objet de reference de tous les
+  // tests, et son lot de 10 rend le calcul lisible d'un coup d'oeil.
+  const GF_EXEMPLE = { nom: 'un lot de 10 à 1 520 kamas', moyen: 1520 };
+
+  function gfDessiner() {
+    const g = gfGarde;
+    const curseur = document.getElementById('gfFacteur');
+    if (document.activeElement !== curseur) curseur.value = String(g.facteur);
+    // « x5 » plutot que « x5,0 »: le pas est de 0,5, la decimale n'a de sens
+    // que quand elle en porte une.
+    document.getElementById('gfFacteurSortie').textContent = '×'
+      + (g.facteur % 1 === 0 ? String(g.facteur) : ryNombre(g.facteur, 1));
+    document.getElementById('gfFacteurDetail').textContent =
+      GF_EXEMPLE.nom + ' ne part plus au-dessus de '
+      + gfKamas(Math.floor(GF_EXEMPLE.moyen * g.facteur)) + ' ni en dessous de '
+      + gfKamas(Math.ceil(GF_EXEMPLE.moyen / g.facteur)) + ' kamas.';
+
+    const champ = document.getElementById('gfPlafond');
+    if (document.activeElement !== champ) champ.value = String(g.plafond);
+    document.getElementById('gfPlafondDetail').textContent = g.plafond > 0
+      ? 'Aucun lot ne part au-dessus de ' + gfKamas(g.plafond)
+        + ' kamas, quel que soit son prix moyen — c’est le prix du lot entier,'
+        + ' celui qu’on tape dans le jeu.'
+      : 'Aucun plafond : seul l’écart au prix moyen garde les lots. C’est le'
+        + ' comportement d’avant ce réglage.';
+    for (const b of document.querySelectorAll('.gf-rapides button')) {
+      b.classList.toggle('on', Number(b.dataset.plafond) === g.plafond);
+    }
+  }
+
+  function gfConstruire() {
+    const curseur = document.getElementById('gfFacteur');
+    // Meme partage qu'au rythme: `input` montre l'effet a chaque mouvement,
+    // `change` seul part vers le disque.
+    curseur.addEventListener('input', () => {
+      gfGarde = Object.assign({}, gfGarde, { facteur: Number(curseur.value) });
+      gfDessiner();
+    });
+    curseur.addEventListener('change', () => {
+      window.app.reglerHdvGarde({ facteur: Number(curseur.value) });
+    });
+    document.getElementById('gfPlafond').addEventListener('change', (e) => {
+      window.app.reglerHdvGarde({ plafond: e.target.value });
+    });
+    for (const b of document.querySelectorAll('.gf-rapides button')) {
+      b.addEventListener('click', () => {
+        const v = Number(b.dataset.plafond);
+        gfGarde = Object.assign({}, gfGarde, { plafond: v });
+        gfDessiner();
+        window.app.reglerHdvGarde({ plafond: v });
+      });
+    }
+    gfDessiner();
+  }
+
   function fermerRythme() {
     document.getElementById('vueRythme').hidden = true;
   }
   function ouvrirRythme() {
     document.getElementById('vueRythme').hidden = false;
     ryDessiner();
+    gfDessiner();
   }
   document.getElementById('ryFermer').onclick = fermerRythme;
   document.getElementById('brythme').onclick = () => {
@@ -1778,6 +1906,7 @@
     else fermerRythme();
   };
   ryConstruire();
+  gfConstruire();
 
   let ecoute = null;
   window.addEventListener('keydown', (e) => {
@@ -2410,12 +2539,22 @@
       ryDessiner();
     }
 
+    // Meme regle pour les garde-fous: on affiche ce que le disque porte apres
+    // bornage, sans ecraser un curseur ou un champ en cours de saisie.
+    if (etat.hdvGarde) {
+      const actif = document.activeElement;
+      const enMain = actif === document.getElementById('gfFacteur')
+        || actif === document.getElementById('gfPlafond');
+      if (!enMain) gfGarde = etat.hdvGarde;
+      gfDessiner();
+    }
+
     // Meme porte que le menu HDV d'une ligne: au moins un des deux droits.
     const bry = document.getElementById('brythme');
     const droitRythme = droitsCourants.includes('hdv') || droitsCourants.includes('vente');
     bry.disabled = !droitRythme;
     bry.title = droitRythme
-      ? 'le rythme des passes HDV, commun aux deux fonctions'
+      ? 'le rythme des passes HDV et les garde-fous de prix, communs aux deux fonctions'
       : 'pas activé sur ta clé';
     if (!droitRythme) fermerRythme();
 

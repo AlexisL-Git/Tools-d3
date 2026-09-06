@@ -57,6 +57,39 @@ const FACTEUR = 5;
 // tient depuis le 01/09, il n'y a aucune raison de le desserrer a 5.
 const FACTEUR_DEDUCTION = 2;
 
+// LE FACTEUR SE REGLE DEPUIS OMNI DEPUIS LE 05/09, et le plafond avec lui. Ce
+// module garde les DEFAUTS, pas les reglages: `garde` absent vaut exactement le
+// comportement d'avant -- facteur 5, aucun plafond. C'est la meme regle de
+// migration que le rythme des passes, et elle vaut pour la meme raison: le
+// fichier de favoris d'un ami qui monte de version n'a pas la cle.
+const GARDE_DEFAUT = { facteur: FACTEUR, plafond: 0 };
+
+// LE PLAFOND EST ABSOLU, ET C'EST TOUT SON INTERET. Le facteur mesure un ecart
+// au prix moyen d'ivi, qui est une moyenne glissante: sur un objet rare, mal
+// cote ou absent, il autorise des ordres de grandeur qu'on ne veut voir nulle
+// part. Le million, lui, ne bouge pas -- et il porte sur le prix du LOT, le
+// nombre qu'on tape dans le jeu et que le tableau des ecartes affiche.
+//
+// ZERO VEUT DIRE « AUCUN PLAFOND », pas « plafond a zero ». Sans cette valeur
+// neutre il faudrait un drapeau a cote, et un drapeau qui peut contredire son
+// nombre est une source de bug de plus.
+const ECART_PLAFOND = 'au-dessus-du-plafond';
+
+// LE MODULE NE FAIT PAS CONFIANCE A CE QUI VIENT DU DISQUE, meme discipline que
+// les facteurs de rythme chez vente.js et reprix.js: favoris.json se relit a la
+// main, et un facteur a 0 ou negatif inverserait plancher et plafond -- tout
+// serait ecarte, ou plus rien ne le serait. UN FACTEUR DOIT ETRE STRICTEMENT
+// SUPERIEUR A 1: a 1 exactement, seul le prix moyen au kama pres passerait.
+function normaliserGarde(garde) {
+  const g = (garde !== null && typeof garde === 'object') ? garde : {};
+  const facteur = Number(g.facteur);
+  const plafond = Number(g.plafond);
+  return {
+    facteur: Number.isFinite(facteur) && facteur > 1 ? facteur : GARDE_DEFAUT.facteur,
+    plafond: Number.isFinite(plafond) && plafond > 0 ? plafond : GARDE_DEFAUT.plafond,
+  };
+}
+
 const ECART_MARCHE = { haut: 'trop-haut', bas: 'trop-bas' };
 const ECART_DEDUCTION = { haut: 'deduction-trop-haute', bas: 'deduction-trop-basse' };
 
@@ -69,6 +102,7 @@ const ECART_DEDUCTION = { haut: 'deduction-trop-haute', bas: 'deduction-trop-bas
 const MOTIFS_GARDE_FOU = new Set([
   ECART_MARCHE.haut, ECART_MARCHE.bas,
   ECART_DEDUCTION.haut, ECART_DEDUCTION.bas,
+  ECART_PLAFOND,
   'moyen-inconnu',
 ]);
 
@@ -119,7 +153,24 @@ function voisinServi(marche, i) {
 // LES BORNES SONT INCLUSIVES: exactement cinq fois le prix moyen passe. C'est
 // la convention d'origine, et un refus a l'egalite se lirait mal dans un
 // tableau qui affiche la borne juste a cote du prix vise.
-function borner({ prix, taille, moyenUnitaire, facteur = FACTEUR, motifs = ECART_MARCHE }) {
+//
+// LE PLAFOND PASSE EN PREMIER, AVANT MEME LE PRIX MOYEN. Deux raisons, et la
+// seconde est la vraie: il ne DEPEND pas du prix moyen, donc un objet absent
+// d'ivi sortait en « moyen-inconnu » sans qu'on sache qu'on frolait le million;
+// et entre deux motifs vrais a la fois, « > 1 000 000 » se lit mieux dans le
+// tableau que « > 5 fois le moyen ».
+//
+// `serrage` BORNE LE FACTEUR PAR LE HAUT, il ne le remplace pas. L'extrapolation
+// est tenue a 2 depuis le 01/09 parce qu'une deduction est une supposition sans
+// ancre -- mais 2 n'est « plus serre que 5 » que tant que le facteur general
+// vaut 5. Depuis qu'il se regle, le descendre a 1,5 aurait RELACHE
+// l'extrapolation sans que personne le demande.
+function borner({
+  prix, taille, moyenUnitaire, garde, serrage = Infinity, motifs = ECART_MARCHE,
+}) {
+  const g = normaliserGarde(garde);
+  if (g.plafond > 0 && prix > g.plafond) return ecart(ECART_PLAFOND, prix, g.plafond);
+  const facteur = Math.min(g.facteur, serrage);
   const moyen = (Number(moyenUnitaire) || 0) * taille;
   if (moyen <= 0) return ecart('moyen-inconnu', prix);
   if (prix > moyen * facteur) return ecart(motifs.haut, prix, Math.floor(moyen * facteur));
@@ -127,14 +178,17 @@ function borner({ prix, taille, moyenUnitaire, facteur = FACTEUR, motifs = ECART
   return pose(prix);
 }
 
-// Une deduction est bornee plus serre que le reste, et par construction: ce qui
-// tient dans le facteur 2 tient dans le facteur 5, il n'y a donc rien a
-// repasser au garde-fou general derriere.
-function extrapoler({ marche, voisin, taille, moyenUnitaire }) {
+// Une deduction est bornee plus serre que le reste: ce qui tient dans le
+// facteur 2 tient dans le facteur 5, il n'y a donc rien a repasser au garde-fou
+// general derriere. CETTE PHRASE N'EST VRAIE QUE PARCE QUE `serrage` EST UN
+// MINIMUM et non un remplacement -- un facteur general regle a 1,5 s'applique
+// ici aussi, sans quoi baisser le curseur desserrerait l'extrapolation.
+function extrapoler({ marche, voisin, taille, moyenUnitaire, garde }) {
   const unitaire = Number(marche[voisin]) / TAILLES[voisin];
   const deduit = Math.max(1, Math.floor(unitaire * taille));
   return borner({
-    prix: deduit, taille, moyenUnitaire, facteur: FACTEUR_DEDUCTION, motifs: ECART_DEDUCTION,
+    prix: deduit, taille, moyenUnitaire, garde, serrage: FACTEUR_DEDUCTION,
+    motifs: ECART_DEDUCTION,
   });
 }
 
@@ -145,10 +199,12 @@ function extrapoler({ marche, voisin, taille, moyenUnitaire }) {
 //                 « le minimum est le notre » de « le minimum est CELUI-CI »:
 //                 sans lui, un stock de lots jumeaux garde ses retardataires.
 // moyenUnitaire — le prix moyen a l'unite, tire d'ivi. 0 si inconnu.
+// garde         — { facteur, plafond }, regle depuis OMNI. Absent vaut le
+//                 comportement d'avant: facteur 5, aucun plafond.
 //
 // Rend { prix, motif, vise, borne }. `prix` est null pour « ne rien emettre »,
 // jamais 0, et `motif` dit alors pourquoi.
-function decider({ marche, nos, taille, moyenUnitaire, prixActuel }) {
+function decider({ marche, nos, taille, moyenUnitaire, prixActuel, garde }) {
   if (!Array.isArray(marche) || marche.length !== TAILLES.length) return ecart('marche-illisible');
   const i = TAILLES.indexOf(taille);
   if (i === -1) return ecart('taille-hors-creneaux');
@@ -184,9 +240,9 @@ function decider({ marche, nos, taille, moyenUnitaire, prixActuel }) {
       // L'ALIGNEMENT PASSE PAR LE GARDE-FOU LUI AUSSI. Un de nos lots pose trop
       // haut avant que la borne existe rendrait sinon tous ses jumeaux
       // eligibles a le rejoindre: le defaut se propagerait a la pile entiere.
-      return borner({ prix: minimum, taille, moyenUnitaire });
+      return borner({ prix: minimum, taille, moyenUnitaire, garde });
     }
-    return borner({ prix: minimum - 1, taille, moyenUnitaire });
+    return borner({ prix: minimum - 1, taille, moyenUnitaire, garde });
   }
 
   // CRENEAU VIDE. Rien a sous-coter: on deduit du voisin, ou on renonce. Le
@@ -194,7 +250,7 @@ function decider({ marche, nos, taille, moyenUnitaire, prixActuel }) {
   // partages avec deciderPose().
   const voisin = voisinServi(marche, i);
   if (voisin === -1) return ecart('aucun-voisin');
-  return extrapoler({ marche, voisin, taille, moyenUnitaire });
+  return extrapoler({ marche, voisin, taille, moyenUnitaire, garde });
 }
 
 // POSER UN LOT NEUF, la regle de « mettre en vente ».
@@ -217,7 +273,7 @@ function decider({ marche, nos, taille, moyenUnitaire, prixActuel }) {
 // L'ORDRE DES CAS COMPTE, ici comme chez decider(): le garde-fou « minimum a 1 »
 // passe AVANT le test « est-ce le notre », sans quoi notre propre lot a 1 kama
 // nous ferait poser a 1 kama.
-function deciderPose({ marche, nos, taille, moyenUnitaire }) {
+function deciderPose({ marche, nos, taille, moyenUnitaire, garde }) {
   if (!Array.isArray(marche) || marche.length !== TAILLES.length) return ecart('marche-illisible');
   const i = TAILLES.indexOf(taille);
   if (i === -1) return ecart('taille-hors-creneaux');
@@ -229,17 +285,27 @@ function deciderPose({ marche, nos, taille, moyenUnitaire }) {
     // « creneau vide » dans kgp, donc un lot pose a 0 disparaitrait du tableau.
     if (minimum <= 1) return ecart('marche-a-1-kama');
     const nous = (nos || []).some((l) => l.taille === taille && Number(l.prix) === minimum);
-    if (nous) return borner({ prix: minimum, taille, moyenUnitaire });
-    return borner({ prix: minimum - 1, taille, moyenUnitaire });
+    if (nous) return borner({ prix: minimum, taille, moyenUnitaire, garde });
+    return borner({ prix: minimum - 1, taille, moyenUnitaire, garde });
   }
 
   const voisin = voisinServi(marche, i);
-  if (voisin !== -1) return extrapoler({ marche, voisin, taille, moyenUnitaire });
+  if (voisin !== -1) return extrapoler({ marche, voisin, taille, moyenUnitaire, garde });
 
-  // Le repli au prix moyen est dans les bornes par construction — c'est le
-  // centre de l'intervalle — mais il ne peut pas exister sans prix moyen.
+  // LE REPLI AU PRIX MOYEN PASSE PAR LE GARDE-FOU LUI AUSSI, depuis que le
+  // plafond existe. Il etait « dans les bornes par construction » -- vrai du
+  // facteur, puisque c'est le centre de l'intervalle, et faux du plafond, qui
+  // ne regarde pas le prix moyen: mille unites d'une ressource a 2000 kamas
+  // font deux millions sans qu'aucun facteur s'en emeuve.
+  //
+  // LE CAS « PAS DE PRIX MOYEN » RESTE DEHORS. borner() rendrait bien le meme
+  // motif, mais avec un prix vise de zero: le tableau afficherait « visé 0 »
+  // pour un lot dont on n'a justement pas su decider le prix.
   const moyen = Math.floor((Number(moyenUnitaire) || 0) * taille);
-  return moyen > 0 ? pose(moyen) : ecart('moyen-inconnu');
+  if (moyen <= 0) return ecart('moyen-inconnu');
+  return borner({ prix: moyen, taille, moyenUnitaire, garde });
 }
 
-module.exports = { decider, deciderPose, TAILLES, FACTEUR, MOTIFS_GARDE_FOU };
+module.exports = {
+  decider, deciderPose, TAILLES, FACTEUR, GARDE_DEFAUT, MOTIFS_GARDE_FOU,
+};
