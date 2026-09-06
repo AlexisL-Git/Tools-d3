@@ -459,6 +459,27 @@
   /* Les filtres n'ont aucun effet sur la vue par zone: ils disparaissent d'un
      bloc plutot que de s'y griser. Un bouton grise promet encore quelque chose. */
   .arc-filtres-liste[hidden] { display: none; }
+
+  /* LA RECHERCHE. Meme place et meme visibilite que les trois filtres, forme
+     differente: le cadre est porte par le label entier, pour que la loupe et la
+     saisie se lisent comme un seul objet et que le clic sur l'icone donne le
+     focus au champ. */
+  .arc-cherche {
+    display: flex; align-items: center; gap: 6px;
+    margin-left: 12px; padding: 3px 8px;
+    border: 1px solid var(--filet); border-radius: 7px; color: var(--attenue);
+  }
+  /* Le champ ne porte aucun contour a lui: c'est la bordure du label qui
+     s'allume, sinon deux cadres se superposeraient au focus. */
+  .arc-cherche:focus-within { border-color: var(--arme); color: var(--texte); }
+  .arc-cherche svg { width: 13px; height: 13px; flex: none; }
+  .arc-cherche input {
+    width: 128px; padding: 1px 0; border: 0; background: transparent;
+    color: var(--texte); font: inherit; font-size: 11px;
+  }
+  .arc-cherche input:focus { outline: none; }
+  .arc-cherche input::placeholder { color: var(--attenue); }
+  .arc-cherche[hidden] { display: none; }
   /* La vue par zone. Toutes ses classes sont prefixees `arc-`, comme celles du
      tableau, et pour la meme raison: voir le commentaire de la table ARC. */
   .arc-zone, .arc-sz {
@@ -906,6 +927,25 @@
       <button data-filtre="manquants">Manquants</button>
       <button data-filtre="possedes">Possédés</button>
     </div>
+    <!-- CHERCHER UN NOM. Deux cent quatre-vingt-six lignes ne se parcourent pas
+         a l'oeil: la question « celui-la, est-ce que je l'ai deja ? » se pose par
+         son nom, pas en descendant la table. Elle est du meme axe que les trois
+         filtres -- restreindre ce que la liste montre -- donc elle vit a cote
+         d'eux et disparait avec eux.
+
+         PAS DE CAPSULE NI DE PASTILLE, et c'est delibere: ces formes disent
+         « un choix parmi N ». Une saisie n'en est pas une, et lui preter la
+         meme silhouette ferait quatre segments la ou il y en a trois. -->
+    <label class="arc-cherche" id="arcCherche">
+      <svg viewBox="0 0 16 16" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+        <circle cx="6.8" cy="6.8" r="4.3"/>
+        <path d="M10 10 13.8 13.8"/>
+      </svg>
+      <input id="arcChercheTexte" type="search" placeholder="Chercher un nom…"
+             autocomplete="off" spellcheck="false"
+             aria-label="Chercher un archimonstre par son nom">
+    </label>
     <span class="avis-nav" id="arcVise"></span>
   </div>
   <div class="arc-corps" id="arcCorps"></div>
@@ -1241,6 +1281,9 @@
   // vieillirait sans le dire.
   let arcVise = null;     // le personnage dont on a clique le bouton
   let arcFiltre = 'tous';
+  // Le nom cherche, deja mis a plat: la comparaison se fait a chaque ligne de
+  // chaque redessin, pas la peine de le rabattre 337 fois.
+  let arcRecherche = '';
   let arcVue = 'liste';
   let arcQuoi = 'archi';
   let arcTable = null;
@@ -1282,6 +1325,13 @@
 
   // Assemble une liste de classes en ecartant les absentes.
   const classesDe = (...noms) => noms.filter(Boolean).join(' ');
+
+  // CHERCHER SANS LES ACCENTS. Taper « Pichakote » doit trouver « Pichakoté »:
+  // personne ne va chercher l'accent aigu au clavier pour savoir s'il a deja
+  // cette ame, et un nom qu'on ne sait pas ecrire est justement celui qu'on
+  // cherche.
+  const aPlat = (t) => String(t).toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
 
   const echapper = (t) => String(t)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1496,6 +1546,9 @@
   // pour l'equipe, et c'est justement la question qu'on se pose en cliquant le
   // bouton d'une ligne.
   function gardeLigne(ligne) {
+    // LES DEUX SE CUMULENT, ils ne se remplacent pas: « manquants » plus un nom,
+    // c'est la question « celui-la, est-ce qu'il me manque ? ».
+    if (arcRecherche !== '' && !aPlat(ligne.nom).includes(arcRecherche)) return false;
     if (arcFiltre === 'tous') return true;
     const a = arcVise === null
       ? ligne.presents.length > 0
@@ -1522,6 +1575,7 @@
     // LES FILTRES NE VALENT QUE POUR LA LISTE, et ils disparaissent ailleurs.
     // Les griser les laissait visibles, donc promettait encore un geste.
     document.getElementById('arcFiltresListe').hidden = arcVue !== 'liste';
+    document.getElementById('arcCherche').hidden = arcVue !== 'liste';
 
     if (arcVue === 'zones') { dessinerZones(corps); dessinerPied(pied); return; }
 
@@ -1612,6 +1666,26 @@
 
   document.getElementById('arcRelire').onclick = relireArchi;
   document.getElementById('arcFermer').onclick = fermerArchi;
+
+  // `oninput` et non `addEventListener`, comme le bouton rond juste au-dessus:
+  // le panneau s'execute aussi dans le DOM de facade des tests, qui sait
+  // rappeler une propriete mais pas rejouer une file d'ecouteurs.
+  const arcChamp = document.getElementById('arcChercheTexte');
+  arcChamp.oninput = () => {
+    arcRecherche = aPlat(arcChamp.value).trim();
+    dessinerArchi();
+  };
+  // ECHAP VIDE AVANT DE FERMER. La touche ferme le panneau: perdre les deux
+  // cent quatre-vingt-six lignes et la colonne suivie parce qu'on voulait effacer
+  // trois lettres est brutal. Champ deja vide, elle repart vers la fenetre et
+  // ferme comme avant -- le geste n'est pas confisque, il est seulement retarde
+  // d'une frappe.
+  arcChamp.onkeydown = (e) => {
+    if (e.key !== 'Escape' || arcChamp.value === '') return;
+    e.stopPropagation();
+    arcChamp.value = '';
+    arcChamp.oninput();
+  };
   document.getElementById('ecaFermer').onclick = fermerEcartes;
   for (const b of document.querySelectorAll('.arc-filtres button')) {
     b.addEventListener('click', async () => {
