@@ -332,6 +332,10 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       nos: nosDuPaquet(passe),
       taille: passe.paquet.taille,
       moyenUnitaire: moyenDe(pid, passe.gid),
+      // RELU A CHAQUE PAQUET, jamais fige au lancement: main.js REMPLACE
+      // reglages.garde quand le panneau bouge, exactement comme pour le
+      // rythme, et le paquet suivant en profite sans qu'on reconstruise rien.
+      garde: reglages.garde,
     });
     if (d.prix === null) {
       ecarter(pid, passe, {

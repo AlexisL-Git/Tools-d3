@@ -322,6 +322,9 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         // prix y est donc bien celui d'avant sa propre mise a jour.
         prixActuel: lot.prix,
         moyenUnitaire,
+        // Relu a chaque lot, comme le rythme: un garde-fou change en cours de
+        // passe s'applique au lot suivant.
+        garde: reglages.garde,
       });
 
       // RIEN A FAIRE ET AVOIR REFUSE D'Y ALLER NE SONT PAS LA MEME CHOSE, et

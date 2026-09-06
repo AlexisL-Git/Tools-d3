@@ -381,3 +381,173 @@ test('deciderPose ecarte quand le prix moyen est inconnu, marche servi ou non', 
   assert.strictEqual(d.prix, null);
   assert.strictEqual(d.motif, 'moyen-inconnu');
 });
+
+// --- LE GARDE-FOU REGLABLE ----------------------------------------------
+//
+// Le facteur et le plafond arrivent maintenant du panneau, par `garde`. Ils
+// n'ont PAS de valeur neutre commune: le facteur absent vaut 5, le plafond
+// absent vaut « aucun ». Un plafond neutre a zero est ce qui permet a un
+// fichier de favoris qui n'a jamais vu la cle de se comporter comme avant.
+const MOYEN_BARBE_TESTS = MOYEN_BARBE;
+
+test('sans garde, le facteur reste celui d avant : cinq', () => {
+  const d = decider({
+    marche: [0, 7000003, 0, 0], nos: [], taille: 10, prixActuel: 1520,
+    moyenUnitaire: MOYEN_BARBE_TESTS,
+  });
+  assert.strictEqual(d.motif, 'trop-haut');
+  assert.strictEqual(d.borne, 7600);
+});
+
+// UN FACTEUR PLUS LARGE LAISSE PASSER CE QUE CINQ REFUSAIT. 152 * 10 * 8 = 12160,
+// donc un marche a 12000 tient dans le facteur 8 et pas dans le facteur 5.
+test('un facteur plus large deplace la borne haute', () => {
+  const commun = {
+    marche: [0, 12001, 0, 0], nos: [], taille: 10, prixActuel: 1520,
+    moyenUnitaire: MOYEN_BARBE_TESTS,
+  };
+  assert.strictEqual(decider(commun).motif, 'trop-haut');
+  assert.strictEqual(decider({ ...commun, garde: { facteur: 8 } }).prix, 12000);
+});
+
+test('un facteur plus serre refuse ce que cinq laissait passer', () => {
+  const commun = {
+    marche: [0, 3001, 0, 0], nos: [], taille: 10, prixActuel: 1520,
+    moyenUnitaire: MOYEN_BARBE_TESTS,
+  };
+  assert.strictEqual(decider(commun).prix, 3000);
+  const serre = decider({ ...commun, garde: { facteur: 1.5 } });
+  assert.strictEqual(serre.motif, 'trop-haut');
+  assert.strictEqual(serre.borne, 2280); // 1,5 * 152 * 10
+});
+
+// LE PLAFOND EST ABSOLU: il ne regarde pas le prix moyen, c'est tout son
+// interet. Une ressource dont ivi ne sait rien de fiable peut avoir un moyen
+// qui autorise n'importe quoi; le million, lui, ne bouge pas.
+test('le plafond ecarte un prix que le facteur aurait laisse passer', () => {
+  // Moyen a 300 000 l'unite: 5 * 300 000 * 10 = 15 000 000, le facteur passe.
+  const commun = {
+    marche: [0, 1200001, 0, 0], nos: [], taille: 10, prixActuel: 100,
+    moyenUnitaire: 300000,
+  };
+  assert.strictEqual(decider(commun).prix, 1200000);
+  const plafonne = decider({ ...commun, garde: { plafond: 1000000 } });
+  assert.strictEqual(plafonne.prix, null);
+  assert.strictEqual(plafonne.motif, 'au-dessus-du-plafond');
+  assert.strictEqual(plafonne.vise, 1200000);
+  assert.strictEqual(plafonne.borne, 1000000);
+});
+
+test('un plafond a zero ne plafonne rien', () => {
+  const d = decider({
+    marche: [0, 1200001, 0, 0], nos: [], taille: 10, prixActuel: 100,
+    moyenUnitaire: 300000, garde: { plafond: 0 },
+  });
+  assert.strictEqual(d.prix, 1200000);
+});
+
+// LE PLAFOND EST INCLUSIF comme les autres bornes: exactement le plafond passe.
+test('un prix exactement au plafond passe', () => {
+  const d = decider({
+    marche: [0, 1000001, 0, 0], nos: [], taille: 10, prixActuel: 100,
+    moyenUnitaire: 300000, garde: { plafond: 1000000 },
+  });
+  assert.strictEqual(d.prix, 1000000);
+});
+
+// LE PLAFOND PASSE AVANT LE PRIX MOYEN, et c'est ce qui le rend utile: un objet
+// absent d'ivi sortait en « moyen-inconnu », ce qui ne dit pas qu'on frolait le
+// million. Le motif le plus precis gagne.
+test('le plafond parle meme sans prix moyen', () => {
+  const d = decider({
+    marche: [0, 1200001, 0, 0], nos: [], taille: 10, prixActuel: 100,
+    moyenUnitaire: 0, garde: { plafond: 1000000 },
+  });
+  assert.strictEqual(d.motif, 'au-dessus-du-plafond');
+});
+
+test('le plafond du garde-fou est un motif de garde-fou', () => {
+  assert.ok(MOTIFS_GARDE_FOU.has('au-dessus-du-plafond'));
+});
+
+// LA DEDUCTION NE PEUT PAS ETRE PLUS LARGE QUE LE GARDE-FOU GENERAL. Elle est
+// tenue a 2 depuis le 01/09 parce qu'une extrapolation est une supposition —
+// mais 2 n'est plus « plus serre que 5 » le jour ou le facteur general descend
+// a 1,5. Sans ce minimum, baisser le curseur RELACHERAIT l'extrapolation.
+test('la deduction suit le facteur general quand il descend sous deux', () => {
+  // Creneau des 100 vide, voisin des 10 a 190 -> deduit 1900 pour un moyen de
+  // 1520. Rapport 1,25: dans le facteur 2, hors du facteur 1,1.
+  const commun = {
+    marche: [0, 190, 0, 0], nos: [], taille: 100, prixActuel: 5000,
+    moyenUnitaire: 15.2,
+  };
+  assert.strictEqual(decider(commun).prix, 1900);
+  const serre = decider({ ...commun, garde: { facteur: 1.1 } });
+  assert.strictEqual(serre.motif, 'deduction-trop-haute');
+});
+
+// L'INVERSE N'EST PAS VRAI: desserrer le garde-fou general ne desserre pas
+// l'extrapolation, qui reste tenue a 2. Deduire depuis un voisin est une
+// supposition sans ancre, quel que soit le reglage.
+test('un facteur general large ne desserre pas la deduction', () => {
+  const d = decider({
+    marche: [0, 190, 0, 0], nos: [], taille: 1000, prixActuel: 50,
+    moyenUnitaire: 1, garde: { facteur: 20 },
+  });
+  // Deduit 19 000 pour un moyen de 1000: rapport 19, hors du facteur 2.
+  assert.strictEqual(d.motif, 'deduction-trop-haute');
+});
+
+// UN GARDE ABERRANT NE DOIT PAS OUVRIR LES VANNES. Le fichier de favoris se
+// relit a la main, et un facteur a zero ou negatif inverserait plancher et
+// plafond -- tout serait ecarte, ou plus rien ne le serait.
+test('un facteur absurde retombe sur cinq', () => {
+  for (const facteur of [0, -3, 1, null, 'cinq', NaN, Infinity]) {
+    const d = decider({
+      marche: [0, 7000003, 0, 0], nos: [], taille: 10, prixActuel: 1520,
+      moyenUnitaire: MOYEN_BARBE_TESTS, garde: { facteur },
+    });
+    assert.strictEqual(d.borne, 7600, `facteur ${String(facteur)}`);
+  }
+});
+
+test('un plafond absurde vaut aucun plafond', () => {
+  for (const plafond of [-1, null, 'un million', NaN]) {
+    const d = decider({
+      marche: [0, 1200001, 0, 0], nos: [], taille: 10, prixActuel: 100,
+      moyenUnitaire: 300000, garde: { plafond },
+    });
+    assert.strictEqual(d.prix, 1200000, `plafond ${String(plafond)}`);
+  }
+});
+
+// deciderPose partage borner() avec decider(), mais elle a une branche a elle:
+// le repli au prix moyen quand aucun creneau n'est servi. Il etait « dans les
+// bornes par construction » -- vrai du facteur, faux du plafond.
+test('deciderPose plafonne aussi son repli au prix moyen', () => {
+  const commun = {
+    marche: [0, 0, 0, 0], nos: [], taille: 1000, moyenUnitaire: 2000,
+  };
+  assert.strictEqual(deciderPose(commun).prix, 2000000);
+  const plafonne = deciderPose({ ...commun, garde: { plafond: 1000000 } });
+  assert.strictEqual(plafonne.motif, 'au-dessus-du-plafond');
+  assert.strictEqual(plafonne.borne, 1000000);
+});
+
+test('deciderPose applique le facteur regle', () => {
+  const d = deciderPose({
+    marche: [0, 3001, 0, 0], nos: [], taille: 10,
+    moyenUnitaire: MOYEN_BARBE_TESTS, garde: { facteur: 1.5 },
+  });
+  assert.strictEqual(d.motif, 'trop-haut');
+});
+
+// Le repli au prix moyen passe par le garde-fou, mais l'absence de prix moyen
+// reste traitee avant lui: « visé 0 » dans le tableau serait un mensonge sur un
+// lot dont on n'a pas su decider le prix.
+test('deciderPose sans creneau ni prix moyen ne vise rien', () => {
+  const d = deciderPose({ marche: [0, 0, 0, 0], nos: [], taille: 10, moyenUnitaire: 0 });
+  assert.strictEqual(d.motif, 'moyen-inconnu');
+  assert.strictEqual(d.vise, null);
+  assert.strictEqual(d.borne, null);
+});

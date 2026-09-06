@@ -51,7 +51,7 @@ const { creerEmblemes } = require('../src/comptes/emblemes');
 const { ordonner } = require('../src/comptes/ordre');
 const { pourOverlay } = require('../src/comptes/overlay');
 const { COLONNES, parNom, cibleBascule, etatColonne } = require('../src/comptes/colonnes');
-const { Favoris, RYTHME_HDV_DEFAUT } = require('../src/comptes/favoris');
+const { Favoris, RYTHME_HDV_DEFAUT, GARDE_HDV_DEFAUT } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
 const { lireDevlog, CHEMIN: CHEMIN_DEVLOG } = require('./devlog');
 const { estSouris, depuisBouton } = require('../src/comptes/raccourcis');
@@ -360,7 +360,16 @@ const reglagesSonge = { actif: false };
 //
 // Le champ est REMPLACE (jamais mute) a chaque reglage: favoris.hdvRythme()
 // rend une copie, donc rien ici ne peut modifier ce qui part sur le disque.
-const reglagesHdv = { rythme: { ...RYTHME_HDV_DEFAUT } };
+//
+// `garde` VOYAGE AVEC LUI, et pour les memes raisons: le facteur d'ecart et le
+// plafond de prix se relisent a chaque decision, donc les changer pendant une
+// passe s'applique au lot suivant. Ils tiennent dans le meme objet parce qu'ils
+// suivent le meme chemin -- panneau, favoris, les deux modules -- et que les
+// separer aurait fait deux references a tenir a jour au lieu d'une.
+const reglagesHdv = {
+  rythme: { ...RYTHME_HDV_DEFAUT },
+  garde: { ...GARDE_HDV_DEFAUT },
+};
 
 // LES TRAMES QU'OMNI ACCEPTE A LA PLACE DU JOUEUR NE DOIVENT PAS ATTEINDRE SON
 // CLIENT: sinon le panneau d'invitation, et la fenetre de proposition
@@ -791,6 +800,7 @@ async function envoyerEtat() {
     erreurComptes,
     delai: favoris.delai(),
     hdvRythme: favoris.hdvRythme(),
+    hdvGarde: favoris.hdvGarde(),
     hdvBornes: HDV_BORNES,
     avisBascule: avisCourant(),
     // Pour que le bouton de la barre du bas dise s'il ouvre ou s'il ferme.
@@ -1015,8 +1025,9 @@ app.whenReady().then(async () => {
   // Le delai enregistre doit survivre au redemarrage de l'application, pas
   // seulement a celui d'un client.
   reglagesPasseTour.delaiMs = Math.round(favoris.delai() * 1000);
-  // Meme raison pour le rythme des passes HDV.
+  // Meme raison pour le rythme des passes HDV, et pour ses garde-fous de prix.
   reglagesHdv.rythme = favoris.hdvRythme();
+  reglagesHdv.garde = favoris.hdvGarde();
 
   superviseur = new Superviseur({
     // L'interrupteur unique est relu du fichier juste apres la construction,
@@ -2018,6 +2029,22 @@ ipcMain.handle('reglerHdvRythme', async (_e, partiel) => {
   favoris.reglerHdvRythme(nombres);
   reglagesHdv.rythme = favoris.hdvRythme();
   journal('hdv', `rythme : ${JSON.stringify(reglagesHdv.rythme)}`);
+  await envoyerEtat();
+});
+
+// LES GARDE-FOUS DE PRIX, meme contrat que le rythme au-dessus: partiel, borne
+// par favoris, relu borne. Ils sont journalises parce qu'ils DECIDENT DE
+// KAMAS -- quand un lot n'est pas parti, le journal doit dire sous quel reglage.
+ipcMain.handle('reglerHdvGarde', async (_e, partiel) => {
+  if (partiel === null || typeof partiel !== 'object') return;
+  const nombres = {};
+  for (const [nom, valeur] of Object.entries(partiel)) {
+    const v = Number(valeur);
+    if (Number.isFinite(v)) nombres[nom] = v;
+  }
+  favoris.reglerHdvGarde(nombres);
+  reglagesHdv.garde = favoris.hdvGarde();
+  journal('hdv', `garde-fous : ${JSON.stringify(reglagesHdv.garde)}`);
   await envoyerEtat();
 });
 

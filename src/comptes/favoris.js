@@ -47,6 +47,31 @@ const FACTEUR_MAX = 4;
 const REPONSE_MIN = 500;
 const REPONSE_MAX = 30000;
 
+// LES GARDE-FOUS DE PRIX, regles depuis le meme panneau que le rythme depuis le
+// 05/09. Deux nombres, et leurs valeurs neutres ne sont PAS la meme.
+//
+// Le facteur neutre est 5: c'est la constante qui vivait en dur dans prix.js,
+// et la reprendre telle quelle est ce qui rend la migration invisible. Le
+// plafond neutre est 0, qui veut dire « aucun plafond » -- lui donner un nombre
+// par defaut aurait change le comportement de tout le monde a la mise a jour,
+// pour un reglage que personne n'aurait demande.
+const GARDE_HDV_DEFAUT = { facteur: 5, plafond: 0 };
+
+// SOUS 1,5 LE GARDE-FOU NE LAISSE PLUS PASSER QUE LE VOISINAGE IMMEDIAT DU PRIX
+// MOYEN, et sous 1 il inverserait plancher et plafond: tout serait ecarte. Au
+// dela de 20 il ne garde plus grand-chose -- l'incident du 05/09 etait a un
+// facteur 4600, mais un facteur 50 laisse deja passer l'ordre de grandeur qu'on
+// cherche a arreter.
+const GARDE_FACTEUR_MIN = 1.5;
+const GARDE_FACTEUR_MAX = 20;
+
+// ZERO EST UNE VALEUR VALIDE ET N'EST PAS BORNE: c'est « aucun plafond ». Les
+// bornes ci-dessous ne s'appliquent qu'a un plafond reellement pose. Sous 1000
+// kamas il ecarterait un stock entier sans que ce soit ce qu'on voulait dire;
+// le milliard est au-dela de tout prix atteignable en hotel de vente.
+const GARDE_PLAFOND_MIN = 1000;
+const GARDE_PLAFOND_MAX = 1000000000;
+
 const borner = (v, min, max) => Math.min(max, Math.max(min, v));
 
 class Favoris {
@@ -113,6 +138,8 @@ class Favoris {
     this._pdaArchi = false;
     // Voir RYTHME_HDV_DEFAUT: neutre au depart, donc identique a l'existant.
     this._hdvRythme = { ...RYTHME_HDV_DEFAUT };
+    // Meme raison, meme forme: voir GARDE_HDV_DEFAUT.
+    this._hdvGarde = { ...GARDE_HDV_DEFAUT };
   }
 
   // Le seul sens autre qu'horizontal. Ecrit une fois ici plutot que teste a
@@ -203,6 +230,10 @@ class Favoris {
           this._hdvRythme.reponseMs = Math.round(borner(o.reponseMs, REPONSE_MIN, REPONSE_MAX));
         }
       }
+      if (json.hdvGarde !== null && typeof json.hdvGarde === 'object'
+          && !Array.isArray(json.hdvGarde)) {
+        this._poserGarde(json.hdvGarde);
+      }
     } catch (e) {
       // Fichier absent ou corrompu: on repart d'une liste vide plutot que de
       // faire echouer le demarrage de l'application.
@@ -220,6 +251,7 @@ class Favoris {
       this._overlay = { ouvert: false, sens: 'horizontal', x: null, y: null };
       this._pdaArchi = false;
       this._hdvRythme = { ...RYTHME_HDV_DEFAUT };
+      this._hdvGarde = { ...GARDE_HDV_DEFAUT };
     }
     if (reecrire) this._ecrire();
     return this;
@@ -429,6 +461,36 @@ class Favoris {
     this._ecrire();
   }
 
+  // LES GARDE-FOUS DE PRIX HDV. Meme contrat que le rythme: rendus par copie,
+  // regles par partiel, bornes des la lecture du fichier.
+  hdvGarde() {
+    return { ...this._hdvGarde };
+  }
+
+  reglerHdvGarde(partiel) {
+    if (partiel === null || typeof partiel !== 'object') return;
+    this._poserGarde(partiel);
+    this._ecrire();
+  }
+
+  // Partage entre le chargement et le reglage: les memes bornes doivent
+  // s'appliquer aux deux, sans quoi un fichier edite a la main imposerait ce
+  // que le panneau refuse. N'ECRIT PAS -- le chargement n'a rien a reecrire.
+  //
+  // LE PLAFOND SE TRAITE EN DEUX TEMPS parce que zero n'est pas une valeur a
+  // ramener dans les bornes, c'est l'absence de plafond. Un negatif dit la meme
+  // chose et vaut zero; au-dessus de zero, les bornes s'appliquent.
+  _poserGarde(o) {
+    if (Number.isFinite(o.facteur)) {
+      this._hdvGarde.facteur = borner(o.facteur, GARDE_FACTEUR_MIN, GARDE_FACTEUR_MAX);
+    }
+    if (Number.isFinite(o.plafond)) {
+      this._hdvGarde.plafond = o.plafond <= 0
+        ? 0
+        : Math.round(borner(o.plafond, GARDE_PLAFOND_MIN, GARDE_PLAFOND_MAX));
+    }
+  }
+
   // L'interrupteur de la pierre d'ame equipee a l'entree en combat.
   pdaArchi() {
     return this._pdaArchi;
@@ -457,6 +519,7 @@ class Favoris {
         overlay: this.overlay(),
         pdaArchi: this._pdaArchi,
         hdvRythme: this.hdvRythme(),
+        hdvGarde: this.hdvGarde(),
       };
       fs.writeFileSync(this.chemin, JSON.stringify(contenu), 'utf8');
     } catch (e) {
@@ -466,4 +529,4 @@ class Favoris {
   }
 }
 
-module.exports = { Favoris, MS_OUBLI, RYTHME_HDV_DEFAUT };
+module.exports = { Favoris, MS_OUBLI, RYTHME_HDV_DEFAUT, GARDE_HDV_DEFAUT };

@@ -1,4 +1,5 @@
 'use strict';
+const { nomDe } = require('./objets');
 
 // Le tableau des lots qui ne sont PAS partis, et pourquoi.
 //
@@ -22,6 +23,14 @@
 // Le motif fait partie de la cle, et la taille aussi: le meme objet peut sortir
 // par le haut sur un creneau et par le bas sur un autre, et les confondre
 // mentirait sur ce qui s'est passe.
+//
+// LE NOM DE L'OBJET SE POSE ICI, et nulle part ailleurs. C'est le seul endroit
+// que les deux passes traversent — la mise en vente pose ses lignes par
+// `ecarter()`, la mise a jour des prix par son garde-fou — et c'est l'endroit
+// ou la ligne NAIT: la nommer plus loin voudrait dire le faire deux fois, avec
+// la certitude qu'un des deux endroits sera oublie le jour d'une troisieme
+// passe. Le gid reste sur la ligne: c'est lui qu'on recopie dans le jeu, et
+// c'est lui la cle du groupement.
 const PLAFOND_ECARTES = 200;
 
 // LE PLAFOND PORTE SUR LES LIGNES, JAMAIS SUR LES LOTS. Une passe partie de
@@ -35,7 +44,7 @@ function noterEcart(ecartes, ligne) {
   );
   if (deja !== undefined) { deja.lots += ligne.lots; return ecartes; }
   if (ecartes.length >= PLAFOND_ECARTES) return ecartes;
-  ecartes.push(ligne);
+  ecartes.push({ ...ligne, nom: nomDe(ligne.gid) });
   return ecartes;
 }
 

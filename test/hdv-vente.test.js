@@ -79,12 +79,12 @@ const trameIvj = (uid, qte) => evenement('ivj', [
 const trameIum = (uid) => evenement('ium', [vint(1, uid)]);
 
 // Une pile unique, pour piloter une passe courte et lisible.
-function venteAvecPile({ gid = 13731, qte = 200, moyen = 32 } = {}) {
+function venteAvecPile({ gid = 13731, qte = 200, moyen = 32, garde } = {}) {
   const superviseur = doubleSuperviseur();
   const rendus = [];
   const vente = creerVente({
     superviseur,
-    reglages: { delaiObjetMs: 0, delaiRafaleMs: 0, delaiReponseMs: 0 },
+    reglages: { delaiObjetMs: 0, delaiRafaleMs: 0, delaiReponseMs: 0, garde },
     onCompteRendu: (r) => rendus.push(r),
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[gid, moyen]]) });
@@ -620,8 +620,11 @@ test('un marche delirant ecarte le paquet, et le bilan dit pourquoi', () => {
   const fin = rendus.find((r) => r.fini);
   assert.strictEqual(fin.bilan.poses, 0);
   assert.strictEqual(fin.bilan.sautes, 6);
+  // LE NOM FAIT PARTIE DU BILAN, pose par noterEcart: c'est « six lots de
+  // Pierre Medicinale a 7 000 001 » que le tableau doit pouvoir afficher, pas
+  // « six lots de 13731 ».
   assert.deepStrictEqual(fin.bilan.ecartes, [{
-    gid: 13731, taille: 10, lots: 6, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152,
+    gid: 13731, nom: 'Pierre Médicinale', taille: 10, lots: 6, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 152,
   }]);
 });
 
@@ -746,4 +749,54 @@ test('le facteur de rythme atteint vraiment le tirage de la rafale', async () =>
   await new Promise((r) => setTimeout(r, 900));
   assert.strictEqual(poses(), 2, 'le lot part bien, la passe n est pas bloquee');
   vente.arreter(42);
+});
+
+// --- LES GARDE-FOUS REGLES DEPUIS OMNI -----------------------------------
+//
+// Le facteur et le plafond traversent la passe comme le rythme: relus a chaque
+// decision plutot que figes au lancement. Ce qui compte ici n'est pas la regle
+// -- elle est testee chez prix.js -- mais le fait qu'elle ARRIVE jusqu'au lot.
+
+test('le plafond regle ecarte un paquet que le facteur laissait passer', () => {
+  // Moyen a 300 000 l'unite: le facteur 5 autorise 15 000 000 pour un lot de
+  // 10. Seul un plafond peut arreter un marche a 1,2 million.
+  const { vente, rendus } = venteAvecPile({
+    qte: 10, moyen: 300000, garde: { plafond: 1000000 },
+  });
+  vente.lancer(42);
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [0, 1200001, 0, 0]) });
+  const fin = rendus.find((r) => r.fini);
+  assert.strictEqual(fin.bilan.poses, 0);
+  assert.deepStrictEqual(fin.bilan.ecartes, [{
+    gid: 13731,
+    nom: 'Pierre Médicinale',
+    taille: 10,
+    lots: 1,
+    motif: 'au-dessus-du-plafond',
+    vise: 1200000,
+    borne: 1000000,
+    moyenUnitaire: 300000,
+  }]);
+});
+
+// LE TEMOIN DU CONTRAIRE. Sans plafond, le meme marche fait EMETTRE: la passe
+// ne finit donc pas -- elle attend la confirmation du serveur -- et c'est la
+// trame `kge` qu'on regarde, pas un bilan qui n'existe pas encore.
+test('sans plafond, le meme paquet part', () => {
+  const { superviseur, vente } = venteAvecPile({ qte: 10, moyen: 300000 });
+  vente.lancer(42);
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [0, 1200001, 0, 0]) });
+  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz', 'kge']);
+});
+
+test('le facteur regle resserre la mise en vente', () => {
+  const { vente, rendus } = venteAvecPile({
+    qte: 10, moyen: 152, garde: { facteur: 1.5 },
+  });
+  vente.lancer(42);
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [0, 3001, 0, 0]) });
+  const fin = rendus.find((r) => r.fini);
+  assert.strictEqual(fin.bilan.ecartes.length, 1);
+  assert.strictEqual(fin.bilan.ecartes[0].motif, 'trop-haut');
+  assert.strictEqual(fin.bilan.ecartes[0].borne, 2280);
 });
