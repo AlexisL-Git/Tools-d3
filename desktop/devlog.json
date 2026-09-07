@@ -1,5 +1,12 @@
 [
   {
+    "version": "0.3.6",
+    "le": "2026-09-07",
+    "notes": [
+      "Entretien interne. Rien ne change dans l interface ni dans les fonctions : tout ce que tu avais réglé reste en place, et il n y a rien de neuf à essayer dans cette version."
+    ]
+  },
+  {
     "version": "0.3.5",
     "le": "2026-09-07",
     "notes": [
