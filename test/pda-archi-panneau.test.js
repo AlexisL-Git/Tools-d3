@@ -183,6 +183,7 @@ async function ouvrirLePanneau({
       app: {
         surEtat() {},
         surPdaArchiAlerte() {},
+        surAmbiance() {},
         tableauArchi: async (...args) => {
           appels.table += 1;
           appels.args.push(args);

@@ -16,6 +16,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('app', {
   surEtat: (rappel) => ipcRenderer.on('etat', (_e, etat) => rappel(etat)),
 
+  // L'heure du son d'ambiance. Canal en RECEPTION SEULE et sans donnee: il
+  // previent, il ne porte rien, et il n'ouvre ni reseau, ni disque, ni
+  // process. La minuterie qui l'emet vit dans desktop/main.js, pas ici:
+  // Electron ralentit les minuteries des fenetres reduites, et celle d'OMNI
+  // passe sa vie derriere le jeu.
+  surAmbiance: (rappel) => ipcRenderer.on('ambiance', () => rappel()),
+
   // La fenetre sans cadre. Pas d'agrandir: elle n'est pas redimensionnable.
   fenetreReduire: () => ipcRenderer.invoke('fenetreReduire'),
   fenetreFermer: () => ipcRenderer.invoke('fenetreFermer'),

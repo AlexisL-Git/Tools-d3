@@ -1,0 +1,4 @@
+# Le son embarque ne doit JAMAIS traverser la conversion de fins de ligne
+# (core.autocrlf=true sur ce poste). Un octet change et le paquet part
+# muet chez les amis.
+*.ogg binary
