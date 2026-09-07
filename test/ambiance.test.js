@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { creerAmbiance } = require('../src/ambiance');
+const { creerAmbiance, bornes } = require('../src/ambiance');
 
 // Une fausse minuterie: elle retient le rappel et le delai au lieu de dormir.
 // Meme procede que test/droits-veille.test.js.
@@ -105,4 +105,28 @@ test('ambiance: une erreur de jouer n arrete pas la minuterie', () => {
   a.demarrer();
   t.echoir();
   assert.strictEqual(t.nombre(), 1, 'elle doit s etre reprogrammee malgre l erreur');
+});
+
+test('ambiance: sans OMNI_AMBIANCE_MS, les bornes du code sont gardees', () => {
+  assert.deepStrictEqual(bornes({ OMNI_DEV: 'F:/omni_project' }, 10, 20), [10, 20]);
+  assert.deepStrictEqual(bornes({}, 10, 20), [10, 20]);
+});
+
+test('ambiance: OMNI_AMBIANCE_MS fixe les deux bornes en mode developpement', () => {
+  assert.deepStrictEqual(
+    bornes({ OMNI_DEV: 'F:/omni_project', OMNI_AMBIANCE_MS: '3000' }, 10, 20),
+    [3000, 3000],
+  );
+});
+
+test('ambiance: OMNI_AMBIANCE_MS est ignore chez un ami', () => {
+  // Sans OMNI_DEV, c est un poste ami: il pourrait poser la variable lui-meme.
+  assert.deepStrictEqual(bornes({ OMNI_AMBIANCE_MS: '3000' }, 10, 20), [10, 20]);
+});
+
+test('ambiance: une valeur absurde de OMNI_AMBIANCE_MS ne casse rien', () => {
+  const dev = { OMNI_DEV: 'F:/omni_project' };
+  for (const v of ['', 'vite', '0', '-5', 'NaN']) {
+    assert.deepStrictEqual(bornes({ ...dev, OMNI_AMBIANCE_MS: v }, 10, 20), [10, 20], `valeur: ${v}`);
+  }
 });

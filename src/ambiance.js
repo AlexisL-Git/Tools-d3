@@ -50,4 +50,20 @@ function creerAmbiance({
   };
 }
 
-module.exports = { creerAmbiance };
+// LES BORNES EFFECTIVES, et pourquoi elles ne sont pas de simples constantes.
+//
+// Essayer la fonction demandait de remplacer les deux constantes par 3000 puis
+// de PENSER A LES REMETTRE. Un 3000 oublie part chez l ami et le son se
+// declenche toutes les trois secondes: la blague devient un rapport de bug.
+// OMNI_AMBIANCE_MS fixe donc les deux bornes le temps d un essai, sans
+// toucher au code.
+//
+// Uniquement en mode developpement: un reglage venu de l environnement n a
+// rien a faire sur le poste d un ami, qui pourrait l y poser lui-meme.
+function bornes(env, minMs, maxMs) {
+  const brut = Number(env.OMNI_AMBIANCE_MS);
+  if (env.OMNI_DEV && Number.isFinite(brut) && brut > 0) return [brut, brut];
+  return [minMs, maxMs];
+}
+
+module.exports = { creerAmbiance, bornes };

@@ -57,7 +57,7 @@ const { lireDevlog, CHEMIN: CHEMIN_DEVLOG } = require('./devlog');
 const { estSouris, depuisBouton } = require('../src/comptes/raccourcis');
 const { creerVeille, creerCacheFichier } = require('../src/droits/veille');
 const { creerPorte } = require('../src/droits/porte');
-const { creerAmbiance } = require('../src/ambiance');
+const { creerAmbiance, bornes } = require('../src/ambiance');
 
 const PERIODE_PROCESS = 500;    // prise en charge des nouveaux clients
 const PERIODE_VUE = 2000;       // rafraichissement de la liste affichee
@@ -1271,9 +1271,10 @@ app.whenReady().then(async () => {
     noterAvis(texte);
     envoyerEtat();
   };
+  const [ambianceMin, ambianceMax] = bornes(process.env, AMBIANCE_MIN, AMBIANCE_MAX);
   ambiance = creerAmbiance({
-    minMs: AMBIANCE_MIN,
-    maxMs: AMBIANCE_MAX,
+    minMs: ambianceMin,
+    maxMs: ambianceMax,
     jouer: () => {
       if (fenetre !== null && !fenetre.isDestroyed()) fenetre.webContents.send('ambiance');
     },
