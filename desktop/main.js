@@ -809,6 +809,9 @@ async function envoyerEtat() {
     version: process.env.OMNI_VERSION || 'dev',
     actif: favoris.actif(),
     pdaArchi: pdaArchi !== null && pdaArchi.estAllume(),
+    // Le repli vient de favoris et non de la chasse: c'est un reglage garde sur
+    // disque, pas un etat vivant, et il se lit meme avant que la chasse existe.
+    pdaArchiRepli: favoris.pdaArchiRepli(),
     // Sans maitre, rien ne se replique. L absence de duplication et une panne
     // produisent le meme silence: l en-tete doit dire lequel des deux.
     sansMaitre: superviseur.maitre === null,
@@ -1216,6 +1219,10 @@ app.whenReady().then(async () => {
   pdaArchi = creerPdaArchi({
     superviseur,
     actif: favoris.pdaArchi(),
+    // RELU A CHAQUE COMBAT, d'ou la fonction: la case se coche pendant qu'un
+    // client est connecte, et un booleen fige ici n'aurait pris effet qu'au
+    // redemarrage suivant.
+    repli: () => favoris.pdaArchiRepli(),
     onCompteRendu: (r) => {
       if (r.quoi === 'equipe') {
         journal(r.pid, `PdA archi : pierre ${r.gid} equipee`);
@@ -1223,7 +1230,13 @@ app.whenReady().then(async () => {
         return;
       }
       if (r.quoi === 'deja' || r.quoi === 'envoye') {
-        journal(r.pid, `PdA archi : ${r.quoi} ${r.gid}`);
+        // LE REPLI SE DIT DANS LE JOURNAL, ET SEULEMENT LA. Ce n'est pas un
+        // echec -- une pierre part, le combat est couvert -- donc il ne fait
+        // ni biper ni remonter au panneau. Mais « envoye 9689 » sur un groupe
+        // de niveau 120 serait incomprehensible en relisant la seance.
+        journal(r.pid, r.repli === undefined
+          ? `PdA archi : ${r.quoi} ${r.gid}`
+          : `PdA archi : ${r.quoi} ${r.gid}, faute de ${r.repli.nom}`);
         return;
       }
       // LES CAS OU LA CAPTURE EST IMPOSSIBLE, ET EUX SEULS, remontent au
@@ -1233,7 +1246,12 @@ app.whenReady().then(async () => {
       // `r.nom` est le nom de la PIERRE qui manque, `r.compte` celui du
       // personnage: src/pda-archi/pda-archi.js les separe expres.
       const textes = {
-        manque: `PdA archi : pas de ${r.nom} pour du niveau ${r.niveauMax}`,
+        // AVEC LE REPLI, « pas de Grande » serait un demi-mensonge: on a aussi
+        // regarde tous les calibres au-dessus. Le texte doit dire lequel des
+        // deux stocks est vide, sinon on va racheter la mauvaise pierre.
+        manque: favoris.pdaArchiRepli()
+          ? `PdA archi : pas de ${r.nom} ni au-dessus pour du niveau ${r.niveauMax}`
+          : `PdA archi : pas de ${r.nom} pour du niveau ${r.niveauMax}`,
         'hors-portee': `PdA archi : niveau ${r.niveauMax}, aucune pierre ne couvre`,
         'groupe-inconnu': 'PdA archi : groupe inconnu, rien equipe',
         // Le combat est bien reconnu, mais personne n'a vu partir son groupe:
@@ -1823,6 +1841,16 @@ ipcMain.handle('archiRelire', () => {
     else journal(pid, 'archi : la demande d inventaire n est pas partie');
   }
   return { ok: demandes > 0, demandes, total: pids.length };
+});
+
+// LE REPLI NE DEMANDE PAS LE DROIT `pda-archi`, a la difference de
+// l'interrupteur juste en dessous: cocher une case qui ne pilote rien tant que
+// la chasse est eteinte ne fait rien de dangereux, et refuser le reglage a qui
+// n'a pas encore le droit rendrait le panneau incomprehensible.
+ipcMain.handle('pdaArchiRepli', async (_e, actif) => {
+  favoris.marquerPdaArchiRepli(actif === true);
+  await envoyerEtat();
+  return { ok: true };
 });
 
 ipcMain.handle('pdaArchiArmer', async (_e, actif) => {

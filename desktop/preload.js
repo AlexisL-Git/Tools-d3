@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('app', {
   // est impossible. Les DEUX doivent exister cote main.js, voir l'avertissement
   // en tete de ce fichier.
   pdaArchiArmer: (actif) => ipcRenderer.invoke('pdaArchiArmer', actif),
+  // La montee en calibre quand le stock de la tranche exacte est vide.
+  pdaArchiRepli: (actif) => ipcRenderer.invoke('pdaArchiRepli', actif),
 
   // Le tableau des archimonstres, construit a la demande cote main.js.
   tableauArchi: (quoi) => ipcRenderer.invoke('tableauArchi', quoi),

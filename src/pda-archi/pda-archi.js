@@ -45,7 +45,8 @@ const ESSAIS_MAX = 3;
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur, comme src/hdv/vente.js.
 function creerPdaArchi({
-  superviseur, actif = false, reglages = {}, onCompteRendu = () => {},
+  superviseur, actif = false, reglages = {}, repli = () => false,
+  onCompteRendu = () => {},
 }) {
   // Ce que l'ecoute permanente retient, par client.
   const stocks = new Map();   // pid -> [pile]
@@ -56,6 +57,12 @@ function creerPdaArchi({
 
   const delaiReponseMs = () => (Number.isFinite(reglages.delaiReponseMs)
     ? reglages.delaiReponseMs : DELAI_REPONSE_MS);
+
+  // LE REPLI DE CALIBRE EST UNE FONCTION, PAS UN BOOLEEN, et pour la meme
+  // raison que `delaiReponseMs` juste au-dessus: la case se coche dans OMNI
+  // pendant qu'un client est connecte. Fige a la construction, elle n'aurait
+  // rien change avant un redemarrage -- et personne n'aurait compris pourquoi.
+  const monterEnCalibre = () => repli() === true;
 
   function oublier(pid) {
     const attente = attentes.get(pid);
@@ -225,7 +232,9 @@ function creerPdaArchi({
   }
 
   function equiperPour(pid, niveauMax) {
-    const verdict = choisir({ niveauMax, piles: stocks.get(pid) || [] });
+    const verdict = choisir({
+      niveauMax, piles: stocks.get(pid) || [], monterEnCalibre: monterEnCalibre(),
+    });
     if (verdict.quoi !== 'equiper') {
       rendre(pid, { ...verdict, niveauMax });
       return;
@@ -268,7 +277,12 @@ function creerPdaArchi({
     attentes.set(pid, {
       uid: verdict.uid, gid: verdict.gid, minuteur, purge: verdict.purge || null,
     });
-    rendre(pid, { quoi: 'envoye', gid: verdict.gid, niveauMax });
+    // LE REPLI VOYAGE AVEC LE COMPTE RENDU, sinon le journal ecrirait « 9689
+    // equipee » sur un groupe de niveau 120 sans que rien n'explique pourquoi
+    // ce n'est pas la Grande. Absent quand la tranche exacte est partie.
+    rendre(pid, verdict.repli === undefined
+      ? { quoi: 'envoye', gid: verdict.gid, niveauMax }
+      : { quoi: 'envoye', gid: verdict.gid, niveauMax, repli: verdict.repli });
   }
 
   function onTrame({ pid, dir, frame }) {

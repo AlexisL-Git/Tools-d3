@@ -56,7 +56,7 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   // designe une personne. `hdvRythme` s'y ajoute le 2026-09-05: quatre
   // facteurs sans unite et une expiration en millisecondes, cinq nombres.
   // `hdvGarde` le meme jour: un facteur et un plafond en kamas, deux nombres.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -107,7 +107,7 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
@@ -822,4 +822,52 @@ test('les garde-fous sont rendus par copie', (t) => {
   const g = f.hdvGarde();
   g.plafond = 42;
   assert.strictEqual(f.hdvGarde().plafond, 0);
+});
+
+// LE REPLI DE CALIBRE DES PIERRES D AME, 2026-09-07. Un booleen, meme nature
+// que `pdaArchi` juste a cote: rien qui designe une personne.
+test('sans fichier, le repli de calibre est eteint', (t) => {
+  const f = new Favoris(fichierTemporaire(t));
+  f.charger();
+  assert.strictEqual(f.pdaArchiRepli(), false);
+});
+
+// LE DEFAUT REPRODUIT LE COMPORTEMENT D'AVANT, comme le rythme HDV tout a 1: le
+// fichier d'un ami qui monte de version n'a pas la cle et ne voit rien changer.
+test('une cle absente laisse le repli eteint', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({ favoris: [3], pdaArchi: true }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.strictEqual(f.pdaArchiRepli(), false);
+});
+
+test('le repli de calibre survit a un rechargement', (t) => {
+  const p = fichierTemporaire(t);
+  const a = new Favoris(p);
+  a.charger();
+  a.marquerPdaArchiRepli(true);
+  const b = new Favoris(p);
+  b.charger();
+  assert.strictEqual(b.pdaArchiRepli(), true);
+});
+
+test('le repli de calibre se decoche', (t) => {
+  const p = fichierTemporaire(t);
+  const f = new Favoris(p);
+  f.charger();
+  f.marquerPdaArchiRepli(true);
+  f.marquerPdaArchiRepli(false);
+  assert.strictEqual(f.pdaArchiRepli(), false);
+  assert.strictEqual(JSON.parse(fs.readFileSync(p, 'utf8')).pdaArchiRepli, false);
+});
+
+// Meme discipline que partout ailleurs dans ce fichier: une forme inconnue est
+// ignoree, elle n'impose rien.
+test('un repli de calibre d une forme inconnue est ignore', (t) => {
+  const p = fichierTemporaire(t);
+  fs.writeFileSync(p, JSON.stringify({ favoris: [3], pdaArchiRepli: 'oui' }), 'utf8');
+  const f = new Favoris(p);
+  f.charger();
+  assert.strictEqual(f.pdaArchiRepli(), false);
 });

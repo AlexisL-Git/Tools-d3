@@ -136,6 +136,12 @@ class Favoris {
     // fichier, et c'est voulu: une pierre d'ame capture aussi les monstres
     // ordinaires, donc allumee en permanence elle gacherait les grosses pierres.
     this._pdaArchi = false;
+    // LE REPLI DE CALIBRE: quand le stock de la tranche exacte est vide, monter
+    // d'un cran plutot que de partir nu. ETEINT PAR DEFAUT, et c'est ce qui rend
+    // la mise a jour invisible -- la decision de Jibef du 03/09 reste la regle
+    // tant que personne ne coche. La demonstration est en tete de
+    // src/pda-archi/pierres.js.
+    this._pdaArchiRepli = false;
     // Voir RYTHME_HDV_DEFAUT: neutre au depart, donc identique a l'existant.
     this._hdvRythme = { ...RYTHME_HDV_DEFAUT };
     // Meme raison, meme forme: voir GARDE_HDV_DEFAUT.
@@ -214,6 +220,7 @@ class Favoris {
         if (Number.isInteger(o.y)) this._overlay.y = o.y;
       }
       if (typeof json.pdaArchi === 'boolean') this._pdaArchi = json.pdaArchi;
+      if (typeof json.pdaArchiRepli === 'boolean') this._pdaArchiRepli = json.pdaArchiRepli;
       // Meme discipline que `touches` et `overlay`: chaque champ n'est repris
       // que si sa forme est connue, et il est BORNE a la lecture -- un fichier
       // edite a la main ne doit pas pouvoir imposer une cadence que le panneau
@@ -250,6 +257,7 @@ class Favoris {
       this._combats = new Map();
       this._overlay = { ouvert: false, sens: 'horizontal', x: null, y: null };
       this._pdaArchi = false;
+      this._pdaArchiRepli = false;
       this._hdvRythme = { ...RYTHME_HDV_DEFAUT };
       this._hdvGarde = { ...GARDE_HDV_DEFAUT };
     }
@@ -501,6 +509,16 @@ class Favoris {
     this._ecrire();
   }
 
+  // La montee en calibre quand le stock de la tranche exacte est vide.
+  pdaArchiRepli() {
+    return this._pdaArchiRepli;
+  }
+
+  marquerPdaArchiRepli(actif) {
+    this._pdaArchiRepli = actif === true;
+    this._ecrire();
+  }
+
   _ecrire() {
     try {
       fs.mkdirSync(path.dirname(this.chemin), { recursive: true });
@@ -518,6 +536,7 @@ class Favoris {
         combats: [...this._combats].map(([cle, le]) => ({ cle, le })),
         overlay: this.overlay(),
         pdaArchi: this._pdaArchi,
+        pdaArchiRepli: this._pdaArchiRepli,
         hdvRythme: this.hdvRythme(),
         hdvGarde: this.hdvGarde(),
       };

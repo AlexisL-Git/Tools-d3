@@ -1052,6 +1052,9 @@
        porte l'etat d'OMNI lui-meme. Emplacement choisi par Jibef le 03/09 sur
        le labo, apres avoir compare quatre positions. -->
   <button class="maitre-inter" id="interPdaArchi"><span class="temoin"></span><span>Équiper PdA</span></button>
+  <!-- Le repli de calibre, collé à l'interrupteur qu'il modifie: il ne veut
+       rien dire seul, et le lire ailleurs ferait chercher ce qu'il règle. -->
+  <button class="maitre-inter" id="interPdaRepli"><span class="temoin"></span><span>Monter en calibre</span></button>
   <button class="pose" id="brythme" title="le rythme des passes HDV et les garde-fous de prix, communs aux deux fonctions">Réglage HDV</button>
   <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
@@ -2096,6 +2099,13 @@
     window.app.pdaArchiArmer(!interPdaArchi.classList.contains('on'));
   });
 
+  // Le repli de calibre. Même règle que les deux au-dessus: il demande, et
+  // l'état suivant fait foi.
+  const interPdaRepli = document.getElementById('interPdaRepli');
+  interPdaRepli.addEventListener('click', () => {
+    window.app.pdaArchiRepli(!interPdaRepli.classList.contains('on'));
+  });
+
   // LE BIP DE LA CHASSE, le premier son d'OMNI.
   //
   // Deux notes basses, distinctes de tout ce que fait Dofus. SYNTHETISEES
@@ -2587,6 +2597,11 @@
     interPdaArchi.title = etat.pdaArchi === true
       ? 'La bonne pierre d’âme est équipée sur tous les comptes à chaque entrée en combat. Cliquer pour arrêter.'
       : 'Éteint. Allumé, des pierres d’âme se rempliraient sur des monstres ordinaires.';
+
+    interPdaRepli.classList.toggle('on', etat.pdaArchiRepli === true);
+    interPdaRepli.title = etat.pdaArchiRepli === true
+      ? 'À court de la pierre juste, OMNI monte d’un calibre plutôt que de partir sans rien. Il redescend dès que le stock revient.'
+      : 'Éteint. À court de la pierre juste, le personnage part sans pierre : la capture est perdue, mais aucune grosse pierre n’est dépensée.';
 
     // Le losange de chaque titre de colonne: plein, creux, ou a moitie.
     for (const b of document.querySelectorAll('[data-colonne]')) {

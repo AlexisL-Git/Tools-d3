@@ -95,3 +95,86 @@ test('entre deux piles de la meme pierre, la plus grosse est choisie', () => {
     quoi: 'equiper', gid: 9688, uid: 222, qte: 40, purge: null,
   });
 });
+
+// ---------------------------------------------------------------------------
+// LE REPLI DE CALIBRE, decision d'Alexis le 2026-09-07.
+//
+// La decision de Jibef du 03/09 tient toujours quand la case est decochee: une
+// pierre trop grosse vaut plus cher que ce que la capture rapporte, et c'est le
+// defaut. Mais partir NU coute le combat entier, et c'est ce qui se passait des
+// que le stock de la tranche exacte tombait a zero. La regle devient donc un
+// reglage, et le test ci-dessus -- « la tranche du dessus ne remplace jamais »
+// -- reste tel quel: il decrit le defaut.
+
+test('avec le repli, la tranche du dessus prend la place de la manquante', () => {
+  const piles = [pile(9689, 444, 11)];
+  assert.deepStrictEqual(choisir({ niveauMax: 120, piles, monterEnCalibre: true }), {
+    quoi: 'equiper', gid: 9689, uid: 444, qte: 11, purge: null,
+    repli: { gid: 9688, nom: 'Grande pierre d ame' },
+  });
+});
+
+// Deux crans d'un coup: ni Grande ni Enorme, il reste la Gigantesque. La
+// montee ne s'arrete pas au premier trou.
+test('le repli saute autant de crans qu il en manque', () => {
+  const piles = [pile(9690, 555, 3)];
+  assert.deepStrictEqual(choisir({ niveauMax: 120, piles, monterEnCalibre: true }), {
+    quoi: 'equiper', gid: 9690, uid: 555, qte: 3, purge: null,
+    repli: { gid: 9688, nom: 'Grande pierre d ame' },
+  });
+});
+
+// LE REPLI NE DESCEND JAMAIS. Une Moyenne (plafond 100) ne capture pas du 120,
+// et l'avoir en stock ne doit pas ressembler a une solution.
+test('le repli ignore les calibres trop petits', () => {
+  const piles = [pile(9686, 111, 50), pile(9687, 222, 50)];
+  assert.deepStrictEqual(choisir({ niveauMax: 120, piles, monterEnCalibre: true }), {
+    quoi: 'manque', gid: 9688, nom: 'Grande pierre d ame',
+  });
+});
+
+test('le repli qui ne trouve rien du tout le dit comme avant', () => {
+  const piles = [];
+  assert.deepStrictEqual(choisir({ niveauMax: 120, piles, monterEnCalibre: true }), {
+    quoi: 'manque', gid: 9688, nom: 'Grande pierre d ame',
+  });
+});
+
+// LA PIERRE PORTEE EST UN STOCK COMME UN AUTRE. Une Enorme deja en place, et
+// pas de Grande en reserve: la retirer pour la remettre ne servirait a rien.
+test('une pierre de repli deja portee ne se rejoue pas', () => {
+  const piles = [pile(9689, 444, 11, POSITION_PIERRE)];
+  assert.deepStrictEqual(choisir({ niveauMax: 120, piles, monterEnCalibre: true }), {
+    quoi: 'deja', gid: 9689,
+  });
+});
+
+// ON REDESCEND DES QUE LE STOCK REVIENT, et c'est ce qui garde le repli
+// exceptionnel. Sans ca, une seule rupture ferait consommer des Enormes
+// jusqu'a la fin de la session -- exactement la depense que la decision du
+// 03/09 voulait eviter.
+test('le repli rend la place a la bonne tranche des qu elle revient en stock', () => {
+  const piles = [pile(9689, 444, 11, POSITION_PIERRE), pile(9688, 111, 40)];
+  assert.deepStrictEqual(choisir({ niveauMax: 120, piles, monterEnCalibre: true }), {
+    quoi: 'equiper', gid: 9688, uid: 111, qte: 40,
+    purge: { uid: 444, qte: 11, gid: 9689 },
+  });
+});
+
+// Le repli n'a pas a se declarer quand il n'a pas servi: la tranche exacte est
+// la, le verdict est celui d'avant, au champ pres.
+test('la tranche exacte disponible ne declare aucun repli', () => {
+  const piles = [pile(9688, 111, 40), pile(9689, 444, 11)];
+  assert.deepStrictEqual(choisir({ niveauMax: 120, piles, monterEnCalibre: true }), {
+    quoi: 'equiper', gid: 9688, uid: 111, qte: 40, purge: null,
+  });
+});
+
+// Hors de portee reste hors de portee: rien a quoi se replier au-dela de la
+// Gigantesque.
+test('le repli ne rattrape pas un niveau hors portee', () => {
+  const piles = [pile(9690, 555, 3)];
+  assert.deepStrictEqual(choisir({ niveauMax: 2000, piles, monterEnCalibre: true }), {
+    quoi: 'hors-portee', niveauMax: 2000,
+  });
+});

@@ -47,13 +47,28 @@ function tranche(niveauMax) {
 // LE VERDICT EST UN SEUL OBJET, jamais une exception ni un null nu: chacun des
 // quatre cas doit pouvoir s'afficher tel quel dans le panneau.
 //
-// JAMAIS DE REMPLACEMENT PAR LA TRANCHE DU DESSUS. Une pierre plus grande
-// capturerait bien un monstre plus faible, la regle du jeu etant « inferieur ou
-// egal », mais elle vaut plus cher que ce que la capture rapporte. Decision de
-// Jibef le 2026-09-03.
-function choisir({ niveauMax, piles }) {
+// LA TRANCHE DU DESSUS NE REMPLACE LA MANQUANTE QUE SI ON LE DEMANDE, et c'est
+// `monterEnCalibre`. Deux decisions se sont succede, et les deux sont vraies:
+//
+//   Jibef, le 2026-09-03 -- jamais de remplacement. Une pierre plus grande
+//   capturerait bien un monstre plus faible, la regle du jeu etant « inferieur
+//   ou egal », mais elle vaut plus cher que ce que la capture rapporte. C'est
+//   le DEFAUT, et un argument absent le laisse intact.
+//
+//   Alexis, le 2026-09-07 -- partir NU coute le combat entier. Un stock de
+//   Grandes tombe a zero, et plus rien ne s'equipait: le motif du 03/09 tient
+//   sur le prix d'une pierre, pas sur celui d'une capture ratee. La montee est
+//   donc offerte, en case a cocher (`pdaArchiRepli` dans favoris.json).
+//
+// LE REPLI RESTE EXCEPTIONNEL PARCE QU'IL REDESCEND. Des que la tranche exacte
+// revient en reserve, elle reprend la place: sans ca une seule rupture ferait
+// consommer des Gigantesques jusqu'a la fin de la session, ce que la decision
+// du 03/09 voulait justement eviter.
+function choisir({ niveauMax, piles, monterEnCalibre }) {
   const voulue = tranche(niveauMax);
   if (voulue === null) return { quoi: 'hors-portee', niveauMax };
+
+  const stock = piles || [];
 
   // CE QUI OCCUPE L'EMPLACEMENT, quoi que ce soit. On le sortira de la, plutot
   // que de compter sur le serveur pour le faire.
@@ -82,10 +97,17 @@ function choisir({ niveauMax, piles }) {
   // 34005, et les 143 ames d'un inventaire portent 143 gids distincts. Le
   // raisonnement ci-dessus tient tel quel -- il compare des gids sans jamais en
   // nommer un -- seul son exemple etait invente.
-  const occupant = (piles || []).find((p) => p.pos === POSITION_PIERRE) || null;
-  const purge = occupant === null || occupant.gid === voulue.gid
-    ? null
-    : { uid: occupant.uid, qte: occupant.qte, gid: occupant.gid };
+  const occupant = stock.find((p) => p.pos === POSITION_PIERRE) || null;
+
+  // LES CALIBRES ACCEPTABLES, DU PLUS PETIT AU PLUS GRAND. Sans repli la liste
+  // n'a qu'un element et tout ce qui suit se comporte comme avant le 07/09.
+  //
+  // ON NE DESCEND JAMAIS: `PIERRES` est trie par plafond croissant, et couper a
+  // la tranche voulue ecarte d'un coup tous les calibres qui ne captureraient
+  // pas. Une Moyenne en stock n'est pas une solution pour du niveau 120.
+  const candidats = monterEnCalibre === true
+    ? PIERRES.slice(PIERRES.indexOf(voulue))
+    : [voulue];
 
   // LE GID SUFFIT, ET `avecEffets` NE SERT A RIEN ICI. Mesure du 03/09: les
   // quatre piles de pierres vides de l'inventaire le portent toutes. Le
@@ -93,17 +115,47 @@ function choisir({ niveauMax, piles }) {
   // s'applique pas: une pierre est de l'equipement. Et une pierre PLEINE n'est
   // pas le meme objet -- elle a son propre gid, un par archimonstre -- donc
   // elle ne peut pas se glisser ici.
-  const siennes = (piles || []).filter((p) => p.gid === voulue.gid);
-  const portee = siennes.find((p) => p.pos === POSITION_PIERRE);
-  if (portee !== undefined) return { quoi: 'deja', gid: voulue.gid };
+  //
+  // LA PIERRE PORTEE COMPTE COMME UN STOCK, et c'est pour ca qu'on cherche dans
+  // `stock` entier plutot que dans les seules piles rangees: une Enorme deja en
+  // place, sans Grande en reserve, ne doit pas etre retiree pour etre remise.
+  const prise = candidats.find((c) => stock.some((p) => p.gid === c.gid));
+  if (prise === undefined) {
+    // LE NOM RENDU EST CELUI DE LA TRANCHE VOULUE, pas du dernier calibre
+    // essaye: c'est cette pierre-la qu'il faut racheter.
+    return { quoi: 'manque', gid: voulue.gid, nom: voulue.nom };
+  }
+
+  // LA QUESTION EST « UNE PILE DE CE CALIBRE EST-ELLE PORTEE », PAS « L'OCCUPANT
+  // EST-IL DE CE CALIBRE ». Les deux se confondent en jeu -- il n'y a qu'un seul
+  // emplacement -- mais pas dans notre copie de l'inventaire: equiper a la main
+  // envoie un `ivq` pour la pierre qui ARRIVE et rien pour celle qui part, donc
+  // deux piles s'y declarent le temps du prochain `ivx`. Comparer a `occupant`,
+  // qui est la premiere des deux, faisait dire « manque » sur une pierre qu'on
+  // portait: regression du 07/09, rattrapee par le test « la position se met a
+  // jour meme eteinte ».
+  if (stock.some((p) => p.gid === prise.gid && p.pos === POSITION_PIERRE)) {
+    return { quoi: 'deja', gid: prise.gid };
+  }
 
   // La plus grosse pile d'abord: c'est celle qui tiendra le plus de captures.
   // L'uid ne departage que pour rendre le choix deterministe, donc testable.
-  const rangee = siennes.filter((p) => p.pos !== POSITION_PIERRE)
+  const rangee = stock.filter((p) => p.gid === prise.gid && p.pos !== POSITION_PIERRE)
     .sort((a, b) => (b.qte - a.qte) || (a.uid - b.uid))[0];
+  // Hors d'atteinte aujourd'hui: la seule pile possible hors reserve est celle
+  // de l'emplacement, et le `deja` ci-dessus l'a deja renvoyee. La garde reste.
   if (rangee === undefined) return { quoi: 'manque', gid: voulue.gid, nom: voulue.nom };
 
-  return { quoi: 'equiper', gid: voulue.gid, uid: rangee.uid, qte: rangee.qte, purge };
+  const purge = occupant === null
+    ? null
+    : { uid: occupant.uid, qte: occupant.qte, gid: occupant.gid };
+  const verdict = {
+    quoi: 'equiper', gid: prise.gid, uid: rangee.uid, qte: rangee.qte, purge,
+  };
+  // LE REPLI SE DECLARE, sinon le journal mentirait par omission: « Enorme
+  // equipee » sans dire que c'est la Grande qui manque ne se comprend pas.
+  if (prise.gid !== voulue.gid) verdict.repli = { gid: voulue.gid, nom: voulue.nom };
+  return verdict;
 }
 
 module.exports = { PIERRES, POSITION_PIERRE, tranche, choisir };

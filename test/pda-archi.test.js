@@ -98,11 +98,11 @@ function jssNiveau(niveau, idGroupe = -300) {
 
 // L'inventaire mesure porte la Moyenne (9687) en position 31, la Grande (9688,
 // uid 233526391) et l'Enorme (9689) rangees, et AUCUNE Gigantesque.
-function monte({ actif = true } = {}) {
+function monte({ actif = true, repli = () => false } = {}) {
   const superviseur = doubleSuperviseur();
   const rendus = [];
   const chasse = creerPdaArchi({
-    superviseur, actif, onCompteRendu: (r) => rendus.push(r),
+    superviseur, actif, repli, onCompteRendu: (r) => rendus.push(r),
   });
   chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-ivx-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('pda-archi-jss-groupes.hex') });
@@ -853,4 +853,71 @@ test('les tentatives d un meme combat sont bornees a trois', async () => {
     chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(-1, -2, 777) });
   }
   assert.strictEqual(superviseur.envois.length, 3);
+});
+
+// ---------------------------------------------------------------------------
+// LE REPLI DE CALIBRE, 2026-09-07. L'inventaire mesure n'a AUCUNE Gigantesque,
+// et la Grande s'en va d'un `ium`: les deux bouts de la montee sont donc
+// jouables sur la fixture, sans en fabriquer une.
+//
+// Le test « une pile disparue n est plus proposee » ci-dessus reste le cas
+// repli ETEINT, et c'est lui qui garde le defaut.
+test('avec le repli, la Grande manquante fait partir l Enorme', () => {
+  const { superviseur, chasse, rendus } = monte({ repli: () => true });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) }); // la Grande
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300);
+  assert.strictEqual(superviseur.envois.length, 1);
+  assert.deepStrictEqual(
+    superviseur.envois[0].octets,
+    trameEquiper({ uid: 233526400, qte: 1, position: POSITION_PIERRE }),
+  );
+  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+  assert.strictEqual(rendus.at(-1).gid, 9689);
+  // LE COMPTE RENDU DIT LE REPLI, sinon le journal ecrirait « 9689 equipee »
+  // sur un groupe de niveau 120 sans qu'on puisse comprendre pourquoi.
+  assert.deepStrictEqual(rendus.at(-1).repli, { gid: 9688, nom: 'Grande pierre d ame' });
+});
+
+// LE REGLAGE SE LIT A CHAQUE COMBAT, et c'est pour ca que `repli` est une
+// FONCTION et pas un booleen. Fige au demarrage, cocher la case n'aurait rien
+// change avant un redemarrage d'OMNI -- meme raison que `delaiReponseMs`.
+test('cocher le repli entre deux combats change le combat suivant', () => {
+  let coche = false;
+  const { superviseur, chasse, rendus } = monte({ repli: () => coche });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) }); // la Grande
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300);
+  assert.strictEqual(superviseur.envois.length, 0);
+  assert.strictEqual(rendus.at(-1).quoi, 'manque');
+
+  coche = true;
+  entrer(chasse, 42, -300, -301);
+  assert.strictEqual(superviseur.envois.length, 1);
+  assert.strictEqual(rendus.at(-1).quoi, 'envoye');
+  assert.strictEqual(rendus.at(-1).gid, 9689);
+});
+
+// Rien au-dessus de la Gigantesque, et l'inventaire mesure n'en a pas: le
+// repli ne fabrique pas une pierre qu'on n'a pas.
+test('le repli ne trouve rien au-dessus de la Gigantesque', () => {
+  const { superviseur, chasse, rendus } = monte({ repli: () => true });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(200) });
+  entrer(chasse, 42, -300);
+  assert.strictEqual(superviseur.envois.length, 0);
+  assert.strictEqual(rendus.at(-1).quoi, 'manque');
+  assert.strictEqual(rendus.at(-1).gid, 9690);
+});
+
+// La tranche exacte est la: le repli coche ne doit RIEN changer.
+test('le repli coche n empeche pas la tranche exacte de partir', () => {
+  const { superviseur, chasse, rendus } = monte({ repli: () => true });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jssNiveau(120) });
+  entrer(chasse, 42, -300);
+  assert.deepStrictEqual(
+    superviseur.envois[0].octets,
+    trameEquiper({ uid: 233526391, qte: 1, position: POSITION_PIERRE }),
+  );
+  assert.strictEqual(rendus.at(-1).gid, 9688);
+  assert.strictEqual(rendus.at(-1).repli, undefined);
 });
