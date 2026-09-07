@@ -4,10 +4,10 @@ const assert = require('node:assert');
 const { FONCTIONS, NOMS, estConnue } = require('../src/droits/liste');
 const copieServeur = require('../serveur-maj/lib/fonctions');
 
-test('les dix fonctions verrouillables, et elles seules', () => {
+test('les onze fonctions verrouillables, et elles seules', () => {
   assert.deepStrictEqual(NOMS, [
     'abandon', 'passe-tour', 'invitation', 'echange', 'songe', 'overlay', 'hdv', 'vente',
-    'pda-archi', 'no-anim',
+    'pda-archi', 'no-anim', 'ambiance',
   ]);
 });
 
@@ -35,4 +35,9 @@ test('LA COPIE DU SERVEUR EST IDENTIQUE', () => {
   // donc inevitable; ce test est ce qui l empeche de deriver en silence.
   assert.deepStrictEqual(copieServeur.FONCTIONS, FONCTIONS);
   assert.deepStrictEqual(copieServeur.NOMS, NOMS);
+});
+
+test('ambiance est une fonction connue des deux cotes', () => {
+  assert.ok(estConnue('ambiance'));
+  assert.ok(copieServeur.estConnue('ambiance'));
 });

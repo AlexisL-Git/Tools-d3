@@ -2135,6 +2135,25 @@
     if (t - dernierBip > 3000) { bip(); dernierBip = t; }
   });
 
+  // L'ambiance sonore. Contrairement au bip juste au-dessus, elle vient d'un
+  // FICHIER: desktop/sons/ping.ogg, emporte par DOSSIERS_DESKTOP dans
+  // outils/faire-etape.js. L'element est construit ici plutot que pose dans
+  // le corps de la page -- une balise de moins a deplacer le jour ou la mise
+  // en page bouge.
+  let ambiance = null;
+  window.app.surAmbiance(() => {
+    try {
+      if (ambiance === null) ambiance = new Audio('sons/ping.ogg');
+      ambiance.volume = 0.5;
+      // Sans cette remise a zero, un son deja joue jusqu'au bout reste muet:
+      // la tete de lecture est restee a la fin.
+      ambiance.currentTime = 0;
+      ambiance.play().catch(() => {});
+    } catch (e) {
+      // Pas de son disponible. Rien a dire: personne n'attend celui-ci.
+    }
+  });
+
   // Les memes regles que src/comptes/colonnes.js, cote affichage. Le module
   // n'est pas importable ici (le renderer est sandboxe), il reste la reference,
   // et main.js recalcule la cible de son cote avant d'ecrire.
