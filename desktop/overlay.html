@@ -148,6 +148,54 @@
   .inter.aucun { color: var(--alerte); border-color: var(--alerte); }
   .inter.aucun .temoin { border-color: var(--alerte); }
 
+  /* --- LE PASSE-TOUR, UN BOUTON COUPE EN DEUX ---------------------------
+     Moitie gauche: le meneur, seul. Moitie droite: toutes les autres mules.
+     Les deux sont independantes — c'est la demande du 2026-09-07: en combat les
+     mules passent leur tour toutes seules pendant que le meneur joue a la main.
+
+     Une seule pastille et non deux boutons separes: les deux moities parlent du
+     MEME reglage sur deux populations, et le filet qui les coupe le dit mieux
+     que 9 px d'ecart. La barre y gagne aussi la place de deux pictos. */
+  .inter.coupe { padding: 0; gap: 0; overflow: hidden; }
+  .barre.vertical .inter.coupe { padding: 0; flex-direction: column; }
+  .moitie {
+    display: inline-flex; align-items: center; gap: 8px; flex: none;
+    padding: 5px 11px 5px 9px; cursor: pointer; color: var(--attenue);
+  }
+  .barre.vertical .moitie { padding: 5px 8px; }
+  .moitie:hover { background: rgba(255,255,255,.06); }
+  .filet { width: 1px; align-self: stretch; background: var(--bord); flex: none; }
+  .barre.vertical .filet { width: auto; height: 1px; }
+
+  /* TROIS ETATS, les memes formes que partout: plein, moitie, creux. Mais PAS
+     le rouge de « Repl. ». Couper le replicate est un etat qu'on ne doit pas
+     oublier, d'ou l'alerte; ne pas passer son tour est l'etat NORMAL hors
+     combat, et une barre rouge en permanence ne voudrait plus rien dire. Le
+     creux gris dit « eteint » sans crier. */
+  .moitie.arme { color: var(--arme); }
+  .moitie.arme .temoin {
+    background: var(--arme); border-color: var(--arme);
+    box-shadow: 0 0 8px rgba(47,212,196,.65);
+  }
+  .moitie.mi { color: var(--arme); }
+  .moitie.mi .temoin {
+    border-color: var(--arme);
+    background: linear-gradient(to right, var(--arme) 50%, transparent 50%);
+  }
+
+  /* AUCUN MENEUR EN JEU. Different d'« eteint »: il n'y a rien a basculer. Sans
+     ce troisieme cas, la moitie gauche afficherait un losange creux, donc « le
+     meneur ne passe pas son tour », pour une equipe qui n'a pas de meneur. */
+  .moitie.inerte { opacity: .4; cursor: default; }
+  .moitie.inerte:hover { background: transparent; }
+
+  /* La cle n'a pas le droit `passe-tour`: le bouton entier est grise et mort,
+     comme la colonne « Tour » du panneau. Un bouton qui ne fait rien sans le
+     dire est pire que pas de bouton. */
+  .inter.interdit { opacity: .4; }
+  .inter.interdit .moitie { cursor: default; }
+  .inter.interdit .moitie:hover { background: transparent; }
+
   /* --- les deux petits boutons de fin ----------------------------------- */
   .fin { display: flex; gap: 2px; flex: none; }
   .barre.vertical .fin { flex-direction: column; }
@@ -175,6 +223,12 @@
     <span class="temoin"></span><span class="mot">RÉPL.</span>
   </div>
   <div class="sep"></div>
+  <div class="inter coupe" id="tour">
+    <span class="moitie" id="tourMeneur"><span class="temoin"></span><span class="mot">M</span></span>
+    <span class="filet"></span>
+    <span class="moitie" id="tourMules"><span class="temoin"></span><span class="mot">TOUR</span></span>
+  </div>
+  <div class="sep"></div>
   <div class="fin">
     <button id="sens" title="Basculer horizontale / verticale">⇄</button>
     <button id="fermer" class="fermer" title="Fermer l'overlay">✕</button>
@@ -187,6 +241,9 @@
   const barre = document.getElementById('barre');
   const zone = document.getElementById('pictos');
   const inter = document.getElementById('inter');
+  const tour = document.getElementById('tour');
+  const tourMeneur = document.getElementById('tourMeneur');
+  const tourMules = document.getElementById('tourMules');
 
   // Le dernier etat recu, pour ne pas redessiner a l'identique toutes les 2 s:
   // un rendu qui recree les noeuds pendant qu'on vise un picto ferait rater le
@@ -196,6 +253,7 @@
   function empreinteDe(etat) {
     return JSON.stringify([
       etat.repl, etat.actif, etat.sansMaitre, etat.sens,
+      etat.tour && etat.tour.meneur, etat.tour && etat.tour.mules, etat.peutTour,
       etat.pictos.map((p) => [p.id, p.pid, p.embleme !== null, p.abrege, p.touche, p.commande, p.ici, p.pastille, p.cliquable, p.peutCommander]),
     ]);
   }
@@ -281,7 +339,62 @@
         ? 'Certains comptes seulement suivent le meneur — cliquer pour aligner tout le monde'
         : 'Aucun compte ne suit le meneur — cliquer pour les rattacher');
 
+    peindreTour(etat);
+
     mesurer();
+  });
+
+  // LE PASSE-TOUR, DEUX MOITIES INDEPENDANTES.
+  //
+  // Les deux etats sont calcules cote principal par src/comptes/overlay.js —
+  // la page ne sait pas qui est le meneur et n'a pas a le savoir. Elle peint ce
+  // qu'on lui donne, et elle renvoie « meneur » ou « mules » au clic.
+  function peindreTour(etat) {
+    const e = etat.tour || { meneur: 'absent', mules: 'aucun' };
+    // Le droit `passe-tour` est verrouillable par cle. Absent, tout le bouton
+    // est grise et mort, comme la colonne « Tour » du panneau.
+    const permis = etat.peutTour !== false;
+    tour.classList.toggle('interdit', !permis);
+
+    // Le meneur: UN SEUL COMPTE, donc pas d'etat « partiel ». Et « absent »
+    // n'est pas « eteint » — il n'y a rien a basculer, la moitie est inerte.
+    const absent = e.meneur === 'absent';
+    tourMeneur.classList.toggle('arme', e.meneur === 'actif');
+    tourMeneur.classList.toggle('inerte', absent || !permis);
+    tourMeneur.title = !permis
+      ? 'Passe-tour : pas activé sur ta clé'
+      : (absent
+        ? 'Aucun meneur en jeu'
+        : (e.meneur === 'actif'
+          ? 'Le meneur passe son tour tout seul — cliquer pour le lui laisser jouer'
+          : 'Le meneur joue son tour à la main — cliquer pour qu il le passe'));
+
+    // Les mules: les trois etats habituels, sur tous les comptes en jeu SAUF
+    // celui qui commande.
+    tourMules.classList.toggle('arme', e.mules === 'tous');
+    tourMules.classList.toggle('mi', e.mules === 'partiel');
+    tourMules.classList.toggle('inerte', !permis);
+    tourMules.title = !permis
+      ? 'Passe-tour : pas activé sur ta clé'
+      : (e.mules === 'tous'
+        ? 'Toutes les mules passent leur tour — cliquer pour les arrêter'
+        : (e.mules === 'partiel'
+          ? 'Certaines mules seulement passent leur tour — cliquer pour aligner tout le monde'
+          : 'Aucune mule ne passe son tour — cliquer pour les armer'));
+  }
+
+  // La cible est un ARGUMENT, pas un second canal: la regle « qui est le
+  // meneur » n'existe qu'a un seul endroit, cote principal. Comme pour
+  // basculerReplGroupe, la valeur a poser y est recalculee depuis le fichier de
+  // reglages — deux clics rapides ne partent pas de deux lectures de
+  // l'affichage.
+  tourMeneur.addEventListener('click', () => {
+    if (tourMeneur.classList.contains('inerte')) return;
+    window.overlay.basculerTourGroupe('meneur');
+  });
+  tourMules.addEventListener('click', () => {
+    if (tourMules.classList.contains('inerte')) return;
+    window.overlay.basculerTourGroupe('mules');
   });
 
   // LE MEME GESTE que le clic sur le titre de colonne « Répl. » du panneau: il

@@ -49,7 +49,7 @@ const { construireVue } = require('../src/comptes/vue');
 const { resoudreMaitre } = require('../src/comptes/maitre');
 const { creerEmblemes } = require('../src/comptes/emblemes');
 const { ordonner } = require('../src/comptes/ordre');
-const { pourOverlay } = require('../src/comptes/overlay');
+const { pourOverlay, etatTour } = require('../src/comptes/overlay');
 const { COLONNES, parNom, cibleBascule, etatColonne } = require('../src/comptes/colonnes');
 const { Favoris, RYTHME_HDV_DEFAUT, GARDE_HDV_DEFAUT } = require('../src/comptes/favoris');
 const { findDofusProcesses } = require('../src/injector');
@@ -831,6 +831,16 @@ function rafraichirOverlay() {
     // que les deux fenetres montrent la meme chose sans que la page ait a le
     // refaire — et sans qu'elles puissent en donner deux versions.
     repl: etatColonne(dernieresLignes, 'repl'),
+    // LE PASSE-TOUR EN DEUX TAS: { meneur, mules }. Le meneur seul d'un cote,
+    // tous les autres comptes en jeu de l'autre — le bouton de la barre est
+    // coupe en deux et les deux moities sont independantes. Le calcul est
+    // ecrit et teste dans src/comptes/overlay.js, hors d'Electron.
+    tour: etatTour(dernieresLignes),
+    // `passe-tour` est une fonction VERROUILLABLE (src/droits/liste.js). Le
+    // panneau grise sa colonne quand la cle ne l'a pas; sans cet envoi la barre
+    // ne pourrait pas en faire autant, et un ami sans le droit cliquerait dans
+    // le vide sans rien comprendre.
+    peutTour: veille.droits().includes('passe-tour'),
     actif: favoris.actif(),
     sansMaitre: superviseur.maitre === null,
     sens: favoris.overlay().sens,
@@ -1635,6 +1645,38 @@ ipcMain.handle('basculerReplGroupe', async () => {
   const ids = [...carteComptes.keys()];
   if (ids.length === 0) return;
   await basculerColonneAvec('repl', ids);
+});
+
+// LE PASSE-TOUR DE LA BARRE, EN DEUX MOITIES INDEPENDANTES.
+//
+// 'meneur' ne touche que le compte qui commande, 'mules' tous les autres. C'est
+// la seule chose que ce canal decide: le reste est celui du titre de colonne
+// « Tour » du panneau, appele avec un tas au lieu de la liste entiere. Donc
+// aucun second etat cache, les memes cases par compte, et la cible recalculee
+// cote principal depuis le fichier de reglages — deux clics rapides ne partent
+// pas de deux lectures differentes de l'affichage.
+//
+// Le meneur qui change emporte son reglage avec lui: les deux tas sont refaits
+// a chaque appel depuis dernieresLignes, l'ancien meneur retombe dans les mules.
+ipcMain.handle('basculerTourGroupe', async (_e, cible) => {
+  if (cible !== 'meneur' && cible !== 'mules') return;
+  // La fenetre peut rester ouverte apres un retrait de droit: la garde est ici,
+  // pas seulement dans le grisage de la page.
+  if (!veille.droits().includes('passe-tour')) {
+    noterAvis('Passe-tour : pas activé sur ta clé');
+    await envoyerEtat();
+    return;
+  }
+  // Le meme ensemble que les pictos et que etatTour(): les comptes en jeu qui
+  // portent un identifiant. carteComptes ne retient qu'eux.
+  const meneurs = dernieresLignes
+    .filter((l) => l.estMaitre && l.id !== null && l.id !== undefined && carteComptes.has(l.id))
+    .map((l) => l.id);
+  const ids = cible === 'meneur'
+    ? meneurs
+    : [...carteComptes.keys()].filter((id) => !meneurs.includes(id));
+  if (ids.length === 0) return;
+  await basculerColonneAvec('tour', ids);
 });
 
 // --- les ordres propres a l'overlay -----------------------------------------
