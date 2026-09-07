@@ -1,5 +1,21 @@
 [
   {
+    "version": "0.3.5",
+    "le": "2026-09-07",
+    "notes": [
+      "Nouveau, barre flottante : le passe-tour est enfin sur la barre, plus besoin d ouvrir le panneau en plein combat. C est le bouton coupé en deux, juste après RÉPL.",
+      "Et il est coupé en deux pour une raison : la moitié gauche « M » règle le passe-tour de ton MENEUR tout seul, la moitié droite « TOUR » celui de toutes tes autres mules. Les deux sont indépendantes — tes mules passent leur tour toutes seules pendant que tu joues le tien à la main, et tu peux te faire passer aussi sans les toucher.",
+      "Ce n est pas un second réglage caché : ce sont les mêmes cases que la colonne « Tour » du panneau. Ce que tu poses depuis la barre, tu le retrouves coché dans le panneau, et l inverse. Si tu changes de meneur en cours de route, chacun garde son propre réglage.",
+      "Hôtel de vente : le bouton « RYTHME HDV » devient « RÉGLAGE HDV » et son panneau porte deux sections. Les garde-fous de prix d abord, le rythme des passes ensuite — le rythme décide de ta discrétion, les garde-fous décident de tes kamas.",
+      "Garde-fou, écart maximum : un curseur de 1,5 à 20, réglé sur 5 comme avant. Le panneau te dit son effet en kamas et pas en abstrait — avec un lot de 10 à 1520, il ne partira ni au-dessus de 7600 ni en dessous de 304.",
+      "Garde-fou, prix plafond : un champ en kamas et trois raccourcis Aucun / 1 M / 3 M. Il porte sur le prix du LOT, celui que tu tapes dans le jeu, et il est vérifié avant le prix moyen — un objet dont OMNI ne connaît pas le cours est quand même arrêté.",
+      "Si tu ne touches à rien, rien ne change : les réglages par défaut reproduisent exactement le comportement d avant.",
+      "Corrigé, hôtel de vente : deux trous que ces réglages ont mis au jour. Une déduction interne tenait pour acquis un écart d au moins 2, donc baisser le curseur en dessous l aurait relâchée au lieu de la serrer. Et le repli sur le prix moyen ne passait par aucune borne — mille unités à 2000 kamas font deux millions sans qu aucun écart s en émeuve. Les deux passent désormais par les mêmes bornes que le reste.",
+      "Hôtel de vente : le tableau des lots écartés dit maintenant le NOM de l objet. Il affichait « gid 13731 », ce qui ne se relit pas ; c était de la Pierre Médicinale. Le numéro reste accessible en infobulle, c est lui qu on recopie dans le jeu.",
+      "Archimonstres : un champ de recherche par nom, à côté des trois filtres. Deux cent quatre-vingt-six lignes ne se parcourent pas à l œil. Les accents sont ignorés — taper « Pichakote » trouve « Pichakote le Dégoûtant ». Il s ajoute aux filtres au lieu de les remplacer : « manquants » plus un nom répond à « celui-là, est-ce qu il me manque ? ». Échap vide le champ avant de fermer le panneau."
+    ]
+  },
+  {
     "version": "0.3.4",
     "le": "2026-09-06",
     "notes": [
