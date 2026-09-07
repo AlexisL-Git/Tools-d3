@@ -2,8 +2,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // La frontiere de confiance de l'OVERLAY. Elle est volontairement plus etroite
-// que celle du panneau: neuf ordres au lieu de quinze, et aucun qui touche aux
-// reglages par compte.
+// que celle du panneau: dix ordres au lieu de quinze, et aucun qui touche aux
+// reglages d'un compte NOMME — les deux actions groupees ecrivent bien dans les
+// cases par compte, mais par tas, jamais sur une ligne designee depuis la page.
 //
 // DEUX DE CES CANAUX SONT CEUX DU PANNEAU, mot pour mot: basculerVersCompte et
 // definirMaitre. Ce n'est pas une economie de frappe, c'est la garantie que les
@@ -29,6 +30,10 @@ contextBridge.exposeInMainWorld('overlay', {
   basculerVersCompte: (idCompte) => ipcRenderer.invoke('basculerVersCompte', idCompte),
   definirMaitre: (idCompte) => ipcRenderer.invoke('definirMaitre', idCompte),
   basculerReplGroupe: () => ipcRenderer.invoke('basculerReplGroupe'),
+  // Le passe-tour, en deux moities: 'meneur' ou 'mules'. Un seul canal pour les
+  // deux — la moitie cliquee est un argument, pas un second canal, sinon la
+  // regle « qui est le meneur » existerait en deux copies.
+  basculerTourGroupe: (cible) => ipcRenderer.invoke('basculerTourGroupe', cible),
 
   // Les ordres propres a la fenetre flottante.
   basculerSens: () => ipcRenderer.invoke('overlayBasculerSens'),

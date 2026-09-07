@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { pourOverlay } = require('../src/comptes/overlay');
+const { pourOverlay, etatTour } = require('../src/comptes/overlay');
 
 // Une ligne de vue, reduite a ce que l'overlay regarde. Les defauts sont ceux
 // d'un compte qui tourne et dont le trafic est prouve.
@@ -193,4 +193,101 @@ test('le maître peut être aussi celui devant lequel on est', () => {
   const p = pourOverlay([L({ id: 1, pid: 4001, estMaitre: true })], 4001)[0];
   assert.strictEqual(p.commande, true);
   assert.strictEqual(p.ici, true);
+});
+
+// --- le passe-tour, meneur et mules separes --------------------------------
+//
+// Le bouton coupe en deux de la barre flottante. Deux etats d'ensemble, pas un:
+// en combat les mules passent leur tour toutes seules pendant que le meneur
+// joue a la main, et on doit pouvoir toucher l'un sans l'autre.
+
+test('le meneur et les mules sont comptés séparément', () => {
+  const r = etatTour([
+    L({ id: 1, pid: 4001, estMaitre: true, passeTour: true }),
+    L({ id: 2, pid: 4002, passeTour: false }),
+    L({ id: 3, pid: 4003, passeTour: false }),
+  ]);
+  assert.deepStrictEqual(r, { meneur: 'actif', mules: 'aucun' });
+});
+
+test('le passe-tour du meneur ne compte pas dans celui des mules', () => {
+  const r = etatTour([
+    L({ id: 1, pid: 4001, estMaitre: true, passeTour: false }),
+    L({ id: 2, pid: 4002, passeTour: true }),
+    L({ id: 3, pid: 4003, passeTour: true }),
+  ]);
+  assert.deepStrictEqual(r, { meneur: 'eteint', mules: 'tous' });
+});
+
+test('une partie des mules seulement donne « partiel »', () => {
+  const r = etatTour([
+    L({ id: 1, pid: 4001, estMaitre: true, passeTour: true }),
+    L({ id: 2, pid: 4002, passeTour: true }),
+    L({ id: 3, pid: 4003, passeTour: false }),
+  ]);
+  assert.deepStrictEqual(r, { meneur: 'actif', mules: 'partiel' });
+});
+
+// LE TROISIEME CAS DU MENEUR, et c'est pour lui que la fonction existe plutot
+// qu'un simple etatColonne(). Sans 'absent', la moitie gauche du bouton
+// afficherait « le meneur ne passe pas son tour » alors qu'il n'y a AUCUN
+// meneur en jeu: un losange creux qui ment, et un clic qui ne peut rien faire.
+test('sans meneur en jeu, la moitié meneur est « absent » et non « éteint »', () => {
+  const r = etatTour([L({ id: 2, pid: 4002, passeTour: true })]);
+  assert.deepStrictEqual(r, { meneur: 'absent', mules: 'tous' });
+});
+
+test('sans aucun compte en jeu, le meneur est absent et les mules « aucun »', () => {
+  assert.deepStrictEqual(etatTour([]), { meneur: 'absent', mules: 'aucun' });
+});
+
+test('un meneur seul en jeu laisse les mules à « aucun »', () => {
+  const r = etatTour([L({ id: 1, pid: 4001, estMaitre: true, passeTour: true })]);
+  assert.deepStrictEqual(r, { meneur: 'actif', mules: 'aucun' });
+});
+
+// MEME ENSEMBLE QUE LES PICTOS. Le losange decrit ce que la barre montre et ce
+// que le clic touche — les deux tas de basculerTourGroupe sont eux aussi tires
+// des comptes en jeu. Compter un compte hors ligne afficherait « partiel » sur
+// une equipe entierement alignee, sans rien a cliquer pour la corriger.
+test('un compte hors ligne ne compte dans aucun des deux tas', () => {
+  const r = etatTour([
+    L({ id: 1, pid: 4001, estMaitre: true, passeTour: true }),
+    L({ id: 2, pid: 4002, passeTour: true }),
+    L({ id: 3, pid: null, etat: 'hors-ligne', passeTour: false }),
+  ]);
+  assert.deepStrictEqual(r, { meneur: 'actif', mules: 'tous' });
+});
+
+// Un meneur epingle mais pas lance: superviseur.maitre est null, donc aucune
+// ligne ne porte estMaitre. C'est le meme cas qu'« absent ».
+test('un meneur hors ligne ne tient pas la moitié meneur', () => {
+  const r = etatTour([
+    L({ id: 1, pid: null, etat: 'hors-ligne', estMaitre: true, passeTour: true }),
+    L({ id: 2, pid: 4002, passeTour: false }),
+  ]);
+  assert.deepStrictEqual(r, { meneur: 'absent', mules: 'aucun' });
+});
+
+// Meme garde que pertinentes() dans colonnes.js: sans identifiant de compte,
+// rien ne peut etre enregistre dans le fichier de reglages.
+test('un client sans identifiant de compte ne compte pas', () => {
+  const r = etatTour([
+    L({ id: null, pid: 4001, passeTour: false }),
+    L({ id: 2, pid: 4002, passeTour: true }),
+  ]);
+  assert.deepStrictEqual(r, { meneur: 'absent', mules: 'tous' });
+});
+
+// La liste n'est pas modifiee: elle repart aussi vers pourOverlay().
+test('les lignes reçues ne sont pas modifiées', () => {
+  const lignes = [L({ id: 1, pid: 4001, estMaitre: true, passeTour: true })];
+  const copie = JSON.parse(JSON.stringify(lignes));
+  etatTour(lignes);
+  assert.deepStrictEqual(lignes, copie);
+});
+
+test('une liste absente ne fait pas tomber le calcul', () => {
+  assert.deepStrictEqual(etatTour(undefined), { meneur: 'absent', mules: 'aucun' });
+  assert.deepStrictEqual(etatTour(null), { meneur: 'absent', mules: 'aucun' });
 });

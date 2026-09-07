@@ -23,6 +23,8 @@
 //
 // Fonction pure: ni Electron, ni Frida, ni disque.
 
+const { etatColonne } = require('./colonnes');
+
 // L'abreviation qui tient la place d'un embleme pas encore telecharge. Meme
 // repli que le panneau: un embleme absent est un defaut d'agrement, jamais une
 // panne. Voir src/comptes/emblemes.js.
@@ -93,4 +95,46 @@ function pourOverlay(lignes, enAvant = null) {
   return pictos;
 }
 
-module.exports = { abregerClasse, pourOverlay };
+// LE PASSE-TOUR DE LA BARRE, EN DEUX TAS: le meneur d'un cote, les mules de
+// l'autre.
+//
+// Pourquoi deux et pas un. Le titre de colonne « Tour » du panneau pose la meme
+// valeur pour tout le monde, et c'est justement ce qu'on ne veut pas ici: en
+// combat les mules passent leur tour toutes seules pendant que le meneur joue a
+// la main. Il faut pouvoir armer les unes sans armer l'autre, et l'inverse.
+// Demande le 2026-09-07.
+//
+// Rien n'est recalcule a la main: chaque tas passe par etatColonne(_, 'tour')
+// de src/comptes/colonnes.js, celui-la meme qui peint le losange du titre de
+// colonne. Les deux fenetres ne peuvent donc pas donner deux versions du meme
+// etat.
+//
+// MEME ENSEMBLE QUE LES PICTOS — les comptes en jeu, comme pourOverlay(). Les
+// deux tas que basculerTourGroupe touche sont tires du meme ensemble: un compte
+// hors ligne compte ferait afficher « partiel » sur une equipe entierement
+// alignee, sans rien a cliquer pour la corriger.
+//
+// Rend { meneur, mules }:
+//   meneur — 'actif' | 'eteint' | 'absent'. UN SEUL COMPTE, donc pas de
+//            'partiel'. 'absent' n'est PAS un synonyme de 'eteint': sans lui,
+//            la moitie gauche du bouton dirait « le meneur ne passe pas son
+//            tour » alors qu'il n'y a aucun meneur en jeu — un losange creux
+//            qui ment, et un clic qui ne peut rien faire. C'est pour ce
+//            troisieme cas que cette fonction existe plutot qu'un appel direct
+//            a etatColonne, qui rend 'aucun' pour une liste vide.
+//   mules  — 'tous' | 'partiel' | 'aucun', les trois etats habituels.
+function etatTour(lignes) {
+  const jouables = (lignes || []).filter((l) => l.pid !== null && l.pid !== undefined);
+  // Un meneur sans identifiant de compte ne peut rien enregistrer dans le
+  // fichier de reglages: meme garde que pertinentes() dans colonnes.js.
+  const meneurs = jouables.filter((l) => l.estMaitre && l.id !== null && l.id !== undefined);
+  const mules = jouables.filter((l) => !l.estMaitre);
+  return {
+    meneur: meneurs.length === 0
+      ? 'absent'
+      : (etatColonne(meneurs, 'tour') === 'tous' ? 'actif' : 'eteint'),
+    mules: etatColonne(mules, 'tour'),
+  };
+}
+
+module.exports = { abregerClasse, pourOverlay, etatTour };
