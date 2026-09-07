@@ -61,9 +61,17 @@ const { creerAmbiance, bornes } = require('../src/ambiance');
 
 const PERIODE_PROCESS = 500;    // prise en charge des nouveaux clients
 const PERIODE_VUE = 2000;       // rafraichissement de la liste affichee
-// L'intervalle du son d'ambiance: entre vingt et quatre-vingt-dix minutes.
-const AMBIANCE_MIN = 20 * 60 * 1000;
-const AMBIANCE_MAX = 90 * 60 * 1000;
+// L'ambiance sonore: une rafale de trois sons toutes les vingt minutes
+// environ. Les bornes sont larges autour de vingt pour que le rendez-vous ne
+// tombe jamais a heure fixe -- une horloge se remarque, un hasard non.
+const AMBIANCE_MIN = 15 * 60 * 1000;
+const AMBIANCE_MAX = 25 * 60 * 1000;
+const AMBIANCE_RAFALE = 3;
+// desktop/sons/ping.ogg dure 1,88 s. A une seconde d'ecart, chaque son
+// couperait le precedent -- l'element <audio> est unique et on remet sa tete
+// de lecture a zero. 2,5 s laisse 0,6 s de silence: on entend bien TROIS
+// sons, pas un bruit long.
+const AMBIANCE_ECART = 2500;
 // Delai laisse a un client fraichement attache pour produire sa premiere
 // trame. Mesure: un client lance derriere le proxy ouvre sa connexion des
 // l'ecran de connexion et le serveur repond en moins d'une seconde. Passe ce
@@ -1275,6 +1283,8 @@ app.whenReady().then(async () => {
   ambiance = creerAmbiance({
     minMs: ambianceMin,
     maxMs: ambianceMax,
+    rafale: AMBIANCE_RAFALE,
+    ecartMs: AMBIANCE_ECART,
     jouer: () => {
       if (fenetre !== null && !fenetre.isDestroyed()) fenetre.webContents.send('ambiance');
     },

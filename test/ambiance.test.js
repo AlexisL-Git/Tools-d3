@@ -130,3 +130,80 @@ test('ambiance: une valeur absurde de OMNI_AMBIANCE_MS ne casse rien', () => {
     assert.deepStrictEqual(bornes({ ...dev, OMNI_AMBIANCE_MS: v }, 10, 20), [10, 20], `valeur: ${v}`);
   }
 });
+
+test('ambiance: une rafale de trois, puis le cycle suivant', () => {
+  const t = fauxTemps();
+  let coups = 0;
+  const a = creerAmbiance({
+    jouer: () => { coups += 1; },
+    minMs: 20000, maxMs: 20000, rafale: 3, ecartMs: 2500,
+    planifier: t.planifier, arreter: t.arreter, tirage: () => 0,
+  });
+  a.demarrer();
+  assert.deepStrictEqual(t.delais(), [20000], 'le premier cycle attend l intervalle');
+
+  t.echoir();                                   // premier coup
+  assert.strictEqual(coups, 1);
+  assert.deepStrictEqual(t.delais(), [2500], 'le deuxieme coup suit l ecart');
+
+  t.echoir();                                   // deuxieme coup
+  assert.strictEqual(coups, 2);
+  assert.deepStrictEqual(t.delais(), [2500], 'le troisieme coup aussi');
+
+  t.echoir();                                   // troisieme coup
+  assert.strictEqual(coups, 3);
+  assert.deepStrictEqual(t.delais(), [20000], 'la rafale finie, on repart pour un cycle');
+
+  t.echoir();                                   // rafale suivante
+  assert.strictEqual(coups, 4);
+  assert.deepStrictEqual(t.delais(), [2500]);
+});
+
+test('ambiance: il n y a jamais plus d un minuteur en vol', () => {
+  const t = fauxTemps();
+  const a = creerAmbiance({
+    jouer: () => {}, minMs: 20000, maxMs: 20000, rafale: 3, ecartMs: 2500,
+    planifier: t.planifier, arreter: t.arreter, tirage: () => 0,
+  });
+  a.demarrer();
+  for (let i = 0; i < 8; i += 1) {
+    assert.strictEqual(t.nombre(), 1, `apres ${i} echeances`);
+    t.echoir();
+  }
+});
+
+test('ambiance: stopper au milieu d une rafale ne laisse rien derriere', () => {
+  const t = fauxTemps();
+  let coups = 0;
+  const a = creerAmbiance({
+    jouer: () => { coups += 1; },
+    minMs: 20000, maxMs: 20000, rafale: 3, ecartMs: 2500,
+    planifier: t.planifier, arreter: t.arreter, tirage: () => 0,
+  });
+  a.demarrer();
+  t.echoir();                                   // premier coup de la rafale
+  a.stopper();
+  assert.strictEqual(t.nombre(), 0);
+  assert.strictEqual(a.enMarche(), false);
+
+  // Le droit revient: la rafale recommence entiere, elle ne reprend pas au
+  // deuxieme coup.
+  a.demarrer();
+  assert.deepStrictEqual(t.delais(), [20000]);
+  t.echoir();
+  assert.strictEqual(coups, 2);
+  assert.deepStrictEqual(t.delais(), [2500], 'deux coups restent a jouer');
+});
+
+test('ambiance: sans rafale precisee, un seul coup par cycle', () => {
+  const t = fauxTemps();
+  let coups = 0;
+  const a = creerAmbiance({
+    jouer: () => { coups += 1; }, minMs: 1000, maxMs: 1000,
+    planifier: t.planifier, arreter: t.arreter, tirage: () => 0,
+  });
+  a.demarrer();
+  t.echoir();
+  assert.strictEqual(coups, 1);
+  assert.deepStrictEqual(t.delais(), [1000], 'on repart directement pour un cycle');
+});
