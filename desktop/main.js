@@ -57,9 +57,13 @@ const { lireDevlog, CHEMIN: CHEMIN_DEVLOG } = require('./devlog');
 const { estSouris, depuisBouton } = require('../src/comptes/raccourcis');
 const { creerVeille, creerCacheFichier } = require('../src/droits/veille');
 const { creerPorte } = require('../src/droits/porte');
+const { creerAmbiance } = require('../src/ambiance');
 
 const PERIODE_PROCESS = 500;    // prise en charge des nouveaux clients
 const PERIODE_VUE = 2000;       // rafraichissement de la liste affichee
+// L'intervalle du son d'ambiance: entre vingt et quatre-vingt-dix minutes.
+const AMBIANCE_MIN = 20 * 60 * 1000;
+const AMBIANCE_MAX = 90 * 60 * 1000;
 // Delai laisse a un client fraichement attache pour produire sa premiere
 // trame. Mesure: un client lance derriere le proxy ouvre sa connexion des
 // l'ecran de connexion et le serveur repond en moins d'une seconde. Passe ce
@@ -77,6 +81,9 @@ let fenetre = null;
 // LA PETITE FENETRE FLOTTANTE, posee sur le jeu. Elle n'existe que si
 // l'utilisateur l'a ouverte: null est son etat normal.
 let overlay = null;
+// La minuterie du son d'ambiance. Creee avec la veille, allumee et eteinte
+// par elle. Null tant que la veille n'existe pas.
+let ambiance = null;
 // L'ecart entre le curseur et le coin de l'overlay pendant un glissement. Null
 // quand personne ne la deplace.
 let priseOverlay = null;
@@ -1264,6 +1271,25 @@ app.whenReady().then(async () => {
     noterAvis(texte);
     envoyerEtat();
   };
+  ambiance = creerAmbiance({
+    minMs: AMBIANCE_MIN,
+    maxMs: AMBIANCE_MAX,
+    jouer: () => {
+      if (fenetre !== null && !fenetre.isDestroyed()) fenetre.webContents.send('ambiance');
+    },
+  });
+  // OMNI_DEV = le depot lance par outils/lancer-dev.vbs, pas un poste ami. En
+  // mode developpement la veille accorde TOUS les droits sans requete: sans
+  // cette porte, le son partirait ici a chaque session de travail.
+  // OMNI_AMBIANCE=1 passe outre, pour l'essayer une fois.
+  const ambiancePermise = () => veille.droits().includes('ambiance')
+    && (!process.env.OMNI_DEV || process.env.OMNI_AMBIANCE === '1');
+  // Idempotent des deux cotes (src/ambiance.js): l'appeler a chaque changement
+  // de droits ne dedouble aucune minuterie.
+  const reglerAmbiance = () => {
+    if (ambiancePermise()) ambiance.demarrer();
+    else ambiance.stopper();
+  };
   veille = creerVeille({
     base: 'https://paquets-maj.vercel.app',
     lireCle: () => {
@@ -1284,8 +1310,15 @@ app.whenReady().then(async () => {
     onChangement: ({ gagnes, perdus }) => {
       // UNE FONCTION QUI DISPARAIT EN SILENCE, c est exactement le mode
       // d echec que ce depot documente quatre fois. Elle se dit.
-      if (perdus.length) noterAvis(`Droits : ${perdus.join(', ')} — retiré`);
-      else if (gagnes.length) noterAvis(`Droits : ${gagnes.join(', ')} — activé`);
+      //
+      // `ambiance` est la seule exception, et elle est deliberee: elle n a ni
+      // interrupteur, ni reglage, ni colonne -- rien que l ami puisse
+      // constater comme gagne ou perdu. L annoncer ne lui apprendrait rien
+      // qu il puisse utiliser.
+      const disparus = perdus.filter((n) => n !== 'ambiance');
+      const arrives = gagnes.filter((n) => n !== 'ambiance');
+      if (disparus.length) noterAvis(`Droits : ${disparus.join(', ')} — retiré`);
+      else if (arrives.length) noterAvis(`Droits : ${arrives.join(', ')} — activé`);
       // Les deux travaux de l hotel de vente sont les seuls a durer, et
       // chacun repond a son propre droit: retirer la mise a jour des prix
       // ne doit pas arreter une mise en vente en cours, ni l inverse.
@@ -1304,10 +1337,15 @@ app.whenReady().then(async () => {
       // ce n est pas un choix de l ami, rendre le droit doit rendre la
       // fenetre sans qu il ait a la rouvrir.
       if (perdus.includes('overlay')) fermerOverlay();
+      reglerAmbiance();
       envoyerEtat();
     },
   });
   veille.demarrer();
+  // Le premier etat vient du cache disque, pose par creerVeille avant meme la
+  // premiere requete: sans cet appel, un ami qui a deja le droit ne
+  // l'entendrait qu'au premier CHANGEMENT, c'est-a-dire jamais.
+  reglerAmbiance();
   const protege = creerPorte({ droits: () => veille.droits() });
 
   superviseur.onTrame = composer(

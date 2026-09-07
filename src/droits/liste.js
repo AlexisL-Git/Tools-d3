@@ -21,6 +21,7 @@ const FONCTIONS = [
   { nom: 'vente', libelle: 'mise en vente en hotel de vente' },
   { nom: 'pda-archi', libelle: 'pierre d ame equipee a l entree en combat' },
   { nom: 'no-anim', libelle: 'animations du jeu coupees' },
+  { nom: 'ambiance', libelle: 'ambiance sonore' },
 ];
 
 const NOMS = FONCTIONS.map((f) => f.nom);
