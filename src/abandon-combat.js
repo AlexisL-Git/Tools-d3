@@ -88,17 +88,45 @@
 // avec un double du superviseur, comme src/invitation.js et src/passeur.js.
 
 // La liste des combattants, envoyee une fois au demarrage du combat.
-const TYPE_COMBATTANTS = 'kmk';
+//
+// REMESURE LE 08/09, patch 3.6.11.12: elle s'appelle `kkr`, et ses entrees ont
+// change de numero AVEC leurs champs.
+//
+//   kmk.2[] = { 1: cellule, 2: orientation, 3: identifiant }
+//   kkr.1[] = { 1: identifiant, 2: orientation, 4: cellule }
+//
+// Mesure sur journal-combat.log (42532 ms, un combat solo) et journal-hdv.log
+// (523006 ms, quatre clients): l'identifiant du champ 1 est un characterId
+// connu par ailleurs (677012898086, celui que `kth` annonce a la connexion) ou
+// un negatif de monstre, et le champ 4 tient dans 0..559 comme une cellule.
+// `kkr` n'apparait QUE pendant les combats — zero occurrence dans
+// journal-archi.log, qui n'en compte aucun.
+const TYPE_COMBATTANTS = 'kkr';
 
 // Les types qui disent « je quitte ce combat ». Une liste, parce que la phase
 // de placement pourrait en avoir un a elle: a confirmer en jeu.
-const TYPES_ABANDON = ['kme'];
+//
+// REMESURE LE 08/09 AU SOIR: `kjy`, toujours sans un champ.
+//
+//   249802 ms  --> hps { 1 = -20000 }   l'attaque, dans un donjon
+//   250311 ms  --> kul/kui, kty, kuh    le placement
+//   251539 ms  --> jyo { 1 = 1 }        pret
+//   252970 ms  --> kjy { }              L'ABANDON
+//   253007 ms  <-- jvn { 1 = <maitre> } le serveur ferme le tour du maitre
+//   254340 ms  <-- jwe { 4 = 2768 … }   le combat se solde
+//   254372 ms  <-- jpw { 1 = 121373185 }  retour sur la carte
+//
+// C'EST LE SEUL SORTANT DU COMBAT QUI NE SOIT PAS UN ACCUSE D'ANIMATION: entre
+// le debut du tour et la fin du combat, tout le reste est `jro` et `jvk`,
+// emis par dizaines. `jvv`, le passe-tour remesure le meme jour, n'apparait
+// nulle part dans cette session — l'utilisateur n'a passe aucun tour.
+const TYPES_ABANDON = ['kjy'];
 
-// Dans kmk: une entree repetee par combattant au champ 2. Dans chaque entree,
-// le champ 1 est la CELLULE (0 a 559), le champ 2 l'ORIENTATION (0 a 7, sans
-// rapport avec le role de l'acteur) et le champ 3 l'IDENTIFIANT.
-const CHAMP_COMBATTANT = 2;
-const CHAMP_ID = 3;
+// Dans kkr: une entree repetee par combattant au champ 1. Dans chaque entree,
+// le champ 1 est l'IDENTIFIANT, le champ 2 l'ORIENTATION (0 a 7, sans rapport
+// avec le role de l'acteur) et le champ 4 la CELLULE (0 a 559).
+const CHAMP_COMBATTANT = 1;
+const CHAMP_ID = 1;
 
 // Les identifiants (characterId ET identifiants de monstre) d'une liste de
 // combattants, ou null si la liste ne decrit pas un combat.

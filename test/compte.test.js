@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { EtatCompte, Comptes } = require('../src/protocol/compte');
+const { EtatCompte, Comptes, JPO_ELEMENTS } = require('../src/protocol/compte');
 const { decodeFrameRaw } = require('../src/codec/rawProto');
 
 const hex = (s) => Buffer.from(s.replace(/\s+/g, ''), 'hex');
@@ -55,23 +55,28 @@ test('une trame illisible est ignorée sans casser l état', () => {
 test('le rejeu annonce ce qui lui manque', () => {
   const e = new EtatCompte({ pid: 1 });
 
-  assert.deepStrictEqual(e.peutRejouer('hjc'), { possible: true, manque: [] });
-  assert.deepStrictEqual(e.peutRejouer('kla'), { possible: true, manque: [] });
+  assert.deepStrictEqual(e.peutRejouer('hiu'), { possible: true, manque: [] });
+  assert.deepStrictEqual(e.peutRejouer('kiy'), { possible: true, manque: [] });
 
-  assert.deepStrictEqual(e.peutRejouer('jbn'), { possible: false, manque: ['characterId'] });
+  assert.deepStrictEqual(e.peutRejouer('ize'), { possible: false, manque: ['characterId'] });
   e.observer(decodeFrameRaw(trameKth(7n)));
-  assert.deepStrictEqual(e.peutRejouer('jbn'), { possible: true, manque: [] });
+  assert.deepStrictEqual(e.peutRejouer('ize'), { possible: true, manque: [] });
 
   // Sans savoir quel element le maitre a designe, on ne peut pas chercher le
   // numero correspondant chez l'esclave.
-  assert.deepStrictEqual(e.peutRejouer('iwo'), { possible: false, manque: ['elementId du maître'] });
+  assert.deepStrictEqual(e.peutRejouer('iva'), { possible: false, manque: ['elementId du maître'] });
 });
 
-// Trame jss reelle, relevee le 19/08: le serveur annonce a l'arrivee sur une
-// carte la liste des elements interactifs avec, pour chacun, le numero
-// d'action PROPRE A CE CLIENT. Le zaap de la carte y figure en
-// { 4:{1:14948, 2:114}, 5:540322, 6:16 }.
-function trameJss(elements) {
+// Le message qui annonce, a l'arrivee sur une carte, la liste des elements
+// interactifs avec, pour chacun, le numero d'action PROPRE A CE CLIENT. Releve
+// le 19/08 sous le nom `jss`, remesure le 08/09 sous le nom `jpo` apres le
+// patch 3.6.11.12 — la liste et chacun de ses champs ont change de numero.
+//
+// LE HELPER SE CONSTRUIT SUR JPO_ELEMENTS plutot que sur des numeros
+// litteraux: au prochain patch, ces tests suivront le remappage sans retouche.
+// La forme reelle, elle, est verrouillee plus bas par une trame capturee en
+// jeu le 08/09.
+function trameJpo(elements) {
   const varint = (v) => {
     const out = []; let x = BigInt(v);
     do { let b = Number(x & 0x7fn); x >>= 7n; if (x > 0n) b |= 0x80; out.push(b); } while (x > 0n);
@@ -80,14 +85,13 @@ function trameJss(elements) {
   const bloc = (no, corps) => Buffer.concat([Buffer.from([(no << 3) | 2, corps.length]), corps]);
   const vchamp = (no, v) => Buffer.concat([Buffer.from([(no << 3) | 0]), varint(v)]);
 
-  const entrees = elements.map(({ uid, skillId, elementId }) => bloc(11, Buffer.concat([
-    vchamp(1, 1),
-    bloc(4, Buffer.concat([vchamp(1, uid), vchamp(2, skillId)])),
-    vchamp(5, elementId),
-    vchamp(6, 16),
+  const entrees = elements.map(({ uid, skillId, elementId }) => bloc(JPO_ELEMENTS.liste, Buffer.concat([
+    vchamp(3, 1),
+    vchamp(JPO_ELEMENTS.elementId, elementId),
+    bloc(JPO_ELEMENTS.skills, Buffer.concat([vchamp(JPO_ELEMENTS.uid, uid), vchamp(3, skillId)])),
   ])));
 
-  const url = Buffer.from('type.ankama.com/jss');
+  const url = Buffer.from(`type.ankama.com/${JPO_ELEMENTS.type}`);
   const corps = Buffer.concat(entrees);
   const any = Buffer.concat([Buffer.from([0x0a, url.length]), url, Buffer.from([0x12, corps.length]), corps]);
   const boite = Buffer.concat([Buffer.from([0x0a, any.length]), any]);
@@ -98,7 +102,7 @@ test('le compte apprend son numéro d action pour chaque élément', () => {
   const e = new EtatCompte({ pid: 1 });
   assert.strictEqual(e.skillPour(540322n), null);
 
-  e.observer(decodeFrameRaw(trameJss([
+  e.observer(decodeFrameRaw(trameJpo([
     { uid: 30734, skillId: 153, elementId: 523669 },
     { uid: 14948, skillId: 114, elementId: 540322 },
   ])));
@@ -113,8 +117,8 @@ test('le compte apprend son numéro d action pour chaque élément', () => {
 test('deux comptes ont des numéros différents pour le même élément', () => {
   const a = new EtatCompte({ pid: 1 });
   const b = new EtatCompte({ pid: 2 });
-  a.observer(decodeFrameRaw(trameJss([{ uid: 14948, skillId: 114, elementId: 540322 }])));
-  b.observer(decodeFrameRaw(trameJss([{ uid: 20777, skillId: 114, elementId: 540322 }])));
+  a.observer(decodeFrameRaw(trameJpo([{ uid: 14948, skillId: 114, elementId: 540322 }])));
+  b.observer(decodeFrameRaw(trameJpo([{ uid: 20777, skillId: 114, elementId: 540322 }])));
   assert.strictEqual(a.skillPour(540322n), 14948n);
   assert.strictEqual(b.skillPour(540322n), 20777n);
 });
@@ -122,15 +126,15 @@ test('deux comptes ont des numéros différents pour le même élément', () => 
 test('le clic est rejouable une fois l élément connu', () => {
   const e = new EtatCompte({ pid: 1 });
   assert.deepStrictEqual(
-    e.peutRejouer('iwo', { elementId: 540322n }),
+    e.peutRejouer('iva', { elementId: 540322n }),
     { possible: false, manque: ["skillInstanceUid pour l'élément 540322"] },
   );
 
-  e.observer(decodeFrameRaw(trameJss([{ uid: 14948, skillId: 114, elementId: 540322 }])));
-  assert.deepStrictEqual(e.peutRejouer('iwo', { elementId: 540322n }), { possible: true, manque: [] });
+  e.observer(decodeFrameRaw(trameJpo([{ uid: 14948, skillId: 114, elementId: 540322 }])));
+  assert.deepStrictEqual(e.peutRejouer('iva', { elementId: 540322n }), { possible: true, manque: [] });
 
   // Un element jamais annonce reste refuse: mieux vaut ne rien envoyer.
-  assert.strictEqual(e.peutRejouer('iwo', { elementId: 1n }).possible, false);
+  assert.strictEqual(e.peutRejouer('iva', { elementId: 1n }).possible, false);
 });
 
 test('huit comptes cohabitent et le maître est exclu des esclaves', () => {
@@ -236,4 +240,59 @@ test('le compte apprend son identifiant depuis la trame kth mesuree', () => {
   e.observer(decodeFrameRaw(KTH_REEL));
   assert.strictEqual(e.characterId, 677012111654n);
   assert.strictEqual(e.pret, true);
+});
+
+// --- LES ELEMENTS INTERACTIFS APRES LE PATCH 3.6.11.12 -------------------
+//
+// Le message qui annonce les elements d'une carte s'appelait `jss`; il ne
+// s'appelle plus ainsi depuis le 08/09, et `observer()` ne reconnaissait donc
+// plus rien: `skillParElement` restait vide, et CHAQUE rejeu d'un clic sur un
+// element etait refuse faute de skillInstanceUid. Silencieusement.
+//
+// MESURE du 08/09 (journal-hdv.log, 18875 ms). Le nouveau message est `jpo`,
+// et sa liste a change de numero comme ses entrees:
+//
+//   jss.11[] = { 1: actif, 4: { 1: uid, 2: skillId }, 5: elementId }
+//   jpo.8[]  = { 3: actif, 5: { 1: ?, 2: uid, 3: skillId }, 4: elementId }
+//
+// LA PREUVE QUE LE CHAMP 2 EST BIEN L'UID: la meme session porte, 856 ms plus
+// tard, le clic `iva { 1 = 515300  5 = 6191 }` — et 6191 est exactement la
+// valeur annoncee ici pour l'element 515300. Les deux fixtures forment une
+// paire: l'annonce et le clic qui s'en sert.
+//
+// LA FIXTURE EST REDUITE A CE QUE LE TEST LIT: la carte (6), sa sous-zone (7)
+// et les huit elements interactifs (8), tous en octets d'origine. Les champs
+// 2, 9 et 15 de la trame captee portaient les ACTEURS PRESENTS SUR LA CARTE —
+// pseudos et guildes de joueurs tiers — qui n'ont rien a faire dans un depot
+// partage. 1452 octets a l'origine, 197 ici.
+const fixtureJpo = () => decodeFrameRaw(Buffer.from(
+  require('node:fs').readFileSync(
+    require('node:path').join(__dirname, 'fixtures', 'omni-jpo-elements.hex'), 'utf8',
+  ).trim(), 'hex',
+));
+
+test('un compte apprend les éléments interactifs de la carte mesurée le 08/09', () => {
+  const e = new EtatCompte({ pid: 1 });
+  assert.strictEqual(e.skillPour(515300n), null, 'rien avant la trame');
+
+  e.observer(fixtureJpo());
+
+  assert.strictEqual(e.skillPour(515300n), 6191n, "l'étal de l'HDV, cliqué 856 ms plus tard");
+  assert.strictEqual(e.skillPour(461190n), 31964n, 'un autre élément de la même carte');
+});
+
+// LE REJEU D'UN CLIC EN DEPEND ENTIEREMENT: sans cette table, `peutRejouer`
+// refuse, et le refus est le comportement observe depuis le patch.
+test('un compte qui a vu la carte peut rejouer un clic sur son élément', () => {
+  const e = new EtatCompte({ pid: 1 });
+
+  assert.deepStrictEqual(
+    e.peutRejouer('iva', { elementId: 515300n }).manque,
+    ["skillInstanceUid pour l'élément 515300"],
+    'sans la carte, le rejeu est refusé',
+  );
+
+  e.observer(fixtureJpo());
+
+  assert.deepStrictEqual(e.peutRejouer('iva', { elementId: 515300n }), { possible: true, manque: [] });
 });

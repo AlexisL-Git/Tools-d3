@@ -33,7 +33,7 @@ function trame(extra = {}) {
   return {
     pid: 1,
     dir: 'out',
-    frame: { kind: 'request', type: 'hjc', payload: [] },
+    frame: { kind: 'request', type: 'hiu', payload: [] },
     brute: Buffer.from([0x08, 0x01]),
     estMaitre: true,
     ...extra,
@@ -57,7 +57,7 @@ test('une réponse sortante n est pas rejouée, seules les requêtes le sont', (
   const s = faux();
   const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: () => {} });
 
-  onTrame(trame({ frame: { kind: 'response', type: 'hjc', payload: [] } }));
+  onTrame(trame({ frame: { kind: 'response', type: 'hiu', payload: [] } }));
 
   assert.strictEqual(s.appels.length, 0);
 });
@@ -98,7 +98,7 @@ test('une trame sortante du maître d un type connu déclenche rejouer', () => {
   // retardPlancher est toujours present dans l'appel, meme a 0 pour un type
   // ordinaire: rejouer() gagne un parametre, son contrat s'elargit, et cette
   // forme est desormais celle attendue pour tous les types.
-  assert.deepStrictEqual(s.appels[0], { type: 'hjc', brute, pidMaitre: 7, retardPlancher: 0 });
+  assert.deepStrictEqual(s.appels[0], { type: 'hiu', brute, pidMaitre: 7, retardPlancher: 0 });
 });
 
 test('le compte rendu porte le nom du message, le rendu et le mode', () => {
@@ -111,7 +111,7 @@ test('le compte rendu porte le nom du message, le rendu et le mode', () => {
 
   assert.strictEqual(comptesRendus.length, 1);
   assert.deepStrictEqual(comptesRendus[0], {
-    pidMaitre: 7, type: 'hjc', nom: 'TeleportRequest', arme: true, rendu,
+    pidMaitre: 7, type: 'hiu', nom: 'TeleportRequest', arme: true, rendu,
   });
 });
 
@@ -138,7 +138,7 @@ test('la raison d un refus remonte telle quelle dans le compte rendu', () => {
   const comptesRendus = [];
   const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
 
-  onTrame(trame({ frame: { kind: 'request', type: 'iwo', payload: [] } }));
+  onTrame(trame({ frame: { kind: 'request', type: 'iva', payload: [] } }));
 
   assert.strictEqual(comptesRendus[0].nom, 'InteractiveUseRequest');
   assert.deepStrictEqual(comptesRendus[0].rendu, rendu);
@@ -186,14 +186,14 @@ const sortante = (type, champs) => ({
 test('une action sensible part avec le plancher de retard', () => {
   const sup = superviseurQuiNoteLesRejeux();
   const d = creerDuplicateur({ superviseur: sup });
-  d(sortante('ioy', { 1: 25088 }));
+  d(sortante('inh', { 1: 25088 }));
   assert.strictEqual(sup.appels[0].retardPlancher, DELAI_PLANCHER_MS);
 });
 
 test('une action ordinaire garde son etalement seul', () => {
   const sup = superviseurQuiNoteLesRejeux();
   const d = creerDuplicateur({ superviseur: sup });
-  d(sortante('hjc', { 1: 1, 2: 2 }));
+  d(sortante('hiu', { 1: 1, 2: 2 }));
   // Champ toujours present desormais: strictEqual sur 0, pas de || qui
   // masquerait un undefined aussi bien qu'une valeur fausse.
   assert.strictEqual(sup.appels[0].retardPlancher, 0);
@@ -202,8 +202,8 @@ test('une action ordinaire garde son etalement seul', () => {
 // Une action deja vue lancer un combat n'est ni retardee ni tentee.
 test('une action apprise n est pas rejouee du tout', () => {
   const sup = superviseurQuiNoteLesRejeux();
-  const d = creerDuplicateur({ superviseur: sup, estApprise: (c) => c === 'ioy:25088' });
-  d(sortante('ioy', { 1: 25088 }));
+  const d = creerDuplicateur({ superviseur: sup, estApprise: (c) => c === 'inh:25088' });
+  d(sortante('inh', { 1: 25088 }));
   assert.strictEqual(sup.appels.length, 0, 'rejouer ne doit pas etre appele');
 });
 
@@ -217,7 +217,7 @@ test('le refus est signale pour chaque esclave', () => {
     estApprise: () => true,
     onCompteRendu: (r) => rendus.push(r),
   });
-  d(sortante('ioy', { 1: 25088 }));
+  d(sortante('inh', { 1: 25088 }));
   assert.strictEqual(rendus.length, 1);
   assert.deepStrictEqual(rendus[0].rendu.map((r) => r.pid), [2, 3]);
   for (const r of rendus[0].rendu) {
@@ -231,7 +231,7 @@ test('le refus est signale pour chaque esclave', () => {
 test('sans liste apprise, tout se rejoue comme avant', () => {
   const sup = superviseurQuiNoteLesRejeux();
   const d = creerDuplicateur({ superviseur: sup });
-  d(sortante('ioy', { 1: 25088 }));
+  d(sortante('inh', { 1: 25088 }));
   assert.strictEqual(sup.appels.length, 1);
 });
 
@@ -249,7 +249,7 @@ test('un changement de carte n est jamais rejoué', () => {
   const comptesRendus = [];
   const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
 
-  onTrame(trame({ frame: { kind: 'request', type: 'jqk', payload: [{ no: 2, value: 191104000n }] } }));
+  onTrame(trame({ frame: { kind: 'request', type: 'jpp', payload: [{ no: 2, value: 191104000n }] } }));
 
   assert.strictEqual(s.appels.length, 0, 'rejouer() ne doit pas être appelé');
   // Silencieux, et c est voulu: ce rejeu n a JAMAIS fonctionne (0 sur 32
@@ -265,7 +265,7 @@ test('la téléportation continue de se rejouer', () => {
   const s = faux();
   const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: () => {} });
 
-  onTrame(trame({ frame: { kind: 'request', type: 'hjc', payload: [] } }));
+  onTrame(trame({ frame: { kind: 'request', type: 'hiu', payload: [] } }));
 
   assert.strictEqual(s.appels.length, 1);
 });
@@ -293,10 +293,10 @@ test('l achat au marchand PNJ est rejoué', () => {
   const comptesRendus = [];
   const onTrame = creerDuplicateur({ superviseur: s, onCompteRendu: (c) => comptesRendus.push(c) });
 
-  onTrame(trame({ frame: { kind: 'request', type: 'kea', payload: [] } }));
+  onTrame(trame({ frame: { kind: 'request', type: 'kaa', payload: [] } }));
 
   assert.strictEqual(s.appels.length, 1, "l'achat au marchand doit partir chez les mules");
-  assert.strictEqual(s.appels[0].type, 'kea');
+  assert.strictEqual(s.appels[0].type, 'kaa');
   // Aucun plancher: le plancher ne protege que des actions qui ouvrent un
   // combat, et acheter n'en ouvre aucun.
   assert.strictEqual(s.appels[0].retardPlancher, 0);

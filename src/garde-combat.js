@@ -66,10 +66,24 @@ const { combattantsDe, TYPE_COMBATTANTS } = require('./abandon-combat');
 // Un plancher sur `ido` seul ferait fermer le dialogue de la mule AVANT son
 // ramassage — les deux rejeux s'inverseraient. Le retarder demanderait de
 // retarder le couple entier.
+//
+// REMAPPAGE DU 08/09, patch 3.6.11.12. Les trois types ont change de nom, et
+// deux d'entre eux de numero de champ:
+//
+//   iov -> imp   la carte passe du champ 2 AU CHAMP 1, le PNJ reste au 3
+//   ioy -> inh   un champ unique, inchange
+//   iwo -> iva   l'element passe du champ 2 AU CHAMP 1 (le 5 porte l'uid,
+//                propre au compte, qu'on ne met donc pas dans la cle — meme
+//                raisonnement qu'avant le patch, a l'autre numero)
+//
+// CETTE TABLE ET CELLE DE src/protocol/omni.js SE REMAPPENT ENSEMBLE. Rendre
+// leur nom aux trois types la-bas sans le rendre ici remettrait le rejeu des
+// dialogues en service SANS son plancher de 250 ms — exactement le defaut du
+// 28/08, ou chaque mule ouvrait son propre combat.
 const CHAMPS_CLE = {
-  iov: [2, 3],   // la carte, puis l'instance de PNJ
-  ioy: [1],      // le numero de reponse dans l'arbre de dialogue
-  iwo: [2],      // l'element interactif (le champ 1 est propre au compte)
+  imp: [1, 3],   // la carte, puis l'instance de PNJ
+  inh: [1],      // le numero de reponse dans l'arbre de dialogue
+  iva: [1],      // l'element interactif (le champ 5 est propre au compte)
 };
 
 const TYPES_SENSIBLES = Object.keys(CHAMPS_CLE);

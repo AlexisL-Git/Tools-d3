@@ -6,6 +6,7 @@ const path = require('node:path');
 const { decodeFrameRaw, WIRE } = require('../src/codec/rawProto');
 const { lireStock } = require('../src/hdv/trames');
 const { creerPdaArchi } = require('../src/pda-archi/pda-archi');
+const { TYPE_COMBATTANTS, CHAMP_COMBATTANT, CHAMP_ID } = require('../src/abandon-combat');
 const { POSITION_PIERRE } = require('../src/pda-archi/pierres');
 const { trameEquiper } = require('../src/pda-archi/trames');
 
@@ -48,9 +49,13 @@ const ivq = (uid, pos) => ({ type: 'ivq', payload: [
 
 // LA LISTE DES COMBATTANTS. Au moins un identifiant NEGATIF, sinon c est une
 // liste d acteurs de carte et pas un combat: meme critere qu abandon-combat.js.
-const kmk = (...ids) => ({ type: 'kmk', payload: ids.map((id) => ({
-  no: 2, wire: WIRE.LEN, kind: 'message', value: [
-    { no: 3, wire: WIRE.VARINT, value: BigInt(id) },
+//
+// Nom et numeros viennent des constantes exportees — le patch 3.6.11.12 a
+// renomme le message en `kkr` et deplace l identifiant du champ 3 au champ 1 —
+// pour que le prochain remappage n ait pas a retoucher ces tests.
+const kmk = (...ids) => ({ type: TYPE_COMBATTANTS, payload: ids.map((id) => ({
+  no: CHAMP_COMBATTANT, wire: WIRE.LEN, kind: 'message', value: [
+    { no: CHAMP_ID, wire: WIRE.VARINT, value: BigInt(id) },
   ] })) });
 
 // Entrer en combat, dans l ordre mesure le 04/09: la liste des combattants

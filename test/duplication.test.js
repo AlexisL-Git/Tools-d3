@@ -1,18 +1,23 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { MESSAGES, lookup, lookupByName, needsRewrite, accountFields, estRejouable } = require('../src/protocol/omni');
+const fs = require('node:fs');
+const path = require('node:path');
+const { decodeFrameRaw } = require('../src/codec/rawProto');
+const {
+  MESSAGES, PERIMES, lookup, lookupByName, needsRewrite, accountFields, estRejouable,
+} = require('../src/protocol/omni');
 
 test('les onze types répliqués sont présents', () => {
   assert.strictEqual(Object.keys(MESSAGES).length, 11);
-  for (const k of ['hjc', 'jqk', 'jrh', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw', 'kea', 'ido']) {
+  for (const k of ['hiu', 'jpp', 'jrh', 'imp', 'inh', 'kiy', 'ize', 'iva', 'kie', 'kaa', 'ido']) {
     assert.notStrictEqual(lookup(k), null, `${k} manquant`);
   }
 });
 
 test('la recherche par nom réel fonctionne dans les deux sens', () => {
-  assert.strictEqual(lookup('hjc').name, 'TeleportRequest');
-  assert.strictEqual(lookupByName('TeleportRequest').key, 'hjc');
+  assert.strictEqual(lookup('hiu').name, 'TeleportRequest');
+  assert.strictEqual(lookupByName('TeleportRequest').key, 'hiu');
   assert.strictEqual(lookupByName('Inexistant'), null);
 });
 
@@ -20,10 +25,10 @@ test('la recherche par nom réel fonctionne dans les deux sens', () => {
 // identifiant propre au maitre ferait agir l'esclave sur un objet qui n'est
 // pas le sien, ou ferait rejeter le message.
 test('seuls les messages à champ de compte demandent une réécriture', () => {
-  assert.strictEqual(needsRewrite('iwo'), true, 'skillInstanceUid est propre au compte');
-  assert.strictEqual(needsRewrite('jbn'), true, 'fsor est l identifiant du personnage');
-  assert.strictEqual(needsRewrite('hjc'), false);
-  assert.strictEqual(needsRewrite('kla'), false, 'sans champ, rien à réécrire');
+  assert.strictEqual(needsRewrite('iva'), true, 'skillInstanceUid est propre au compte');
+  assert.strictEqual(needsRewrite('ize'), true, 'fsor est l identifiant du personnage');
+  assert.strictEqual(needsRewrite('hiu'), false);
+  assert.strictEqual(needsRewrite('kiy'), false, 'sans champ, rien à réécrire');
   assert.strictEqual(needsRewrite('inconnu'), null);
 });
 
@@ -34,9 +39,9 @@ test('needsRewrite est cohérent avec le drapeau verbatim', () => {
 });
 
 test('les champs à substituer sont nommés', () => {
-  assert.deepStrictEqual(accountFields('iwo'), ['skillInstanceUid']);
-  assert.deepStrictEqual(accountFields('jbn'), ['fsor']);
-  assert.deepStrictEqual(accountFields('hjc'), []);
+  assert.deepStrictEqual(accountFields('iva'), ['skillInstanceUid']);
+  assert.deepStrictEqual(accountFields('ize'), ['fsor']);
+  assert.deepStrictEqual(accountFields('hiu'), []);
 });
 
 // Une table dont on ne sait plus ce qui est mesure et ce qui est suppose perd
@@ -70,9 +75,9 @@ test('chaque champ déclare sa nature et son niveau de preuve', () => {
 // L entree RESTE dans la table: elle documente une mesure reelle, et c est
 // elle qui porte la raison de ne pas rejouer.
 test('le changement de carte est répertorié mais jamais rejoué', () => {
-  assert.notStrictEqual(lookup('jqk'), null, 'la mesure reste documentée');
-  assert.strictEqual(estRejouable('jqk'), false);
-  for (const k of ['hjc', 'iov', 'ioy', 'kla', 'jbn', 'iwo', 'kjw', 'kea', 'ido']) {
+  assert.notStrictEqual(lookup('jpp'), null, 'la mesure reste documentée');
+  assert.strictEqual(estRejouable('jpp'), false);
+  for (const k of ['hiu', 'imp', 'inh', 'kiy', 'ize', 'iva', 'kie', 'kaa', 'ido']) {
     assert.strictEqual(estRejouable(k), true, k);
   }
   assert.strictEqual(estRejouable('inconnu'), null, 'un type hors table ne se juge pas');
@@ -149,11 +154,224 @@ test('la demande d infos de carte est répertoriée mais jamais rejouée', () =>
 // Ce test garde donc les deux moities: `kea` present, `kbm` absent. Ajouter
 // `kbm` un jour ferait acheter les mules a l'HDV — le test le dira.
 test('l achat au marchand est répliqué, celui de l hôtel de vente n existe pas dans la table', () => {
-  assert.notStrictEqual(lookup('kea'), null, 'kea: achat au marchand PNJ');
-  assert.strictEqual(estRejouable('kea'), true);
-  assert.strictEqual(needsRewrite('kea'), false, 'ni identifiant de personnage ni uid de session');
-  assert.deepStrictEqual(accountFields('kea'), []);
+  assert.notStrictEqual(lookup('kaa'), null, 'kaa: achat au marchand PNJ');
+  assert.strictEqual(estRejouable('kaa'), true);
+  assert.strictEqual(needsRewrite('kaa'), false, 'ni identifiant de personnage ni uid de session');
+  assert.deepStrictEqual(accountFields('kaa'), []);
 
-  assert.strictEqual(lookup('kbm'), null, "l'achat en HDV ne doit JAMAIS entrer dans la table");
-  assert.strictEqual(estRejouable('kbm'), null, 'hors table: ni connu, ni juge');
+  assert.strictEqual(lookup('kei'), null, "l'achat en HDV ne doit JAMAIS entrer dans la table");
+  assert.strictEqual(estRejouable('kei'), null, 'hors table: ni connu, ni juge');
 });
+
+// --- LE REMAPPAGE DU PATCH 3.6.11.12 -------------------------------------
+//
+// TOUS LES TESTS CI-DESSUS PASSENT SUR UNE TABLE MORTE, et c'est la lecon du
+// 08/09: ils confrontent la table a elle-meme. Le patch a reattribue tous les
+// noms de messages — sur les onze cles d'origine, AUCUNE n'apparait dans les
+// journaux du 08/09 — donc `lookup(frame.type)` rendait null pour chaque
+// trame, le duplicateur sortait des sa premiere garde, et plus rien n'etait
+// rejoue. Sans erreur, sans ligne de journal: le silence.
+//
+// CEUX QUI SUIVENT CONFRONTENT LA TABLE A DES OCTETS REELS, releves dans
+// journal-hdv.log et journal-combat.log du 08/09. Un nom perime les fait
+// echouer; c'est toute leur raison d'etre.
+const fixture = (nom) => decodeFrameRaw(
+  Buffer.from(fs.readFileSync(path.join(__dirname, 'fixtures', nom), 'utf8').trim(), 'hex'),
+);
+
+// MESURE du 08/09 (journal-hdv.log, 19731 ms, et journal-archi.log, 18543 ms:
+// deux sessions, le meme geste). Le clic sur l'etal de l'hotel de vente:
+//
+//   --> iva { 1 = 515300  5 = 6191 }         LE CLIC
+//   <-- ivf { 2 = 515300  3 = 677012898086 } l'element repond, au maitre
+//   <-- isb { ... }                          l'interface s'ouvre
+//
+// C'est le role exact de l'ancien `iwo`, dont la mesure du 29/08 montrait
+// deja qu'il ouvrait l'HDV (`iwo { 1=22985 2=515220 }`). LES DEUX CHAMPS ONT
+// ECHANGE LEUR PLACE ET LEUR NUMERO: l'elementId passe du champ 2 au champ 1,
+// le skillInstanceUid du champ 1 au champ 5.
+test('le clic sur un élément interactif mesuré le 08/09 est répertorié', () => {
+  const f = fixture('omni-iva-element.hex');
+  assert.strictEqual(f.type, 'iva', 'la fixture porte bien le nom mesuré');
+  assert.notStrictEqual(lookup(f.type), null, 'iva: le clic sur un élément interactif');
+  assert.strictEqual(lookup(f.type).name, 'InteractiveUseRequest');
+  assert.strictEqual(estRejouable(f.type), true);
+});
+
+// LE NUMERO DE CHAMP EST LA MOITIE DU REMAPPAGE. Le superviseur lit
+// `connu.fields.elementId.no` pour retrouver l'element dans la trame du
+// maitre, puis `f.no` pour y substituer le numero de l'esclave: un nom juste
+// avec un numero perime rejouerait a cote, ce qui est pire que ne rien
+// rejouer. Les valeurs viennent de la trame reelle ci-dessus.
+test('les champs de iva portent les numéros mesurés le 08/09', () => {
+  const f = fixture('omni-iva-element.hex');
+  const connu = lookup('iva');
+  const valeur = (no) => f.payload.find((c) => c.no === no).value;
+
+  assert.strictEqual(connu.fields.elementId.no, 1, 'elementId: champ 2 -> 1');
+  assert.strictEqual(valeur(connu.fields.elementId.no), 515300n, "l'étal de l'HDV");
+
+  assert.strictEqual(connu.fields.skillInstanceUid.no, 5, 'skillInstanceUid: champ 1 -> 5');
+  assert.strictEqual(valeur(connu.fields.skillInstanceUid.no), 6191n);
+
+  assert.strictEqual(needsRewrite('iva'), true, 'le skillInstanceUid reste propre au compte');
+  assert.deepStrictEqual(accountFields('iva'), ['skillInstanceUid']);
+});
+
+// MESURE du 08/09 (journal-hdv.log, 460275 ms). Le changement de carte garde
+// sa structure d'avant le patch — mapId au champ 1, drapeau au champ 2,
+// « parfois absent » (une occurrence sans champ 2 dans journal-combat.log a
+// 62366 ms) — mais change de nom. Il reste NON REJOUABLE: la mesure du 28/08
+// tient, elle porte sur une condition de POSITION que la trame ne porte pas.
+test('le changement de carte du 08/09 est répertorié et toujours pas rejoué', () => {
+  const f = fixture('omni-jpp-carte.hex');
+  assert.strictEqual(f.type, 'jpp');
+  assert.notStrictEqual(lookup(f.type), null, 'la mesure du 28/08 reste documentée');
+  assert.strictEqual(estRejouable(f.type), false, 'annule la marche des mules');
+});
+
+// CE QUI RESTE A REMESURER, et qui doit se voir.
+//
+// Huit gestes n'ont ete faits dans AUCUNE des trois mesures du 08/09: leurs
+// messages n'apparaissent donc nulle part, et aucun appariement structurel ne
+// peut les retrouver. Les entrees restent dans la table — elles portent des
+// mesures reelles qu'il ne faut pas perdre — mais sous leur nom PERIME, donc
+// inertes: aucune trame ne s'appelle plus ainsi.
+//
+// Les laisser silencieusement serait refaire le defaut qu'on repare. Cette
+// liste est le rappel, et le test qui suit interdit de l'oublier.
+test('les types encore à remesurer sont déclarés comme tels', () => {
+  assert.deepStrictEqual(
+    PERIMES.slice().sort(),
+    ['ido', 'jrh'],
+    'un type remesuré doit sortir de cette liste',
+  );
+  for (const k of PERIMES) {
+    assert.notStrictEqual(lookup(k), null, `${k}: la mesure reste documentée`);
+    assert.strictEqual(MESSAGES[k].perime, true, `${k}: doit porter le marqueur`);
+  }
+  for (const k of ['iva', 'jpp', 'hiu', 'imp', 'inh', 'kiy', 'kaa', 'kie', 'ize']) {
+    assert.notStrictEqual(MESSAGES[k].perime, true, `${k} a été remesuré le 08/09`);
+  }
+});
+
+// --- LA MESURE DU 08/09 AU SOIR ------------------------------------------
+//
+// Une session de 4,7 min (journal-combat.log, un seul client) ou l'utilisateur
+// a joue, dans cet ordre, tous les gestes qui manquaient. C'est la CHRONOLOGIE
+// annoncee a l'avance qui identifie ces messages: l'empreinte ne distingue pas
+// deux varints, et trois de ces huit types ne portent aucun champ.
+//
+//   24123 ms  hjj 185860609                      voyage par ctrl-clic (hors table)
+//   35771 ms  hiu { 1=5 3=84806401 }             LA TELEPORTATION
+//   41325 ms  iva { 1=540330 5=20506 }           le clic sur le zaap
+//   42467 ms  hiu { 3=191105026 }                teleportation, sans type
+//   58050 ms  imp { 1=101450251 2=3 3=-20001 }   PARLER au PNJ de l'Almanax
+//   59279 ms  inh { 1=13557 }                    une reponse de dialogue
+//   61976 ms  <- kja { 1=1 }                     LE SERVEUR ferme le dialogue
+//  122581 ms  iva { 1=515300 5=6191 }            l'etal de l'HDV
+//  128098 ms  kei { 1=31964 2=10 5=79071 }       L'ACHAT EN HDV - reste dehors
+//  129255 ms  kiy { }                            fermeture de l'echange
+//  219435 ms  imp { 1=101451273 2=11 3=-20001 }  ACHETER chez un marchand
+//  229028 ms  kaa { 1=13365 2=1 }                L'ACHAT au marchand
+//  230048 ms  kiy { }                            fermeture, deux fois
+//  249802 ms  hps { 1=-20000 }                   l'attaque, dans le donjon
+//  252970 ms  kjy { }                            L'ABANDON du combat
+//  256831 ms  kie { }                            LA SORTIE du donjon
+//  260160 ms  ize { 1=677012898086 }             L'ENTREE EN HAVRE-SAC
+//
+// Chaque test ci-dessous lit les octets de la trame nommee.
+
+// L'ancienne entree ne portait aucun numero de champ - hjc n'etant jamais
+// reecrit, personne n'en avait eu besoin. La mesure les donne: le type de
+// destination au champ 1, la carte au champ 3. Le champ 1 est ABSENT quand il
+// vaut zero (42467 ms, la sortie d'un zaap), ce qui est la regle protobuf et
+// non une variante de message.
+test('la téléportation mesurée le 08/09 est répertoriée et rejouable', () => {
+  const f = fixture('omni-hiu-teleport.hex');
+  assert.strictEqual(f.type, 'hiu');
+  assert.strictEqual(lookup(f.type).name, 'TeleportRequest');
+  assert.strictEqual(estRejouable(f.type), true);
+  assert.strictEqual(needsRewrite(f.type), false, 'rien qui appartienne au maître');
+  assert.strictEqual(lookup(f.type).fields.destinationMapId.no, 3);
+});
+
+// CE QUI LEVE LE DOUTE DU MATIN. `imp` avait ete ecarte parce qu'on ne l'avait
+// vu que sur la carte d'un hotel de vente, ou ses actions 5 et 6 pouvaient etre
+// « vendre / acheter » plutot qu'un choix chez un PNJ. Ici il porte l'ACTION 3
+// chez le PNJ de l'Almanax, puis chez celui d'un donjon - et 3 etait deja
+// « parler » dans la mesure du 29/08, avant le patch. Le meme message sert les
+// deux, c'est donc bien l'action generique de PNJ.
+test('l action de PNJ mesurée le 08/09 est répertoriée', () => {
+  const f = fixture('omni-imp-pnj.hex');
+  assert.strictEqual(f.type, 'imp');
+  const connu = lookup(f.type);
+  assert.strictEqual(connu.name, 'NpcGenericActionRequest');
+  const valeur = (no) => f.payload.find((c) => c.no === no).value;
+  assert.strictEqual(valeur(connu.fields.npcMapId.no), 101450251n, "la carte de l Almanax");
+  assert.strictEqual(valeur(connu.fields.npcActionId.no), 3n, 'parler');
+  assert.strictEqual(valeur(connu.fields.npcId.no), -20001n, "l instance de PNJ");
+});
+
+test('la réponse de dialogue mesurée le 08/09 est répertoriée', () => {
+  const f = fixture('omni-inh-dialogue.hex');
+  assert.strictEqual(f.type, 'inh');
+  assert.strictEqual(lookup(f.type).name, 'NpcDialogReplyRequest');
+  assert.strictEqual(estRejouable(f.type), true);
+});
+
+// UN DIALOGUE QUI S'ACHEVE NE PRODUIT AUCUNE REQUETE: le serveur le ferme
+// lui-meme (`kja` a 61976 ms). Les trois `kiy` de la session suivent tous la
+// fermeture d'un ECHANGE - l'hotel de vente a 129255 ms, la boutique du
+// marchand a 230048 et 230049 ms. C'est ce que la mesure dit, ni plus ni moins;
+// le rejeu, lui, fait le meme travail qu'avant le patch: ce que le maitre
+// ferme, les mules le ferment.
+test('la fermeture mesurée le 08/09 est répertoriée et sans champ', () => {
+  const f = fixture('omni-kiy-fermeture.hex');
+  assert.strictEqual(f.type, 'kiy');
+  assert.notStrictEqual(lookup(f.type), null);
+  assert.deepStrictEqual(lookup(f.type).fields, {}, 'aucun champ, comme avant le patch');
+  assert.strictEqual(needsRewrite(f.type), false);
+});
+
+// LA MOITIE QUI COMPTE EST L'ABSENCE. L'achat au marchand entre dans la table,
+// celui de l'hotel de vente reste dehors - et la session porte les deux, a 90 s
+// d'intervalle, ce qui les distingue sans ambiguite:
+//
+//   kaa { 1=13365 2=1 }           -> imo, puis l'objet 13365 entre dans le sac
+//   kei { 1=31964 2=10 5=79071 }  l'achat de dix ecumes de mer EN HDV
+//
+// Ajouter `kei` un jour ferait acheter les mules a l'HDV; ce test le dira.
+test('l achat au marchand du 08/09 est répliqué, celui de l HDV reste dehors', () => {
+  const f = fixture('omni-kaa-marchand.hex');
+  assert.strictEqual(f.type, 'kaa');
+  const connu = lookup(f.type);
+  assert.strictEqual(connu.name, 'AchatMarchandRequest');
+  const valeur = (no) => f.payload.find((c) => c.no === no).value;
+  assert.strictEqual(valeur(connu.fields.objetType.no), 13365n);
+  assert.strictEqual(valeur(connu.fields.quantite.no), 1n);
+
+  assert.strictEqual(lookup('kei'), null, "l'achat en HDV ne doit JAMAIS entrer dans la table");
+});
+
+test('la sortie de donjon mesurée le 08/09 est répertoriée', () => {
+  const f = fixture('omni-kie-donjon.hex');
+  assert.strictEqual(f.type, 'kie');
+  assert.strictEqual(lookup(f.type).name, 'DungeonExitRequest');
+  assert.deepStrictEqual(lookup(f.type).fields, {});
+});
+
+// LE SEUL DES HUIT QUI DEMANDE UNE REECRITURE. Le champ passe du 2 au 1, et il
+// porte le characterId - celui que `kth` annonce a la connexion, et qu'on
+// retrouve ici a l'identique (677012898086). Une mule qui rejouerait la trame
+// telle quelle entrerait dans le havre-sac DU MAITRE.
+test('l entrée en havre-sac mesurée le 08/09 demande le characterId de l esclave', () => {
+  const f = fixture('omni-ize-havresac.hex');
+  assert.strictEqual(f.type, 'ize');
+  assert.strictEqual(lookup(f.type).name, 'HavenBagEnterRequest');
+  assert.strictEqual(needsRewrite(f.type), true);
+  assert.deepStrictEqual(accountFields(f.type), ['fsor']);
+  assert.strictEqual(lookup(f.type).fields.fsor.no, 1, 'champ 2 -> 1');
+  assert.strictEqual(f.payload.find((c) => c.no === 1).value, 677012898086n);
+});
+

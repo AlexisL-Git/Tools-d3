@@ -37,11 +37,23 @@
 // Le champ `sur` distingue ce qui a ete mesure de ce qui est infere.
 
 const MESSAGES = {
-  hjc: {
+  //
+  // REMESURE LE 08/09 AU SOIR: le nom devient `hiu`, et la mesure donne enfin
+  // les NUMEROS DE CHAMP, que personne n'avait releves — ce message n'etant
+  // jamais reecrit, nul n'en avait eu besoin.
+  //
+  //   41325 ms  iva { 1=540330 5=20506 }   le clic sur le zaap
+  //   42467 ms  hiu { 3=191105026 }        la destination choisie
+  //   35771 ms  hiu { 1=5 3=84806401 }     un voyage, avec son type
+  //
+  // LE CHAMP 1 EST ABSENT QUAND IL VAUT ZERO, et c'est la regle protobuf, pas
+  // une variante de message: la sortie d'un zaap ne porte que la carte, un
+  // voyage lance au ctrl-clic porte en plus le type 5.
+  hiu: {
     name: 'TeleportRequest',
     fields: {
-      destinationType: { nature: 'monde', sur: 'mesure', note: 'enumeration, encore obfusquee ("HIK_ECDQ")' },
-      destinationMapId: { nature: 'monde', sur: 'mesure' },
+      destinationType: { no: 1, nature: 'monde', sur: 'mesure', note: 'enumeration; 5 sur un voyage, absent (donc 0) depuis un zaap' },
+      destinationMapId: { no: 3, nature: 'monde', sur: 'mesure' },
     },
     // Trame relevee identique octet pour octet chez le maitre et chez
     // l'esclave: aucune substitution.
@@ -68,11 +80,17 @@ const MESSAGES = {
   // L entree reste ici: elle documente une mesure reelle, et c est elle qui
   // porte la raison du refus. Le deplacement de carte en carte est le travail
   // du suivi de groupe du jeu, pas le notre.
-  jqk: {
+  //
+  // REMESURE LE 08/09: le nom devient `jpp`, la STRUCTURE ne bouge pas. Le
+  // drapeau « parfois absent » l'est encore — journal-combat.log a 62366 ms
+  // porte un `jpp { 1 = 73401091 }` sans champ 2. La mesure du 28/08 ci-dessus
+  // tient telle quelle: elle porte sur une condition de POSITION, que ni un
+  // nom ni un numero de champ ne changent.
+  jpp: {
     name: 'MapChangeRequest',
     fields: {
-      mapId: { nature: 'monde', sur: 'mesure' },
-      autoPilot: { nature: 'monde', sur: 'mesure', note: 'drapeau, parfois absent' },
+      mapId: { no: 1, nature: 'monde', sur: 'mesure' },
+      autoPilot: { no: 2, nature: 'monde', sur: 'mesure', note: 'drapeau, parfois absent' },
     },
     verbatim: true,
     rejouable: false,
@@ -91,30 +109,64 @@ const MESSAGES = {
   // d un client de jeu.
   jrh: {
     name: 'MapInformationRequest',
+    perime: true,
     fields: { mapId: { nature: 'monde', sur: 'mesure' } },
     verbatim: true,
     rejouable: false,
   },
-  iov: {
+  //
+  // REMESURE LE 08/09 AU SOIR: le nom devient `imp`, et LES TROIS CHAMPS ONT
+  // CHANGE DE NUMERO — la carte passe en 1, l'action en 2, le PNJ reste en 3.
+  //
+  //   58050 ms  imp { 1=101450251 2=3  3=-20001 }   parler au PNJ de l'Almanax
+  //  219435 ms  imp { 1=101451273 2=11 3=-20001 }   acheter chez un marchand
+  //  244673 ms  imp { 1=120063489 2=3  3=-20000 }   parler au PNJ d'un donjon
+  //
+  // CE QUI A LEVE UN DOUTE SERIEUX. Le matin meme, ce message avait ete ECARTE:
+  // on ne l'avait vu que sur la carte d'un hotel de vente, ou ses actions 5 et
+  // 6 pouvaient etre « vendre / acheter » a l'HDV plutot qu'un choix chez un
+  // PNJ, et le repertorier a tort aurait fait ouvrir l'HDV aux mules. La
+  // session du soir tranche: l'ACTION 3 chez deux PNJ ordinaires, et 3 etait
+  // deja « parler » dans la mesure du 29/08, avant le patch. Un seul message
+  // sert les deux cas.
+  //
+  // LES NUMEROS D'ACTION, EUX, ONT BOUGE: 3 reste « parler », mais l'achat au
+  // marchand vaut 11 la ou il valait 1, et l'HDV repond a 5 et 6. Le champ
+  // decrit le monde dans tous les cas, il se recopie tel quel.
+  imp: {
     name: 'NpcGenericActionRequest',
     fields: {
-      // 3 sur les 21 occurrences de la recolte du 19/08 — mais la valeur 1 a
-      // ete mesuree le 29/08: c'est « acheter/vendre » la ou 3 est « parler ».
-      // Le champ decrit le monde dans les deux cas, il se recopie tel quel.
-      npcActionId: { nature: 'monde', sur: 'mesure', note: '3 = parler, 1 = acheter/vendre (mesure 29/08)' },
-      npcMapId: { nature: 'monde', sur: 'mesure', note: 'suit toujours le mapId du contexte' },
-      npcId: { nature: 'monde', sur: 'mesure', note: 'instance de PNJ sur la carte: -20000, -20001…' },
+      npcActionId: { no: 2, nature: 'monde', sur: 'mesure', note: '3 = parler (inchange depuis le 29/08), 11 = acheter au marchand, 5 et 6 a l HDV' },
+      npcMapId: { no: 1, nature: 'monde', sur: 'mesure', note: 'suit toujours le mapId du contexte' },
+      npcId: { no: 3, nature: 'monde', sur: 'mesure', note: 'instance de PNJ sur la carte: -20000, -20001…' },
     },
     verbatim: true,
   },
-  ioy: {
+  // REMESURE LE 08/09 AU SOIR: `inh`, meme forme, un champ unique. Onze
+  // reponses relevees entre 59279 et 193983 ms, sur trois dialogues de quete —
+  // 13557, 19015, 19184, 19182, puis 19189 a 19185, puis 13564 et 13565. Meme
+  // ordre de grandeur que le 25088 mesure le 02/09 avant le patch.
+  inh: {
     name: 'NpcDialogReplyRequest',
     fields: {
-      fqmg: { nature: 'monde', sur: 'infere', note: 'identifiant de reponse dans l arbre de dialogue; nom reel inconnu, krm35 ne l a pas non plus' },
+      fqmg: { no: 1, nature: 'monde', sur: 'mesure', note: 'identifiant de reponse dans l arbre de dialogue; nom reel inconnu, krm35 ne l a pas non plus' },
     },
     verbatim: true,
   },
-  kla: {
+  // REMESURE LE 08/09 AU SOIR: `kiy`, toujours sans un champ.
+  //
+  // CE QUE LA MESURE DIT EXACTEMENT, ET C'EST PLUS ETROIT QU'AVANT. Les trois
+  // `kiy` de la session suivent la fermeture d'un ECHANGE: l'hotel de vente a
+  // 129255 ms, la boutique du marchand a 230048 et 230049 ms (deux fois de
+  // suite, ce que le rejeu reproduira sans dommage — une trame vide chez une
+  // mule qui n'a rien d'ouvert est ignoree).
+  //
+  // UN DIALOGUE QUI S'ACHEVE NE PRODUIT AUCUNE REQUETE: le serveur le ferme
+  // lui-meme, par un `kja { 1 = 1 }` entrant (61976 ms, la fin du dialogue de
+  // l'Almanax). Le client n'emet donc rien dans ce cas, ni avant ni apres le
+  // patch — l'ancienne mesure du 02/09 voyait `kla` accompagner un RAMASSAGE,
+  // pas la fin d'un dialogue.
+  kiy: {
     name: 'DialogLeaveRequest',
     fields: {},
     verbatim: true,
@@ -151,11 +203,24 @@ const MESSAGES = {
   // LE NOM EST LE NOTRE. Les neuf premieres entrees tenaient le leur du canal
   // de krm35; ce type-la n'y figurait pas, il a ete identifie par la mesure.
   // Les noms de champs aussi sont de nous, d'ou `sur: 'mesure'` sans nom reel.
-  kea: {
+  //
+  // REMESURE LE 08/09 AU SOIR: `kaa`, et LA FORME N'A PAS BOUGE.
+  //
+  //   219435 ms  imp { 1=101451273 2=11 3=-20001 }  ouvre la boutique
+  //   229028 ms  kaa { 1=13365 2=1 }                L'ACHAT
+  //   229060 ms  <- imo { 1=-1 2=13365 3=-1 }       le serveur renvoie le type
+  //   229063 ms  <- isa { ...5{ 5=13365 } }         l'objet entre dans le sac
+  //   229065 ms  <- itt { 2=4170290 }               les kamas retombent
+  //
+  // ET L'AUTRE MOITIE TIENT TOUJOURS: la meme session porte, 90 s plus tot,
+  // l'achat de dix ecumes de mer A L'HOTEL DE VENTE — `kei { 1=31964 2=10
+  // 5=79071 }`, l'ancien `kbm`. Il n'est PAS repertorie, et c'est ce qui
+  // garantit que les mules n'achetent jamais a l'HDV. Ne pas ajouter `kei`.
+  kaa: {
     name: 'AchatMarchandRequest',
     fields: {
-      objetType: { no: 1, nature: 'monde', sur: 'mesure', note: 'type d article (6765 = Lailait), identique dans les deux sessions et renvoye par lqn' },
-      quantite: { no: 2, nature: 'monde', sur: 'mesure', note: 'valait 1 sur les deux achats mesures' },
+      objetType: { no: 1, nature: 'monde', sur: 'mesure', note: 'type d article (13365 le 08/09, 6765 le 29/08), renvoye tel quel par imo et isa' },
+      quantite: { no: 2, nature: 'monde', sur: 'mesure', note: 'valait 1 sur les trois achats mesures' },
     },
     verbatim: true,
   },
@@ -198,6 +263,7 @@ const MESSAGES = {
   // LE NOM EST LE NOTRE: ce type ne figurait pas dans le canal de krm35.
   ido: {
     name: 'ObjetQueteRamasseRequest',
+    perime: true,
     fields: {
       objetGid: { no: 1, nature: 'monde', sur: 'mesure', note: 'identifiant d objet (1633 = l objet de quete mesure), identique chez le maitre et chez la mule, renvoye par lqn.4' },
     },
@@ -205,21 +271,38 @@ const MESSAGES = {
   },
   // Releve lors de la premiere capture courte, absent de la recolte de 20 min
   // faute de donjon visite. Sans champ observe, donc rejouable tel quel.
-  // L'ENTREE en donjon n'a pas ete observee: selon les donjons elle passe par
-  // un PNJ (deja couvert) ou par un element interactif, auquel cas elle
-  // retomberait sur iwo et sa substitution de skillInstanceUid.
-  kjw: {
+  //
+  // REMESURE LE 08/09 AU SOIR: `kie`, toujours sans un champ, et cette fois
+  // avec le donjon autour.
+  //
+  //   244673 ms  imp { 1=120063489 2=3 3=-20000 }  parler au PNJ du donjon
+  //   245889 ms  inh { 1=10530 }                   la reponse qui fait ENTRER
+  //   249802 ms  hps { 1=-20000 }                  le combat, a l'interieur
+  //   256831 ms  kie { }                           LA SORTIE
+  //   256862 ms  <- jpw { 1=120063489 }            retour sur la carte d'entree
+  //
+  // L'ENTREE EN DONJON EST DONC MESUREE, ELLE AUSSI, et l'hypothese d'aout
+  // tenait: elle passe par le PNJ, donc par `imp` puis `inh`, tous deux deja
+  // repertories. Rien a ajouter pour elle.
+  kie: {
     name: 'DungeonExitRequest',
     fields: {},
     verbatim: true,
   },
-  jbn: {
+  // REMESURE LE 08/09 AU SOIR: `ize`, et LE CHAMP PASSE DU 2 AU 1.
+  //
+  //   260160 ms  ize { 1=677012898086 }   l'entree en havre-sac
+  //   260198 ms  <- jpw { 1=162791424 }   la carte du havre-sac
+  //   260564 ms  <- jpo { 6=162791424 … } son contenu
+  //
+  // 677012898086 est exactement le characterId que `kth` annonce a la
+  // connexion (10711 ms de la meme session). C'EST LE SEUL DES HUIT TYPES
+  // REMESURES CE SOIR-LA QUI DEMANDE UNE REECRITURE: une mule qui rejouerait
+  // ces octets tels quels entrerait dans le havre-sac DU MAITRE.
+  ize: {
     name: 'HavenBagEnterRequest',
     fields: {
-      // Champ 2, mesure: la trame injectee chez l'esclave portait
-      // 677057659174 la ou le maitre valait 665809125670 — l'identifiant de
-      // personnage de chacun, celui que la requete kvw annonce a la connexion.
-      fsor: { no: 2, nature: 'compte', sur: 'mesure', note: 'identifiant du personnage; egal au champ id du contexte, et a kvw.1' },
+      fsor: { no: 1, nature: 'compte', sur: 'mesure', note: 'identifiant du personnage; egal au champ id du contexte, et a kth.1; champ 2 avant le patch' },
     },
     verbatim: false,
   },
@@ -247,15 +330,68 @@ const MESSAGES = {
   // fabriquer son deplacement, ou ne rien faire — et il a choisi de ne rien
   // faire: le rejeu passe deja quand les persos sont ensemble (zaap, porte,
   // `hjc`), et c'est ainsi qu'il joue. Ce n'est pas un defaut oublie.
-  iwo: {
+  // REMESURE LE 08/09, patch 3.6.11.12. Journal-hdv.log a 19731 ms et
+  // journal-archi.log a 18543 ms: le MEME geste dans deux sessions, le clic
+  // sur l'etal de l'hotel de vente.
+  //
+  //   --> iva { 1 = 515300  5 = 6191 }          LE CLIC
+  //   <-- ivf { 2 = 515300  3 = 677012898086 }  l'element repond au maitre
+  //   <-- isb { ... }                           l'interface s'ouvre
+  //
+  // LES DEUX CHAMPS ONT ECHANGE LEUR PLACE ET LEUR NUMERO. Ce n'est pas
+  // l'empreinte qui les a identifies — elle ne distingue pas deux varints —
+  // mais une CORRESPONDANCE DE VALEUR: 6191 est exactement l'uid que `jpo`
+  // annonce pour l'element 515300 sur cette carte, et 515300 l'un des 300
+  // elementId de la meme annonce. Voir JPO_ELEMENTS dans src/protocol/compte.js.
+  //
+  // LA SUBSTITUTION EST GARDEE, bien que les deux clients de la session du
+  // 08/09 aient recu LE MEME uid pour un meme element (540848 -> 684 chez les
+  // deux). Elle ne coute rien quand l'uid est partage — la valeur substituee
+  // est alors identique a celle du maitre — et elle rattrape le cas contraire,
+  // que la mesure du 19/08 avait releve. La retirer demanderait de prouver que
+  // l'uid est TOUJOURS partage; cette preuve n'existe pas.
+  iva: {
     name: 'InteractiveUseRequest',
     fields: {
-      skillInstanceUid: { no: 1, nature: 'compte', sur: 'mesure', note: 'differait entre maitre et esclave sur une meme action' },
-      elementId: { no: 2, nature: 'monde', sur: 'mesure', note: 'identique entre maitre et esclave: le meme noeud sur la carte' },
+      elementId: { no: 1, nature: 'monde', sur: 'mesure', note: 'le meme noeud sur la carte pour tous les joueurs; champ 2 avant le patch' },
+      skillInstanceUid: { no: 5, nature: 'compte', sur: 'mesure', note: 'annonce par jpo.8[].5.2 pour cet element; champ 1 avant le patch' },
     },
     verbatim: false,
   },
 };
+
+// LES TYPES DONT LE NOM EST PERIME, et qu'aucune mesure du 08/09 ne permet de
+// retrouver.
+//
+// Le patch 3.6.11.12 a REATTRIBUE tous les noms: sur les 150 releves avant et
+// 35 apres, deux coincidaient, et par hasard. Un appariement structurel
+// (src/dev/appariement.js) retrouve un message A CONDITION QUE LE GESTE AIT
+// ETE FAIT pendant une mesure — sans trame, il n'y a rien a apparier. Les neuf
+// gestes ci-dessous n'ont ete faits dans aucune des trois mesures du 08/09:
+// teleportation par zaap, reponse dans un arbre de dialogue, fermeture de
+// dialogue, achat chez un marchand PNJ, ramassage d'un objet de quete, sortie
+// de donjon, entree en havre-sac, demande d'infos de carte, action generique
+// de PNJ.
+//
+// LEURS ENTREES RESTENT ICI, sous leur ancien nom, et c'est delibere: elles
+// portent des mesures reelles — la nature de chaque champ, les refus mesures,
+// la raison de chaque absence — qu'une remesure de nom ne refera pas. Elles
+// sont INERTES tant que le nom est perime: aucune trame ne s'appelle plus
+// ainsi, donc `lookup` rend null et le duplicateur passe son chemin.
+//
+// L'ACTION GENERIQUE DE PNJ (`iov`) MERITE SA PROPRE MISE EN GARDE. La session
+// du 08/09 porte un candidat, `imp { 1 = 73400322  2 = 5  3 = -1 }`: la carte
+// courante, un petit code d'action, un identifiant d'acteur negatif — et il
+// ouvre bien un echange. MAIS il apparait UNIQUEMENT sur la carte d'un hotel
+// de vente, ou il precede de 68 ms un `isb`, et ses deux valeurs d'action (5
+// et 6) ressemblent autant a « vendre / acheter » a l'HDV qu'a un choix chez
+// un PNJ. Le repertorier sur cette base ferait courir le risque exact que
+// l'entree `kea` documente plus haut: FAIRE OUVRIR L'HOTEL DE VENTE AUX MULES,
+// que l'utilisateur a explicitement exclu. Il faut une mesure sur un PNJ
+// ORDINAIRE — un marchand, un PNJ de quete — pour trancher.
+const PERIMES = Object.entries(MESSAGES)
+  .filter(([, m]) => m.perime === true)
+  .map(([k]) => k);
 
 const byName = new Map(Object.entries(MESSAGES).map(([k, v]) => [v.name, { key: k, ...v }]));
 
@@ -296,4 +432,4 @@ function accountFields(key) {
   return Object.entries(m.fields).filter(([, f]) => f.nature === 'compte').map(([n]) => n);
 }
 
-module.exports = { MESSAGES, lookup, lookupByName, needsRewrite, accountFields, estRejouable };
+module.exports = { MESSAGES, PERIMES, lookup, lookupByName, needsRewrite, accountFields, estRejouable };

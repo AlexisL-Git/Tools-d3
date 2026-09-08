@@ -41,7 +41,30 @@ const KVW_CHARACTER_ID = { type: 'kth', champ: 1 };
 //
 // C'est le tableau que le launcher de krm35 publie sous le nom
 // interactiveElements, ou `ganv` vaut skillInstanceUid et `ganw` skillId.
-const JSS_ELEMENTS = { type: 'jss', liste: 11, skills: 4, uid: 1, elementId: 5 };
+//
+// REMESURE LE 08/09, patch 3.6.11.12. Le message s'appelle desormais `jpo`, et
+// TOUS les numeros ont bouge — la liste comme les champs de chaque entree:
+//
+//   jpo.8[] = { 2: elementTypeId, 3: actif, 4: elementId,
+//               5: { 1: ?, 2: skillInstanceUid, 3: skillId } }
+//
+// MEME METHODE QU'AU 19/08, LA CORRELATION: sur la carte de l'hotel de vente
+// (journal-hdv.log a 18875 ms), l'element 515300 est annonce avec
+// 5{ 1=51 2=6191 3=355 } — et 856 ms plus tard le clic part en
+// `iva { 1 = 515300  5 = 6191 }`. Refait sur l'element 540848, annonce a 684 et
+// clique a 684. C'est le champ 2, et lui seul, qui se retrouve dans le clic.
+//
+// LE CHAMP 5 N'EST PAS LE SEUL A PORTER DES COMPETENCES: certaines entrees
+// portent un champ 6 de meme forme (l'element 498565 de la meme carte). Les
+// deux clics mesures ont tire du champ 5; `champ()` prend la premiere
+// occurrence, donc le champ 5 quand il existe. UN ELEMENT DONT LE CHAMP 5
+// MANQUE reste sans uid, et son rejeu est refuse plutot que devine — c'est le
+// comportement voulu tant qu'aucune mesure ne dit ce que porte le champ 6.
+//
+// PLUSIEURS COMPETENCES PAR ELEMENT existent aussi (540848 en annonce cinq).
+// Les deux mesures ont cliqué la PREMIERE; departager par skillId demanderait
+// que le clic le porte, et il ne le porte pas.
+const JPO_ELEMENTS = { type: 'jpo', liste: 8, skills: 5, uid: 2, elementId: 4 };
 
 const champ = (champs, no) => (champs || []).find((f) => f.no === no) || null;
 
@@ -86,16 +109,16 @@ class EtatCompte {
       return;
     }
 
-    if (frame.type === JSS_ELEMENTS.type) this._apprendreElements(frame.payload);
+    if (frame.type === JPO_ELEMENTS.type) this._apprendreElements(frame.payload);
   }
 
   _apprendreElements(payload) {
     for (const entree of payload || []) {
-      if (entree.no !== JSS_ELEMENTS.liste || entree.kind !== 'message') continue;
-      const id = champ(entree.value, JSS_ELEMENTS.elementId);
-      const skills = champ(entree.value, JSS_ELEMENTS.skills);
+      if (entree.no !== JPO_ELEMENTS.liste || entree.kind !== 'message') continue;
+      const id = champ(entree.value, JPO_ELEMENTS.elementId);
+      const skills = champ(entree.value, JPO_ELEMENTS.skills);
       if (!id || !skills || skills.kind !== 'message') continue;
-      const uid = champ(skills.value, JSS_ELEMENTS.uid);
+      const uid = champ(skills.value, JPO_ELEMENTS.uid);
       if (uid && typeof uid.value === 'bigint') this.apprendreSkill(id.value, uid.value);
     }
   }
@@ -164,4 +187,4 @@ class Comptes {
   }
 }
 
-module.exports = { EtatCompte, Comptes, KVW_CHARACTER_ID };
+module.exports = { EtatCompte, Comptes, KVW_CHARACTER_ID, JPO_ELEMENTS };

@@ -14,7 +14,7 @@ const { creerDuplicateur } = require('../src/duplicateur');
 // preparer et les ecrire. C est la POLITIQUE (src/duplicateur.js) qui ne les
 // demande plus depuis le 28/08 — mesure a l appui. Ne pas les retirer d ici
 // pour autant: ces tests verrouillent la mecanique, pas la decision.
-const PERIMETRE = ['hjc', 'jbn', 'iov', 'ioy', 'kla', 'kjw', 'jqk', 'jrh'];
+const PERIMETRE = ['hiu', 'ize', 'imp', 'inh', 'kiy', 'kie', 'jpp', 'jrh'];
 
 function superviseurAvecComptes(pids) {
   const s = new Superviseur();
@@ -24,7 +24,7 @@ function superviseurAvecComptes(pids) {
 
 test('le plan de rejeu couvre tous les esclaves, jamais le maître', () => {
   const s = superviseurAvecComptes([1, 2, 3, 4, 5, 6, 7, 8]);
-  const plan = s.planRejeu('hjc', 3);
+  const plan = s.planRejeu('hiu', 3);
   assert.strictEqual(plan.length, 7);
   assert.ok(!plan.some((p) => p.pid === 3));
 });
@@ -33,7 +33,7 @@ test('le plan de rejeu couvre tous les esclaves, jamais le maître', () => {
 // sans rien connaitre du compte destinataire.
 test('les messages de monde se copient sans état préalable', () => {
   const s = superviseurAvecComptes([1, 2]);
-  for (const type of ['hjc', 'iov', 'ioy', 'kla', 'kjw', 'jqk', 'jrh']) {
+  for (const type of ['hiu', 'imp', 'inh', 'kiy', 'kie', 'jpp', 'jrh']) {
     const plan = s.planRejeu(type, 1);
     assert.deepStrictEqual(plan, [{ pid: 2, action: 'copier' }], type);
   }
@@ -41,12 +41,12 @@ test('les messages de monde se copient sans état préalable', () => {
 
 test('le havre-sac attend le characterId de chaque esclave', () => {
   const s = superviseurAvecComptes([1, 2]);
-  assert.deepStrictEqual(s.planRejeu('jbn', 1), [
+  assert.deepStrictEqual(s.planRejeu('ize', 1), [
     { pid: 2, action: 'ignorer', raison: 'manque characterId' },
   ]);
 
   s.comptes.get(2).characterId = 665809125670n;
-  const plan = s.planRejeu('jbn', 1);
+  const plan = s.planRejeu('ize', 1);
   assert.strictEqual(plan[0].action, 'réécrire');
   assert.ok('fsor' in plan[0].champs);
 });
@@ -65,7 +65,7 @@ test('un type non répertorié est ignoré, pas rejoué au hasard', () => {
 test('un clic sans élément identifié n est pas rejoué', () => {
   const s = superviseurAvecComptes([1, 2]);
   s.comptes.get(2).characterId = 1n;
-  assert.deepStrictEqual(s.planRejeu('iwo', 1), [
+  assert.deepStrictEqual(s.planRejeu('iva', 1), [
     { pid: 2, action: 'ignorer', raison: 'manque elementId du maître' },
   ]);
 });
@@ -94,7 +94,7 @@ function fauxClient(s, pid) {
 test('à vide, tout est calculé et rien n est envoyé', () => {
   const s = superviseurAvecComptes([1, 2]);
   const ecrits = fauxClient(s, 2);
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 });
   // `ok` dit que le rejeu est possible, `emis` qu'il a eu lieu. Les confondre
   // faisait passer tout succes pour un refus en mode observation.
   assert.strictEqual(rendu[0].ok, true);
@@ -106,10 +106,10 @@ test('à vide, tout est calculé et rien n est envoyé', () => {
 test('un client fermé disparaît des plans de rejeu', async () => {
   const s = superviseurAvecComptes([1, 2]);
   fauxClient(s, 2);
-  assert.strictEqual(s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 }).length, 1);
+  assert.strictEqual(s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 }).length, 1);
 
   await s.retirer(2);
-  assert.strictEqual(s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 }).length, 0);
+  assert.strictEqual(s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 }).length, 0);
   assert.strictEqual(s.comptes.get(2), null);
 });
 
@@ -117,7 +117,7 @@ test('une fois armé, la trame part avec son préfixe de longueur', () => {
   const s = superviseurAvecComptes([1, 2]);
   s.arme = true;
   const ecrits = fauxClient(s, 2);
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 });
 
   assert.strictEqual(rendu[0].ok, true);
   assert.strictEqual(rendu[0].emis, true);
@@ -133,7 +133,7 @@ test('la trame part vers les sept esclaves, jamais vers le maître', () => {
   const ecrits = new Map();
   for (const pid of [1, 2, 3, 4, 5, 6, 7, 8]) ecrits.set(pid, fauxClient(s, pid));
 
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 3 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 3 });
   assert.strictEqual(rendu.length, 7);
   assert.strictEqual(ecrits.get(3).length, 0, 'le maître ne se rejoue pas lui-même');
   for (const pid of [1, 2, 4, 5, 6, 7, 8]) assert.strictEqual(ecrits.get(pid).length, 1, `pid ${pid}`);
@@ -168,7 +168,7 @@ test('chaque esclave part après le précédent, jamais tous ensemble', () => {
   const ecrits = new Map();
   for (const pid of [2, 3, 4]) ecrits.set(pid, fauxClient(s, pid));
 
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 });
 
   assert.strictEqual(rendu.length, 3);
   assert.strictEqual(planifies.length, 3);
@@ -191,7 +191,7 @@ test('le compte rendu porte le retard de chaque esclave', () => {
   const { s } = superviseurEtale([1, 2, 3], { tirages: [0, 0.999999] });
   fauxClient(s, 2);
   fauxClient(s, 3);
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 });
   assert.deepStrictEqual(rendu.map((r) => r.retardMs), [1, 41]);
   // `emis` reste vrai: l'emission est acquise, seule son echeance est differee.
   for (const r of rendu) assert.strictEqual(r.emis, true);
@@ -203,7 +203,7 @@ test('un esclave qui ne rejoue pas ne décale pas les suivants', () => {
   const { s, planifies } = superviseurEtale([1, 2, 3], { tirages: [0] });
   // pid 2 n'a pas de socket amont: il est refuse.
   fauxClient(s, 3);
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 });
   assert.strictEqual(rendu[0].ok, false);
   assert.strictEqual(rendu[1].retardMs, 1);
   assert.deepStrictEqual(planifies.map((p) => p.delai), [1]);
@@ -225,7 +225,7 @@ test('une socket fermée à l échéance se journalise au lieu de lever', () => 
   s.comptes.ajouter({ pid: 2, port: 2 });
   s.clients.set(2, { pid: 2, amont: { write: () => { throw new Error('socket fermée'); } } });
 
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 });
   assert.strictEqual(rendu[0].ok, true);
   assert.strictEqual(journaux.length, 1);
   assert.match(journaux[0].texte, /socket fermée/);
@@ -237,7 +237,7 @@ test('non armé, l étalement ne planifie rien', () => {
   const { s, planifies } = superviseurEtale([1, 2], { tirages: [0] });
   s.arme = false;
   const ecrits = fauxClient(s, 2);
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 });
   assert.strictEqual(rendu[0].emis, false);
   assert.strictEqual(planifies.length, 0);
   assert.strictEqual(ecrits.length, 0);
@@ -249,7 +249,7 @@ test('sans étalement configuré, la trame part pendant l appel', () => {
   const s = superviseurAvecComptes([1, 2]);
   s.arme = true;
   const ecrits = fauxClient(s, 2);
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 });
   assert.strictEqual(ecrits.length, 1);
   assert.strictEqual(rendu[0].retardMs, 0);
 });
@@ -257,7 +257,7 @@ test('sans étalement configuré, la trame part pendant l appel', () => {
 test('sans socket amont, rien n est émis et la raison est donnée', () => {
   const s = superviseurAvecComptes([1, 2]);
   s.arme = true;
-  const rendu = s.rejouer({ type: 'hjc', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: HJC, pidMaitre: 1 });
   assert.deepStrictEqual(rendu, [{ pid: 2, ok: false, emis: false, raison: 'pas de socket amont' }]);
 });
 
@@ -267,7 +267,7 @@ test('un message à substituer n est pas émis tant que la valeur manque', () =>
   const s = superviseurAvecComptes([1, 2]);
   s.arme = true;
   const ecrits = fauxClient(s, 2);
-  const rendu = s.rejouer({ type: 'jbn', brute: HJC, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'ize', brute: HJC, pidMaitre: 1 });
   assert.strictEqual(rendu[0].ok, false);
   assert.strictEqual(rendu[0].emis, false);
   assert.match(rendu[0].raison, /characterId/);
@@ -294,12 +294,13 @@ test('le clic du maître est rejoué avec le numéro propre à l esclave', () =>
     return Buffer.concat([Buffer.from([(no << 3) | 2, any.length + 2, 0x0a, any.length]), any]);
   };
 
-  const clicMaitre = enveloppe(2, 'iwo', Buffer.concat([vchamp(1, 14948), vchamp(2, 540322)]));
-  const jssEsclave = enveloppe(1, 'jss', bloc(11, Buffer.concat([
-    vchamp(1, 1),
-    bloc(4, Buffer.concat([vchamp(1, 20777), vchamp(2, 114)])),
-    vchamp(5, 540322),
-    vchamp(6, 16),
+  // Depuis le patch du 08/09: le clic est un `iva` — elementId au champ 1, uid
+  // au champ 5 — et l'annonce de carte un `jpo`, dont la liste est au champ 8.
+  const clicMaitre = enveloppe(2, 'iva', Buffer.concat([vchamp(1, 540322), vchamp(5, 14948)]));
+  const jpoEsclave = enveloppe(1, 'jpo', bloc(8, Buffer.concat([
+    vchamp(3, 1),
+    vchamp(4, 540322),
+    bloc(5, Buffer.concat([vchamp(2, 20777), vchamp(3, 114)])),
   ])));
 
   const s = new Superviseur({ arme: true });
@@ -308,22 +309,22 @@ test('le clic du maître est rejoué avec le numéro propre à l esclave', () =>
   const ecrits = fauxClient(s, 2);
 
   // Avant d'avoir recu sa carte, l'esclave ne sait rien et s'abstient.
-  assert.strictEqual(s.rejouer({ type: 'iwo', brute: clicMaitre, pidMaitre: 1 })[0].ok, false);
+  assert.strictEqual(s.rejouer({ type: 'iva', brute: clicMaitre, pidMaitre: 1 })[0].ok, false);
   assert.strictEqual(ecrits.length, 0);
 
-  esclave.observer(decodeFrameRaw(jssEsclave));
+  esclave.observer(decodeFrameRaw(jpoEsclave));
   assert.strictEqual(esclave.skillPour(540322n), 20777n);
 
-  const rendu = s.rejouer({ type: 'iwo', brute: clicMaitre, pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'iva', brute: clicMaitre, pidMaitre: 1 });
   assert.strictEqual(rendu[0].ok, true);
   assert.strictEqual(rendu[0].action, 'réécrire');
   assert.strictEqual(ecrits.length, 1);
 
   const envoye = decodeFrameRaw(ecrits[0].subarray(1));   // sans le préfixe de longueur
-  assert.strictEqual(envoye.type, 'iwo');
+  assert.strictEqual(envoye.type, 'iva');
   const parNo = Object.fromEntries(envoye.payload.map((f) => [f.no, f.value]));
-  assert.strictEqual(parNo[1], 20777n, "le numéro doit être celui de l'esclave, pas du maître");
-  assert.strictEqual(parNo[2], 540322n, "l'élément du monde doit être inchangé");
+  assert.strictEqual(parNo[5], 20777n, "le numéro doit être celui de l'esclave, pas du maître");
+  assert.strictEqual(parNo[1], 540322n, "l'élément du monde doit être inchangé");
 });
 
 // Le passe-tour vise UN client, pas tous les esclaves, et n'obeit pas au
@@ -468,7 +469,7 @@ function superviseurAvecEsclaveEcrivant(pidMaitre, pidEsclave) {
 
 test('un rejeu differe s annule avant son echeance', async () => {
   const { s, ecrits } = superviseurAvecEsclaveEcrivant(1, 2);
-  const rendu = s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  const rendu = s.rejouer({ type: 'hiu', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
   assert.strictEqual(rendu[0].emis, true);
   assert.strictEqual(s.annulerRejeux(), 1);
   await new Promise((r) => setTimeout(r, 160));
@@ -484,7 +485,7 @@ test('annulerRejeux rend zero quand rien n attend', () => {
 // a chaque rejeu de la session.
 test('un rejeu arrive a echeance ne reste pas annulable', async () => {
   const { s, ecrits } = superviseurAvecEsclaveEcrivant(1, 2);
-  s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  s.rejouer({ type: 'hiu', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
   await new Promise((r) => setTimeout(r, 160));
   assert.strictEqual(ecrits.length, 1, 'le rejeu a bien eu lieu');
   assert.strictEqual(s.annulerRejeux(), 0);
@@ -498,7 +499,7 @@ test('un rejeu immediat n est pas annulable', () => {
   s.comptes.ajouter({ pid: 1, port: 8301 });
   s.comptes.ajouter({ pid: 2, port: 8302 });
   s.clients.set(2, { pid: 2, amont: { write: (p) => ecrits.push(p) } });
-  s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  s.rejouer({ type: 'hiu', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
   assert.strictEqual(ecrits.length, 1);
   assert.strictEqual(s.annulerRejeux(), 0);
 });
@@ -512,7 +513,7 @@ test('annulerRejeux annule les rejeux de plusieurs pids a la fois', async () => 
   s.comptes.ajouter({ pid: 3, port: 8303 });
   const ecrits2 = fauxClient(s, 2);
   const ecrits3 = fauxClient(s, 3);
-  s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  s.rejouer({ type: 'hiu', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
   assert.strictEqual(s.annulerRejeux(), 2, 'les deux esclaves avaient un rejeu en attente');
   await new Promise((r) => setTimeout(r, 160));
   assert.deepStrictEqual(ecrits2, [], 'rien ne doit avoir ete ecrit pour le pid 2');
@@ -523,7 +524,7 @@ test('annulerRejeux annule les rejeux de plusieurs pids a la fois', async () => 
 // doit pas laisser un minuteur ecrire sur une socket morte.
 test('un client retire ne reçoit plus son rejeu différé', async () => {
   const { s, ecrits } = superviseurAvecEsclaveEcrivant(1, 2);
-  s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  s.rejouer({ type: 'hiu', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
   await s.retirer(2);
   await new Promise((r) => setTimeout(r, 160));
   assert.deepStrictEqual(ecrits, [], 'rien ne doit avoir ete ecrit apres le retrait');
@@ -543,9 +544,9 @@ test('le plancher de retard recule le premier esclave', () => {
   // fichier (voir fauxClient).
   fauxClient(s, 2);
   fauxClient(s, 3);
-  const sans = s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
+  const sans = s.rejouer({ type: 'hiu', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1 });
   assert.deepStrictEqual(sans.map((r) => r.retardMs), [20, 40]);
-  const avec = s.rejouer({ type: 'hjc', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1, retardPlancher: 250 });
+  const avec = s.rejouer({ type: 'hiu', brute: Buffer.from([0x08, 0x01]), pidMaitre: 1, retardPlancher: 250 });
   assert.deepStrictEqual(avec.map((r) => r.retardMs), [270, 290]);
 });
 

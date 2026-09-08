@@ -6,6 +6,7 @@ const {
   DELAI_PLANCHER_MS, FENETRE_APPRENTISSAGE_MS,
 } = require('../src/garde-combat');
 const { creerGardeCombat } = require('../src/garde-combat');
+const { TYPE_COMBATTANTS, CHAMP_COMBATTANT, CHAMP_ID } = require('../src/abandon-combat');
 
 const trame = (type, champs) => ({
   kind: 'request', type,
@@ -16,10 +17,10 @@ const trame = (type, champs) => ({
 // types rejoues — teleportation, changement de carte, information de carte,
 // havre-sac, sortie de donjon — ne declenchent aucun combat.
 test('seuls les trois types de dialogue et d interaction sont sensibles', () => {
-  for (const t of ['iov', 'ioy', 'iwo']) assert.strictEqual(estSensible(t), true, t);
+  for (const t of ['imp', 'inh', 'iva']) assert.strictEqual(estSensible(t), true, t);
   // `ido` part avec un `kla` dans la meme milliseconde: le retarder seul
   // inverserait l'ordre des deux rejeux chez la mule. Voir src/garde-combat.js.
-  for (const t of ['hjc', 'jqk', 'jrh', 'kla', 'kjw', 'jbn', 'ieb', 'ido']) {
+  for (const t of ['hiu', 'jpp', 'jrh', 'kiy', 'kie', 'ize', 'ieb', 'ido']) {
     assert.strictEqual(estSensible(t), false, t);
   }
 });
@@ -27,40 +28,43 @@ test('seuls les trois types de dialogue et d interaction sont sensibles', () => 
 // Les valeurs viennent de la capture du 28/08: le maitre a repondu ioy 25088,
 // et le combat a demarre 30 ms plus tard.
 test('la cle d une reponse de dialogue porte son numero', () => {
-  assert.strictEqual(cleDe('ioy', trame('ioy', { 1: 25088 })), 'ioy:25088');
+  assert.strictEqual(cleDe('inh', trame('inh', { 1: 25088 })), 'inh:25088');
 });
 
 test('la cle d un PNJ porte sa carte et son instance', () => {
-  assert.strictEqual(cleDe('iov', trame('iov', { 1: 3, 2: 153356294, 3: -20000 })), 'iov:153356294:-20000');
+  assert.strictEqual(cleDe('imp', trame('imp', { 1: 153356294, 2: 3, 3: -20000 })), 'imp:153356294:-20000');
 });
 
+// Depuis le patch du 08/09, l'elementId est au champ 1 et l'uid propre au
+// compte au champ 5: la cle porte le premier et ignore le second, exactement
+// comme avant le patch aux numeros inverses.
 test('la cle d un element interactif porte son identifiant', () => {
-  assert.strictEqual(cleDe('iwo', trame('iwo', { 1: 1920, 2: 489565 })), 'iwo:489565');
+  assert.strictEqual(cleDe('iva', trame('iva', { 1: 489565, 5: 1920 })), 'iva:489565');
 });
 
 test('un type non sensible n a pas de cle', () => {
-  assert.strictEqual(cleDe('hjc', trame('hjc', { 1: 1, 2: 2 })), null);
+  assert.strictEqual(cleDe('hiu', trame('hiu', { 1: 1, 2: 2 })), null);
   assert.strictEqual(cleDe('ieb', trame('ieb', { 1: 1642, 2: 9828 })), null);
 });
 
 // UNE CLE PARTIELLE EST PIRE QUE PAS DE CLE: elle bloquerait une autre action
 // que celle qu'on a vue lancer un combat.
 test('un champ manquant ne donne pas de cle partielle', () => {
-  assert.strictEqual(cleDe('iov', trame('iov', { 2: 153356294 })), null);
-  assert.strictEqual(cleDe('ioy', trame('ioy', {})), null);
-  assert.strictEqual(cleDe('iwo', trame('iwo', { 1: 1920 })), null);
+  assert.strictEqual(cleDe('imp', trame('imp', { 2: 153356294 })), null);
+  assert.strictEqual(cleDe('inh', trame('inh', {})), null);
+  assert.strictEqual(cleDe('iva', trame('iva', { 5: 1920 })), null);
 });
 
 test('une trame absente ou malformee ne donne pas de cle', () => {
-  assert.strictEqual(cleDe('ioy', null), null);
-  assert.strictEqual(cleDe('ioy', 'x'), null);
-  assert.strictEqual(cleDe('ioy', { kind: 'request', type: 'ioy', payload: null }), null);
+  assert.strictEqual(cleDe('inh', null), null);
+  assert.strictEqual(cleDe('inh', 'x'), null);
+  assert.strictEqual(cleDe('inh', { kind: 'request', type: 'inh', payload: null }), null);
 });
 
 // Les valeurs BigInt du decodeur doivent rendre la meme cle que les nombres,
 // sans quoi la liste apprise ne reconnaitrait jamais l'action rejouee.
 test('un champ BigInt rend la meme cle qu un nombre', () => {
-  assert.strictEqual(cleDe('ioy', trame('ioy', { 1: 25088n })), 'ioy:25088');
+  assert.strictEqual(cleDe('inh', trame('inh', { 1: 25088n })), 'inh:25088');
 });
 
 test('les valeurs de reglage sont celles de la conception', () => {
@@ -95,19 +99,21 @@ function fauxSuperviseur(esclaves = [2, 3]) {
   };
 }
 
-// Une kmk telle qu'elle arrive: un combattant par champ 2, cellule au champ 1,
-// ORIENTATION au champ 2, identifiant au champ 3. Un identifiant NEGATIF est
-// un monstre, et c'est lui seul qui distingue un combat d'une liste de carte.
+// Une liste de combattants telle qu'elle arrive: une entree par combattant,
+// identifiant et orientation dedans, cellule au champ 4. Un identifiant
+// NEGATIF est un monstre, et c'est lui seul qui distingue un combat d'une
+// liste de carte. Numeros et nom viennent des constantes exportees, pour que
+// le prochain remappage n'ait pas a retoucher ces tests.
 const combattant = (id) => ({
-  no: 2, kind: 'message',
-  value: [{ no: 1, value: 400n }, { no: 2, value: 3n }, { no: 3, value: id }],
+  no: CHAMP_COMBATTANT, kind: 'message',
+  value: [{ no: CHAMP_ID, value: id }, { no: 2, value: 3n }, { no: 4, value: 400n }],
 });
 const listeCombat = (...ids) => ({
-  kind: 'event', type: 'kmk',
+  kind: 'event', type: TYPE_COMBATTANTS,
   payload: [combattant(-1n), ...ids.map(combattant)],
 });
 const listeCarte = (...ids) => ({
-  kind: 'event', type: 'kmk', payload: ids.map(combattant),
+  kind: 'event', type: TYPE_COMBATTANTS, payload: ids.map(combattant),
 });
 
 const sortante = (type, champs) => ({
@@ -152,7 +158,7 @@ function garde(sup, extra = {}) {
 test('l entree en combat annule les rejeux en attente', () => {
   const sup = fauxSuperviseur();
   const { g, lignes } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
+  g(sortante('inh', { 1: 25088 }));
   g(entreeCombat());
   assert.strictEqual(sup.annulations, 1);
   assert.ok(lignes.some((l) => /annule/.test(l.texte)), 'l annulation doit se journaliser');
@@ -164,7 +170,7 @@ test('onAnnulation recoit le nombre de rejeux annules', () => {
   const sup = fauxSuperviseur();
   const appels = [];
   const { g } = garde(sup, { onAnnulation: (n) => appels.push(n) });
-  g(sortante('ioy', { 1: 25088 }));
+  g(sortante('inh', { 1: 25088 }));
   g(entreeCombat());
   assert.deepStrictEqual(appels, [2]);
 });
@@ -176,7 +182,7 @@ test('onAnnulation n est pas appele si aucun rejeu n etait en attente', () => {
   sup.annulerRejeux = () => 0;
   const appels = [];
   const { g } = garde(sup, { onAnnulation: (n) => appels.push(n) });
-  g(sortante('ioy', { 1: 25088 }));
+  g(sortante('inh', { 1: 25088 }));
   g(entreeCombat());
   assert.deepStrictEqual(appels, []);
 });
@@ -187,16 +193,16 @@ test('une mule en combat SANS le maitre fait retenir l action', () => {
   const sup = fauxSuperviseur();
   const apprises = [];
   const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
-  assert.deepStrictEqual(apprises, ['ioy:25088']);
+  assert.deepStrictEqual(apprises, ['inh:25088']);
 });
 
 test('une mule en combat AVEC le maitre ne fait rien retenir', () => {
   const sup = fauxSuperviseur();
   const apprises = [];
   const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MAITRE, ID_MULE), estMaitre: false });
   assert.deepStrictEqual(apprises, []);
 });
@@ -206,7 +212,7 @@ test('une liste d acteurs de carte ne fait rien retenir', () => {
   const sup = fauxSuperviseur();
   const apprises = [];
   const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: 2, dir: 'in', frame: listeCarte(ID_MULE), estMaitre: false });
   assert.deepStrictEqual(apprises, []);
 });
@@ -218,7 +224,7 @@ test('hors de la fenetre d apprentissage, rien n est retenu', () => {
   const garde = creerGardeCombat({
     superviseur: sup, onApprendre: (c) => apprises.push(c), maintenant: () => t,
   });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   t += FENETRE_APPRENTISSAGE_MS + 1;
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
   assert.deepStrictEqual(apprises, []);
@@ -233,7 +239,7 @@ test('une kmk d une mule a exactement la fenetre d apprentissage ne retient rien
   const garde = creerGardeCombat({
     superviseur: sup, onApprendre: (c) => apprises.push(c), maintenant: () => t,
   });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   t += FENETRE_APPRENTISSAGE_MS;
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
   assert.deepStrictEqual(apprises, []);
@@ -246,10 +252,10 @@ test('une kmk d une mule juste avant l echeance retient l action', () => {
   const garde = creerGardeCombat({
     superviseur: sup, onApprendre: (c) => apprises.push(c), maintenant: () => t,
   });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   t += FENETRE_APPRENTISSAGE_MS - 1;
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
-  assert.deepStrictEqual(apprises, ['ioy:25088']);
+  assert.deepStrictEqual(apprises, ['inh:25088']);
 });
 
 test('sans action sensible recente, une mule en combat ne fait rien retenir', () => {
@@ -269,7 +275,7 @@ test('un pid exclu de la duplication ne fait rien retenir', () => {
   const sup = fauxSuperviseur([2, 3]); // esclaves reels : 2 et 3, pas 99
   const apprises = [];
   const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: 99, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
   assert.deepStrictEqual(apprises, []);
 });
@@ -287,7 +293,7 @@ test('un characterId de maitre inconnu se journalise au lieu de s eteindre en si
   const garde = creerGardeCombat({
     superviseur: sup, onApprendre: (c) => apprises.push(c), onJournal: (pid, texte) => lignes.push(texte),
   });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
   assert.deepStrictEqual(apprises, []);
   assert.ok(lignes.some((l) => l.includes('characterId') && l.includes('inconnu')), 'la panne est dite');
@@ -300,7 +306,7 @@ test('l entree en combat du maitre annule les rejeux mais ne retient RIEN', () =
   const sup = fauxSuperviseur();
   const apprises = [];
   const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: MAITRE, dir: 'in', frame: listeCombat(ID_MAITRE), estMaitre: true });
   assert.strictEqual(sup.annulations, 1, 'les rejeux en attente sont annules');
   assert.deepStrictEqual(apprises, [], 'mais rien n est retenu');
@@ -316,10 +322,10 @@ test('la sequence reelle ioy puis kmk du maitre puis kmk de la mule retient et a
   const sup = fauxSuperviseur();
   const apprises = [];
   const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: MAITRE, dir: 'in', frame: listeCombat(ID_MAITRE), estMaitre: true });
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
-  assert.deepStrictEqual(apprises, ['ioy:25088']);
+  assert.deepStrictEqual(apprises, ['inh:25088']);
   assert.strictEqual(sup.annulations, 1);
 });
 
@@ -327,10 +333,10 @@ test('deux mules dans deux combats distincts ne font qu une entree', () => {
   const sup = fauxSuperviseur();
   const apprises = [];
   const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
   garde({ pid: 3, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
-  assert.deepStrictEqual(apprises, ['ioy:25088']);
+  assert.deepStrictEqual(apprises, ['inh:25088']);
 });
 
 test('sans duplication armee, rien n est retenu', () => {
@@ -338,7 +344,7 @@ test('sans duplication armee, rien n est retenu', () => {
   sup.arme = false;
   const apprises = [];
   const garde = creerGardeCombat({ superviseur: sup, onApprendre: (c) => apprises.push(c) });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
   assert.deepStrictEqual(apprises, []);
 });
@@ -349,7 +355,7 @@ test('une action deja connue n est pas retenue deux fois', () => {
   const garde = creerGardeCombat({
     superviseur: sup, estApprise: () => true, onApprendre: (c) => apprises.push(c),
   });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
   assert.deepStrictEqual(apprises, []);
 });
@@ -366,7 +372,7 @@ test('une action deja connue n est pas retenue deux fois', () => {
 test('une progression de quete n annule aucun rejeu', () => {
   const sup = fauxSuperviseur();
   const { g } = garde(sup);
-  g(sortante('iwo', { 1: 17442, 2: 538794 }));
+  g(sortante('iva', { 1: 17442, 2: 538794 }));
   g(progressionQuete());
   assert.strictEqual(sup.annulations, 0, 'aucun combat: rien ne doit etre coupe');
 });
@@ -378,7 +384,7 @@ test('une progression de quete n annule aucun rejeu', () => {
 test('une liste d acteurs de carte chez le maitre n annule rien', () => {
   const sup = fauxSuperviseur();
   const { g } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
+  g(sortante('inh', { 1: 25088 }));
   g({ pid: MAITRE, dir: 'in', estMaitre: true, frame: listeCarte(ID_MAITRE) });
   assert.strictEqual(sup.annulations, 0);
 });
@@ -390,7 +396,7 @@ test('une liste d acteurs de carte chez le maitre n annule rien', () => {
 test('l entree en combat n emet aucune trame vers les esclaves', () => {
   const sup = fauxSuperviseur([2, 3]);
   const { g } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
+  g(sortante('inh', { 1: 25088 }));
   g(entreeCombat());
   assert.deepStrictEqual(sup.emis, [], 'le garde ne ferme plus aucun dialogue');
 });
@@ -409,7 +415,7 @@ test('rien ne se passe si la duplication n est pas armee', () => {
   const sup = fauxSuperviseur();
   sup.arme = false;
   const { g, retenues } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
+  g(sortante('inh', { 1: 25088 }));
   g(entreeCombat());
   assert.strictEqual(sup.annulations, 0);
   assert.deepStrictEqual(retenues, []);
@@ -422,10 +428,10 @@ test('rien ne se passe si la duplication n est pas armee', () => {
 test('l entree en combat d un esclave n annule aucun rejeu', () => {
   const sup = fauxSuperviseur();
   const { g, retenues } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
+  g(sortante('inh', { 1: 25088 }));
   g({ pid: 2, dir: 'in', estMaitre: false, frame: listeCombat(ID_MULE) });
   assert.strictEqual(sup.annulations, 0, 'seul le maitre annule');
-  assert.deepStrictEqual(retenues, ['ioy:25088'], 'mais l action est bien retenue');
+  assert.deepStrictEqual(retenues, ['inh:25088'], 'mais l action est bien retenue');
 });
 
 test('une trame entrante d un autre type ne declenche rien', () => {
@@ -435,16 +441,16 @@ test('une trame entrante d un autre type ne declenche rien', () => {
   assert.strictEqual(sup.annulations, 0);
 });
 
-// UN IWO SUCCEDE A UN DIALOGUE SANS EN HERITER: le combat qu'il declenche n'a
+// UN CLIC SUCCEDE A UN DIALOGUE SANS EN HERITER: le combat qu'il declenche n'a
 // rien a voir avec la reponse de dialogue qui l'a precede. C'est la derniere
 // action qui compte, et c'est elle qui sera retenue.
-test('un iwo precede d un dialogue fait retenir le iwo, pas le dialogue', () => {
+test('un clic precede d un dialogue fait retenir le clic, pas le dialogue', () => {
   const sup = fauxSuperviseur([2, 3]);
   const { g, retenues } = garde(sup);
-  g(sortante('ioy', { 1: 25088 }));
-  g(sortante('iwo', { 1: 1920, 2: 489565 }));
+  g(sortante('inh', { 1: 25088 }));
+  g(sortante('iva', { 1: 489565, 5: 1920 }));
   g({ pid: 2, dir: 'in', estMaitre: false, frame: listeCombat(ID_MULE) });
-  assert.deepStrictEqual(retenues, ['iwo:489565']);
+  assert.deepStrictEqual(retenues, ['iva:489565']);
 });
 
 // onApprendre ecrit la liste apprise sur le disque dans l application: une
@@ -458,7 +464,7 @@ test('une exception dans onApprendre est journalisee, pas propagee', () => {
     onApprendre: () => { throw new Error('disque plein'); },
     onJournal: (pid, texte) => lignes.push(texte),
   });
-  garde({ pid: MAITRE, dir: 'out', frame: trame('ioy', { 1: 25088 }), estMaitre: true });
+  garde({ pid: MAITRE, dir: 'out', frame: trame('inh', { 1: 25088 }), estMaitre: true });
   assert.doesNotThrow(() => {
     garde({ pid: 2, dir: 'in', frame: listeCombat(ID_MULE), estMaitre: false });
   });
