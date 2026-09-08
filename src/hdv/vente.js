@@ -397,10 +397,17 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
         // main par le joueur, qui est precisement devant son hotel de vente.
         passe.attentePile = lot.uidPile;
         passe.enVol = lot;
-        // LE SERVEUR N'A JAMAIS ETE OBSERVE EN TRAIN DE REFUSER UN kge.
+        // LE SERVEUR N'A JAMAIS ETE OBSERVE EN TRAIN DE REFUSER UNE POSE.
         // L'absence de confirmation est donc le seul signal disponible — et
         // c'est aussi ce qui implemente « jusqu'a ce qu'il n'y ait plus de
         // place ou plus de kamas » sans connaitre ni le plafond ni la taxe.
+        //
+        // MAIS CE N'EST PAS UNE PREUVE, et le 08/09 l'a montre au prix fort:
+        // le patch avait renomme isf, la confirmation arrivait sans etre lue,
+        // et l'utilisateur a vu « plus de place ou plus de kamas » alors qu'il
+        // avait les deux — son lot etait pose, kda l'annoncait dans la meme
+        // milliseconde. Le message dit donc ce qu'on SAIT, une attente qui
+        // expire, avant de dire ce qu'on en DEDUIT.
         expirer(passe, () => {
           if (!passes.has(pid) || passe.attentePile !== lot.uidPile) return;
           // Meme garde, meme raison: terminer() se desabonne, et un
@@ -408,7 +415,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
           // session a lui.
           if (!vivant(pid, passe)) { terminer(pid, passe, 'le client a disparu pendant la passe', false); return; }
           passe.bilan.echecs += 1;
-          terminer(pid, passe, 'refus du serveur — plus de place ou plus de kamas', true);
+          terminer(pid, passe, 'pose non confirmee — plus de place ou de kamas, ou une trame que je ne sais plus lire', true);
         }, delaiReponseMs());
       // LE PREMIER LOT D'UN PAQUET NE PAIE PAS LA RAFALE: le delai d'objet
       // vient deja d'etre servi par paquetSuivant, et kbt d'arriver. Ajouter
@@ -515,7 +522,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       return;
     }
 
-    if (frame.type === 'ivj') {
+    if (frame.type === 'isf') {
       const maj = lirePileMaj(frame);
       if (maj !== null) confirmer(pid, passe, maj.uid, maj.qte);
       return;

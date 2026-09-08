@@ -30,6 +30,15 @@ const { encodeRaw, decodeRaw, WIRE } = require('../codec/rawProto');
 //   kby -> ket   nos ventes       liste 1 -> 2, objet 2 -> 1, prix 3 -> 2,
 //                                 duree 4 -> 3
 //   ivi -> itn   prix moyens      liste 2 -> 1, gid 1 -> 3, prix 2 -> 5
+//   ivx -> isb   stock            liste 3 -> 2, position 1 -> 3; dans le
+//                                 detail gid 1 -> 5, qte 3 -> 2, uid 4 -> 1,
+//                                 effets 2 -> 3, rangement 5 -> 4
+//   itr -> iup   demande de stock, avec un champ 1 = 1 en plus
+//   ivj -> isf   pile entamee     uid 2 -> 3, qte 3 -> 2
+//   iua -> isa   pile neuve       meme forme que le stock
+//
+// ium (la pile epuisee) n'a PAS ete remesure: aucune pile ne s'est videe
+// pendant les mesures. isf suffit au cas courant, ium reste le filet.
 //   dans le lot: gid 3 -> 2, taille 4 -> 3
 //
 // Les messages d'inventaire (ivx, iwb, ivj, ium, ivi) n'ont pas ete remesures
@@ -309,11 +318,11 @@ function lireStock(frame) {
 // entamee. C'est L'UNE DES DEUX SEULES CONFIRMATIONS d'un kge qui nous
 // appartienne: kes arrive aussi pour les lots des autres joueurs.
 function lirePileMaj(frame) {
-  if (!frame || frame.type !== 'ivj') return null;
+  if (!frame || frame.type !== 'isf') return null;
   const detail = champ(frame.payload, 3);
   if (detail === null || detail.kind !== 'message') return null;
-  const uid = entier(detail.value, 2);
-  const qte = entier(detail.value, 3);
+  const uid = entier(detail.value, 3);
+  const qte = entier(detail.value, 2);
   if (uid === null || qte === null) return null;
   return { uid, qte };
 }

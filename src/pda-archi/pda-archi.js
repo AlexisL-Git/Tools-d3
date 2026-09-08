@@ -325,7 +325,7 @@ function creerPdaArchi({
     // Les trois trames se lisent deja chez l'hotel de vente, elles sont
     // reprises telles quelles: `iua` une pile neuve, `ivj` une pile entamee,
     // `ium` une pile disparue.
-    if (frame.type === 'iua') {
+    if (frame.type === 'isa') {
       // Meme forme qu'une pile d'ivx, au champ 3 de la trame.
       const el = (frame.payload || []).find((f) => f.no === 3);
       const pile = el === undefined ? null : lirePile(el);
@@ -353,7 +353,7 @@ function creerPdaArchi({
       return;
     }
 
-    if (frame.type === 'ivj') {
+    if (frame.type === 'isf') {
       const maj = lirePileMaj(frame);
       if (maj === null) return;
       const piles = stocks.get(pid);

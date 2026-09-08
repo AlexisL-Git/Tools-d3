@@ -129,7 +129,7 @@ function amesDe(el) {
 // si le joueur ouvre le panneau du banquier, et un tableau a moitie lu ment
 // plus qu il n informe.
 function lireAmes(frame) {
-  if (!frame || (frame.type !== 'isb' && frame.type !== 'iua')) return [];
+  if (!frame || (frame.type !== 'isb' && frame.type !== 'isa')) return [];
   const out = [];
   for (const el of tous(frame.payload, 2)) {
     const ames = amesDe(el);
@@ -175,7 +175,7 @@ function creerCollection() {
       return;
     }
 
-    if (frame.type === 'iua') {
+    if (frame.type === 'isa') {
       // UNE PIERRE QUI SE REMPLIT PENDANT LA CHASSE, et c est ce qui rend le
       // tableau vivant. Sur un personnage dont l inventaire n a jamais ete lu,
       // elle ouvre quand meme sa colonne: une ame vue est une ame vue.

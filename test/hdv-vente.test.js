@@ -78,8 +78,9 @@ const trameKgp = (gid, prix) => evenement('kef', [
   vint(1, gid), vint(3, 51),
   { no: 4, wire: WIRE.LEN, kind: 'bytes', value: packes(prix), raw: packes(prix) },
 ]);
-const trameIvj = (uid, qte) => evenement('ivj', [
-  { no: 3, wire: WIRE.LEN, kind: 'message', value: [vint(2, uid), vint(3, qte)] },
+// ivj -> isf, et dans son detail l'uid et la quantite ont echange de champ.
+const trameIvj = (uid, qte) => evenement('isf', [
+  { no: 3, wire: WIRE.LEN, kind: 'message', value: [vint(3, uid), vint(2, qte)] },
 ]);
 const trameIum = (uid) => evenement('ium', [vint(1, uid)]);
 
@@ -331,7 +332,7 @@ test('la premiere visite d une passe ne paie pas le delai d objet', async () => 
 // L'ARRET SUR REFUS. On ne sait distinguer ni le plafond de lots, ni le manque
 // de kamas, ni un hoquet — et on n'a pas a le faire: les trois demandent la
 // meme chose. On s'arrete au PREMIER kge non confirme.
-test('un kge sans ivj ni ium arrete la passe', async () => {
+test('une pose sans confirmation arrete la passe', async () => {
   const superviseur = doubleSuperviseur();
   const rendus = [];
   const vente = creerVente({
@@ -351,12 +352,15 @@ test('un kge sans ivj ni ium arrete la passe', async () => {
   await new Promise((r) => setTimeout(r, 30));
   const fin = rendus.find((r) => r.fini);
   assert.ok(fin, 'la passe se termine');
-  assert.match(fin.raison, /refus/);
+  // La raison nomme d'abord CE QU'ON SAIT — une pose non confirmee — avant ce
+  // qu'on en deduit. Le 08/09, « refus du serveur » a envoye chercher des
+  // kamas et de la place a quelqu'un qui avait les deux.
+  assert.match(fin.raison, /pose non confirmee/);
   assert.strictEqual(fin.bilan.poses, 0);
   assert.strictEqual(fin.bilan.echecs, 1);
 });
 
-test('ium confirme aussi bien qu ivj', () => {
+test('ium confirme aussi bien qu isf', () => {
   const { vente, rendus } = venteAvecPile({ qte: 100 });
   vente.lancer(42);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });

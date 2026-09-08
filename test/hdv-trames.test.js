@@ -222,12 +222,6 @@ test('kcr se relit comme une requete de type kcr, uid -1', () => {
 // autres sont des reposts de concurrents, recus parce qu'on est abonne a leur
 // GID. ivj et ium, eux, ne concernent que nos propres piles.
 
-test('ivj rend l uid de la pile et sa quantite restante', () => {
-  assert.deepStrictEqual(
-    lirePileMaj(frame('0a2a0a280a13747970652e616e6b616d612e636f6d2f69766a1211120508ba0110011a081097eca92818ba01')),
-    { uid: 84571671, qte: 186 },
-  );
-});
 
 test('ium rend l uid de la pile videe', () => {
   assert.strictEqual(
@@ -302,4 +296,21 @@ test('les lecteurs encaissent une trame absente', () => {
   assert.deepStrictEqual(lireStock(null), []);
   assert.strictEqual(lirePileMaj(null), null);
   assert.strictEqual(lirePileDisparue(null), null);
+});
+
+// --- La confirmation d'une pose, remesuree le 08/09 ------------------------
+//
+// ivj s'appelle isf, et dans son detail l'uid et la quantite ont ECHANGE de
+// champ: l'uid passe du 2 au 3, la quantite restante du 3 au 2.
+//
+// C'est ce message qui manquait quand la mise en vente annoncait « refus du
+// serveur — plus de place ou plus de kamas ». Le serveur ne refusait rien: il
+// confirmait dans une trame qu'on ne savait plus lire, et l'attente expirait.
+// Le lot etait bel et bien pose, kda l'annoncait dans la meme milliseconde.
+const ISF_PILE_ENTAMEE = '12281a260a13747970652e616e6b616d612e636f6d2f697366120f1204100118061a0710061891d2e207';
+
+test('isf confirme la pose en disant ce qui reste dans la pile', () => {
+  assert.deepStrictEqual(lirePileMaj(frame(ISF_PILE_ENTAMEE)), {
+    uid: 16296209, qte: 6,
+  });
 });

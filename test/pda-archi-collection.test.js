@@ -22,10 +22,11 @@ test('lireAmes rend les 245 ames de l inventaire mesure', () => {
   assert.strictEqual(ames.length, 245);
 });
 
-// `iua` porte UNE pile, au meme numero de champ que les elements du stock --
-// le 2 depuis le patch 3.6.11.12, le 3 auparavant. Ce numero n'a PAS ete
-// remesure: aucune pierre ne s'est remplie pendant la mesure du 08/09. Il suit
-// isb par construction, puisque les deux se lisent avec le meme code. C'est la
+// `iua` s'appelle `isa` depuis le patch 3.6.11.12, et porte UNE pile au champ
+// 2 — le meme numero que les elements du stock, comme avant. Mesure du 08/09,
+// relevee sur des piles qui apparaissent en combat:
+//
+//   isa 2={3=63 5={1=9004649 2=1 5=2599}} C'est la
 // trame de la pierre qui SE REMPLIT pendant la chasse: sans elle, le tableau
 // serait une photo prise a la connexion.
 //
@@ -34,7 +35,7 @@ test('lireAmes rend les 245 ames de l inventaire mesure', () => {
 const PILE_AME = '183f2a2f08b1a1da0510011a0508d70850061a0908d91f2204080610341a0a08da1f2205080518a01622041001180128d18702';
 
 const trameIua = () => ({
-  type: 'iua',
+  type: 'isa',
   payload: decodeRaw(encodeRaw([
     { no: 2, wire: WIRE.LEN, kind: 'bytes', value: Buffer.from(PILE_AME, 'hex') },
   ])),
