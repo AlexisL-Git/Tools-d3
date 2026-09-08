@@ -48,7 +48,13 @@ function empreinte(champs) {
 // OCTETS plutot que le resume de l'en-tete: le resume abrege tout champ
 // imbrique en accolades, et c'est justement la structure qu'on vient chercher.
 const EN_TETE = /^\s*(\d+)ms \[(\d+)\] cap :\s*(-->|<--) (\w+) (\w+)/;
-const OCTETS = /^\s*\d+ms \[\d+\]\s+\d{4}\s+([0-9a-f]+)\s*$/;
+// L'offset est ecrit sur QUATRE chiffres tant que la trame tient sous 10 000
+// octets, et sur cinq au-dela. Exiger exactement quatre revenait a s'arreter
+// pile a 10 016 octets: la trame suivante se decodait en null, sans que rien ne
+// le signale. Neuf trames du journal HDV du 08/09 tombaient dans ce cas, dont
+// la table des prix moyens — d'ou un « on ne connait pas le prix moyen » a
+// trois couches de sa cause.
+const OCTETS = /^\s*\d+ms \[\d+\]\s+\d{4,}\s+([0-9a-f]+)\s*$/;
 
 function lireCaptures(texte) {
   const lignes = String(texte).split(/\r?\n/);

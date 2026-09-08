@@ -108,3 +108,25 @@ test('une cle sans candidat le dit plutot que de disparaitre', () => {
   assert.strictEqual(r.cle, 'kep');
   assert.deepStrictEqual(r.propositions, []);
 });
+
+// Le journal numerote ses lignes d'octets par offset DECIMAL, sur quatre
+// chiffres tant que la trame tient sous 10 000 octets — et cinq au-dela. Un
+// lecteur qui n'accepte que quatre chiffres s'arrete pile a 10 016 octets et
+// rend une trame TRONQUEE, qui se decode en null sans que rien ne le signale.
+//
+// Mesure du 08/09: neuf trames du journal HDV depassaient ce seuil, dont celle
+// qui porte la table des prix moyens. Le symptome etait « on ne connait pas le
+// prix moyen », a trois couches de la vraie cause.
+test('les octets continuent d etre lus au-dela de 10 000', () => {
+  const { lireCaptures } = require('../src/dev/appariement');
+  const journal = [
+    '  100ms [1] cap :  <-- event xyz {  }',
+    '  100ms [1]         0000  0a190a170a13747970652e616e6b616d612e636f6d2f78797a',
+    '  100ms [1]         10016  00',
+  ].join(String.fromCharCode(10));
+  const [t] = lireCaptures(journal);
+  // 25 octets sur la premiere ligne, 1 sur celle a offset 10016: la lire ou non
+  // fait toute la difference, et c'est exactement le seuil ou le journal passe
+  // de quatre chiffres a cinq.
+  assert.strictEqual(t.octets.length, 26, 'la ligne a cinq chiffres doit etre lue');
+});
