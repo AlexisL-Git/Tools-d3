@@ -6,9 +6,11 @@ const { decodeFrameRaw } = require('../src/codec/rawProto');
 
 const hex = (s) => Buffer.from(s.replace(/\s+/g, ''), 'hex');
 
-// Trame reelle relevee le 19/08 a travers notre propre proxy, au moment de
-// l'entree en jeu: request kvw { 1 = 665809125670 }.
-function trameKvw(id) {
+// Trame relevee le 19/08 a travers notre propre proxy, au moment de l'entree
+// en jeu: request kvw { 1 = 665809125670 }. Le patch 3.6.11.12 du 08/09 l'a
+// renommee kth et fait partir les requetes en kind 1: on reconstruit donc ici
+// la forme COURANTE, celle que KTH_REEL fige plus bas sur des octets mesures.
+function trameKth(id) {
   const varint = (v) => {
     const out = [];
     let x = BigInt(v);
@@ -16,26 +18,26 @@ function trameKvw(id) {
     return Buffer.from(out);
   };
   const champ = Buffer.concat([Buffer.from([0x08]), varint(id)]);            // 1 = id
-  const url = Buffer.from('type.ankama.com/kvw');
+  const url = Buffer.from('type.ankama.com/kth');
   const any = Buffer.concat([
     Buffer.from([0x0a, url.length]), url,
     Buffer.from([0x12, champ.length]), champ,
   ]);
   const box = Buffer.concat([Buffer.from([0x0a, any.length]), any]);         // content = 1
-  return Buffer.concat([Buffer.from([0x12, box.length]), box]);              // request = 2
+  return Buffer.concat([Buffer.from([0x0a, box.length]), box]);              // request = 1
 }
 
-test('le compte apprend son identifiant de personnage depuis kvw', () => {
+test('le compte apprend son identifiant de personnage depuis kth', () => {
   const e = new EtatCompte({ pid: 42 });
   assert.strictEqual(e.pret, false);
-  e.observer(decodeFrameRaw(trameKvw(665809125670n)));
+  e.observer(decodeFrameRaw(trameKth(665809125670n)));
   assert.strictEqual(e.characterId, 665809125670n);
   assert.strictEqual(e.pret, true);
 });
 
 test('les autres messages ne modifient pas l identifiant', () => {
   const e = new EtatCompte({ pid: 42 });
-  e.observer(decodeFrameRaw(trameKvw(1234n)));
+  e.observer(decodeFrameRaw(trameKth(1234n)));
   e.observer(decodeFrameRaw(hex('12 2b 0a 1e 0a 13 74 79 70 65 2e 61 6e 6b 61 6d 61 2e 63 6f 6d 2f 68 6a 63 12 07 08 03 18 82 90 90 5b 10 ff ff ff ff ff ff ff ff ff 01')));
   assert.strictEqual(e.characterId, 1234n);
   assert.strictEqual(e.trames, 2);
@@ -57,7 +59,7 @@ test('le rejeu annonce ce qui lui manque', () => {
   assert.deepStrictEqual(e.peutRejouer('kla'), { possible: true, manque: [] });
 
   assert.deepStrictEqual(e.peutRejouer('jbn'), { possible: false, manque: ['characterId'] });
-  e.observer(decodeFrameRaw(trameKvw(7n)));
+  e.observer(decodeFrameRaw(trameKth(7n)));
   assert.deepStrictEqual(e.peutRejouer('jbn'), { possible: true, manque: [] });
 
   // Sans savoir quel element le maitre a designe, on ne peut pas chercher le
@@ -188,8 +190,8 @@ test('chaque compte garde son propre identifiant', () => {
   const c = new Comptes();
   const a = c.ajouter({ pid: 1, port: 8301 });
   const b = c.ajouter({ pid: 2, port: 8302 });
-  a.observer(decodeFrameRaw(trameKvw(111n)));
-  b.observer(decodeFrameRaw(trameKvw(222n)));
+  a.observer(decodeFrameRaw(trameKth(111n)));
+  b.observer(decodeFrameRaw(trameKth(222n)));
   assert.strictEqual(c.get(1).characterId, 111n);
   assert.strictEqual(c.get(2).characterId, 222n);
 });
@@ -212,4 +214,26 @@ test('noAnim est faux par defaut et independant des autres interrupteurs', () =>
   assert.strictEqual(e.passeTour, false);
   assert.strictEqual(e.accepteInvitation, false);
   assert.strictEqual(e.exclu, false);
+});
+
+// --- Vérité terrain du 08/09, patch 3.6.11.12 ------------------------------
+//
+// Trame REELLE, relevee au login d'un client: la requete qui annonce le
+// personnage s'appelle desormais kth, et part en kind 1 comme toute requete
+// depuis ce patch. Le champ 1 n'a pas bouge.
+//
+// C'EST LE MESSAGE LE PLUS COUTEUX DU LOT. Sans lui, characterId reste null,
+// donc autresNotres() rend une liste vide, donc l'echange refuse tout avec
+// « proposant inconnu de l'application » — et la garde-combat comme
+// l'abandon-combat s'eteignent de la meme facon. Un seul nom perime suffisait
+// a faire tomber trois fonctions sans qu'aucune ne se plaigne.
+const KTH_REEL = hex(
+  '0a2b0a1e0a13747970652e616e6b616d612e636f6d2f6b7468120708a682c488da1310ffffffffffffffffff01',
+);
+
+test('le compte apprend son identifiant depuis la trame kth mesuree', () => {
+  const e = new EtatCompte({ pid: 42 });
+  e.observer(decodeFrameRaw(KTH_REEL));
+  assert.strictEqual(e.characterId, 677012111654n);
+  assert.strictEqual(e.pret, true);
 });

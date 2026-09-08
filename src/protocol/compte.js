@@ -11,10 +11,15 @@ const { needsRewrite, accountFields } = require('./omni');
 // dans le flux du client concerne.
 //
 // Ce qui est acquis:
-//   characterId — la requete sortante `kvw` le porte en champ 1 des la
-//   connexion. Mesure le 19/08 sur notre propre chaine (665809125670), et
-//   confirmee par recoupement avec le champ `fsor` de HavenBagEnterRequest
-//   releve independamment le meme jour sur le produit de krm35.
+//   characterId — la requete sortante le porte en champ 1 des la connexion.
+//   Mesure le 19/08 sur notre propre chaine (665809125670), et confirmee par
+//   recoupement avec le champ `fsor` de HavenBagEnterRequest releve
+//   independamment le meme jour sur le produit de krm35.
+//
+//   Le message s'appelait `kvw`; il s'appelle `kth` depuis le patch 3.6.11.12
+//   du 08/09, qui a renomme tout le protocole. Le champ, lui, n'a pas bouge.
+//   Ce nom perime a coute trois fonctions d'un coup — echange, garde-combat,
+//   abandon-combat — toutes eteintes en silence faute de characterId.
 //
 // Ce qui manque:
 //   skillInstanceUid — propre au client, il varie d'un compte a l'autre pour
@@ -24,7 +29,7 @@ const { needsRewrite, accountFields } = require('./omni');
 //   et `ganw` skillId. Le message entrant qui le porte n'a pas encore ete
 //   identifie: c'est la prochaine mesure a faire.
 
-const KVW_CHARACTER_ID = { type: 'kvw', champ: 1 };
+const KVW_CHARACTER_ID = { type: 'kth', champ: 1 };
 
 // Le serveur annonce a chaque client, a l'arrivee sur une carte, la liste des
 // elements interactifs AVEC le numero d'action propre a ce client. Mesure le
