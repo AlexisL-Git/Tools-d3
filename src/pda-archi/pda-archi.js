@@ -363,7 +363,7 @@ function creerPdaArchi({
       return;
     }
 
-    if (frame.type === 'ium') {
+    if (frame.type === 'irz') {
       const uid = lirePileDisparue(frame);
       if (uid === null) return;
       const piles = stocks.get(pid);

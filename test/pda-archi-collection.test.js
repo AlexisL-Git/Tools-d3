@@ -51,7 +51,7 @@ test('lireAmes lit la pierre qui se remplit, annoncee par iua', () => {
 const ivxDe = () => fixture('hdv-isb-complet.hex');
 
 const trameIum = (uid) => ({
-  type: 'ium',
+  type: 'irz',
   payload: decodeRaw(encodeRaw([{ no: 1, wire: WIRE.VARINT, value: BigInt(uid) }])),
 });
 

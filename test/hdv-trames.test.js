@@ -223,12 +223,6 @@ test('kcr se relit comme une requete de type kcr, uid -1', () => {
 // GID. ivj et ium, eux, ne concernent que nos propres piles.
 
 
-test('ium rend l uid de la pile videe', () => {
-  assert.strictEqual(
-    lirePileDisparue(frame('0a1e0a1c0a13747970652e616e6b616d612e636f6d2f69756d120508aba2a528')),
-    84496683,
-  );
-});
 
 test('lirePileMaj et lirePileDisparue ignorent les autres types', () => {
   const kes = frame('0a2b0a290a13747970652e616e6b616d612e636f6d2f6b657312120a0908bd937318f5412001101d2080d49301');
@@ -313,4 +307,15 @@ test('isf confirme la pose en disant ce qui reste dans la pile', () => {
   assert.deepStrictEqual(lirePileMaj(frame(ISF_PILE_ENTAMEE)), {
     uid: 16296209, qte: 6,
   });
+});
+
+// ium s'appelle irz, et son champ 1 n'a pas bouge. Mesure du 08/09: la
+// cinquieme pose d'une passe a VIDE sa pile — elle en contenait exactement dix
+// — et le serveur a repondu par irz au lieu d'isf. C'est le seul cas ou la
+// confirmation change de trame, et c'est ce qui arretait la passe apres
+// quelques objets alors que les premieres poses passaient.
+const IRZ_PILE_VIDEE = '121e1a1c0a13747970652e616e6b616d612e636f6d2f69727a120508d9d68208';
+
+test('irz rend l uid de la pile que la pose a videe', () => {
+  assert.strictEqual(lirePileDisparue(frame(IRZ_PILE_VIDEE)), 16821081);
 });

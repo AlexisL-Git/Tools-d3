@@ -528,7 +528,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       return;
     }
 
-    if (frame.type === 'ium') {
+    if (frame.type === 'irz') {
       const uid = lirePileDisparue(frame);
       if (uid !== null) confirmer(pid, passe, uid, null);
     }

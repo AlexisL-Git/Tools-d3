@@ -187,7 +187,7 @@ function creerCollection() {
       return;
     }
 
-    if (frame.type === 'ium') {
+    if (frame.type === 'irz') {
       // ium { 1: uid } — la pile a disparu, quelle qu en soit la cause: vendue,
       // donnee, posee au sol. Elle quitte le tableau.
       const piles = parCompte.get(pid);

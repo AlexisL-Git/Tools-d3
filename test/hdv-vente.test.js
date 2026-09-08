@@ -82,7 +82,7 @@ const trameKgp = (gid, prix) => evenement('kef', [
 const trameIvj = (uid, qte) => evenement('isf', [
   { no: 3, wire: WIRE.LEN, kind: 'message', value: [vint(3, uid), vint(2, qte)] },
 ]);
-const trameIum = (uid) => evenement('ium', [vint(1, uid)]);
+const trameIum = (uid) => evenement('irz', [vint(1, uid)]);
 
 // Une pile unique, pour piloter une passe courte et lisible.
 function venteAvecPile({ gid = 13731, qte = 200, moyen = 32, garde } = {}) {

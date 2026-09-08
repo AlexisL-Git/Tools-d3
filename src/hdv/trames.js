@@ -37,8 +37,12 @@ const { encodeRaw, decodeRaw, WIRE } = require('../codec/rawProto');
 //   ivj -> isf   pile entamee     uid 2 -> 3, qte 3 -> 2
 //   iua -> isa   pile neuve       meme forme que le stock
 //
-// ium (la pile epuisee) n'a PAS ete remesure: aucune pile ne s'est videe
-// pendant les mesures. isf suffit au cas courant, ium reste le filet.
+//   ium -> irz   pile videe       champ 1 inchange
+//
+// isf ET irz SONT LES DEUX FACES DU MEME SIGNAL: le serveur envoie isf quand
+// la pile est entamee, irz quand la pose l'a videe. Ne connaitre que le
+// premier faisait passer les premieres poses puis bloquer sur la premiere pile
+// exactement epuisee — « ca s'arrete au bout de quelques objets ».
 //   dans le lot: gid 3 -> 2, taille 4 -> 3
 //
 // Les messages d'inventaire (ivx, iwb, ivj, ium, ivi) n'ont pas ete remesures
@@ -331,7 +335,7 @@ function lirePileMaj(frame) {
 // sol, et une pile videe par une vente. C'est la disparition d'une pile,
 // quelle qu'en soit la cause.
 function lirePileDisparue(frame) {
-  if (!frame || frame.type !== 'ium') return null;
+  if (!frame || frame.type !== 'irz') return null;
   return entier(frame.payload, 1);
 }
 
