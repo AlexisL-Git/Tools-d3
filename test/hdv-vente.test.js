@@ -26,11 +26,11 @@ function trameIvi(paires) {
   return decodeFrameRaw(encodeRaw([
     { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-        { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/ivi' },
+        { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/itn' },
         { no: 2, wire: WIRE.LEN, kind: 'message', value: paires.map(([gid, prix]) => ({
-          no: 2, wire: WIRE.LEN, kind: 'message', value: [
-            { no: 1, wire: WIRE.VARINT, value: BigInt(gid) },
-            { no: 2, wire: WIRE.VARINT, value: BigInt(prix) },
+          no: 1, wire: WIRE.LEN, kind: 'message', value: [
+            { no: 3, wire: WIRE.VARINT, value: BigInt(gid) },
+            { no: 5, wire: WIRE.VARINT, value: BigInt(prix) },
           ],
         })) },
       ] },

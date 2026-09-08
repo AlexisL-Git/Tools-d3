@@ -481,7 +481,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       if (piles.length > 0) stocks.set(pid, piles);
       return;
     }
-    if (frame.type === 'ivi') {
+    if (frame.type === 'itn') {
       const table = lirePrixMoyens(frame);
       if (table.size > 0) prixMoyens.set(pid, table);
       return;

@@ -153,26 +153,29 @@ test('ket : aucune duree ne depasse les 28 jours du plafond', () => {
 // la mesure y valaient exactement ce que kcq.4 a rendu ensuite.
 test('ivi rend une table gid -> prix moyen', () => {
   const { encodeRaw, WIRE } = require('../src/codec/rawProto');
+  // MESURE DU 08/09: ivi s'appelle itn, sa liste passe du champ 2 au 1, et dans
+  // chaque paire le gid du 1 au 3, le prix du 2 au 5. Les trois valeurs
+  // ci-dessous sont relevees dans la vraie table, qui porte 9826 entrees.
   const paire = (gid, prix) => ({
-    no: 2, wire: WIRE.LEN, kind: 'message', value: [
-      { no: 1, wire: WIRE.VARINT, value: BigInt(gid) },
-      { no: 2, wire: WIRE.VARINT, value: BigInt(prix) },
+    no: 1, wire: WIRE.LEN, kind: 'message', value: [
+      { no: 3, wire: WIRE.VARINT, value: BigInt(gid) },
+      { no: 5, wire: WIRE.VARINT, value: BigInt(prix) },
     ],
   });
   const brute = encodeRaw([
     { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-        { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/ivi' },
+        { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/itn' },
         { no: 2, wire: WIRE.LEN, kind: 'message', value: [
-          paire(13731, 32), paire(15169, 34), paire(20967, 827440),
+          paire(16385, 514), paire(16387, 436), paire(2304, 290),
         ] },
       ] },
     ] },
   ]);
   const table = lirePrixMoyens(decodeFrameRaw(brute));
-  assert.strictEqual(table.get(13731), 32);
-  assert.strictEqual(table.get(15169), 34);
-  assert.strictEqual(table.get(20967), 827440);
+  assert.strictEqual(table.get(16385), 514, 'Ginseng');
+  assert.strictEqual(table.get(16387), 436, 'Belladone');
+  assert.strictEqual(table.get(2304), 290, 'Fragment de Pierre Polie');
 });
 
 // --- La mise en vente ----------------------------------------------------

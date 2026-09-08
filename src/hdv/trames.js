@@ -29,6 +29,7 @@ const { encodeRaw, decodeRaw, WIRE } = require('../codec/rawProto');
 //   kch -> kas   maj de prix      uid 1 -> 2, prix 2 -> 1, taille inchangee
 //   kby -> ket   nos ventes       liste 1 -> 2, objet 2 -> 1, prix 3 -> 2,
 //                                 duree 4 -> 3
+//   ivi -> itn   prix moyens      liste 2 -> 1, gid 1 -> 3, prix 2 -> 5
 //   dans le lot: gid 3 -> 2, taille 4 -> 3
 //
 // Les messages d'inventaire (ivx, iwb, ivj, ium, ivi) n'ont pas ete remesures
@@ -358,11 +359,11 @@ function lireLotRetire(frame) {
 // plus tard au HDV coincident exactement.
 function lirePrixMoyens(frame) {
   const table = new Map();
-  if (!frame || frame.type !== 'ivi') return table;
+  if (!frame || frame.type !== 'itn') return table;
   for (const el of frame.payload || []) {
-    if (el.no !== 2 || el.kind !== 'message') continue;
-    const gid = entier(el.value, 1);
-    const prix = entier(el.value, 2);
+    if (el.no !== 1 || el.kind !== 'message') continue;
+    const gid = entier(el.value, 3);
+    const prix = entier(el.value, 5);
     if (gid !== null && prix !== null) table.set(gid, prix);
   }
   return table;

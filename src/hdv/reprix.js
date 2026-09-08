@@ -395,7 +395,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       nosLots.set(pid, lireNosLots(frame));
       return;
     }
-    if (frame.type === 'ivi') {
+    if (frame.type === 'itn') {
       const table = lirePrixMoyens(frame);
       if (table.size > 0) prixMoyens.set(pid, table);
       return;

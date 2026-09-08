@@ -22,9 +22,10 @@ const kby = (lots) => ({
   kind: 'event', type: 'ket',
   payload: lots.map((l) => msg(2, [objet(l.uid, l.gid, l.taille), vi(2, l.prix), vi(3, 2419200)])),
 });
+// ivi -> itn: la liste passe du champ 2 au 1, le gid du 1 au 3, le prix du 2 au 5.
 const ivi = (paires) => ({
-  kind: 'event', type: 'ivi',
-  payload: paires.map(([gid, prix]) => msg(2, [vi(1, gid), vi(2, prix)])),
+  kind: 'event', type: 'itn',
+  payload: paires.map(([gid, prix]) => msg(1, [vi(3, gid), vi(5, prix)])),
 });
 // kbt -> jzn : gid 2->1, detail 3->2, categorie 1->3.
 const kbt = (gid, prix) => ({
