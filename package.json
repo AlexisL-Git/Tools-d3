@@ -1,6 +1,6 @@
 {
   "name": "mm",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "private": true,
   "description": "Launcher multi-compte Dofus 3",
   "main": "amorceur/electron.js",
