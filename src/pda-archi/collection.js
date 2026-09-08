@@ -50,6 +50,15 @@ function entier(payload, no) {
 //
 //   { 6 = { les parametres }, 11 = le numero de l effet }
 //
+// REMESURE LE 08/09, patch 3.6.11.12: l effet porte son numero au CHAMP 1 et
+// ses parametres au CHAMP 4, et dans ces parametres l identifiant du monstre
+// est passe du champ 1 au CHAMP 3 — le grade, lui, reste a 5.
+//
+//   effet : 1=4058 4={ 1=5 3=2272 }   ->  Pichakote le Degoutant
+//
+// La valeur 2272 se relit a l identique dans la capture du 08/09: c est la
+// meme creature que celle relevee en aout, ce qui verrouille la lecture.
+//
 // L ame capturee est l effet 4058, dont le PREMIER PARAMETRE est l identifiant
 // du monstre. Le second vaut 5 sur les 143 ames mesurees -- un grade, sans
 // doute; il ne sert a rien ici.
@@ -61,8 +70,8 @@ function entier(payload, no) {
 // ailleurs et autrement.
 function monstreDe(effet) {
   const c = sousMessage(effet);
-  if (c === null || entier(c, 11) !== EFFET_AME) return null;
-  return entier(sousMessage(champ(c, 6)), 1);
+  if (c === null || entier(c, 1) !== EFFET_AME) return null;
+  return entier(sousMessage(champ(c, 4)), 3);
 }
 
 // Les ames d une pile, telle qu elle apparait dans ivx. La forme est celle que
@@ -91,7 +100,7 @@ function monstreDe(effet) {
 const INVENTAIRE = 1;
 
 function estAPortee(detail) {
-  const rangement = sousMessage(champ(detail, 5));
+  const rangement = sousMessage(champ(detail, 4));
   if (rangement === null) return true;
   const no = entier(rangement, 2);
   return no === null || no === INVENTAIRE;
@@ -102,9 +111,9 @@ function amesDe(el) {
   const detail = sousMessage(champ(e, 5));
   if (detail === null) return null;
   if (!estAPortee(detail)) return null;
-  const uid = entier(detail, 4);
+  const uid = entier(detail, 1);
   if (uid === null) return null;
-  const monstres = tous(detail, 2).map(monstreDe).filter((m) => m !== null);
+  const monstres = tous(detail, 3).map(monstreDe).filter((m) => m !== null);
   if (monstres.length === 0) return null;
   return { uid, monstres };
 }
@@ -120,9 +129,9 @@ function amesDe(el) {
 // si le joueur ouvre le panneau du banquier, et un tableau a moitie lu ment
 // plus qu il n informe.
 function lireAmes(frame) {
-  if (!frame || (frame.type !== 'ivx' && frame.type !== 'iua')) return [];
+  if (!frame || (frame.type !== 'isb' && frame.type !== 'iua')) return [];
   const out = [];
-  for (const el of tous(frame.payload, 3)) {
+  for (const el of tous(frame.payload, 2)) {
     const ames = amesDe(el);
     if (ames !== null) out.push(ames);
   }
@@ -154,12 +163,12 @@ function creerCollection() {
     // demande, pas ce que le serveur a repondu. Meme garde que pda-archi.js.
     if (frame === null || frame === undefined || dir !== 'in') return;
 
-    if (frame.type === 'ivx') {
+    if (frame.type === 'isb') {
       // L INVENTAIRE REMPLACE TOUT: une ame vendue entre deux connexions ne
       // doit pas survivre. Mais une trame qui ne rend AUCUNE pile n efface
       // rien -- c est le signe qu on ne l a pas comprise, pas celui d un
       // inventaire vide. Meme precaution que pda-archi.js sur les stocks.
-      if (tous(frame.payload, 3).length === 0) return;
+      if (tous(frame.payload, 2).length === 0) return;
       const piles = new Map();
       for (const a of lireAmes(frame)) piles.set(a.uid, a.monstres);
       parCompte.set(pid, piles);

@@ -255,7 +255,7 @@ function lireNosLots(frame) {
 //
 //   1  l'inventaire        2  la banque        3  un troisieme
 function rangementDe(detail) {
-  const f = champ(detail, 5);
+  const f = champ(detail, 4);
   if (f === null) return null;
   let bloc = null;
   if (Array.isArray(f.value)) bloc = f.value;
@@ -274,12 +274,12 @@ function lirePile(el) {
   if (el.kind !== 'message') return null;
   const detail = champ(el.value, 5);
   if (detail === null || detail.kind !== 'message') return null;
-  const gid = entier(detail.value, 1);
-  const qte = entier(detail.value, 3);
-  const uid = entier(detail.value, 4);
+  const gid = entier(detail.value, 5);
+  const qte = entier(detail.value, 2);
+  const uid = entier(detail.value, 1);
   if (gid === null || qte === null || uid === null) return null;
-  const avecEffets = (detail.value || []).some((f) => f.no === 2);
-  const p = entier(el.value, 1);
+  const avecEffets = (detail.value || []).some((f) => f.no === 3);
+  const p = entier(el.value, 3);
   const rangement = rangementDe(detail.value);
   return { uid, gid, qte, avecEffets, pos: p === null ? 0 : p, rangement };
 }
@@ -293,8 +293,8 @@ function lirePile(el) {
 function lireStock(frame) {
   if (!frame) return [];
   let no = null;
-  if (frame.type === 'ivx') no = 3;
-  else if (frame.type === 'iwb') no = 1;
+  if (frame.type === 'isb') no = 2;
+  else if (frame.type === 'iwb') no = 1;   // la banque seule: pas encore remesuree
   if (no === null) return [];
   const piles = [];
   for (const el of frame.payload || []) {

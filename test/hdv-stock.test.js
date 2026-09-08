@@ -78,27 +78,36 @@ test('candidats accepte un gid absent de la table des prix moyens', () => {
 
 // --- Sur les trames reellement mesurees ----------------------------------
 //
-// L'inventaire du compte de mesure: 219 piles, dont 204 portent des lignes
-// d'effets — 179 d'entre elles a quantite 1, donc majoritairement de
-// l'equipement.
-test('candidats ne retient que les 15 piles fongibles de l inventaire mesure', () => {
-  const piles = lireStock(fixture('hdv-ivx-inventaire.hex'));
-  assert.strictEqual(piles.length, 219);
-  assert.strictEqual(piles.filter((p) => !p.avecEffets).length, 15);
+// REMESURE LE 08/09. ivx s'appelle isb et sa liste passe du champ 3 au 2; dans
+// chaque pile la position passe du 1 au 3, et dans le detail le gid du 1 au 5,
+// la quantite du 3 au 2, l'uid du 4 au 1, les effets du 2 au 3.
+//
+// L'inventaire seul du compte de mesure: 1003 piles, dont 340 portent des
+// lignes d'effets — de l'equipement, qu'on ne met pas en vente au lot.
+test('candidats ne retient que les piles fongibles de l inventaire mesure', () => {
+  const piles = lireStock(fixture('hdv-isb-inventaire.hex'));
+  assert.strictEqual(piles.length, 1003);
+  assert.strictEqual(piles.filter((p) => !p.avecEffets).length, 663);
+  // Aucun rangement annonce: c'est la marque de l'inventaire, par opposition a
+  // la reponse qui porte aussi la banque.
+  assert.deepStrictEqual([...new Set(piles.map((p) => p.rangement))], [null]);
   const lots = candidats({ piles, prixMoyens: new Map() });
-  assert.strictEqual(new Set(lots.map((l) => l.uidPile)).size, 15);
+  assert.strictEqual(new Set(lots.map((l) => l.uidPile)).size, 663);
 });
 
-// La banque mesuree, elle, porte 57 piles a effets sur 814 — et 52 d'entre
-// elles ont une quantite superieure a 1. Ce ne sont donc pas des equipements.
-test('candidats retient les 757 piles fongibles de la banque mesuree', () => {
-  const piles = lireStock(fixture('hdv-iwb.hex'));
-  assert.strictEqual(piles.length, 814);
-  // 57 piles de banque portent des effets — des consommables ou des runes,
-  // empilables (jusqu'a 1349 exemplaires), PAS des equipements.
-  assert.strictEqual(piles.filter((p) => p.avecEffets).length, 57);
+// La reponse aux DEUX rangements demandes (RANGEMENTS = 02 03) porte en plus la
+// banque: 1345 piles, et des rangements 1, 2 et 3 la ou l'inventaire seul n'en
+// annonce aucun. C'est ce qui prouve que rangementDe lit le bon bloc.
+test('candidats retient les piles fongibles des deux rangements', () => {
+  const piles = lireStock(fixture('hdv-isb-complet.hex'));
+  assert.strictEqual(piles.length, 1345);
+  assert.strictEqual(piles.filter((p) => p.avecEffets).length, 459);
+  assert.deepStrictEqual(
+    [...new Set(piles.map((p) => p.rangement))].sort(),
+    [1, 2, 3, null],
+  );
   const lots = candidats({ piles, prixMoyens: new Map() });
-  assert.strictEqual(new Set(lots.map((l) => l.uidPile)).size, 757);
+  assert.strictEqual(new Set(lots.map((l) => l.uidPile)).size, 886);
 });
 
 // --- Les paquets ---------------------------------------------------------

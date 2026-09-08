@@ -93,10 +93,12 @@ function venteAvecPile({ gid = 13731, qte = 200, moyen = 32, garde } = {}) {
     onCompteRendu: (r) => rendus.push(r),
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[gid, moyen]]) });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
-    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, gid), vint(3, qte), vint(4, 84496683)] },
+  // MESURE DU 08/09: la liste passe du champ 3 au 2, la position du 1 au 3, et
+  // dans le detail le gid du 1 au 5, la quantite du 3 au 2, l'uid du 4 au 1.
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [
+    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 84496683), vint(2, qte), vint(5, gid)] },
     ] },
   ]) });
   return { superviseur, vente, rendus };
@@ -105,46 +107,46 @@ const typesEmis = (superviseur) => superviseur.envois.map(
   (e) => decodeFrameRaw(e.octets).type,
 );
 
-test('l ecoute retient les piles fongibles d une ivx', () => {
+test('l ecoute retient les piles fongibles du stock', () => {
   const superviseur = doubleSuperviseur();
   const vente = creerVente({ superviseur });
-  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-ivx-inventaire.hex') });
-  // 219 piles mesurees, dont 204 a effets ecartees.
-  assert.strictEqual(vente.pilesConnues(42), 15);
+  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-isb-inventaire.hex') });
+  // 1003 piles mesurees le 08/09, dont 340 a effets ecartees.
+  assert.strictEqual(vente.pilesConnues(42), 663);
 });
 
 test('l ecoute retient aussi la banque, et remplace la liste precedente', () => {
   const superviseur = doubleSuperviseur();
   const vente = creerVente({ superviseur });
-  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-ivx-inventaire.hex') });
-  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-iwb.hex') });
-  // 814 piles mesurees en banque, dont 57 a effets ecartees.
-  assert.strictEqual(vente.pilesConnues(42), 757);
+  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-isb-inventaire.hex') });
+  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-isb-complet.hex') });
+  // 1345 piles dans la reponse aux deux rangements, dont 459 a effets.
+  assert.strictEqual(vente.pilesConnues(42), 886);
 });
 
-// UNE TRAME QUI NE REND AUCUNE PILE N'EFFACE PAS CE QU'ON SAIT. ivx n'a ete
-// observee que comme une liste de stock, mais un decodage a vide ecraserait la
-// liste utile — et le bouton deviendrait inerte sans raison visible.
-test('une ivx sans pile lisible n efface pas la liste memorisee', () => {
+// UNE TRAME QUI NE REND AUCUNE PILE N'EFFACE PAS CE QU'ON SAIT. Le stock n'a
+// ete observe que comme une liste, mais un decodage a vide ecraserait la liste
+// utile — et le bouton deviendrait inerte sans raison visible.
+test('un stock sans pile lisible n efface pas la liste memorisee', () => {
   const superviseur = doubleSuperviseur();
   const vente = creerVente({ superviseur });
-  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-iwb.hex') });
+  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-isb-complet.hex') });
   const vide = decodeFrameRaw(encodeRaw([
     { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-        { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/ivx' },
+        { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/isb' },
         { no: 2, wire: WIRE.LEN, kind: 'message', value: [{ no: 1, wire: WIRE.VARINT, value: 7n }] },
       ] },
     ] },
   ]));
   vente.onTrame({ pid: 42, dir: 'in', frame: vide });
-  assert.strictEqual(vente.pilesConnues(42), 757);
+  assert.strictEqual(vente.pilesConnues(42), 886);
 });
 
 test('l ecoute ignore le sens sortant', () => {
   const superviseur = doubleSuperviseur();
   const vente = creerVente({ superviseur });
-  vente.onTrame({ pid: 42, dir: 'out', frame: fixture('hdv-iwb.hex') });
+  vente.onTrame({ pid: 42, dir: 'out', frame: fixture('hdv-isb-complet.hex') });
   assert.strictEqual(vente.pilesConnues(42), 0);
 });
 
@@ -163,24 +165,26 @@ test('lancer refuse sur un compte qui n est pas pilote', () => {
   const superviseur = doubleSuperviseur();
   const rendus = [];
   const vente = creerVente({ superviseur, onCompteRendu: (r) => rendus.push(r) });
-  vente.onTrame({ pid: 99, dir: 'in', frame: fixture('hdv-iwb.hex') });
+  vente.onTrame({ pid: 99, dir: 'in', frame: fixture('hdv-isb-complet.hex') });
   vente.lancer(99);
   assert.strictEqual(rendus[0].ok, false);
   assert.match(rendus[0].raison, /pilote/);
 });
 
-test('l ecoute retient les prix moyens d ivi', () => {
+test('l ecoute retient les prix moyens et decide de l ordre', () => {
   const superviseur = doubleSuperviseur();
   const vente = creerVente({ superviseur, reglages: { delaiObjetMs: 0, delaiRafaleMs: 0, delaiReponseMs: 0 } });
-  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32], [8437, 39]]) });
-  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-iwb.hex') });
+  // Le tri se fait sur prix moyen x taille du lot. Un ecart franc entre les
+  // deux gids rend l'ordre lisible sans dependre de la taille des piles.
+  vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[2628, 1000000], [300, 1]]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-isb-complet.hex') });
   vente.lancer(42);
   // La passe a demarre: le premier envoi est un abonnement.
   assert.ok(superviseur.envois.length > 0);
-  // ET C'EST BIEN LA TABLE D'IVI QUI A DECIDE DE L'ORDRE. Sans elle tous les
-  // lots vaudraient zero et le tri retomberait sur le gid 1731; avec elle, le
-  // lot le plus cher est le gid 8437. Une assertion sur le seul nombre
-  // d'envois ne prouverait rien: la passe demarre dans les deux cas.
+  // ET C'EST BIEN LA TABLE DES PRIX MOYENS QUI A DECIDE DE L'ORDRE. Sans elle
+  // tous les lots vaudraient zero et le tri retomberait sur le gid 310; avec
+  // elle, on commence par la Poupee Vaudou Ark. Une assertion sur le seul
+  // nombre d'envois ne prouverait rien: la passe demarre dans les deux cas.
   const abonnement = decodeFrameRaw(superviseur.envois[0].octets);
   assert.strictEqual(abonnement.type, 'kde');
   // Un champ absent doit ECHOUER comme une assertion, pas lever un TypeError:
@@ -191,7 +195,7 @@ test('l ecoute retient les prix moyens d ivi', () => {
   };
   // Le gid est passe du champ 1 au CHAMP 2 au patch 3.6.11.12, et le drapeau
   // en sens inverse.
-  assert.strictEqual(valeur(2), 8437);
+  assert.strictEqual(valeur(2), 2628);
   // Le drapeau distingue l'abonnement du DESABONNEMENT, qui est le meme
   // message sans lui. Sans cette assertion, confondre les deux passerait.
   assert.strictEqual(valeur(1), 1);
@@ -272,10 +276,10 @@ test('le premier lot d un paquet ne paie pas le delai de rafale', async () => {
     onCompteRendu: () => {},
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
-    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 200), vint(4, 84496683)] },
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [
+    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 84496683), vint(2, 200), vint(5, 13731)] },
     ] },
   ]) });
   vente.lancer(42);
@@ -303,12 +307,12 @@ test('la premiere visite d une passe ne paie pas le delai d objet', async () => 
     reglages: { delaiObjetMs: 50, delaiRafaleMs: 0, delaiReponseMs: 0 },
   });
   const pile = (gid, qte, uid) => ({
-    no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, gid), vint(3, qte), vint(4, uid)] },
+    no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, uid), vint(2, qte), vint(5, gid)] },
     ] });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32], [8437, 39]]) });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [pile(13731, 100, 1), pile(8437, 100, 2)]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [pile(13731, 100, 1), pile(8437, 100, 2)]) });
 
   vente.lancer(42);
   // Le premier objet s'ouvre TOUT DE SUITE: rien ne le precede.
@@ -336,10 +340,10 @@ test('un kge sans ivj ni ium arrete la passe', async () => {
     onCompteRendu: (r) => rendus.push(r),
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
-    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 300), vint(4, 84496683)] },
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [
+    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 84496683), vint(2, 300), vint(5, 13731)] },
     ] },
   ]) });
   vente.lancer(42);
@@ -388,11 +392,11 @@ test('un kbt qui n arrive jamais n abandonne que son objet', async () => {
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32], [8437, 39]]) });
   const pile = (gid, qte, uid) => ({
-    no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, gid), vint(3, qte), vint(4, uid)] },
+    no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, uid), vint(2, qte), vint(5, gid)] },
     ] });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [pile(13731, 100, 1), pile(8437, 100, 2)]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [pile(13731, 100, 1), pile(8437, 100, 2)]) });
   vente.lancer(42);
   await new Promise((r) => setTimeout(r, 30));
   const fin = rendus.find((r) => r.fini);
@@ -425,10 +429,10 @@ test('un client qui disparait pendant l attente de kbt n envoie rien au suivant'
     onCompteRendu: (r) => rendus.push(r),
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
-    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 100), vint(4, 84496683)] },
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [
+    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 84496683), vint(2, 100), vint(5, 13731)] },
     ] },
   ]) });
   vente.lancer(42);
@@ -456,10 +460,10 @@ test('un client qui disparait pendant l attente de confirmation n envoie rien au
     onCompteRendu: (r) => rendus.push(r),
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
-    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 100), vint(4, 84496683)] },
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [
+    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 84496683), vint(2, 100), vint(5, 13731)] },
     ] },
   ]) });
   vente.lancer(42);
@@ -502,10 +506,10 @@ test('un ivj errant pendant la rafale ne compte pas un lot non envoye', async ()
     onCompteRendu: (r) => rendus.push(r),
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
-    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 200), vint(4, 84496683)] },
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [
+    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 84496683), vint(2, 200), vint(5, 13731)] },
     ] },
   ]) });
   vente.lancer(42);
@@ -598,11 +602,11 @@ test('les lots d un objet abandonne sortent du decompte', async () => {
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32], [8437, 39]]) });
   const pile = (gid, qte, uid) => ({
-    no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, gid), vint(3, qte), vint(4, uid)] },
+    no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, uid), vint(2, qte), vint(5, gid)] },
     ] });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [pile(13731, 100, 1), pile(8437, 100, 2)]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [pile(13731, 100, 1), pile(8437, 100, 2)]) });
   vente.lancer(42);
   assert.strictEqual(rendus[0].total, 2, 'un lot de 100 par pile');
   await new Promise((r) => setTimeout(r, 30));
@@ -710,11 +714,11 @@ test('l expiration de reponse se regle depuis le sac de rythme', async () => {
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
   const pile = (gid, qte, uid) => ({
-    no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, gid), vint(3, qte), vint(4, uid)] },
+    no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, uid), vint(2, qte), vint(5, gid)] },
     ] });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [pile(13731, 100, 1)]) });
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [pile(13731, 100, 1)]) });
   vente.lancer(42);
   await new Promise((r) => setTimeout(r, 30));
   const fin = rendus.find((r) => r.fini);
@@ -737,10 +741,10 @@ test('le facteur de rythme atteint vraiment le tirage de la rafale', async () =>
     reglages: { delaiObjetMs: 0, delaiReponseMs: 0, rythme: { lot: 4 } },
   });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvi([[13731, 32]]) });
-  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('iwb', [
-    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-      vint(1, 63),
-      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 13731), vint(3, 200), vint(4, 84496683)] },
+  vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [
+    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+      vint(3, 63),
+      { no: 5, wire: WIRE.LEN, kind: 'message', value: [vint(1, 84496683), vint(2, 200), vint(5, 13731)] },
     ] },
   ]) });
   vente.lancer(42);

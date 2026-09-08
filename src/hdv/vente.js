@@ -474,7 +474,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
   function onTrame({ pid, dir, frame }) {
     if (frame === null || frame === undefined || dir !== 'in') return;
 
-    if (frame.type === 'ivx' || frame.type === 'iwb') {
+    if (frame.type === 'isb' || frame.type === 'iwb') {
       const piles = lireStock(frame);
       // Une trame qui ne rend aucune pile n'efface pas ce qu'on sait: le
       // bouton deviendrait inerte sans raison visible.

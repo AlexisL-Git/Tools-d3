@@ -244,10 +244,10 @@ test('lirePileMaj et lirePileDisparue ignorent les autres types', () => {
 
 // --- lireStock, sur les deux trames mesurees -----------------------------
 
-test('lireStock rend les 219 piles de l inventaire mesure', () => {
-  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
+test('lireStock rend les 1003 piles de l inventaire mesure', () => {
+  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-isb-inventaire.hex'), 'utf8').trim();
   const piles = lireStock(frame(hex));
-  assert.strictEqual(piles.length, 219);
+  assert.strictEqual(piles.length, 1003);
   for (const p of piles) {
     assert.ok(Number.isInteger(p.uid) && p.uid > 0, 'chaque pile a un uid');
     assert.ok(Number.isInteger(p.gid) && p.gid > 0, 'chaque pile a un gid');
@@ -255,40 +255,40 @@ test('lireStock rend les 219 piles de l inventaire mesure', () => {
   }
 });
 
-// LA PREUVE QUE ivx EST L'INVENTAIRE: son uid le plus haut est exactement la
-// pile que le joueur a ensuite posee au sol, avec le meme GID et la meme
-// quantite. Voir 2026-09-01-trames-mise-en-vente.md.
-test('lireStock : la pile posee au sol figure dans l inventaire mesure', () => {
-  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
-  const pile = lireStock(frame(hex)).find((p) => p.uid === 84495873);
-  // `pos` s'est ajoute le 03/09 pour la chasse a l'archimonstre: c'est la
-  // position d'equipement, 63 valant « range », donc pas equipe.
-  //
-  // `rangement` s'est ajoute le 05/09, pour la meme chasse: d'ou vient la pile,
-  // 1 l'inventaire et 2 la banque. Il est `null` ici, et il l'est dans TOUTES
-  // les captures du depot -- le serveur ne le marque que dans la reponse a
-  // `itr`, jamais dans l'ivx de connexion.
-  assert.deepStrictEqual(pile, {
-    uid: 84495873, gid: 13731, qte: 286, avecEffets: false, pos: 63, rangement: null,
+// LA MEME PILE, DANS LES DEUX REPONSES, ET C'EST TOUT L'INTERET. La Viande
+// Minerale uid 11965350 figure dans l'inventaire seul comme dans la reponse aux
+// deux rangements. Elle y est `rangement: null` d'un cote et `rangement: 1` de
+// l'autre: le serveur ne marque le rangement que dans la reponse a la demande
+// explicite. C'est ce qui prouve que rangementDe lit le bon bloc — le champ 4
+// du detail depuis le patch, le 5 auparavant.
+//
+// `pos` vaut 63, la position « range »: la pile n'est pas equipee.
+test('lireStock : la meme pile se lit dans les deux reponses mesurees', () => {
+  const inv = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-isb-inventaire.hex'), 'utf8').trim();
+  const cpl = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-isb-complet.hex'), 'utf8').trim();
+  assert.deepStrictEqual(lireStock(frame(inv)).find((p) => p.uid === 11965350), {
+    uid: 11965350, gid: 17128, qte: 421, avecEffets: false, pos: 63, rangement: null,
   });
+  const dansLeComplet = lireStock(frame(cpl)).find((p) => p.uid === 11965350);
+  assert.strictEqual(dansLeComplet.gid, 17128, 'meme objet');
+  assert.strictEqual(dansLeComplet.rangement, 1, 'l inventaire, annonce cette fois');
 });
 
-test('lireStock rend les 814 piles de la banque mesuree', () => {
-  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-iwb.hex'), 'utf8').trim();
+test('lireStock rend les 1345 piles des deux rangements', () => {
+  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-isb-complet.hex'), 'utf8').trim();
   const piles = lireStock(frame(hex));
-  assert.strictEqual(piles.length, 814);
-  assert.strictEqual(new Set(piles.map((p) => p.gid)).size, 814);
+  assert.strictEqual(piles.length, 1345);
+  assert.strictEqual(new Set(piles.map((p) => p.gid)).size, 1285);
 });
 
-// Le champ 2 du detail dit que l'objet PORTE DES EFFETS — et non qu'il est un
-// equipement. 204 des 219 piles d'inventaire en ont, et 57 des 814 de la
-// banque: ces dernieres montent a 1349 exemplaires, donc ce sont des
-// consommables ou des runes, pas des pieces uniques.
+// Le champ 3 du detail — le 2 avant le patch — dit que l'objet PORTE DES
+// EFFETS, et non qu'il est un equipement. 340 des 1003 piles d'inventaire en
+// ont, 459 des 1345 de la reponse complete.
 test('lireStock marque les piles qui portent des effets', () => {
-  const inv = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ivx-inventaire.hex'), 'utf8').trim();
-  const banque = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-iwb.hex'), 'utf8').trim();
-  assert.strictEqual(lireStock(frame(inv)).filter((p) => p.avecEffets).length, 204);
-  assert.strictEqual(lireStock(frame(banque)).filter((p) => p.avecEffets).length, 57);
+  const inv = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-isb-inventaire.hex'), 'utf8').trim();
+  const banque = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-isb-complet.hex'), 'utf8').trim();
+  assert.strictEqual(lireStock(frame(inv)).filter((p) => p.avecEffets).length, 340);
+  assert.strictEqual(lireStock(frame(banque)).filter((p) => p.avecEffets).length, 459);
 });
 
 test('lireStock rend un tableau vide sur un type inconnu', () => {

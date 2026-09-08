@@ -299,7 +299,7 @@ function creerPdaArchi({
     //
     // DEUX PORTES, ET IL FAUT LES DEUX. `iwb` d'abord: ouvrir le banquier
     // livrait 814 piles qui REMPLACAIENT tout ce qu'on savait de l'inventaire
-    // (mesure, test/fixtures/hdv-iwb.hex) -- et aucune ne porte de rangement,
+    // (mesure, test/fixtures/hdv-isb-complet.hex) -- et aucune ne porte de rangement,
     // donc seul le type de trame les arrete. `ivx` ensuite: le bouton rond
     // « relire les inventaires » demande les rangements 2 et 3 A TOUS LES
     // CLIENTS d'un coup, et la reponse marque alors chaque pile.
@@ -307,7 +307,7 @@ function creerPdaArchi({
     // CE QUE COUTAIT UNE PILE DE BANQUE: `choisir` prend la plus grosse pile,
     // et on stocke ses pierres a la banque, pas dans ses poches. L'ordre
     // partait donc sur un uid qu'on ne peut pas equiper.
-    if (frame.type === 'ivx') {
+    if (frame.type === 'isb') {
       const piles = lireStock(frame)
         .filter((p) => p.rangement === null || p.rangement === RANGEMENT_INVENTAIRE);
       // Une trame qui ne rend aucune pile n'efface pas ce qu'on sait.
