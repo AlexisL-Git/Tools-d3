@@ -3,42 +3,30 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 
 // L'acceptation automatique des invitations de groupe, et elle seule.
 //
-// LES TRAMES. Mesurees le 20/08 sur deux clients attaches, invitation depuis A
-// puis acceptation a la main sur B, dans les deux sens. Le detail et les octets
-// bruts sont dans docs/superpowers/specs/2026-08-20-trames-invitation-groupe.md.
-//
-// REMESUREES LE 08/09 APRES LE PATCH 3.6.11.12, meme protocole a deux clients,
-// journal-groupe.log. Le patch a renomme les deux messages ET RENUMEROTE LEURS
-// CHAMPS -- ce second point n'etait pas prevu, l'appariement structurel de
-// src/dev/appariement.js reposant sur l'idee que la structure, elle, tient.
-// Elle n'a pas tenu ici, et c'est pourquoi `ijz` n'a rendu AUCUN candidat: son
-// empreinte d'avant portait le champ 3 en varint et le 7 en longueur, celle
-// d'apres les porte dans l'autre sens.
+// LES TRAMES. Mesurees le 20/08 sur deux clients, puis REMESUREES le 08/09 au
+// soir sur quatre apres le patch 3.6.11.12. Le detail et les octets bruts sont
+// dans docs/superpowers/specs/2026-08-20-trames-invitation-groupe.md et
+// docs/superpowers/specs/2026-09-08-invitation-remappage.md.
 //
 //   in  event   ikb { 1: invitant, 2: 1, 3: nom, 5: 8, 6: idGroupe, 7: nous }
 //   out request ikg { 1: idGroupe }
 //
-// LES OCTETS SONT DANS test/fixtures/invitation-ikb.hex et -ikg.hex, tels que
-// captures. Les tests les rejouent: c'est la seule preuve qui ne vieillit pas.
-//
 // LA TRAME N'EST PAS CONSTANTE, contrairement au passe-tour: l'identifiant de
-// groupe a valu 35949, 36074, 36380 avant le patch et 7028 apres. L'acceptation
+// groupe a valu 35949, 36074, 36380 puis 6687 sur quatre mesures. L'acceptation
 // recopie le champ 6 de l'invitation dans son champ 1; une invitation qui ne
 // porte pas ce champ est refusee plutot qu'acceptee a l'aveugle.
 //
-// L'INVITANT EST AU CHAMP 1 DEPUIS LE PATCH, ET C'ETAIT LE CHAMP 2 AVANT.
-// L'ANCIEN COMMENTAIRE DISAIT L'INVERSE, ET IL AVAIT RAISON EN SON TEMPS: c'est
-// le piege exact qu'il decrivait, passe de l'autre cote. Un filtre reste sur le
-// champ 2 comparerait desormais la constante 1 a nos identifiants, ne la
-// trouverait jamais, et refuserait TOUTES les invitations en silence.
+// L'INVITANT ET LE DESTINATAIRE ONT ECHANGE LEURS CHAMPS AU PATCH: l'invitant
+// est passe du 2 au 1, et nous du 1 au 7. Ce qui suit vaut donc toujours, mais
+// sur d'autres numeros — c'est pour cela que CHAMP_INVITANT est une constante
+// et non un litteral seme dans le code.
 //
-// LA PREUVE TIENT EN DEUX JOURNAUX, deux sessions, les MEMES personnages:
-//
-//   03/09  ijz { 1=666951024934  2=676438999334 ... }   1 = nous,     2 = invitant
-//   08/09  ikb { 1=676438999334  ... 7=666951024934 }   1 = invitant, 7 = nous
-//
-// 676438999334 est celui qui invite dans les deux, 666951024934 celui qui recoit.
-// Les deux roles ont echange leurs champs; rien d'autre n'a bouge.
+// LE CHAMP QUI NOUS DESIGNE N'EST PAS UN INVITANT. Un filtre bati dessus
+// comparerait notre propre identifiant, le trouverait toujours, et accepterait
+// TOUTES les invitations, inconnus compris, en passant l'essai en jeu sans
+// broncher. Trois preuves independantes dans le spec du 20/08, et la mesure du
+// 08/09 le reconfirme: les trois `ikb` portent le meme champ 1 — le maitre —
+// et un champ 7 different, celui de la mule qui la recoit.
 //
 // LE FILTRE. Une invitation n'est acceptee que si l'invitant est un AUTRE
 // client pilote par l'application. Les characterId sont appris du trafic de
@@ -47,19 +35,57 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur, comme le passeur.
 
+// REMAPPE LE 08/09 AU SOIR, APRES LE PATCH 3.6.11.12. `ijz` et `ijx` ne
+// designaient plus rien depuis le patch: la garde `frame.type !==
+// TYPE_INVITATION` sortait a chaque trame, rien n'etait jamais emis, et comme
+// le compte rendu est en aval de cette garde, PAS UNE LIGNE DE JOURNAL ne le
+// disait. Le panneau se rouvrait, l'acceptation se faisait a la main. Le meme
+// silence que hdv, echange, passeur et compte le matin du 08/09 —
+// invitation.js et songes.js etaient les deux modules restes hors campagne.
+//
+// LA MESURE: un maitre et trois mules, invitation puis acceptation manuelle
+// des trois (journal-invitation.log). Trois `ikb` entrants, un par mule, et
+// les trois `ikg` sortants qui suivent au clic — 7,3 s, 9,2 s et 11,8 s plus
+// tard, le temps de la main humaine.
+//
+//   ijz -> ikb   invitation      entrante, kind 2, TOUS LES CHAMPS PERMUTES
+//   ijx -> ikg   acceptation     sortante, kind 1, champ 1 inchange
+//
+// LE NOM SEUL N'AURAIT PAS SUFFI, ET C'EST LE PIEGE DE CE REMAPPAGE. Les six
+// champs ont permute:
+//
+//   role                    avant   apres
+//   l invitant                2   ->   1
+//   la constante 1            6   ->   2
+//   le nom de l invitant      7   ->   3
+//   la constante 8            3   ->   5
+//   l identifiant de groupe   5   ->   6
+//   le destinataire, nous     1   ->   7
+//
+// Un remappage qui n'aurait touche que le nom aurait lu l'invitant au champ 2
+// — qui porte desormais la constante 1, jamais egale a un characterId, donc
+// toutes les invitations refusees — et le groupe au champ 5, qui porte la
+// constante 8: une acceptation partie sur le groupe « 8 ». C'est exactement ce
+// que l'echange a paye le matin meme.
 const TYPE_INVITATION = 'ikb';
 const CHAMP_INVITANT = 1;
 const CHAMP_GROUPE = 6;
 const URL_ACCEPTATION = 'type.ankama.com/ikg';
 
+// Vide: les deux noms ci-dessus sont ceux du protocole d'aujourd'hui. Cette
+// liste est le rappel de ce qui reste a remesurer apres un patch, et le test
+// qui la garde interdit de l'oublier. Voir PERIMES dans src/protocol/omni.js.
+const PERIMES = [];
+
 // Meme enveloppe que TRAME_PASSE, a ceci pres que Any.value n'est pas vide:
 // il porte l'identifiant du groupe.
 //
-// L'ENVELOPPE EST EN CHAMP 1 DEPUIS LE PATCH, elle etait en champ 2 avant.
-// C'est la correction qu'Alexis a passee partout ailleurs le 08/09; ce module
-// et src/songes.js sont les deux qu'elle n'avait pas atteints. Une requete
-// batie sur l'ancien numero ne differe que par son PREMIER OCTET -- 12 au lieu
-// de 0a -- et le serveur l'ignore sans rien dire.
+// KIND 1, ET C'EST UNE MESURE. Le patch 3.6.11.12 a echange les numeros de
+// l'enveloppe: 63 requetes sortantes du 08/09 partent toutes en kind 1, les
+// 244 events entrants en kind 2 (cf. src/codec/rawProto.js). Emise en kind 2,
+// l'acceptation serait un EVENEMENT, et le serveur n'y repondrait pas. C'est
+// le meme defaut que le remappage de l'echange a nomme « celui qui aurait
+// fait le plus de degats »: la fonction agit, et agit a cote.
 function construireAcceptation(idGroupe) {
   return encodeRaw([
     { no: 1, wire: WIRE.LEN, kind: 'message', value: [
@@ -126,4 +152,5 @@ function creerAccepteur({ superviseur, reglages, onCompteRendu = () => {}, masqu
 
 module.exports = {
   creerAccepteur, construireAcceptation, TYPE_INVITATION, CHAMP_INVITANT, CHAMP_GROUPE,
+  PERIMES,
 };
