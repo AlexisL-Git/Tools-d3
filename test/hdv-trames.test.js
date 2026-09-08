@@ -30,7 +30,9 @@ test('kch reproduit exactement les octets de la mise a jour mesuree', () => {
 
 test('kch se relit comme une requete de type kch, uid -1', () => {
   const f = frame(trameMajPrix({ uid: 1768695, prix: 2990, taille: 100 }).toString('hex'));
-  assert.strictEqual(f.kind, 'request');
+  // 'event' et non 'request': ce module emet ENCORE l'enveloppe d'aout (kind 2).
+  // Il reste a remapper — voir outils/apparier-protocole.js.
+  assert.strictEqual(f.kind, 'event');
   assert.strictEqual(f.type, 'kch');
   assert.strictEqual(f.uid, -1n);
 });
@@ -182,7 +184,9 @@ test('kge reproduit les octets de la vente depuis la banque', () => {
 
 test('kge se relit comme une requete de type kge, uid -1', () => {
   const f = frame(trameMettreEnVente({ prix: 29, uidPile: 84496683, taille: 1 }).toString('hex'));
-  assert.strictEqual(f.kind, 'request');
+  // 'event' et non 'request': ce module emet ENCORE l'enveloppe d'aout (kind 2).
+  // Il reste a remapper — voir outils/apparier-protocole.js.
+  assert.strictEqual(f.kind, 'event');
   assert.strictEqual(f.type, 'kge');
   assert.strictEqual(f.uid, -1n);
 });

@@ -39,10 +39,13 @@ const HJC_INJECTE = hex(
   '12 07 08 03 18 82 90 90 5b 10 ff ff ff ff ff ff ff ff ff 01',
 );
 
+// `kind` vaut 'event': cette trame d'aout est en kind 2, que le patch
+// 3.6.11.12 a reaffecte aux events. L'etiquette suit le protocole COURANT, pas
+// celui de l'archive — ce qui compte ici, type/uid/payload, est intact.
 test('décode une trame réelle du jeu', () => {
   const f = decodeFrameRaw(HJC_INJECTE);
   assert.notStrictEqual(f, null);
-  assert.strictEqual(f.kind, 'request');
+  assert.strictEqual(f.kind, 'event');
   assert.strictEqual(f.type, 'hjc');
   assert.strictEqual(f.uid, -1n);
 });
@@ -69,7 +72,7 @@ const IOV = hex(
 test('le décodeur retrouve les valeurs que le launcher publie', () => {
   const f = decodeFrameRaw(IOV);
   assert.notStrictEqual(f, null);
-  assert.strictEqual(f.kind, 'request');
+  assert.strictEqual(f.kind, 'event');   // archive d'aout, voir plus haut
   assert.strictEqual(f.type, 'iov');
   assert.strictEqual(f.uid, -1n);
 
@@ -77,6 +80,25 @@ test('le décodeur retrouve les valeurs que le launcher publie', () => {
   assert.strictEqual(by[1], 3n, 'npcActionId');
   assert.strictEqual(by[2], 192937992n, 'npcMapId');
   assert.strictEqual(by[3], -20000n, 'npcId — un varint négatif sur dix octets');
+});
+
+// MESURE DU 08/09, patch Dofus 3.6.11.12. L'enveloppe a bouge, et c'est ce qui
+// a éteint OMNI en silence: sur les 255 trames non décodées de la session HDV,
+// 244 portent leur Any en CHAMP 3 et non plus en champ 1. Le sens entrant est
+// aussi passé du kind 1 au kind 2, et le sortant du 2 au 1 — voir requete().
+//
+// Le décodeur ne cherchait le Any qu'au champ 1: il rendait null, et le métier
+// entier (HDV, PDA, passe-tour) ne voyait plus rien passer. Le silence, encore.
+//
+// Structure relevée sur les 244 trames; le nom 'kra' est un event réel du 02/09.
+const EVENT_3_6_11 = hex(
+  '12 17 1a 15 0a 13 74 79 70 65 2e 61 6e 6b 61 6d 61 2e 63 6f 6d 2f 6b 72 61',
+);
+
+test('décode un event du patch 3.6.11.12, dont le Any est en champ 3', () => {
+  const f = decodeFrameRaw(EVENT_3_6_11);
+  assert.notStrictEqual(f, null, 'la trame doit être décodée');
+  assert.strictEqual(f.type, 'kra');
 });
 
 test('rend null sur une trame sans enveloppe reconnaissable', () => {

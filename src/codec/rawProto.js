@@ -99,7 +99,34 @@ const field = (fields, no) => (fields || []).find((f) => f.no === no) || null;
 //   Message { event = 1 | request = 2 | response = 3 }
 //   chacun  { Any content = 1 ; int64 uid = 2 }
 //   Any     { string type_url = 1 ; bytes value = 2 }
-const KINDS = { 1: 'event', 2: 'request', 3: 'response' };
+//
+// LES NUMEROS DE CETTE ENVELOPPE NE SONT PAS STABLES. Le patch 3.6.11.12 du
+// 08/09 les a rebattus: le sens entrant est passe du kind 1 au kind 2, le
+// sortant du 2 au 1, et le Any des events du champ 1 au CHAMP 3. Le cout a
+// ete total et SILENCIEUX — 292 trames sur 296 rendues null, donc HDV, PDA et
+// passe-tour eteints d'un coup, sans une ligne d'erreur.
+//
+// Les etiquettes suivent donc le protocole COURANT, celui de 3.6.11.12: mesure
+// du 08/09 sur 63 requetes sortantes, toutes en kind 1, et sur 244 events
+// entrants, tous en kind 2. Relire une trame d'aout avec cette table lui donne
+// l'etiquette de l'autre sens — c'est assume: aucune logique metier ne consomme
+// `kind`, et une table qui mentirait sur le protocole d'aujourd'hui tromperait
+// a chaque lecture plutot qu'une fois par archive.
+const KINDS = { 1: 'request', 2: 'event', 3: 'response' };
+
+const PREFIXE_URL = 'type.ankama.com/';
+
+// On RECONNAIT le Any a sa forme plutot qu'a son numero: un message dont le
+// champ 1 est un type_url. Figer le numero, c'est se recasser au prochain
+// patch — il a deja bouge. La forme, elle, tient depuis le 19/08.
+function trouverAny(champs) {
+  for (const f of champs || []) {
+    if (f.kind !== 'message') continue;
+    const url = field(f.value, 1);
+    if (url !== null && url.kind === 'string' && String(url.value).startsWith(PREFIXE_URL)) return f;
+  }
+  return null;
+}
 
 function decodeFrameRaw(frame) {
   const top = decodeRaw(frame, 6);
@@ -109,9 +136,9 @@ function decodeFrameRaw(frame) {
     const box = field(top, Number(no));
     if (box === null || box.kind !== 'message') continue;
 
-    const content = field(box.value, 1);
+    const content = trouverAny(box.value);
     const uid = field(box.value, 2);
-    if (content === null || content.kind !== 'message') continue;
+    if (content === null) continue;
 
     const typeUrl = field(content.value, 1);
     const value = field(content.value, 2);

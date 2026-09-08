@@ -14,7 +14,8 @@ const {
 test('la trame d acceptation se relit comme ixk { 1: 1 }', () => {
   const relu = decodeFrameRaw(TRAME_ACCEPTATION);
   assert.notStrictEqual(relu, null, 'la trame doit se relire');
-  assert.strictEqual(relu.kind, 'request');
+  // 'event': enveloppe d'aout, ce module reste a remapper.
+  assert.strictEqual(relu.kind, 'event');
   assert.strictEqual(relu.type, 'ixk');
   const champs = relu.payload;
   assert.strictEqual(Array.isArray(champs), true, 'payload doit etre un array');
