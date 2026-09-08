@@ -1,8 +1,12 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { creerPasseur, TRAME_PASSE } = require('../src/passeur');
+const {
+  creerPasseur, TRAME_PASSE, TYPE_MON_TOUR, TYPE_FIN_TOUR, CHAMP_PERSONNAGE,
+} = require('../src/passeur');
 const { decodeFrameRaw } = require('../src/codec/rawProto');
+
+const hex = (s) => Buffer.from(s.replace(/\s+/g, ''), 'hex');
 
 const MOI = 665809125670n;
 const AUTRE = 677057659174n;
@@ -25,11 +29,13 @@ function fauxSuperviseur(comptes = [[1, MOI]]) {
 // jzc portant le characterId de CE client, et les 49 jzc portant l'id d'un
 // autre combattant n'en ont produit aucun. Il ne porte aucun champ — il n'a
 // rien a dire d'autre que « c'est ton tour ».
-const monTour = () => ({ kind: 'event', type: 'jyj', payload: null });
+const monTour = () => ({ kind: 'event', type: TYPE_MON_TOUR, payload: null });
 // jxh { 2: X } — FIN du tour de X. Etabli par CAUSALITE, pas par correlation:
 // un clic reel sur « Passer » a 72526 ms a produit ce message a 72560 ms, 34 ms
 // plus tard, portant notre propre characterId.
-const finDeTour = (id) => ({ kind: 'event', type: 'jxh', payload: [{ no: 2, value: id }] });
+const finDeTour = (id) => ({
+  kind: 'event', type: TYPE_FIN_TOUR, payload: [{ no: CHAMP_PERSONNAGE, value: id }],
+});
 // jxz { 2: N } — compteur de manches du combat, diffuse a tous.
 const compteurTour = (n) => ({ kind: 'event', type: 'jxz', payload: [{ no: 2, value: BigInt(n) }] });
 // jzc { 1: X, 7: rang, 8: manche } — debut du tour de X, diffuse a tous. C'est
@@ -47,16 +53,14 @@ function passeur(sup, reglages = { actif: true, delaiMs: 0 }, rendu = []) {
 test('la trame emise est jxy, sans charge utile', () => {
   const f = decodeFrameRaw(TRAME_PASSE);
   assert.notStrictEqual(f, null);
-  // 'event' et non 'request': ce module emet ENCORE l'enveloppe d'aout (kind 2),
-  // que le patch a reaffectee aux events. Il reste a remapper.
-  assert.strictEqual(f.kind, 'event');
-  assert.strictEqual(f.type, 'jxy');
+  assert.strictEqual(f.kind, 'request');
+  assert.strictEqual(f.type, 'jvv');
   assert.strictEqual(f.uid, -1n);
-  assert.ok(f.payload === null || f.payload.length === 0, 'jxy ne porte aucun champ');
+  assert.ok(f.payload === null || f.payload.length === 0, 'la requete ne porte aucun champ');
 });
 
 test('les octets exacts correspondent a la trame mesuree', () => {
-  const attendu = '12220a150a13747970652e616e6b616d612e636f6d2f6a787910ffffffffffffffffff01';
+  const attendu = '0a220a150a13747970652e616e6b616d612e636f6d2f6a767610ffffffffffffffffff01';
   assert.strictEqual(TRAME_PASSE.toString('hex'), attendu);
 });
 
@@ -216,7 +220,9 @@ test('le compte rendu dit ce qui a ete emis', () => {
   assert.strictEqual(rendu.length, 1);
   assert.strictEqual(rendu[0].pid, 1);
   assert.strictEqual(rendu[0].ok, true);
-  assert.match(rendu[0].declencheur, /jyj/);
+  // Le nom du declencheur change a chaque patch: on l'attend par la constante,
+  // pas par un litteral, sinon ce test redemande une retouche a chaque fois.
+  assert.strictEqual(rendu[0].declencheur, TYPE_MON_TOUR);
 });
 
 // Un client ferme pendant l'attente ne doit pas faire remonter d'exception.
@@ -257,4 +263,33 @@ test('aucune trame ne part sans jalon', async () => {
   passeur(sup, { actif: true, delaiMs: 0 });
   await new Promise((r) => setTimeout(r, 500));
   assert.strictEqual(sup.emis.length, 0);
+});
+
+// --- Vérité terrain du 08/09, patch 3.6.11.12 ------------------------------
+//
+// Trames REELLES d'un combat 2v2, six tours, le passe fait a la main. Le patch
+// a renomme les trois messages et deplace le champ de la fin de tour:
+//
+//   jyj -> juu   c'est notre tour        (toujours vide)
+//   jxy -> jvv   passer                  (toujours vide, kind 2 -> 1)
+//   jxh -> jvn   fin du tour d'un combattant, champ 2 -> CHAMP 1
+//
+// Les deux messages VIDES ne s'apparient pas par leur structure — c'est
+// l'empreinte la plus repandue du flux. Ils ont ete identifies par le compte et
+// la cadence: 12 juu pour 6 tours a deux personnages, un par client et par
+// tour; 11 jvv pour 11 clics. Aucun orphelin.
+const JUU_NOTRE_TOUR = hex('12171a150a13747970652e616e6b616d612e636f6d2f6a7575');
+const JVN_FIN_DE_TOUR = hex('12201a1e0a13747970652e616e6b616d612e636f6d2f6a766e120708a682c488da13');
+const COMBATTANT_MESURE = 677012111654n;
+
+test('l event mesure de notre tour est reconnu et ne porte aucun champ', () => {
+  const f = decodeFrameRaw(JUU_NOTRE_TOUR);
+  assert.strictEqual(f.type, TYPE_MON_TOUR);
+  assert.ok(f.payload === null || f.payload.length === 0);
+});
+
+test('la fin de tour mesuree livre le combattant qui vient de jouer', () => {
+  const f = decodeFrameRaw(JVN_FIN_DE_TOUR);
+  assert.strictEqual(f.type, TYPE_FIN_TOUR);
+  assert.strictEqual(f.payload.find((c) => c.no === CHAMP_PERSONNAGE).value, COMBATTANT_MESURE);
 });

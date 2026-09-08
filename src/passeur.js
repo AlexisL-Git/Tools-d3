@@ -28,6 +28,20 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 //   jyj { }                             c'est NOTRE tour  <- declencheur
 //   jxh { 2: id }                       FIN du tour de ce combattant
 //
+// REMESURE LE 08/09, patch 3.6.11.12, sur un combat 2v2 de six tours. Les trois
+// messages ont ete renommes, et le champ de la fin de tour a change de numero:
+//
+//   jzc -> jxl { 1: id, 3: {...} }      debut du tour
+//   jyj -> juu { }                      c'est NOTRE tour
+//   jxh -> jvn { 1: id }                FIN du tour        champ 2 -> 1
+//   jxy -> jvv { }                      passer             kind 2 -> 1
+//
+// DEUX DE CES QUATRE SONT VIDES, donc inapparaissables a l'empreinte: le vide
+// est la forme la plus repandue du flux. Ils ont ete identifies par le COMPTE
+// et la CADENCE — 12 juu pour six tours a deux personnages, un par client et
+// par tour, parfaitement alternes; 11 jvv pour onze clics sur « Passer ».
+// Aucun orphelin ni d'un cote ni de l'autre, comme le 27/08.
+//
 // CE QUI NE MARCHAIT PAS, ET POURQUOI. Le passeur tirait sur jxh, la fin du
 // tour du combattant precedent, en la prenant pour le debut du notre. Le
 // serveur ouvre en realite notre tour ~400 ms plus tard: sur le combat mesure,
@@ -51,10 +65,10 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur.
 
-const TYPE_MON_TOUR = 'jyj';
-const TYPE_FIN_TOUR = 'jxh';
-const CHAMP_PERSONNAGE = 2;
-const URL_PASSE = 'type.ankama.com/jxy';
+const TYPE_MON_TOUR = 'juu';
+const TYPE_FIN_TOUR = 'jvn';
+const CHAMP_PERSONNAGE = 1;
+const URL_PASSE = 'type.ankama.com/jvv';
 
 // Relances, au cas ou le premier jxy se perde ou arrive trop tot.
 //
@@ -67,7 +81,7 @@ const RELANCES_MS = [400, 1000, 2000];
 
 // La requete est CONSTANTE et vide. On la construit une fois pour toutes.
 const TRAME_PASSE = encodeRaw([
-  { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+  { no: 1, wire: WIRE.LEN, kind: 'message', value: [
     { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'string', value: URL_PASSE },
       // Pas de champ 2: Any.value est vide, et un champ vide ne s'ecrit pas.
@@ -160,4 +174,6 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
   };
 }
 
-module.exports = { creerPasseur, TRAME_PASSE, TYPE_MON_TOUR, TYPE_FIN_TOUR };
+module.exports = {
+  creerPasseur, TRAME_PASSE, TYPE_MON_TOUR, TYPE_FIN_TOUR, CHAMP_PERSONNAGE,
+};
