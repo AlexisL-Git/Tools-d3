@@ -133,40 +133,58 @@ function lireGroupeAttaque(frame) {
   return id;
 }
 
-// jss, la liste des acteurs de la carte:
+// jpo, la liste des acteurs de la carte — le MEME message qui porte les
+// elements interactifs (voir JPO_ELEMENTS dans src/protocol/compte.js):
 //
-//   5 (repete) = un acteur
-//     3 = son identifiant, NEGATIF pour un groupe de monstres
-//     2.1.4 = les infos de groupe, absentes chez un joueur
+//   9 (repete) = un acteur
+//     2 = son identifiant, NEGATIF pour un groupe de monstres
+//     1.1.4 = les infos de groupe, absentes chez un joueur
 //       2 = le bloc des monstres, un sous-message chacun:
-//           { 1: identifiant du monstre, 2: NIVEAU, 4: grade }
+//           { 1: grade, 2: identifiant du monstre, 3: NIVEAU }
 //
 // LE NIVEAU EST DANS LA TRAME. Aucune donnee de reference n'est necessaire, ni
 // fichier de monstres ni DofusDB: verifie le 03/09 contre DofusDB sur quatre
 // monstres, exact au niveau pres.
 //
-// LE BLOC MELANGE DEUX NUMEROS DE CHAMP: le 2 est la creature qui mene le
-// groupe, le 1 les autres, repete. On ne fait pas la difference, la regle ne
-// demandant que le maximum, donc on lit toutes les entrees du bloc.
+// REMESURE LE 08/09, patch 3.6.11.12: le message s'appelait `jss`, et TOUS les
+// numeros ont bouge — la liste, l'identifiant de l'acteur, le chemin du bloc,
+// et les trois champs de chaque monstre.
+//
+// CE QUI IDENTIFIE CES TROIS CHAMPS, sur les 1014 entrees de monstre relevees
+// dans les trois journaux du 08/09: le champ 1 ne prend QUE les valeurs 1 a 5,
+// les grades du jeu; le champ 3 reste entre 24 et 160, un niveau; le champ 2
+// monte a 4560 et ne peut etre ni l'un ni l'autre. Le grade et le niveau
+// montent ENSEMBLE dans un meme groupe — grade 3 -> 66, 4 -> 68, 5 -> 70 sur la
+// carte de la fixture — ce qui ne laisse pas d'autre lecture.
+//
+// LE BLOC MELANGE DEUX NUMEROS DE CHAMP: le 1 est la creature qui mene le
+// groupe, le 3 les autres, repete (c'etait 2 et 1 avant le patch). On ne fait
+// pas la difference, la regle ne demandant que le maximum, donc on lit toutes
+// les entrees du bloc.
+//
+// LE BLOC EST PLUS PROFOND QUE CE QUE `decodeFrameRaw` DECODE, et c'est
+// `sousMessage` qui sauve la lecture: il redecode lui-meme un champ rendu en
+// 'bytes' faute de budget de profondeur. Sans lui lireGroupes rendrait une
+// carte vide, sans une erreur.
 function lireGroupes(frame) {
   const groupes = new Map();
-  if (!frame || frame.type !== 'jss') return groupes;
-  for (const acteur of tous(frame.payload, 5)) {
+  if (!frame || frame.type !== 'jpo') return groupes;
+  for (const acteur of tous(frame.payload, 9)) {
     const a = sousMessage(acteur);
     if (a === null) continue;
-    const id = entier(a, 3);
+    const id = entier(a, 2);
     // UN IDENTIFIANT POSITIF EST UN JOUEUR, et il n'a pas d'infos de groupe.
     if (id === null || id >= 0) continue;
     const bloc = sousMessage(champ(
-      sousMessage(champ(sousMessage(champ(sousMessage(champ(a, 2)), 1)), 4)), 2,
+      sousMessage(champ(sousMessage(champ(sousMessage(champ(a, 1)), 1)), 4)), 2,
     ));
     if (bloc === null) continue;
     let niveauMax = 0;
     let monstres = 0;
     for (const f of bloc) {
       const m = sousMessage(f);
-      const niveau = entier(m, 2);
-      if (entier(m, 1) === null || niveau === null) continue;
+      const niveau = entier(m, 3);
+      if (entier(m, 2) === null || niveau === null) continue;
       monstres += 1;
       if (niveau > niveauMax) niveauMax = niveau;
     }

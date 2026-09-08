@@ -35,21 +35,35 @@ test('la pierre d ame portee se trouve en position 31', { skip: "PDA-archi atten
   assert.strictEqual(portees[0].qte, 47);
 });
 
-// La carte de mesure du 03/09 portait deux groupes. Le -20000 est celui que
-// Jibef a attaque: deux Black Wabbit de niveau 46. Le -20001 en portait quatre,
-// dont un Black Wabbit de niveau 50 qui menait le groupe.
-test('lireGroupes rend les deux groupes de la carte mesuree', () => {
-  const groupes = lireGroupes(fixture('pda-archi-jss-groupes.hex'));
-  assert.strictEqual(groupes.size, 2);
-  assert.strictEqual(groupes.get(-20000).niveauMax, 46);
-  assert.strictEqual(groupes.get(-20000).monstres, 2);
-  assert.strictEqual(groupes.get(-20001).niveauMax, 50);
-  assert.strictEqual(groupes.get(-20001).monstres, 4);
+// REMESURE LE 08/09, patch 3.6.11.12 (journal-hdv.log a 352240 ms). Le message
+// qui annonce les acteurs d'une carte s'appelait `jss`; c'est `jpo`, celui-la
+// meme qui porte les elements interactifs, et TOUS les numeros ont bouge:
+//
+//   jss.5[] = { 3: identifiant, 2.1.4.2: le bloc des monstres }
+//             chaque monstre = { 1: identifiant, 2: NIVEAU, 4: grade }
+//
+//   jpo.9[] = { 2: identifiant, 1.1.4.2: le bloc des monstres }
+//             chaque monstre = { 1: grade, 2: identifiant, 3: NIVEAU }
+//
+// CE QUI IDENTIFIE LES TROIS CHAMPS DU MONSTRE, sur les 1014 entrees des trois
+// journaux du 08/09: le champ 1 ne prend QUE les valeurs 1 a 5 — les grades du
+// jeu; le champ 3 reste entre 24 et 160, un niveau; le champ 2 monte a 4560 et
+// ne peut donc etre ni l'un ni l'autre. Le grade et le niveau montent ensemble
+// dans un meme groupe (grade 3 -> 66, 4 -> 68, 5 -> 70), ce qui confirme le sens.
+//
+// La carte porte trois groupes; la fixture est reduite a eux seuls — les autres
+// acteurs du champ 9 sont les JOUEURS presents, pseudos et guildes compris.
+test('lireGroupes rend les trois groupes de la carte remesuree', () => {
+  const groupes = lireGroupes(fixture('pda-archi-jpo-groupes.hex'));
+  assert.strictEqual(groupes.size, 3);
+  assert.deepStrictEqual(groupes.get(-20000), { niveauMax: 70, monstres: 2 });
+  assert.deepStrictEqual(groupes.get(-20001), { niveauMax: 70, monstres: 4 });
+  assert.deepStrictEqual(groupes.get(-20002), { niveauMax: 68, monstres: 5 });
 });
 
 test('le joueur n est pas un groupe de monstres', () => {
-  const groupes = lireGroupes(fixture('pda-archi-jss-groupes.hex'));
-  assert.strictEqual(groupes.has(677158453542), false);
+  const groupes = lireGroupes(fixture('pda-archi-jpo-groupes.hex'));
+  for (const id of groupes.keys()) assert.ok(id < 0, `${id} n est pas un monstre`);
 });
 
 // kmu { 2 = identifiant du groupe } arrive au demarrage du combat.

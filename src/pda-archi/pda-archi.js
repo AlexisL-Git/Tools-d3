@@ -373,7 +373,7 @@ function creerPdaArchi({
       return;
     }
 
-    if (frame.type === 'jss') {
+    if (frame.type === 'jpo') {
       const groupes = lireGroupes(frame);
       // La carte REMPLACE la precedente: un groupe tue n'a pas a survivre.
       if (groupes.size > 0) cartes.set(pid, groupes);
