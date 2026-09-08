@@ -252,7 +252,7 @@
 
   function empreinteDe(etat) {
     return JSON.stringify([
-      etat.repl, etat.actif, etat.sansMaitre, etat.sens,
+      etat.repl, etat.sansMaitre, etat.sens,
       etat.tour && etat.tour.meneur, etat.tour && etat.tour.mules, etat.peutTour,
       etat.pictos.map((p) => [p.id, p.pid, p.embleme !== null, p.abrege, p.touche, p.commande, p.ici, p.pastille, p.cliquable, p.peutCommander]),
     ]);

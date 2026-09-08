@@ -105,11 +105,6 @@ class Favoris {
     //
     // SUSPENDRE N'EFFACE RIEN, c'est toute sa difference avec decocher: on
     // reprend exactement dans l'etat d'avant.
-    //
-    // Il repart au repos si le fichier ne dit rien: le superviseur porte « arme
-    // = false doit le rester tant qu'on n'a pas decide d'ecrire pour de bon sur
-    // le reseau », et un demarrage arme sans geste conscient irait contre.
-    this._actif = false;
     // Un raccourci global par compte, pour mettre sa fenetre au premier plan.
     // idCompte -> accelerateur Electron.
     this._touches = new Map();
@@ -188,8 +183,12 @@ class Favoris {
       if (Array.isArray(json.ordre)) {
         this._ordre = [...new Set(json.ordre.filter((n) => Number.isInteger(n)))];
       }
-      // Un booleen, ou rien: toute autre forme vaut « au repos ».
-      if (typeof json.actif === 'boolean') this._actif = json.actif;
+      // `actif` A DISPARU LE 08/09, et un ancien fichier en porte encore un.
+      // On ne le lit plus: l'interrupteur unique qu'il pilotait est retire, les
+      // cases par compte decidant seules. La cle reste inerte dans le fichier
+      // jusqu'a la prochaine ecriture, qui ne la reproduira pas. Un ami qui
+      // avait laisse OMNI « au repos » ne se retrouve donc pas muet apres la
+      // mise a jour — ce qui serait arrive en gardant la lecture.
       // LES ANCIENNES ENTREES SONT DES CHAINES, ET ON LES JETTE. Elles ont
       // ete apprises par une regle qu'on sait fausse — le maitre entrant en
       // combat, c'est-a-dire jouer normalement. Les convertir reviendrait a
@@ -251,7 +250,6 @@ class Favoris {
       this._echange = new Set();
       this._delai = 0;
       this._maitre = null;
-      this._actif = false;
       this._touches = new Map();
       this._ordre = [];
       this._combats = new Map();
@@ -360,15 +358,6 @@ class Favoris {
 
   // Une copie: l'appelant ne doit pas pouvoir modifier l'etat interne en
   // ecrivant dans l'objet rendu, sans quoi le fichier et la memoire divergent.
-  actif() {
-    return this._actif;
-  }
-
-  reglerActif(actif) {
-    this._actif = Boolean(actif);
-    this._ecrire();
-  }
-
   touches() {
     return Object.fromEntries(this._touches);
   }
@@ -530,7 +519,6 @@ class Favoris {
         noAnim: this.tousNoAnim(),
         echange: this.tousEchange(),
         maitre: this._maitre,
-        actif: this._actif,
         touches: this.touches(),
         ordre: this._ordre,
         combats: [...this._combats].map(([cle, le]) => ({ cle, le })),

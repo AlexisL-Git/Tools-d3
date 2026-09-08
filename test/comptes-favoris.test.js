@@ -56,7 +56,7 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   // designe une personne. `hdvRythme` s'y ajoute le 2026-09-05: quatre
   // facteurs sans unite et une expiration en millisecondes, cinq nombres.
   // `hdvGarde` le meme jour: un facteur et un plafond en kamas, deux nombres.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -107,7 +107,7 @@ test('le fichier ne contient que des identifiants, booleens et le delai', (t) =>
   f.marquerPasseTour(10612457, true);
   f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['actif', 'combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
@@ -294,49 +294,31 @@ test('épingler un maître préserve les autres réglages', (t) => {
   assert.strictEqual(relu.delai(), 1.5);
 });
 
-// --- l interrupteur unique -------------------------------------------------
-
-// Les cinq interrupteurs generaux ont disparu. Le modele avait deux niveaux
-// (general ET par compte) sans que rien ne les relie a l ecran, et une case
-// cochee sous un general eteint ne faisait rien sans que ca se voie.
+// --- l interrupteur unique, RETIRE le 08/09 --------------------------------
 //
-// Desormais: les cases par compte sont la SEULE verite, le titre de colonne
-// est une action groupee, et cet interrupteur-ci suspend tout sans rien
-// effacer. Un seul etat general, donc, et il repart eteint.
-test('sans fichier, OMNI est au repos', (t) => {
-  assert.strictEqual(new Favoris(fichierTemporaire(t)).charger().actif(), false);
-});
-
-test('l interrupteur general survit au rechargement', (t) => {
+// Il y a eu cinq interrupteurs generaux, puis un seul, puis aucun. Le modele a
+// deux niveaux — general ET par compte — laissait une case cochee sous un
+// general eteint ne rien faire sans que ca se voie. Les cases par compte sont
+// desormais la SEULE verite.
+//
+// CE TEST GARDE LA MIGRATION, et c'est le seul risque du retrait: un ami qui
+// avait laisse OMNI « au repos » porte encore `actif: false` dans son fichier.
+// Si on le lisait, il se retrouverait muet apres la mise a jour sans plus
+// aucun bouton pour se reveiller. On ne le lit plus, et on ne le reecrit pas.
+test('un ancien fichier « au repos » ne bride plus rien, et perd la cle a l ecriture', (t) => {
   const chemin = fichierTemporaire(t);
-  new Favoris(chemin).charger().reglerActif(true);
-  assert.strictEqual(new Favoris(chemin).charger().actif(), true);
-});
+  fs.writeFileSync(chemin, JSON.stringify({ actif: false, passeTour: [42], maitre: 7 }), 'utf8');
 
-test('on peut le remettre au repos', (t) => {
-  const chemin = fichierTemporaire(t);
   const f = new Favoris(chemin).charger();
-  f.reglerActif(true);
-  f.reglerActif(false);
-  assert.strictEqual(new Favoris(chemin).charger().actif(), false);
-});
+  assert.strictEqual(f.passeTourActif(42), true, "les reglages par compte survivent");
+  assert.strictEqual(f.maitre(), 7);
+  assert.strictEqual(typeof f.actif, 'undefined', "l accesseur n existe plus");
 
-// Suspendre ne doit RIEN effacer: c est toute la difference avec decocher.
-test('suspendre puis reprendre ne touche pas aux reglages par compte', (t) => {
-  const chemin = fichierTemporaire(t);
-  const f = new Favoris(chemin).charger();
-  f.marquerPasseTour(42, true);
-  f.reglerActif(true);
-  f.reglerActif(false);
-  const relu = new Favoris(chemin).charger();
-  assert.strictEqual(relu.passeTourActif(42), true);
-  assert.strictEqual(relu.actif(), false);
-});
-
-test('une valeur non booleenne dans le fichier vaut au repos', (t) => {
-  const chemin = fichierTemporaire(t);
-  fs.writeFileSync(chemin, JSON.stringify({ actif: 'oui' }), 'utf8');
-  assert.strictEqual(new Favoris(chemin).charger().actif(), false);
+  // La cle ne repart pas dans le fichier a la premiere ecriture.
+  f.reglerMaitre(8);
+  const relu = JSON.parse(fs.readFileSync(chemin, 'utf8'));
+  assert.strictEqual('actif' in relu, false, 'la cle doit avoir disparu');
+  assert.deepStrictEqual(relu.passeTour, [42]);
 });
 
 // --- touches et ordre de l equipe ------------------------------------------

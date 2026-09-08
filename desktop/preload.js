@@ -27,9 +27,7 @@ contextBridge.exposeInMainWorld('app', {
   fenetreReduire: () => ipcRenderer.invoke('fenetreReduire'),
   fenetreFermer: () => ipcRenderer.invoke('fenetreFermer'),
 
-  // L'interrupteur unique, et l'action groupee d'un titre de colonne.
-  basculerActif: (actif) => ipcRenderer.invoke('basculerActif', actif),
-
+  // L'action groupee d'un titre de colonne.
   // La chasse a l'archimonstre: l'interrupteur, et l'alerte quand la capture
   // est impossible. Les DEUX doivent exister cote main.js, voir l'avertissement
   // en tete de ce fichier.

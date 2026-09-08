@@ -9,7 +9,8 @@
       "Donc si tu as utilisé OMNI depuis le 8 septembre et que « plus rien ne marchait », ce n était pas tes réglages, et ce n était pas toi.",
       "Nouveau, pierre d âme : une case pour monter d un calibre quand la bonne tranche manque. Avant, plus de Grande en poche voulait dire partir sans pierre, même avec une Énorme dans le sac. Elle est éteinte par défaut. Allumée, elle redescend d elle-même dès que la bonne tranche revient en réserve, et ne descend jamais vers un calibre qui ne capturerait pas.",
       "Nouveau, songes : le boost du PNJ est réservé à ton meneur. Tes mules rejouaient ton dialogue et prenaient le boost aussi. Tant que tu es dans un songe elles ne rejouent plus les dialogues ; dès que tu en sors, tout redevient comme avant — l achat au marchand continue de les suivre.",
-      "Entretien : une faille de sécurité dans une bibliothèque a été refermée. Et un outil interne sait désormais retrouver tout seul les nouveaux noms des messages après une mise à jour du jeu : la prochaine réparation sera plus rapide que celle-ci."
+      "Entretien : une faille de sécurité dans une bibliothèque a été refermée. Et un outil interne sait désormais retrouver tout seul les nouveaux noms des messages après une mise à jour du jeu : la prochaine réparation sera plus rapide que celle-ci.",
+      "Retiré : le bouton « actif / au repos » en haut de la fenêtre. Il ne servait plus à rien — chaque fonction a déjà sa case par compte, et c est elle qui décide. Conséquence à connaître : si tu l avais laissé sur « au repos », OMNI ne démarre plus bridé. Ce sont tes cases, telles que tu les as laissées, qui s appliquent tout de suite."
     ]
   },
   {

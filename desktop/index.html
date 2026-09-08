@@ -806,7 +806,6 @@
 
 <div class="barre-titre">
   <span class="titre-nom"><span class="o">O</span>MNI</span>
-  <button class="maitre-inter" id="interActif"><span class="temoin"></span><span id="libelleActif">au repos</span></button>
   <span class="titre-etat"><button class="version-lien" id="versionBouton" title="Voir ce qui a changé"></button><span id="titreEtat"></span></span>
   <span class="fenetre-boutons">
     <button id="reduire" title="Réduire"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
@@ -2085,13 +2084,6 @@
   document.getElementById('reduire').addEventListener('click', () => window.app.fenetreReduire());
   document.getElementById('fermer').addEventListener('click', () => window.app.fenetreFermer());
 
-  // L'interrupteur unique. Il n'ecrit rien lui-meme: il demande, et l'etat
-  // suivant fait foi — comme toutes les commandes de ce panneau.
-  const interActif = document.getElementById('interActif');
-  interActif.addEventListener('click', () => {
-    window.app.basculerActif(!interActif.classList.contains('on'));
-  });
-
   // L'interrupteur de la chasse a l'archimonstre. Meme regle: il demande, et
   // l'etat suivant fait foi.
   const interPdaArchi = document.getElementById('interPdaArchi');
@@ -2586,12 +2578,6 @@
   window.app.surEtat((etat) => {
     droitsCourants = etat.droits || [];
     dernieresLignes = etat.lignes;
-
-    interActif.classList.toggle('on', etat.actif);
-    document.getElementById('libelleActif').textContent = etat.actif ? 'actif' : 'au repos';
-    interActif.title = etat.actif
-      ? 'OMNI agit. Cliquer pour tout suspendre sans rien effacer.'
-      : 'OMNI est suspendu. Les réglages par compte sont conservés.';
 
     interPdaArchi.classList.toggle('on', etat.pdaArchi === true);
     interPdaArchi.title = etat.pdaArchi === true

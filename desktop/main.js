@@ -353,16 +353,23 @@ let minuteurVue = null;
 // Ces cinq objets sont relus a chaque trame par les politiques: modifier le
 // champ suffit, sans rien reconstruire.
 //
-// LEUR `actif` NE SE REGLE PLUS UN PAR UN. Les cinq interrupteurs generaux ont
-// disparu: ils formaient un second niveau que rien ne reliait aux cases par
-// compte, et une case cochee sous un general eteint ne faisait rien sans que ca
-// se voie. Un interrupteur UNIQUE les pilote maintenant tous les cinq, plus
-// `superviseur.arme`. Ce sont les cases par compte qui decident du reste.
-const reglagesPasseTour = { actif: false, delaiMs: 0 };
-const reglagesInvitation = { actif: false };
-const reglagesNoAnim = { actif: false };
-const reglagesEchange = { actif: false };
-const reglagesSonge = { actif: false };
+// LEUR `actif` NE SE REGLE PLUS DU TOUT, ET C'EST LE BOUT D'UNE HISTOIRE.
+// Il y a eu cinq interrupteurs generaux, un par politique: ils formaient un
+// second niveau que rien ne reliait aux cases par compte, et une case cochee
+// sous un general eteint ne faisait rien sans que ca se voie. Un interrupteur
+// UNIQUE les a remplaces, puis a disparu a son tour le 08/09, a la demande de
+// l'utilisateur: « toutes les fonctions sont déjà activées de base et on
+// choisit ce qu on veut ou pas ».
+//
+// IL RESTE DONC UN SEUL NIVEAU DE DECISION: les cases par compte. Une case
+// cochee agit, sans condition au-dessus d'elle. C'est aussi ce qui supprime le
+// mode d'echec que ce fichier documentait: plus aucun reglage ne peut etre
+// rendu muet par un autre.
+const reglagesPasseTour = { actif: true, delaiMs: 0 };
+const reglagesInvitation = { actif: true };
+const reglagesNoAnim = { actif: true };
+const reglagesEchange = { actif: true };
+const reglagesSonge = { actif: true };
 
 // LE RYTHME DES DEUX PASSES HDV, dans un objet a part parce qu'il ne se lit pas
 // comme les cinq precedents: eux portent un `actif`, lui porte cinq nombres.
@@ -396,19 +403,6 @@ const reglagesHdv = {
 const masque = creerMasque({
   onCompteRendu: ({ pid, conn, raison }) => journal(pid, `masque (connexion ${conn}) : ${raison}`),
 });
-
-// Suspendre n'efface rien: les cases par compte restent ou elles sont, et on
-// reprend exactement dans l'etat d'avant.
-//
-function appliquerActif(actif) {
-  const v = Boolean(actif);
-  superviseur.arme = v;
-  reglagesPasseTour.actif = v;
-  reglagesInvitation.actif = v;
-  reglagesNoAnim.actif = v;
-  reglagesEchange.actif = v;
-  reglagesSonge.actif = v;
-}
 
 const DEPART = Date.now();
 // Ni trames brutes, ni etat interne chez un ami: le journal detaille ne
@@ -808,7 +802,6 @@ async function envoyerEtat() {
     // Pose par l'amorceur avant de charger cette version. Quand un ami dit
     // « ca marche pas », le depannage ne commence pas par une devinette.
     version: process.env.OMNI_VERSION || 'dev',
-    actif: favoris.actif(),
     pdaArchi: pdaArchi !== null && pdaArchi.estAllume(),
     // Le repli vient de favoris et non de la chasse: c'est un reglage garde sur
     // disque, pas un etat vivant, et il se lit meme avant que la chasse existe.
@@ -860,7 +853,6 @@ function rafraichirOverlay() {
     // ne pourrait pas en faire autant, et un ami sans le droit cliquerait dans
     // le vide sans rien comprendre.
     peutTour: veille.droits().includes('passe-tour'),
-    actif: favoris.actif(),
     sansMaitre: superviseur.maitre === null,
     sens: favoris.overlay().sens,
     // `enAvant` est le pid de la fenetre au premier plan, alimente par les
@@ -949,7 +941,7 @@ function creerFenetre() {
 //
 // Une deuxieme fenetre, sans cadre, posee sur le jeu: un picto de classe par
 // compte EN JEU, et l'interrupteur du replicate. Elle n'invente aucun
-// comportement — basculerVersCompte, definirMaitre et basculerActif sont les
+// comportement — basculerVersCompte et definirMaitre sont les
 // ordres du panneau, appeles depuis un autre endroit. C'est ce qui garantit
 // que les deux fenetres ne peuvent pas se contredire.
 //
@@ -1059,10 +1051,11 @@ app.whenReady().then(async () => {
   reglagesHdv.garde = favoris.hdvGarde();
 
   superviseur = new Superviseur({
-    // L'interrupteur unique est relu du fichier juste apres la construction,
-    // par appliquerActif(). On part au repos: la valeur reelle arrive une
-    // ligne plus bas, et un etat arme transitoire n'existe pas.
-    arme: false,
+    // ARME DES LA CONSTRUCTION depuis le 08/09. Il y avait ici un interrupteur
+    // unique, relu du fichier une ligne plus bas; il a ete retire parce qu'il
+    // doublait les cases par compte, seules a decider desormais. Un OMNI qui
+    // demarre au repos n'aurait plus rien pour se reveiller.
+    arme: true,
     // Les esclaves ne partent plus sur la meme milliseconde: 16 a 80 ms
     // d'ecart tire au hasard entre chacun, cumule. Le plancher tient au pas
     // des minuteurs Windows — voir la constante, partagee avec le CLI.
@@ -1517,10 +1510,6 @@ app.whenReady().then(async () => {
     { onErreur: ({ evenement, erreur }) => journal(evenement.pid, `POLITIQUE EN ECHEC sur ${evenement.frame && evenement.frame.type} : ${erreur.stack}`) },
   );
 
-  // L'etat enregistre de l'interrupteur unique, applique aux six politiques
-  // d'un coup.
-  appliquerActif(favoris.actif());
-
   creerFenetre();
   // L'overlay revient s'il etait ouvert au dernier arret, et seulement dans ce
   // cas: un ami qui passe de la 0.2.6 a cette version n'a pas la cle dans son
@@ -1699,12 +1688,6 @@ ipcMain.handle('fenetreFermer', () => {
   // c'est lui qui arrete les minuteurs et demonte le superviseur, donc qui
   // decharge les agents Frida des clients Dofus.
   if (fenetre && !fenetre.isDestroyed()) fenetre.close();
-});
-
-ipcMain.handle('basculerActif', async (_e, actif) => {
-  favoris.reglerActif(actif);
-  appliquerActif(favoris.actif());
-  await envoyerEtat();
 });
 
 // L'ACTION GROUPEE DE LA COLONNE « Répl. », declenchee depuis l'overlay.
