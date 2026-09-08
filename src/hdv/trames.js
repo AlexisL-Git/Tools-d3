@@ -13,6 +13,33 @@ const { encodeRaw, decodeRaw, WIRE } = require('../codec/rawProto');
 // uid, un prix et une taille differents — il faut donc construire a chaque coup.
 //
 // Fonctions pures: ni Electron, ni Frida, ni reseau.
+//
+// REMAPPE LE 08/09, patch 3.6.11.12. Les noms d'aout ci-dessous sont ceux qui
+// figurent encore dans les commentaires; voici leur equivalent courant, mesure
+// sur une session ou l'hotel a ete ouvert, un objet cherche, cinq lots poses et
+// un retire. Les NUMEROS DE CHAMPS ont bouge autant que les noms:
+//
+//   keh -> kde   abonnement       gid 1 -> 2, drapeau 2 -> 1
+//   kbz -> kbk   stats            gid 1 -> 2
+//   kge -> kcr   mise en vente    prix 1 -> 2, pile 2 -> 3, taille 3 -> 1
+//   kgp -> kef   prix du marche   prix 2 -> 4, gid 5 -> 1, categorie 6 -> 3
+//   kbt -> jzn   stats de prix    gid 2 -> 1, detail 3 -> 2, categorie 1 -> 3
+//   kes -> kda   lot pose         objet 1 -> 3, prix 2 -> 5, duree 4 -> 2
+//   ken -> kco   lot retire       inchange
+//   dans le lot: gid 3 -> 2, taille 4 -> 3
+//
+// DEUX MESSAGES RESTENT A MESURER, et les fonctions qui en dependent ne
+// marchent pas tant que ce n'est pas fait:
+//
+//   kch   la mise a jour de prix. Elle n'a pas ete declenchee pendant la
+//         mesure — il faut modifier le prix d'un lot deja en vente. Sans elle,
+//         le repricing est mort.
+//   kby   la liste de nos ventes, emise a la SEULE ouverture de l'hotel. La
+//         liste etait vide ce jour-la, donc le message n'est jamais parti.
+//         Rouvrir l'hotel avec des lots en vente suffira.
+//
+// Les messages d'inventaire (ivx, iwb, ivj, ium, ivi) n'ont pas ete remesures
+// non plus: ils ne passent pas par l'hotel de vente.
 
 const TAILLES = [1, 10, 100, 1000];
 
@@ -36,7 +63,7 @@ function requete(type, champs) {
   const contenu = [{ no: 1, wire: WIRE.LEN, kind: 'string', value: `type.ankama.com/${type}` }];
   if (champs.length > 0) contenu.push({ no: 2, wire: WIRE.LEN, kind: 'message', value: champs });
   return encodeRaw([
-    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'message', value: contenu },
       // uid = -1, comme toutes les requetes observees depuis le 20/08.
       { no: 2, wire: WIRE.VARINT, value: -1n },
@@ -62,7 +89,7 @@ function trameMajPrix({ uid, prix, taille }) {
 // sur ce gid, sans qu'on demande rien. C'est ce qui rend la passe possible: on
 // relit les prix apres chaque envoi sans avoir a les redemander.
 function trameAbonner(gid) {
-  return requete('keh', [v(1, gid), v(2, 1)]);
+  return requete('kde', [v(1, 1), v(2, gid)]);
 }
 
 // keh { 1: gid } — se DESABONNER. Le meme message, sans le champ 2.
@@ -71,13 +98,13 @@ function trameAbonner(gid) {
 // dans l'echange, ou son absence disait « X a decoche ». Sans ce message, le
 // flux pousse reste ouvert apres la passe.
 function trameDesabonner(gid) {
-  return requete('keh', [v(1, gid)]);
+  return requete('kde', [v(2, gid)]);
 }
 
 // kbz { 1: gid } — demander les statistiques de prix. Emise dans la meme
 // milliseconde que l'abonnement par le jeu; la reponse est un kbt avec champ 3.
 function trameStats(gid) {
-  return requete('kbz', [v(1, gid)]);
+  return requete('kbk', [v(2, gid)]);
 }
 
 // kge { 1: prix DU LOT, 2: uid de la PILE, 3: taille du lot }
@@ -90,7 +117,7 @@ function trameStats(gid) {
 // ete posees le 01/09, toutes deux acceptees: il n'y a donc rien a retirer de
 // la banque avant de vendre.
 function trameMettreEnVente({ prix, uidPile, taille }) {
-  return requete('kge', [v(1, prix), v(2, uidPile), v(3, taille)]);
+  return requete('kcr', [v(1, taille), v(2, prix), v(3, uidPile)]);
 }
 
 // --- Ce qu'on lit --------------------------------------------------------
@@ -150,12 +177,12 @@ function quatrePrix(f) {
 // touche a CE lot-la. Un 0 signifie « aucun concurrent a cette taille », jamais
 // « gratuit ».
 function lirePrixMarche(frame) {
-  if (!frame || frame.type !== 'kgp') return null;
-  const prix = quatrePrix(champ(frame.payload, 2));
+  if (!frame || frame.type !== 'kef') return null;
+  const prix = quatrePrix(champ(frame.payload, 4));
   if (prix === null) return null;
-  const gid = entier(frame.payload, 5);
+  const gid = entier(frame.payload, 1);
   if (gid === null) return null;
-  return { gid, categorie: entier(frame.payload, 6), prix };
+  return { gid, categorie: entier(frame.payload, 3), prix };
 }
 
 // kbt { 1: categorie, 2: gid, 3: { 6: [les quatre prix] } }
@@ -165,14 +192,14 @@ function lirePrixMarche(frame) {
 // arrive juste avant la vraie reponse. Le lire comme des statistiques ferait
 // decider sur un tableau absent.
 function lireStatsPrix(frame) {
-  if (!frame || frame.type !== 'kbt') return null;
-  const detail = champ(frame.payload, 3);
+  if (!frame || frame.type !== 'jzn') return null;
+  const detail = champ(frame.payload, 2);
   if (detail === null || detail.kind !== 'message') return null;
   const prix = quatrePrix(champ(detail.value, 6));
   if (prix === null) return null;
-  const gid = entier(frame.payload, 2);
+  const gid = entier(frame.payload, 1);
   if (gid === null) return null;
-  return { gid, categorie: entier(frame.payload, 1), prix };
+  return { gid, categorie: entier(frame.payload, 3), prix };
 }
 
 // Un lot, tel qu'il apparait dans kby et dans kes. Les deux portent la meme
@@ -181,8 +208,8 @@ function lireStatsPrix(frame) {
 function lireLot(objet, prix, duree) {
   if (objet === null || objet.kind !== 'message') return null;
   const uid = entier(objet.value, 1);
-  const gid = entier(objet.value, 3);
-  const taille = entier(objet.value, 4);
+  const gid = entier(objet.value, 2);
+  const taille = entier(objet.value, 3);
   if (uid === null || gid === null || taille === null || prix === null) return null;
   return { uid, gid, taille, prix, duree };
 }
@@ -314,8 +341,8 @@ function lirePileDisparue(frame) {
 //
 // Le champ 4 vaut 2 419 200 secondes, soit exactement 28 jours.
 function lireLotPose(frame) {
-  if (!frame || frame.type !== 'kes') return null;
-  return lireLot(champ(frame.payload, 1), entier(frame.payload, 2), entier(frame.payload, 4));
+  if (!frame || frame.type !== 'kda') return null;
+  return lireLot(champ(frame.payload, 3), entier(frame.payload, 5), entier(frame.payload, 2));
 }
 
 // ken { 1: uid } — ce lot a quitte la vente.
@@ -324,7 +351,7 @@ function lireLotPose(frame) {
 // abonne au gid. Plusieurs dizaines ont ete observees sans qu'on ait rien fait.
 // L'appelant doit verifier que l'uid est bien un des siens.
 function lireLotRetire(frame) {
-  if (!frame || frame.type !== 'ken') return null;
+  if (!frame || frame.type !== 'kco') return null;
   return entier(frame.payload, 1);
 }
 

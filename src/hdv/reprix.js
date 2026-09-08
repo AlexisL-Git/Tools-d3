@@ -409,7 +409,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       return;
     }
 
-    if (frame.type === 'kbt') {
+    if (frame.type === 'jzn') {
       const stats = lireStatsPrix(frame);
       // Le kbt SANS champ 3 est l'accuse du desabonnement precedent, et il
       // arrive juste avant la vraie reponse: lireStatsPrix rend null dessus.
@@ -421,7 +421,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       return;
     }
 
-    if (frame.type === 'kgp') {
+    if (frame.type === 'kef') {
       const marche = lirePrixMarche(frame);
       if (marche === null || marche.gid !== passe.gid) return;
       passe.marche = marche.prix;
@@ -430,7 +430,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       return;
     }
 
-    if (frame.type === 'kes') {
+    if (frame.type === 'kda') {
       const lot = lireLotPose(frame);
       if (lot === null || passe.attenteUid === null || lot.gid !== passe.gid) return;
       // L'UID A CHANGE: une mise a jour est un retrait suivi d'une repose.
@@ -446,7 +446,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       return;
     }
 
-    if (frame.type === 'ken') {
+    if (frame.type === 'kco') {
       // ken arrive AUSSI pour les lots des autres joueurs tant qu'on est
       // abonne: plusieurs dizaines observees sans qu'on ait rien fait. Le
       // notre est suivi par kes, pas par lui.

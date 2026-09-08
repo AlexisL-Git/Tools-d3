@@ -61,17 +61,22 @@ const packes = (prix) => {
   return Buffer.from(octets);
 };
 
-// kbt AVEC champ 3: la reponse a kbz. Sans champ 3 ce serait l'accuse du
-// desabonnement precedent, et lireStatsPrix rend null dessus.
-const trameKbt = (gid, prix) => evenement('kbt', [
-  vint(1, 51), vint(2, gid),
-  { no: 3, wire: WIRE.LEN, kind: 'message', value: [
+// jzn AVEC son sous-message: la reponse a kbk. Sans lui ce serait l'accuse du
+// desabonnement precedent, et lireStatsPrix rend null dessus. Le sous-message
+// est passe du champ 3 au CHAMP 2 au patch 3.6.11.12, le gid du 2 au 1 et la
+// categorie du 1 au 3; le champ 6 des prix, lui, n'a pas bouge.
+const trameKbt = (gid, prix) => evenement('jzn', [
+  vint(1, gid),
+  { no: 2, wire: WIRE.LEN, kind: 'message', value: [
     { no: 6, wire: WIRE.LEN, kind: 'bytes', value: packes(prix), raw: packes(prix) },
   ] },
+  vint(3, 51),
 ]);
-const trameKgp = (gid, prix) => evenement('kgp', [
-  { no: 2, wire: WIRE.LEN, kind: 'bytes', value: packes(prix), raw: packes(prix) },
-  vint(5, gid), vint(6, 51),
+// kgp -> kef: les prix passent du champ 2 au 4, le gid du 5 au 1, la categorie
+// du 6 au 3.
+const trameKgp = (gid, prix) => evenement('kef', [
+  vint(1, gid), vint(3, 51),
+  { no: 4, wire: WIRE.LEN, kind: 'bytes', value: packes(prix), raw: packes(prix) },
 ]);
 const trameIvj = (uid, qte) => evenement('ivj', [
   { no: 3, wire: WIRE.LEN, kind: 'message', value: [vint(2, uid), vint(3, qte)] },
@@ -177,17 +182,19 @@ test('l ecoute retient les prix moyens d ivi', () => {
   // lot le plus cher est le gid 8437. Une assertion sur le seul nombre
   // d'envois ne prouverait rien: la passe demarre dans les deux cas.
   const abonnement = decodeFrameRaw(superviseur.envois[0].octets);
-  assert.strictEqual(abonnement.type, 'keh');
+  assert.strictEqual(abonnement.type, 'kde');
   // Un champ absent doit ECHOUER comme une assertion, pas lever un TypeError:
   // « undefined n'est pas 8437 » nomme l'attendu, « cannot read .value » non.
   const valeur = (no) => {
     const f = (abonnement.payload || []).find((x) => x.no === no);
     return f === undefined ? null : Number(f.value);
   };
-  assert.strictEqual(valeur(1), 8437);
-  // Le champ 2 distingue l'abonnement du DESABONNEMENT, qui est le meme
+  // Le gid est passe du champ 1 au CHAMP 2 au patch 3.6.11.12, et le drapeau
+  // en sens inverse.
+  assert.strictEqual(valeur(2), 8437);
+  // Le drapeau distingue l'abonnement du DESABONNEMENT, qui est le meme
   // message sans lui. Sans cette assertion, confondre les deux passerait.
-  assert.strictEqual(valeur(2), 1);
+  assert.strictEqual(valeur(1), 1);
   vente.arreter(42);
 });
 
@@ -196,11 +203,11 @@ test('l ecoute retient les prix moyens d ivi', () => {
 test('la passe s abonne, lit le marche, puis pose', () => {
   const { superviseur, vente } = venteAvecPile({ qte: 100 });
   vente.lancer(42);
-  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz']);
+  assert.deepStrictEqual(typesEmis(superviseur), ['kde', 'kbk']);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
-  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz', 'kge']);
+  assert.deepStrictEqual(typesEmis(superviseur), ['kde', 'kbk', 'kcr']);
   const kge = decodeFrameRaw(superviseur.envois[2].octets);
-  assert.strictEqual(kge.type, 'kge');
+  assert.strictEqual(kge.type, 'kcr');
 });
 
 // LA RAFALE NE RELIT PAS LE MARCHE. deciderPose s'aligne au lieu de
@@ -214,7 +221,7 @@ test('un paquet de quatre lots part sans relire kgp entre chaque', () => {
   for (const reste of [300, 200, 100, 0]) {
     vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, reste) });
   }
-  const kge = superviseur.envois.filter((e) => decodeFrameRaw(e.octets).type === 'kge');
+  const kge = superviseur.envois.filter((e) => decodeFrameRaw(e.octets).type === 'kcr');
   assert.strictEqual(kge.length, 4);
 });
 
@@ -227,8 +234,9 @@ test('tous les lots d un paquet partent au meme prix', () => {
   }
   const prix = superviseur.envois
     .map((e) => decodeFrameRaw(e.octets))
-    .filter((f) => f.type === 'kge')
-    .map((f) => f.payload.find((c) => c.no === 1).value);
+    .filter((f) => f.type === 'kcr')
+    // Le prix est au champ 2 depuis le patch: le champ 1 porte la taille.
+    .map((f) => f.payload.find((c) => c.no === 2).value);
   assert.deepStrictEqual(prix.map(Number), [4999, 4999, 4999]);
 });
 
@@ -246,8 +254,8 @@ test('un kgp ouvre le paquet mais ne le redecide pas', () => {
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 100) });
   const prix = superviseur.envois
     .map((e) => decodeFrameRaw(e.octets))
-    .filter((f) => f.type === 'kge')
-    .map((f) => Number(f.payload.find((c) => c.no === 1).value));
+    .filter((f) => f.type === 'kcr')
+    .map((f) => Number(f.payload.find((c) => c.no === 2).value));
   assert.deepStrictEqual(prix, [4999, 4999]);
 });
 
@@ -273,12 +281,12 @@ test('le premier lot d un paquet ne paie pas le delai de rafale', async () => {
   vente.lancer(42);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
   // Le premier lot part TOUT DE SUITE, sans attendre la rafale.
-  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 1);
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kcr').length, 1);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 100) });
   // Le second lot, lui, paie la rafale: il n'est pas encore parti.
-  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 1);
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kcr').length, 1);
   await new Promise((r) => setTimeout(r, 80));
-  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 2);
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kcr').length, 2);
 });
 
 // LA PREMIERE VISITE D'UNE PASSE NE PAIE PAS LE DELAI D'OBJET, pour la meme
@@ -304,15 +312,15 @@ test('la premiere visite d une passe ne paie pas le delai d objet', async () => 
 
   vente.lancer(42);
   // Le premier objet s'ouvre TOUT DE SUITE: rien ne le precede.
-  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz']);
+  assert.deepStrictEqual(typesEmis(superviseur), ['kde', 'kbk']);
 
   // Le second, lui, paie: le desabonnement du premier part sans attendre, mais
   // l'abonnement du suivant est differe.
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(8437, [19, 190, 5000, 0]) });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(2, 0) });
-  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz', 'kge', 'keh']);
+  assert.deepStrictEqual(typesEmis(superviseur), ['kde', 'kbk', 'kcr', 'kde']);
   await new Promise((r) => setTimeout(r, 80));
-  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz', 'kge', 'keh', 'keh', 'kbz']);
+  assert.deepStrictEqual(typesEmis(superviseur), ['kde', 'kbk', 'kcr', 'kde', 'kde', 'kbk']);
   vente.arreter(42);
 });
 
@@ -363,7 +371,7 @@ test('un ivj plus bas que prevu abandonne les lots devenus impossibles', () => {
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
   // On attendait 200 apres le premier lot de 100; le serveur dit 50.
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 50) });
-  const kge = superviseur.envois.filter((e) => decodeFrameRaw(e.octets).type === 'kge');
+  const kge = superviseur.envois.filter((e) => decodeFrameRaw(e.octets).type === 'kcr');
   assert.strictEqual(kge.length, 1, 'les deux lots de 100 restants sont abandonnes');
   const fin = rendus.find((r) => r.fini);
   assert.strictEqual(fin.bilan.poses, 1);
@@ -424,11 +432,11 @@ test('un client qui disparait pendant l attente de kbt n envoie rien au suivant'
     ] },
   ]) });
   vente.lancer(42);
-  const kehAvant = typesEmis(superviseur).filter((t) => t === 'keh').length;
+  const kehAvant = typesEmis(superviseur).filter((t) => t === 'kde').length;
   // Le client meurt et un autre reprend le meme pid, avant que kbt ne reponde.
   superviseur.comptes.set(42, { nom: 'un autre client sous le meme pid' });
   await new Promise((r) => setTimeout(r, 40));
-  const kehApres = typesEmis(superviseur).filter((t) => t === 'keh').length;
+  const kehApres = typesEmis(superviseur).filter((t) => t === 'kde').length;
   assert.strictEqual(kehApres, kehAvant, 'aucun desabonnement n est parti dans la session du nouveau client');
   const fin = rendus.find((r) => r.fini);
   assert.ok(fin, 'la passe se termine');
@@ -457,12 +465,12 @@ test('un client qui disparait pendant l attente de confirmation n envoie rien au
   vente.lancer(42);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
   // Le kge est deja parti (delaiRafaleMs: 0); on attend maintenant ivj ou ium.
-  const kehAvant = typesEmis(superviseur).filter((t) => t === 'keh').length;
+  const kehAvant = typesEmis(superviseur).filter((t) => t === 'kde').length;
   // Le client meurt et un autre reprend le meme pid, avant que la pose ne
   // soit confirmee.
   superviseur.comptes.set(42, { nom: 'un autre client sous le meme pid' });
   await new Promise((r) => setTimeout(r, 40));
-  const kehApres = typesEmis(superviseur).filter((t) => t === 'keh').length;
+  const kehApres = typesEmis(superviseur).filter((t) => t === 'kde').length;
   assert.strictEqual(kehApres, kehAvant, 'aucun desabonnement n est parti dans la session du nouveau client');
   const fin = rendus.find((r) => r.fini);
   assert.ok(fin, 'la passe se termine');
@@ -477,7 +485,7 @@ test('la passe se desabonne en partant', () => {
   vente.lancer(42);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 0) });
-  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'keh').length, 2);
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kde').length, 2);
 });
 
 // LA COURSE ENTRE LA CONFIRMATION ET L'ENVOI. attentePile ne doit s'armer
@@ -503,11 +511,11 @@ test('un ivj errant pendant la rafale ne compte pas un lot non envoye', async ()
   vente.lancer(42);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
   // Le premier lot du paquet ne paie pas la rafale: il est deja parti.
-  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 1);
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kcr').length, 1);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 100) });
   // Le second lot est maintenant dans son delai de rafale de 50 ms: son kge
   // n'est pas encore parti.
-  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 1);
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kcr').length, 1);
   // Un ivj errant sur la meme pile arrive PENDANT ce delai — une vente faite
   // a la main par le joueur, precisement devant son hotel de vente. Il ne
   // doit rien confirmer: aucun kge ne le justifie encore.
@@ -522,7 +530,7 @@ test('un ivj errant pendant la rafale ne compte pas un lot non envoye', async ()
   await new Promise((r) => setTimeout(r, 80));
   // Le delai de rafale n'a pas ete annule a tort: le second kge finit par
   // partir de lui-meme.
-  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kge').length, 2);
+  assert.strictEqual(typesEmis(superviseur).filter((t) => t === 'kcr').length, 2);
 });
 
 // --- Les fonctions de rythme ---------------------------------------------
@@ -738,7 +746,7 @@ test('le facteur de rythme atteint vraiment le tirage de la rafale', async () =>
   vente.lancer(42);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [19, 190, 5000, 0]) });
   const poses = () => superviseur.envois
-    .filter((e) => decodeFrameRaw(e.octets).type === 'kge').length;
+    .filter((e) => decodeFrameRaw(e.octets).type === 'kcr').length;
   assert.strictEqual(poses(), 1, 'le premier lot du paquet ne paie pas la rafale');
 
   vente.onTrame({ pid: 42, dir: 'in', frame: trameIvj(84496683, 100) });
@@ -786,7 +794,7 @@ test('sans plafond, le meme paquet part', () => {
   const { superviseur, vente } = venteAvecPile({ qte: 10, moyen: 300000 });
   vente.lancer(42);
   vente.onTrame({ pid: 42, dir: 'in', frame: trameKbt(13731, [0, 1200001, 0, 0]) });
-  assert.deepStrictEqual(typesEmis(superviseur), ['keh', 'kbz', 'kge']);
+  assert.deepStrictEqual(typesEmis(superviseur), ['kde', 'kbk', 'kcr']);
 });
 
 test('le facteur regle resserre la mise en vente', () => {

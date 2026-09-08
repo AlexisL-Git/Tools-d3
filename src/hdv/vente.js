@@ -495,7 +495,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       return;
     }
 
-    if (frame.type === 'kbt') {
+    if (frame.type === 'jzn') {
       const stats = lireStatsPrix(frame);
       // Le kbt SANS champ 3 est l'accuse du desabonnement precedent, et il
       // arrive juste avant la vraie reponse: lireStatsPrix rend null dessus.
@@ -505,7 +505,7 @@ function creerVente({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
       return;
     }
 
-    if (frame.type === 'kgp') {
+    if (frame.type === 'kef') {
       // On lit kgp pour tenir le marche a jour, mais on NE REDECIDE PAS: le
       // prix du paquet est arrete une fois pour toutes.
       const marche = lirePrixMarche(frame);
