@@ -417,6 +417,20 @@ function estRejouable(key) {
   return m.rejouable !== false;
 }
 
+// LE DIALOGUE DE PNJ, ses trois messages. Ils se rejouent normalement, et
+// c'est ce qui fait suivre les mules chez le marchand: `kaa` exige que la
+// boutique soit ouverte, et c'est `imp` qui l'ouvre chez elles.
+//
+// UNE SEULE EXCEPTION, decidee par l'utilisateur le 08/09: dans un songe, un
+// PNJ donne un boost que seul le maitre doit prendre. LA REGLE NE VIT PAS
+// ICI — une table decrit des messages, elle ne sait pas ou le personnage se
+// trouve. Voir src/songe-en-cours.js et src/duplicateur.js.
+const DIALOGUE = new Set(['imp', 'inh', 'kiy']);
+
+function estDialogue(key) {
+  return DIALOGUE.has(key);
+}
+
 // Les messages dont tous les champs decrivent le monde peuvent etre rejoues
 // octet pour octet; les autres doivent etre reconstruits avec l'etat de
 // l'esclave.
@@ -432,4 +446,6 @@ function accountFields(key) {
   return Object.entries(m.fields).filter(([, f]) => f.nature === 'compte').map(([n]) => n);
 }
 
-module.exports = { MESSAGES, PERIMES, lookup, lookupByName, needsRewrite, accountFields, estRejouable };
+module.exports = {
+  MESSAGES, PERIMES, lookup, lookupByName, needsRewrite, accountFields, estRejouable, estDialogue,
+};

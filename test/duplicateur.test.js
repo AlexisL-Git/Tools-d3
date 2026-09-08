@@ -316,3 +316,96 @@ test('l achat en hôtel de vente n est jamais rejoué, et sans un mot', () => {
   assert.strictEqual(s.appels.length, 0, "les mules ne doivent PAS acheter a l'HDV");
   assert.strictEqual(comptesRendus.length, 0);
 });
+
+// --- LE DIALOGUE DANS UN SONGE --------------------------------------------
+//
+// Dans un songe il n'y a qu'un PNJ, celui qui donne un boost, et le boost est
+// au maitre — decision de l'utilisateur du 08/09. Le dialogue s'y coupe donc,
+// et NULLE PART AILLEURS: la regle tient a l'endroit, pas au message. Le
+// savoir d'ou l'on est vit dans src/songe-en-cours.js.
+function fauxAvecEsclaves({ arme = true, esclaves = [2, 3] } = {}) {
+  const appels = [];
+  const etats = new Map(esclaves.map((pid) => [pid, { pid }]));
+  return {
+    arme,
+    appels,
+    comptes: { esclaves: () => [...etats.values()] },
+    rejouer(args) { appels.push(args); return esclaves.map((pid) => ({ pid, ok: true, emis: true })); },
+  };
+}
+
+const dialogue = (type, extra = {}) => trame({
+  frame: { kind: 'request', type, payload: [{ no: 1, value: 237781005n }] },
+  ...extra,
+});
+
+test('hors songe, le dialogue se rejoue comme avant', () => {
+  for (const type of ['imp', 'inh', 'kiy']) {
+    const s = fauxAvecEsclaves();
+    const onTrame = creerDuplicateur({ superviseur: s, dansUnSonge: () => false });
+    onTrame(dialogue(type));
+    assert.strictEqual(s.appels.length, 1, `${type} doit se rejouer hors songe`);
+  }
+});
+
+test('dans un songe, aucun des trois messages du dialogue ne se rejoue', () => {
+  for (const type of ['imp', 'inh', 'kiy']) {
+    const s = fauxAvecEsclaves();
+    const onTrame = creerDuplicateur({ superviseur: s, dansUnSonge: () => true });
+    onTrame(dialogue(type));
+    assert.strictEqual(s.appels.length, 0, `${type} ne doit pas se rejouer dans un songe`);
+  }
+});
+
+// Un refus muet est le mode d'echec le plus couteux du projet: une mule qui ne
+// rejoue pas ressemble alors a une mule inactive. Le refus se rend donc
+// esclave par esclave, comme celui du garde-combat.
+test('le refus est rendu, esclave par esclave, avec sa raison', () => {
+  const s = fauxAvecEsclaves({ esclaves: [2, 3] });
+  const rendus = [];
+  const onTrame = creerDuplicateur({
+    superviseur: s, dansUnSonge: () => true, onCompteRendu: (c) => rendus.push(c),
+  });
+
+  onTrame(dialogue('inh'));
+
+  assert.strictEqual(rendus.length, 1);
+  assert.strictEqual(rendus[0].type, 'inh');
+  assert.strictEqual(rendus[0].rendu.length, 2);
+  for (const r of rendus[0].rendu) {
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.emis, false);
+    assert.match(r.raison, /songe/);
+  }
+});
+
+// La regle vise le dialogue, pas le songe entier: le maitre qui se teleporte
+// depuis son songe emmene toujours ses mules.
+test('dans un songe, ce qui n est pas un dialogue se rejoue quand meme', () => {
+  const s = fauxAvecEsclaves();
+  const onTrame = creerDuplicateur({ superviseur: s, dansUnSonge: () => true });
+  onTrame(trame());
+  assert.strictEqual(s.appels.length, 1);
+});
+
+// Sans esclave, il n'y a personne a qui expliquer le refus. Meme silence que
+// le garde-combat, et pour la meme raison: annoncer un non-evenement.
+test('sans esclave, le refus ne produit aucun compte rendu', () => {
+  const s = fauxAvecEsclaves({ esclaves: [] });
+  const rendus = [];
+  const onTrame = creerDuplicateur({
+    superviseur: s, dansUnSonge: () => true, onCompteRendu: (c) => rendus.push(c),
+  });
+  onTrame(dialogue('imp'));
+  assert.strictEqual(rendus.length, 0);
+  assert.strictEqual(s.appels.length, 0);
+});
+
+// Le defaut par defaut: sans la question, la politique est celle d'avant. Un
+// appelant qui oublie de cabler le suivi ne coupe rien en silence.
+test('sans dansUnSonge, le dialogue se rejoue: le defaut ne coupe rien', () => {
+  const s = fauxAvecEsclaves();
+  const onTrame = creerDuplicateur({ superviseur: s });
+  onTrame(dialogue('imp'));
+  assert.strictEqual(s.appels.length, 1);
+});

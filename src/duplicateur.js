@@ -1,5 +1,5 @@
 'use strict';
-const { lookup, estRejouable } = require('./protocol/omni');
+const { lookup, estRejouable, estDialogue } = require('./protocol/omni');
 const { estSensible, cleDe, DELAI_PLANCHER_MS } = require('./garde-combat');
 
 // La decision de rejeu, et elle seule.
@@ -42,7 +42,11 @@ const ETALEMENT_REJEU = { minMs: MIN_TICK_WINDOWS, maxMs: 80 };
 //   affiche en console (le CLI) ou sur la ligne du compte (l'application).
 // estApprise — dit si une cle d'action a deja ete vue lancer un combat chez
 //   le maitre. Faux par defaut: sans elle, la politique est celle d'avant.
-function creerDuplicateur({ superviseur, onCompteRendu = () => {}, estApprise = () => false }) {
+// dansUnSonge — dit si le maitre est en ce moment dans un songe. Faux par
+//   defaut: sans lui, la politique est celle d'avant.
+function creerDuplicateur({
+  superviseur, onCompteRendu = () => {}, estApprise = () => false, dansUnSonge = () => false,
+}) {
   return function onTrame({ pid, dir, frame, brute, estMaitre }) {
     // Seules les requetes SORTANTES du maitre se rejouent: ce que le serveur
     // renvoie est propre a chaque client et n'a rien a faire ailleurs.
@@ -65,6 +69,24 @@ function creerDuplicateur({ superviseur, onCompteRendu = () => {}, estApprise = 
     // n y a donc aucune absence a signaler. Un refus par mule et par carte
     // s afficherait en permanence pour annoncer un non-evenement.
     if (!estRejouable(frame.type)) return;
+
+    // LE DIALOGUE NE SE REJOUE PAS DANS UN SONGE. Il ne s'y trouve qu'un seul
+    // PNJ, celui qui donne un boost, et le boost est au maitre — decision de
+    // l'utilisateur du 08/09. Partout ailleurs le dialogue se rejoue comme
+    // avant: la regle tient a l'ENDROIT, pas au message.
+    //
+    // Le refus se rend esclave par esclave, comme celui du garde-combat et
+    // pour la meme raison: une mule qui ne rejoue pas ressemble sinon a une
+    // mule inactive, le mode d'echec le plus couteux du projet.
+    if (estDialogue(frame.type) && dansUnSonge(pid)) {
+      const refuses = [...superviseur.comptes.esclaves(pid)].map((etat) => ({
+        pid: etat.pid, ok: false, emis: false,
+        raison: 'dialogue dans un songe : le boost est au maitre',
+      }));
+      if (refuses.length === 0) return;
+      onCompteRendu({ pidMaitre: pid, type: frame.type, nom: connu.name, arme: superviseur.arme, rendu: refuses });
+      return;
+    }
 
     // UNE ACTION DEJA VUE LANCER UN COMBAT n'est ni retardee ni tentee. Le
     // refus se rend esclave par esclave: un compte qui ne rejoue pas
