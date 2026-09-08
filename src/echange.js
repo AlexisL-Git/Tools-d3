@@ -33,18 +33,18 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur, comme l'accepteur d'invitation.
 
-const TYPE_PROPOSITION = 'kfz';
-const TYPE_PARTENAIRE_PRET = 'kgt';
-const CHAMP_PROPOSANT = 1;
-const CHAMP_PRET = 3;
-const CHAMP_VALIDANT = 4;
-const URL_ACCEPTATION = 'type.ankama.com/kgi';
-const URL_VALIDATION = 'type.ankama.com/kep';
+const TYPE_PROPOSITION = 'jyv';
+const TYPE_PARTENAIRE_PRET = 'kcb';
+const CHAMP_PROPOSANT = 4;
+const CHAMP_PRET = 2;
+const CHAMP_VALIDANT = 3;
+const URL_ACCEPTATION = 'type.ankama.com/kaq';
+const URL_VALIDATION = 'type.ankama.com/kcs';
 
 // Les deux requetes sont CONSTANTES: elles ne recopient rien de l'echange en
 // cours. On les construit une fois pour toutes, comme TRAME_PASSE.
 const TRAME_ACCEPTATION = encodeRaw([
-  { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+  { no: 1, wire: WIRE.LEN, kind: 'message', value: [
     { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'string', value: URL_ACCEPTATION },
       // Pas de champ 2: Any.value est vide, et un champ vide ne s'ecrit pas.
@@ -55,12 +55,12 @@ const TRAME_ACCEPTATION = encodeRaw([
 ]);
 
 const TRAME_VALIDATION = encodeRaw([
-  { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+  { no: 1, wire: WIRE.LEN, kind: 'message', value: [
     { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'string', value: URL_VALIDATION },
       { no: 2, wire: WIRE.LEN, kind: 'message', value: [
-        { no: 1, wire: WIRE.VARINT, value: 1n },
         { no: 2, wire: WIRE.VARINT, value: 1n },
+        { no: 3, wire: WIRE.VARINT, value: 1n },
       ] },
     ] },
     { no: 2, wire: WIRE.VARINT, value: -1n },

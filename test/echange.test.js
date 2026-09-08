@@ -6,10 +6,17 @@ const { decodeFrameRaw } = require('../src/codec/rawProto');
 
 // Octets releves le 22/08, identiques a chaque occurrence et dans les deux
 // sens. Voir docs/superpowers/specs/2026-08-22-trames-echange.md.
+//
+// REMESURES LE 08/09, patch 3.6.11.12, sur un echange fait a la main entre deux
+// comptes. Trois choses ont bouge d'un coup, et aucune ne se signale:
+//   - l'enveloppe: une requete part en kind 1, plus en kind 2 (premier octet);
+//   - les noms: kgi -> kaq, kep -> kcs, comme tout le reste du protocole;
+//   - les champs de la validation: {1,2} -> {2,3}.
+// Les deux clients ont emis des kcs identiques, donc la trame reste CONSTANTE.
 const HEX_ACCEPTATION =
-  '12220a150a13747970652e616e6b616d612e636f6d2f6b676910ffffffffffffffffff01';
+  '0a220a150a13747970652e616e6b616d612e636f6d2f6b617110ffffffffffffffffff01';
 const HEX_VALIDATION =
-  '12280a1b0a13747970652e616e6b616d612e636f6d2f6b657012040801100110ffffffffffffffffff01';
+  '0a280a1b0a13747970652e616e6b616d612e636f6d2f6b637312041001180110ffffffffffffffffff01';
 
 test('la trame d acceptation est celle mesuree', () => {
   assert.strictEqual(TRAME_ACCEPTATION.toString('hex'), HEX_ACCEPTATION);
@@ -260,4 +267,44 @@ test('sans delai configure, l emission reste dans l appel', () => {
 
 test('la constante vaut 150 a 600 ms', () => {
   assert.deepStrictEqual(DELAI_REACTION, { minMs: 150, maxMs: 600 });
+});
+
+// --- Vérité terrain du 08/09, patch 3.6.11.12 ------------------------------
+//
+// Trames REELLES d'un echange fait a la main entre deux comptes, relues telles
+// quelles. Le patch a renomme les deux events ET renumerote leurs champs: dans
+// kfz le proposant etait en 1, il est en 4; dans kgt le drapeau « a coche » et
+// l'identifiant ont glisse de {3,4} a {2,3}.
+//
+// Les figer sur les octets, plutot que sur des payloads reconstruits, est ce
+// qui aurait fait echouer la suite le matin du patch au lieu du soir.
+const JYV_PROPOSITION =
+  '12291a270a13747970652e616e6b616d612e636f6d2f6a79761210080110a682e888da1320a682c488da13';
+const KCB_PARTENAIRE_PRET =
+  '12221a200a13747970652e616e6b616d612e636f6d2f6b63621209100118a682e888da13';
+
+const PROPOSANT_MESURE = 677012111654n;
+const CIBLE_MESUREE = 677012701478n;
+
+test('la proposition mesuree est reconnue et livre son proposant', () => {
+  const f = decodeFrameRaw(Buffer.from(JYV_PROPOSITION, 'hex'));
+  assert.strictEqual(f.type, TYPE_PROPOSITION);
+  const champ = f.payload.find((c) => c.no === CHAMP_PROPOSANT);
+  assert.strictEqual(champ.value, PROPOSANT_MESURE);
+});
+
+// La cible reste en champ 2. Le verifier protege d'une correction qui, en
+// deplacant le proposant, prendrait la cible pour lui: l'accepteur repondrait
+// alors a ses propres propositions.
+test('la cible de la proposition reste distincte du proposant', () => {
+  const f = decodeFrameRaw(Buffer.from(JYV_PROPOSITION, 'hex'));
+  assert.strictEqual(f.payload.find((c) => c.no === 2).value, CIBLE_MESUREE);
+});
+
+test('le partenaire pret mesure est reconnu, coche et identifie', () => {
+  const { TYPE_PARTENAIRE_PRET, CHAMP_PRET, CHAMP_VALIDANT } = require('../src/echange');
+  const f = decodeFrameRaw(Buffer.from(KCB_PARTENAIRE_PRET, 'hex'));
+  assert.strictEqual(f.type, TYPE_PARTENAIRE_PRET);
+  assert.strictEqual(f.payload.find((c) => c.no === CHAMP_PRET).value, 1n);
+  assert.strictEqual(f.payload.find((c) => c.no === CHAMP_VALIDANT).value, CIBLE_MESUREE);
 });
