@@ -7,19 +7,38 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // puis acceptation a la main sur B, dans les deux sens. Le detail et les octets
 // bruts sont dans docs/superpowers/specs/2026-08-20-trames-invitation-groupe.md.
 //
-//   in  event   ijz { 1: nous, 2: invitant, 3: 8, 5: idGroupe, 6: 1, 7: nom }
-//   out request ijx { 1: idGroupe }
+// REMESUREES LE 08/09 APRES LE PATCH 3.6.11.12, meme protocole a deux clients,
+// journal-groupe.log. Le patch a renomme les deux messages ET RENUMEROTE LEURS
+// CHAMPS -- ce second point n'etait pas prevu, l'appariement structurel de
+// src/dev/appariement.js reposant sur l'idee que la structure, elle, tient.
+// Elle n'a pas tenu ici, et c'est pourquoi `ijz` n'a rendu AUCUN candidat: son
+// empreinte d'avant portait le champ 3 en varint et le 7 en longueur, celle
+// d'apres les porte dans l'autre sens.
+//
+//   in  event   ikb { 1: invitant, 2: 1, 3: nom, 5: 8, 6: idGroupe, 7: nous }
+//   out request ikg { 1: idGroupe }
+//
+// LES OCTETS SONT DANS test/fixtures/invitation-ikb.hex et -ikg.hex, tels que
+// captures. Les tests les rejouent: c'est la seule preuve qui ne vieillit pas.
 //
 // LA TRAME N'EST PAS CONSTANTE, contrairement au passe-tour: l'identifiant de
-// groupe a valu 35949, 36074 puis 36380 sur trois mesures. L'acceptation
-// recopie le champ 5 de l'invitation dans son champ 1; une invitation qui ne
+// groupe a valu 35949, 36074, 36380 avant le patch et 7028 apres. L'acceptation
+// recopie le champ 6 de l'invitation dans son champ 1; une invitation qui ne
 // porte pas ce champ est refusee plutot qu'acceptee a l'aveugle.
 //
-// L'INVITANT EST AU CHAMP 2, PAS AU CHAMP 1. L'ordre des champs suggerait
-// l'inverse, et le champ 1 porte en fait le destinataire — nous. Un filtre bati
-// dessus aurait compare notre propre identifiant, l'aurait toujours trouve, et
-// aurait accepte TOUTES les invitations, inconnus compris, en passant l'essai
-// en jeu sans broncher. Trois preuves independantes dans le spec.
+// L'INVITANT EST AU CHAMP 1 DEPUIS LE PATCH, ET C'ETAIT LE CHAMP 2 AVANT.
+// L'ANCIEN COMMENTAIRE DISAIT L'INVERSE, ET IL AVAIT RAISON EN SON TEMPS: c'est
+// le piege exact qu'il decrivait, passe de l'autre cote. Un filtre reste sur le
+// champ 2 comparerait desormais la constante 1 a nos identifiants, ne la
+// trouverait jamais, et refuserait TOUTES les invitations en silence.
+//
+// LA PREUVE TIENT EN DEUX JOURNAUX, deux sessions, les MEMES personnages:
+//
+//   03/09  ijz { 1=666951024934  2=676438999334 ... }   1 = nous,     2 = invitant
+//   08/09  ikb { 1=676438999334  ... 7=666951024934 }   1 = invitant, 7 = nous
+//
+// 676438999334 est celui qui invite dans les deux, 666951024934 celui qui recoit.
+// Les deux roles ont echange leurs champs; rien d'autre n'a bouge.
 //
 // LE FILTRE. Une invitation n'est acceptee que si l'invitant est un AUTRE
 // client pilote par l'application. Les characterId sont appris du trafic de
@@ -28,16 +47,22 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur, comme le passeur.
 
-const TYPE_INVITATION = 'ijz';
-const CHAMP_INVITANT = 2;
-const CHAMP_GROUPE = 5;
-const URL_ACCEPTATION = 'type.ankama.com/ijx';
+const TYPE_INVITATION = 'ikb';
+const CHAMP_INVITANT = 1;
+const CHAMP_GROUPE = 6;
+const URL_ACCEPTATION = 'type.ankama.com/ikg';
 
 // Meme enveloppe que TRAME_PASSE, a ceci pres que Any.value n'est pas vide:
 // il porte l'identifiant du groupe.
+//
+// L'ENVELOPPE EST EN CHAMP 1 DEPUIS LE PATCH, elle etait en champ 2 avant.
+// C'est la correction qu'Alexis a passee partout ailleurs le 08/09; ce module
+// et src/songes.js sont les deux qu'elle n'avait pas atteints. Une requete
+// batie sur l'ancien numero ne differe que par son PREMIER OCTET -- 12 au lieu
+// de 0a -- et le serveur l'ignore sans rien dire.
 function construireAcceptation(idGroupe) {
   return encodeRaw([
-    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'message', value: [
         { no: 1, wire: WIRE.LEN, kind: 'string', value: URL_ACCEPTATION },
         { no: 2, wire: WIRE.LEN, kind: 'message', value: [
