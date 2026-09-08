@@ -14,14 +14,13 @@ const msg = (no, value) => ({ no, wire: WIRE.LEN, kind: 'message', value });
 const octets = (no, buf) => ({ no, wire: WIRE.LEN, kind: 'bytes', value: buf, raw: buf });
 
 // MESURE DU 08/09: dans le lot, le gid passe du champ 3 au 2 et la taille du 4
-// au 3. kby n'a PAS pu etre remesure — la liste de ventes etait vide — mais le
-// lot qu'il porte est le meme objet que celui de kda, a un numero de champ
-// pres, et c'est lireLot qui les lit tous les deux. On suit donc kda ici.
-const objet = (uid, gid, taille) => msg(2, [vi(1, uid), vi(2, gid), vi(3, taille)]);
+// au 3. kby s'appelle ket, sa liste passe du champ 1 au 2, et dans chaque
+// entree l'objet passe du 2 au 1, le prix du 3 au 2, la duree du 4 au 3.
+const objet = (uid, gid, taille) => msg(1, [vi(1, uid), vi(2, gid), vi(3, taille)]);
 
 const kby = (lots) => ({
-  kind: 'event', type: 'kby',
-  payload: lots.map((l) => msg(1, [objet(l.uid, l.gid, l.taille), vi(3, l.prix), vi(4, 2419200)])),
+  kind: 'event', type: 'ket',
+  payload: lots.map((l) => msg(2, [objet(l.uid, l.gid, l.taille), vi(2, l.prix), vi(3, 2419200)])),
 });
 const ivi = (paires) => ({
   kind: 'event', type: 'ivi',
@@ -104,11 +103,12 @@ test('sur kbt, elle sous-cote d un cran', () => {
   dire(ivi([[13731, 32]]));
   r.lancer(1);
   dire(kbt(13731, [19, 190, 2700, 18000]));
-  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kch']);
+  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kas']);
   const kch = sup.emis[2].frame;
-  assert.strictEqual(Number(champ(kch, 1).value), 10);
-  assert.strictEqual(Number(champ(kch, 2).value), 2699);
-  assert.strictEqual(Number(champ(kch, 3).value), 100);
+  // kas: le prix est en champ 1 et l'uid en 2 — l'inverse de l'ancien kch.
+  assert.strictEqual(Number(champ(kch, 1).value), 2699, 'prix');
+  assert.strictEqual(Number(champ(kch, 2).value), 10, 'uid du lot');
+  assert.strictEqual(Number(champ(kch, 3).value), 100, 'taille');
 });
 
 // LE PIEGE MESURE: apres notre pose, le minimum du creneau EST notre lot.
@@ -143,23 +143,23 @@ test('des lots jumeaux plus chers sont alignes sur notre propre minimum', () => 
   dire(kbt(13731, [0, 19809, 0, 0]));
 
   // Le premier retardataire s'aligne, il ne sous-cote pas.
-  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kch']);
-  assert.strictEqual(Number(champ(sup.emis[2].frame, 1).value), 10);
-  assert.strictEqual(Number(champ(sup.emis[2].frame, 2).value), 19809);
+  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kas']);
+  assert.strictEqual(Number(champ(sup.emis[2].frame, 1).value), 19809, 'prix');
+  assert.strictEqual(Number(champ(sup.emis[2].frame, 2).value), 10, 'uid du lot');
 
   dire(kes(90, 13731, 10, 19809));
   dire(kgp(13731, [0, 19809, 0, 0]));
 
   // Le second aussi, et toujours au meme prix: aucune erosion d'un lot a l'autre.
-  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kch', 'kch']);
-  assert.strictEqual(Number(champ(sup.emis[3].frame, 1).value), 11);
-  assert.strictEqual(Number(champ(sup.emis[3].frame, 2).value), 19809);
+  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kas', 'kas']);
+  assert.strictEqual(Number(champ(sup.emis[3].frame, 1).value), 19809, 'prix');
+  assert.strictEqual(Number(champ(sup.emis[3].frame, 2).value), 11, 'uid du lot');
 
   dire(kes(91, 13731, 10, 19809));
   dire(kgp(13731, [0, 19809, 0, 0]));
 
   // Le troisieme EST deja le minimum: rien a emettre, la passe se termine.
-  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kch', 'kch', 'kde']);
+  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kas', 'kas', 'kde']);
   const fin = rendu.find((x) => x.fini);
   assert.strictEqual(fin.bilan.maj, 2);
   assert.strictEqual(fin.bilan.laisses, 1);
@@ -182,18 +182,18 @@ test('deux lots du meme gid ne sont jamais decides sur la meme lecture', () => {
   dire(kbt(13731, [19, 190, 2700, 18000]));
 
   // Un seul kch: le second lot attend que le marche soit rafraichi.
-  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kch']);
+  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kas']);
 
   // La confirmation seule ne suffit pas — elle ne dit rien du marche.
   dire(ken(10));
   dire(kes(99, 13731, 100, 2699));
-  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kch']);
+  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kas']);
 
   // C'est le kgp qui autorise le lot suivant.
   dire(kgp(13731, [19, 190, 2699, 18000]));
-  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kch', 'kch']);
-  assert.strictEqual(Number(champ(sup.emis[3].frame, 1).value), 11);
-  assert.strictEqual(Number(champ(sup.emis[3].frame, 2).value), 189);
+  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kas', 'kas']);
+  assert.strictEqual(Number(champ(sup.emis[3].frame, 1).value), 189, 'prix');
+  assert.strictEqual(Number(champ(sup.emis[3].frame, 2).value), 11, 'uid du lot');
 });
 
 // Une mise a jour est un retrait suivi d'une repose: l'uid change. Sans cette
@@ -233,15 +233,15 @@ test('le premier kch d une passe ne paie pas le delai de lot', async () => {
   dire(kbt(13731, [19, 190, 2700, 18000]));
 
   // Le premier lot part TOUT DE SUITE.
-  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['kde', 'kbk', 'kch']);
+  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['kde', 'kbk', 'kas']);
 
   // Le second, lui, paie: le kgp l'autorise, mais il n'est pas encore parti.
   dire(ken(10));
   dire(kes(99, 13731, 100, 2699));
   dire(kgp(13731, [19, 190, 2699, 18000]));
-  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['kde', 'kbk', 'kch']);
+  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['kde', 'kbk', 'kas']);
   await new Promise((res) => setTimeout(res, 80));
-  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['kde', 'kbk', 'kch', 'kch']);
+  assert.deepStrictEqual(sup.emis.map((e) => e.frame.type), ['kde', 'kbk', 'kas', 'kas']);
   r.arreter(1);
 });
 
@@ -279,7 +279,7 @@ test('la passe se termine en se desabonnant, et rend son bilan', () => {
   dire(ken(10));
   dire(kes(99, 13731, 100, 2699));
   dire(kgp(13731, [19, 190, 2699, 18000]));
-  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kch', 'kde']);
+  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kas', 'kde']);
   const fin = rendu.find((x) => x.fini);
   assert.deepStrictEqual(fin.bilan, { total: 1, maj: 1, laisses: 0, echecs: 0, ecartes: [] });
 });
@@ -304,7 +304,7 @@ test('un ken portant l uid d un autre joueur ne compte pas', () => {
   dire(kbt(13731, [19, 190, 2700, 18000]));
   dire(ken(1234567));
   dire(kes(999, 99999, 1, 5));
-  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kch']);
+  assert.deepStrictEqual(types(), ['kde', 'kbk', 'kas']);
 });
 
 // --- Les arrets ----------------------------------------------------------
@@ -570,7 +570,7 @@ test('un marche delirant ecarte le lot, et le bilan dit pourquoi', () => {
   dire(ivi([[13731, 152]]));
   r.lancer(1);
   dire(kbt(13731, [0, 7000002, 0, 0]));
-  assert.ok(!types().includes('kch'), 'aucune mise a jour de prix ne doit partir');
+  assert.ok(!types().includes('kas'), 'aucune mise a jour de prix ne doit partir');
   const fin = rendu.find((x) => x.fini);
   // Le nom vient de noterEcart, cote a cote avec le gid: les deux passes le
   // portent, sinon le tableau nommerait selon celle qui a tourne en dernier.
@@ -724,7 +724,7 @@ test('le facteur de rythme atteint vraiment le tirage du delai', async () => {
   dire(ken(10));
   dire(kes(99, 13731, 100, 2699));
   dire(kgp(13731, [19, 190, 2699, 18000]));
-  const kch = () => sup.emis.filter((e) => e.frame.type === 'kch').length;
+  const kch = () => sup.emis.filter((e) => e.frame.type === 'kas').length;
   assert.strictEqual(kch(), 1, 'le premier lot ne paie pas le delai');
   await new Promise((res) => setTimeout(res, 750));
   assert.strictEqual(kch(), 2,
@@ -745,7 +745,7 @@ test('le plafond regle arrete une mise a jour que le facteur laissait passer', (
   dire(ivi([[13731, 300000]]));
   r.lancer(1);
   dire(kbt(13731, [0, 1200001, 0, 0]));
-  assert.ok(!types().includes('kch'), 'aucune mise a jour de prix ne doit partir');
+  assert.ok(!types().includes('kas'), 'aucune mise a jour de prix ne doit partir');
   const fin = rendu.find((x) => x.fini);
   assert.strictEqual(fin.bilan.ecartes.length, 1);
   assert.strictEqual(fin.bilan.ecartes[0].motif, 'au-dessus-du-plafond');
@@ -759,7 +759,7 @@ test('sans plafond, la meme mise a jour part', () => {
   dire(ivi([[13731, 300000]]));
   r.lancer(1);
   dire(kbt(13731, [0, 1200001, 0, 0]));
-  assert.ok(types().includes('kch'), 'la mise a jour de prix doit partir');
+  assert.ok(types().includes('kas'), 'la mise a jour de prix doit partir');
 });
 
 test('le facteur regle resserre l actualisation', () => {

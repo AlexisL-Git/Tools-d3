@@ -20,22 +20,20 @@ const frame = (hex) => decodeFrameRaw(Buffer.from(hex, 'hex'));
 // geste a la main. Les figer ici est le meme choix que TRAME_ACCEPTATION dans
 // echange.test.js: une trame reconstruite doit etre indiscernable de la vraie.
 
-test('kch reproduit exactement les octets de la mise a jour mesuree', () => {
-  const t = trameMajPrix({ uid: 1768695, prix: 2990, taille: 100 });
+test('kas reproduit exactement les octets de la mise a jour mesuree', () => {
+  // MESURE DU 08/09: kch s'appelle kas, et l'uid et le prix ont ECHANGE de
+  // champ. La taille, elle, n'a pas bouge.
+  const t = trameMajPrix({ uid: 157372, prix: 149, taille: 10 });
   assert.strictEqual(
     t.toString('hex'),
-    // NOM ET CHAMPS NON REMESURES au 08/09: la mise a jour de prix n'a pas ete
-    // declenchee pendant la mesure. Seule l'enveloppe suit le patch (kind 2 ->
-    // 1), qui est prouvee universelle sur 63 requetes. Tant que ce message n'a
-    // pas ete remesure, le repricing ne peut pas fonctionner.
-    '0a2d0a200a13747970652e616e6b616d612e636f6d2f6b6368120908f7f96b10ae17186410ffffffffffffffffff01',
+    '0a2d0a200a13747970652e616e6b616d612e636f6d2f6b6173120908950110bccd09180a10ffffffffffffffffff01',
   );
 });
 
-test('kch se relit comme une requete de type kch, uid -1', () => {
-  const f = frame(trameMajPrix({ uid: 1768695, prix: 2990, taille: 100 }).toString('hex'));
+test('kas se relit comme une requete de type kas, uid -1', () => {
+  const f = frame(trameMajPrix({ uid: 157372, prix: 149, taille: 10 }).toString('hex'));
   assert.strictEqual(f.kind, 'request');
-  assert.strictEqual(f.type, 'kch');   // nom perime, voir ci-dessus
+  assert.strictEqual(f.type, 'kas');
   assert.strictEqual(f.uid, -1n);
 });
 
@@ -123,10 +121,10 @@ test('kco rend l uid du lot qui disparait', () => {
 // 8180 octets, capturee le 01/09. L'interface du jeu affichait « 376 lots en
 // vente » au meme instant: c'est la seule verification de bout en bout qu'on
 // puisse faire sur ce lecteur, et elle vaut mieux qu'une trame fabriquee.
-test('kby rend les 376 lots du compte de mesure', { skip: "kby non remesure au 08/09 : la liste de ventes etait VIDE a l'ouverture, donc le message n'a pas ete emis. Rouvrir l'hotel avec des lots en vente le fera apparaitre." }, () => {
-  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-kby.hex'), 'utf8').trim();
+test('ket rend les 283 lots du compte de mesure', () => {
+  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ket.hex'), 'utf8').trim();
   const lots = lireNosLots(frame(hex));
-  assert.strictEqual(lots.length, 376);
+  assert.strictEqual(lots.length, 283);
   for (const l of lots) {
     assert.ok(Number.isInteger(l.uid) && l.uid > 0, 'chaque lot a un uid');
     assert.ok(Number.isInteger(l.gid) && l.gid > 0, 'chaque lot a un gid');
@@ -135,17 +133,17 @@ test('kby rend les 376 lots du compte de mesure', { skip: "kby non remesure au 0
   }
 });
 
-test('kby : le premier lot porte les valeurs mesurees', { skip: "kby non remesure au 08/09 : la liste de ventes etait VIDE a l'ouverture, donc le message n'a pas ete emis. Rouvrir l'hotel avec des lots en vente le fera apparaitre." }, () => {
-  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-kby.hex'), 'utf8').trim();
+test('ket : le premier lot porte les valeurs mesurees', () => {
+  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ket.hex'), 'utf8').trim();
   const lots = lireNosLots(frame(hex));
-  assert.deepStrictEqual(lots[0], { uid: 1738966, gid: 8308, taille: 1, prix: 143, duree: 2411322 });
+  assert.deepStrictEqual(lots[0], { uid: 357183, gid: 7304, taille: 10, prix: 5179, duree: 2369238 });
 });
 
 // La duree de mise en vente vaut 2 419 200 secondes, soit exactement 28 jours.
 // Aucun lot n'en porte davantage: c'est le plafond, et les valeurs mesurees
 // sont ce plafond moins le temps ecoule.
-test('kby : aucune duree ne depasse les 28 jours du plafond', { skip: "kby non remesure au 08/09 : la liste de ventes etait VIDE a l'ouverture, donc le message n'a pas ete emis. Rouvrir l'hotel avec des lots en vente le fera apparaitre." }, () => {
-  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-kby.hex'), 'utf8').trim();
+test('ket : aucune duree ne depasse les 28 jours du plafond', () => {
+  const hex = fs.readFileSync(path.join(__dirname, 'fixtures', 'hdv-ket.hex'), 'utf8').trim();
   for (const l of lireNosLots(frame(hex))) assert.ok(l.duree <= 2419200, `duree ${l.duree}`);
 });
 

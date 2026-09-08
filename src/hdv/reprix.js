@@ -391,7 +391,7 @@ function creerReprix({ superviseur, reglages = {}, onCompteRendu = () => {} }) {
     if (frame === null || frame === undefined || dir !== 'in') return;
 
     // --- L'ecoute permanente, hors de toute passe ---
-    if (frame.type === 'kby') {
+    if (frame.type === 'ket') {
       nosLots.set(pid, lireNosLots(frame));
       return;
     }

@@ -26,17 +26,10 @@ const { encodeRaw, decodeRaw, WIRE } = require('../codec/rawProto');
 //   kbt -> jzn   stats de prix    gid 2 -> 1, detail 3 -> 2, categorie 1 -> 3
 //   kes -> kda   lot pose         objet 1 -> 3, prix 2 -> 5, duree 4 -> 2
 //   ken -> kco   lot retire       inchange
+//   kch -> kas   maj de prix      uid 1 -> 2, prix 2 -> 1, taille inchangee
+//   kby -> ket   nos ventes       liste 1 -> 2, objet 2 -> 1, prix 3 -> 2,
+//                                 duree 4 -> 3
 //   dans le lot: gid 3 -> 2, taille 4 -> 3
-//
-// DEUX MESSAGES RESTENT A MESURER, et les fonctions qui en dependent ne
-// marchent pas tant que ce n'est pas fait:
-//
-//   kch   la mise a jour de prix. Elle n'a pas ete declenchee pendant la
-//         mesure — il faut modifier le prix d'un lot deja en vente. Sans elle,
-//         le repricing est mort.
-//   kby   la liste de nos ventes, emise a la SEULE ouverture de l'hotel. La
-//         liste etait vide ce jour-la, donc le message n'est jamais parti.
-//         Rouvrir l'hotel avec des lots en vente suffira.
 //
 // Les messages d'inventaire (ivx, iwb, ivj, ium, ivi) n'ont pas ete remesures
 // non plus: ils ne passent pas par l'hotel de vente.
@@ -80,7 +73,7 @@ function requete(type, champs) {
 // et donnait 3=1, indiscernable d'un drapeau. Une seconde mesure sur un lot de
 // 100 a donne 3=100. Deux valeurs distinctes, ambiguite levee.
 function trameMajPrix({ uid, prix, taille }) {
-  return requete('kch', [v(1, uid), v(2, prix), v(3, taille)]);
+  return requete('kas', [v(1, prix), v(2, uid), v(3, taille)]);
 }
 
 // keh { 1: gid, 2: 1 } — s'abonner au marche d'un objet.
@@ -222,11 +215,11 @@ function lireLot(objet, prix, duree) {
 //
 // Validee a 376 lots contre le compteur affiche en jeu au meme instant.
 function lireNosLots(frame) {
-  if (!frame || frame.type !== 'kby') return [];
+  if (!frame || frame.type !== 'ket') return [];
   const lots = [];
   for (const el of frame.payload || []) {
-    if (el.no !== 1 || el.kind !== 'message') continue;
-    const lot = lireLot(champ(el.value, 2), entier(el.value, 3), entier(el.value, 4));
+    if (el.no !== 2 || el.kind !== 'message') continue;
+    const lot = lireLot(champ(el.value, 1), entier(el.value, 2), entier(el.value, 3));
     if (lot !== null) lots.push(lot);
   }
   return lots;
