@@ -12,6 +12,7 @@ const { creerMasque, composerDescendant } = require('../src/masque');
 const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/songes');
+const { creerSuiviSonge } = require('../src/songe-en-cours');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const hdvReprix = require('../src/hdv/reprix');
 const hdvVente = require('../src/hdv/vente');
@@ -1377,10 +1378,21 @@ app.whenReady().then(async () => {
   reglerAmbiance();
   const protege = creerPorte({ droits: () => veille.droits() });
 
+  // Le suivi du songe est de la PLOMBERIE, pas une fonction: il ne fait rien
+  // par lui-meme, il repond a une question du duplicateur. Il n'est donc pas
+  // derriere protege() — un droit qui l'eteindrait rendrait le boost aux
+  // mules, et personne ne verrouille une restriction.
+  //
+  // PREMIER DE LA LISTE: il doit avoir vu l'arrivee du maitre sur la carte du
+  // songe avant que le duplicateur ne se prononce sur son dialogue.
+  const suiviSonge = creerSuiviSonge();
+
   superviseur.onTrame = composer(
+    suiviSonge.onTrame,
     creerDuplicateur({
       superviseur,
       estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
+      dansUnSonge: suiviSonge.dansUnSonge,
       onCompteRendu: ({ type, nom, rendu }) => {
         // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
         // compte qui ne rejoue pas ressemble a un compte inactif. On garde le

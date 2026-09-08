@@ -19,7 +19,7 @@ const trame = (url, champ) => encodeRaw([
   ] },
 ]);
 
-const IJZ = trame('type.ankama.com/ijz', 36380n);
+const IKB = trame('type.ankama.com/ikb', 7028n);
 const AUTRE = trame('type.ankama.com/ink', 36380n);
 
 // Le reassembleur retire le prefixe de longueur: sur le fil, chaque trame le
@@ -37,13 +37,13 @@ function masque() {
 // d'origine, exactement comme si ce module n'existait pas.
 test('sans marque, le flux n est pas touche', () => {
   const { m, conn } = masque();
-  assert.strictEqual(m.transformer(surLeFil(IJZ, AUTRE), conn), null);
+  assert.strictEqual(m.transformer(surLeFil(IKB, AUTRE), conn), null);
 });
 
 test('la trame marquee disparait du flux, ses voisines restent intactes', () => {
   const { m, conn } = masque();
-  m.marquer(42, IJZ);
-  const sortie = m.transformer(surLeFil(AUTRE, IJZ, AUTRE), conn);
+  m.marquer(42, IKB);
+  const sortie = m.transformer(surLeFil(AUTRE, IKB, AUTRE), conn);
   const trames = relire(sortie);
   assert.strictEqual(trames.length, 2);
   assert.ok(trames.every((t) => t.equals(AUTRE)));
@@ -53,8 +53,8 @@ test('la trame marquee disparait du flux, ses voisines restent intactes', () => 
 // prefixe de longueur compris, ou rien du tout.
 test('ce qui reste se relit trame par trame, sans octet en trop', () => {
   const { m, conn } = masque();
-  m.marquer(42, IJZ);
-  const sortie = m.transformer(surLeFil(IJZ, AUTRE), conn);
+  m.marquer(42, IKB);
+  const sortie = m.transformer(surLeFil(IKB, AUTRE), conn);
   assert.strictEqual(sortie.length, surLeFil(AUTRE).length);
   assert.ok(sortie.equals(surLeFil(AUTRE)));
 });
@@ -63,9 +63,9 @@ test('ce qui reste se relit trame par trame, sans octet en trop', () => {
 // que personne n'a decide d'accepter.
 test('la marque ne sert qu une fois: la meme trame repasse au chunk suivant', () => {
   const { m, conn } = masque();
-  m.marquer(42, IJZ);
-  assert.notStrictEqual(m.transformer(surLeFil(IJZ), conn), null);
-  assert.strictEqual(m.transformer(surLeFil(IJZ), conn), null);
+  m.marquer(42, IKB);
+  assert.notStrictEqual(m.transformer(surLeFil(IKB), conn), null);
+  assert.strictEqual(m.transformer(surLeFil(IKB), conn), null);
 });
 
 // Le cas ou la fonction ne peut rien: la trame commence dans le chunk
@@ -74,8 +74,8 @@ test('la marque ne sert qu une fois: la meme trame repasse au chunk suivant', ()
 // connexion perdue.
 test('une trame marquee coupee entre deux chunks n est pas retiree, et rien n est perdu', () => {
   const { m, conn } = masque();
-  m.marquer(42, IJZ);
-  const fil = surLeFil(IJZ);
+  m.marquer(42, IKB);
+  const fil = surLeFil(IKB);
   const coupe = Math.floor(fil.length / 2);
   const a = m.transformer(fil.subarray(0, coupe), conn);
   const b = m.transformer(fil.subarray(coupe), conn);
@@ -85,14 +85,14 @@ test('une trame marquee coupee entre deux chunks n est pas retiree, et rien n es
 
 test('la marque d un compte ne masque rien chez un autre', () => {
   const { m } = masque();
-  m.marquer(42, IJZ);
-  assert.strictEqual(m.transformer(surLeFil(IJZ), { id: 2, pid: 7 }), null);
+  m.marquer(42, IKB);
+  assert.strictEqual(m.transformer(surLeFil(IKB), { id: 2, pid: 7 }), null);
 });
 
 test('le masquage se journalise, une ligne par trame retiree', () => {
   const { m, rendu, conn } = masque();
-  m.marquer(42, IJZ);
-  m.transformer(surLeFil(IJZ), conn);
+  m.marquer(42, IKB);
+  m.transformer(surLeFil(IKB), conn);
   assert.strictEqual(rendu.length, 1);
   assert.strictEqual(rendu[0].pid, 42);
   assert.match(rendu[0].raison, /masquee/);
@@ -102,7 +102,7 @@ test('le masquage se journalise, une ligne par trame retiree', () => {
 // longueur. Le module doit s'arreter la et rendre les octets tels quels.
 test('un cadrage illisible ne retire rien', () => {
   const { m, conn } = masque();
-  m.marquer(42, IJZ);
+  m.marquer(42, IKB);
   const bruit = Buffer.from('ffffffff0102030405', 'hex');
   assert.strictEqual(m.transformer(bruit, conn), null);
 });
@@ -113,8 +113,8 @@ test('un cadrage illisible ne retire rien', () => {
 // relie les deux.
 test('une marque qu on n a pas pu retirer se journalise', () => {
   const { m, rendu, conn } = masque();
-  m.marquer(42, IJZ);
-  const fil = surLeFil(IJZ);
+  m.marquer(42, IKB);
+  const fil = surLeFil(IKB);
   m.transformer(fil.subarray(0, Math.floor(fil.length / 2)), conn);
   assert.strictEqual(rendu.length, 1);
   assert.strictEqual(rendu[0].pid, 42);
@@ -132,17 +132,17 @@ const inerte = () => { const f = () => null; f.fermer = () => {}; return f; };
 
 test('les deux politiques inertes: le flux composé rend null', () => {
   const f = composerDescendant(inerte(), () => null);
-  assert.strictEqual(f(surLeFil(IJZ), { id: 1, pid: 42 }), null);
+  assert.strictEqual(f(surLeFil(IKB), { id: 1, pid: 42 }), null);
 });
 
 test('le masquage s applique a ce que le no-anim a produit, pas a l original', () => {
-  const noAnim = () => surLeFil(AUTRE, IJZ);
+  const noAnim = () => surLeFil(AUTRE, IKB);
   noAnim.fermer = () => {};
   const vus = [];
   const f = composerDescendant(noAnim, (buf) => { vus.push(buf); return null; });
-  f(surLeFil(IJZ), { id: 1, pid: 42 });
+  f(surLeFil(IKB), { id: 1, pid: 42 });
   assert.strictEqual(vus.length, 1);
-  assert.ok(vus[0].equals(surLeFil(AUTRE, IJZ)));
+  assert.ok(vus[0].equals(surLeFil(AUTRE, IKB)));
 });
 
 test('le masquage qui ne retire rien laisse passer la sortie du no-anim', () => {
@@ -150,13 +150,13 @@ test('le masquage qui ne retire rien laisse passer la sortie du no-anim', () => 
   const noAnim = () => sortieNoAnim;
   noAnim.fermer = () => {};
   const f = composerDescendant(noAnim, () => null);
-  assert.strictEqual(f(surLeFil(IJZ), { id: 1, pid: 42 }), sortieNoAnim);
+  assert.strictEqual(f(surLeFil(IKB), { id: 1, pid: 42 }), sortieNoAnim);
 });
 
 test('le masquage voit les octets d origine quand le no-anim rend null', () => {
   const vus = [];
   const f = composerDescendant(inerte(), (buf) => { vus.push(buf); return null; });
-  const fil = surLeFil(IJZ);
+  const fil = surLeFil(IKB);
   f(fil, { id: 1, pid: 42 });
   assert.ok(vus[0].equals(fil));
 });
@@ -171,7 +171,7 @@ test('fermer() est transmis au no-anim', () => {
 });
 
 // BOUT EN BOUT, la seule chose qui prouve que le defaut est corrige: une vraie
-// trame `ijz` traverse le vrai accepteur, puis le vrai masque, dans l'ordre ou
+// trame `ikb` traverse le vrai accepteur, puis le vrai masque, dans l'ordre ou
 // desktop/main.js les enchaine -- onData('in') d'abord, ecriture au client
 // ensuite (src/proxy/server.js). L'invitation doit disparaitre du flux, et
 // l'acceptation doit tout de meme etre partie.
@@ -182,13 +182,17 @@ const MOI = 666951024934n;
 const AMI = 665809125670n;
 const ETRANGER = 123456789012n;
 
-const IJZ_REELLE = (invitant) => encodeRaw([{ no: 1, wire: WIRE.LEN, kind: 'message', value: [
+const IKB_REELLE = (invitant) => encodeRaw([{ no: 1, wire: WIRE.LEN, kind: 'message', value: [
   { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-    { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/ijz' },
+    { no: 1, wire: WIRE.LEN, kind: 'string', value: 'type.ankama.com/ikb' },
     { no: 2, wire: WIRE.LEN, kind: 'message', value: [
-      { no: 1, wire: WIRE.VARINT, value: MOI },
-      { no: 2, wire: WIRE.VARINT, value: invitant },
-      { no: 5, wire: WIRE.VARINT, value: 36380n },
+      // Les numeros de champ du 08/09: l invitant en 1, la constante 1 en 2,
+      // le groupe en 6 et NOUS en 7. Avant le patch, 1 portait le destinataire
+      // et 2 l invitant — exactement l inverse.
+      { no: 1, wire: WIRE.VARINT, value: invitant },
+      { no: 2, wire: WIRE.VARINT, value: 1n },
+      { no: 6, wire: WIRE.VARINT, value: 7028n },
+      { no: 7, wire: WIRE.VARINT, value: MOI },
     ] },
   ] },
 ] }]);
@@ -219,7 +223,7 @@ function chaine() {
 
 test('bout en bout: l invitation acceptee ne parvient jamais au client', () => {
   const { emis, chunkDescendant } = chaine();
-  const brute = IJZ_REELLE(AMI);
+  const brute = IKB_REELLE(AMI);
   const sortie = chunkDescendant(surLeFil(AUTRE, brute), 1);
   assert.strictEqual(emis.length, 1, 'l acceptation est bien partie');
   assert.ok(sortie.equals(surLeFil(AUTRE)), 'et l invitation a disparu du flux');
@@ -227,7 +231,7 @@ test('bout en bout: l invitation acceptee ne parvient jamais au client', () => {
 
 test('bout en bout: l invitation d un inconnu parvient au client, intacte', () => {
   const { emis, chunkDescendant } = chaine();
-  const fil = surLeFil(IJZ_REELLE(ETRANGER));
+  const fil = surLeFil(IKB_REELLE(ETRANGER));
   assert.strictEqual(chunkDescendant(fil, 1), null, 'rien n est touche');
   assert.strictEqual(emis.length, 0, 'et rien n est accepte');
 });

@@ -130,3 +130,68 @@ test('les octets continuent d etre lus au-dela de 10 000', () => {
   // de quatre chiffres a cinq.
   assert.strictEqual(t.octets.length, 26, 'la ligne a cinq chiffres doit etre lue');
 });
+
+// --- LE CATALOGUE ---------------------------------------------------------
+//
+// Une empreinte fausse dans le catalogue ne casse rien: candidats() rend une
+// liste vide, et l'outil affiche « aucun candidat — le geste a-t-il ete fait
+// pendant la mesure ? ». Il accuse la seance au lieu de lui-meme, et la seance
+// est refaite pour rien.
+//
+// C'est arrive: l'entree `ijz` a d'abord porte trois champs (1, 2 et 5), ceux
+// que le commentaire de src/invitation.js nommait utilement, la ou la trame en
+// portait six.
+//
+// ET UNE EMPREINTE JUSTE NE SUFFIT PAS TOUJOURS. Corrigee sur ses six champs,
+// `ijz` n'a quand meme rien apparie le 08/09: le patch avait aussi RENUMEROTE
+// ses champs, ce que l'appariement suppose impossible. C'est la chronologie
+// qui a retrouve ikb. Ces tests figent donc ce qui reste verifiable — le
+// rapprochement entre le catalogue et des OCTETS REELS.
+const { decodeFrameRaw } = require('../src/codec/rawProto');
+const { CATALOGUE } = require('../src/dev/catalogue');
+const fsc = require('node:fs');
+
+const entree = (prefixe) => CATALOGUE.find((e) => e.cle.startsWith(prefixe));
+const capture = (nom) => decodeFrameRaw(
+  Buffer.from(fsc.readFileSync('test/fixtures/' + nom + '.hex', 'utf8').trim(), 'hex'),
+);
+
+// Les cinq messages remappes le 08/09, chacun face aux octets qui l'ont fait
+// nommer. Si le catalogue derive, c'est ici que ca se voit.
+const REMAPPES = [
+  ['ikb', 'invitation-ikb', 'entrant'],
+  ['ikg', 'invitation-ikg', 'sortant'],
+  ['ixm', 'songe-ixm', 'sortant'],
+  ['ivj', 'songe-ivj', 'entrant'],
+  ['ixo', 'songe-ixo', 'sortant'],
+];
+
+for (const [nom, fixture, sens] of REMAPPES) {
+  test(`l empreinte de ${nom} au catalogue est celle de ses octets reels`, () => {
+    const e = entree(nom);
+    assert.ok(e, `${nom} manque au catalogue`);
+    const f = capture(fixture);
+    assert.strictEqual(f.type, nom, 'la fixture doit porter le message attendu');
+    assert.strictEqual(e.empreinte, empreinte(f.payload));
+    assert.strictEqual(e.sens, sens);
+  });
+}
+
+// CE DOUBLON EST VOULU, et c'est le piege de la seance de mesure: accepter un
+// groupe et accepter un songe sont deux requetes sortantes a un seul varint.
+// L'appariement ne les separera jamais; seul l'instant du geste le fera.
+test('ikg et ixo partagent leur empreinte: seule la chronologie les separe', () => {
+  assert.strictEqual(entree('ikg').empreinte, entree('ixo').empreinte);
+  assert.strictEqual(entree('ikg').sens, entree('ixo').sens);
+});
+
+// L'empreinte d'avant le patch, gardee comme temoin: elle prouve que le
+// changement de structure a bien eu lieu, et que ce n'est pas la lecture des
+// octets qui a bouge. Six champs des deux cotes, deux types echanges.
+test('la structure de l invitation a bien change entre les deux patchs', () => {
+  const avant = empreinte(decodeRaw(hex(
+    '08a68284cbb413 10a682c4aab013 1808 289c9c02 3001 3a0653706f6f6e79',
+  )));
+  assert.strictEqual(avant, '1:varint,2:varint,3:varint,5:varint,6:varint,7:len');
+  assert.notStrictEqual(avant, entree('ikb').empreinte, 'le patch a change la structure');
+});

@@ -2,40 +2,24 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { lireCaptures, candidats } = require('../src/dev/appariement');
+const { CATALOGUE } = require('../src/dev/catalogue');
 
 // Retrouve, apres un patch Dofus, les nouveaux noms des messages dont OMNI
-// depend. Voir src/dev/appariement.js pour le pourquoi, et la section 5.2 de
+// depend. Voir src/dev/appariement.js pour le pourquoi, src/dev/catalogue.js
+// pour les empreintes de reference, et la section 5.2 de
 // docs/superpowers/specs/2026-08-17-launcher-multi-compte-dofus3-design.md.
 //
 //   node outils/apparier-protocole.js journal-dev.log
 //
 // Le journal doit venir d'un lanceur de MESURE (lancer-mesure-hdv.vbs ou
 // equivalent): sans OMNI_CAPTURE_OCTETS=1 il n'y a pas d'octets a relire, donc
-// pas de structure, donc rien a apparier.
-
-// Les empreintes de reference viennent des trames MESUREES avant le patch,
-// figees dans test/echange.test.js, test/invitation.test.js et
-// test/passeur.test.js, et des structures documentees dans src/echange.js et
-// src/invitation.js.
+// pas de structure, donc rien a apparier. C'est le premier chiffre affiche
+// ci-dessous qui le dit: zero trame relisible, et la seance est a refaire.
 //
-// RESOLUS le 08/09, gardes pour verifier qu'ils tiennent au patch suivant:
-//   kfz -> jyv   kgt -> kcb   kgi -> kaq   kep -> kcs   kvw -> kth
-//
-// UNE EMPREINTE VIDE NE TRANCHE RIEN. jyj et jxy ne portent aucun champ, et
-// c'est l'empreinte la plus repandue du flux — la session du 08/09 rendait 17
-// candidats pour kgi. Pour ceux-la, l'outil degrossit et la CHRONOLOGIE decide:
-// jyj suit de 2 a 39 ms un jzc portant l'identifiant de ce client (mesure du
-// 27/08), et jxy part au moment ou l'on clique « Passer ».
-const CATALOGUE = [
-  // --- Passe-tour, a remapper -----------------------------------------------
-  { cle: 'jzc  debut de tour d un combattant', sens: 'entrant', empreinte: '1:varint,7:varint,8:varint' },
-  { cle: 'jxh  fin de tour d un combattant',   sens: 'entrant', empreinte: '2:varint' },
-  { cle: 'jyj  c est NOTRE tour',              sens: 'entrant', empreinte: '(vide)' },
-  { cle: 'jxy  passer le tour',                sens: 'sortant', empreinte: '(vide)' },
-  // --- Invitation, jamais capturee ------------------------------------------
-  { cle: 'ijz  invitation de groupe',     sens: 'entrant', empreinte: '1:varint,2:varint,5:varint' },
-  { cle: 'ijx  acceptation d invitation', sens: 'sortant', empreinte: '1:varint' },
-];
+// DEUX GESTES A NE PAS FAIRE COUP SUR COUP: accepter une invitation de groupe
+// et accepter un songe emettent la MEME empreinte (`1:varint`, sortante). Les
+// espacer nettement, et noter l'instant de chacun: c'est la chronologie qui
+// les separe, l'outil ne le fera pas.
 
 const fichier = process.argv[2] || 'journal-dev.log';
 if (!fs.existsSync(fichier)) {

@@ -7,10 +7,29 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // lance par le maitre et accepte A LA MAIN sur la mule. Detail dans
 // docs/superpowers/specs/2026-08-29-songes-design.md.
 //
+// CES NOMS SONT CEUX D'AVANT LE PATCH 3.6.11.12. On ne recrit pas un journal
+// cite: la correspondance etablie apres le patch est juste en dessous.
+//
 //   out request ixf { 2: {...} }   le maitre lance le songe
 //   in  event   iyd { 1: <2o>, 2: -300 }   l'invitation, chez la mule
 //   out request ixk { 1: 1 }       l'acceptation
 //   in  event   jru { 2: carte }   la mule arrive dans le songe du maitre
+//
+// REMESURE LE 08/09 APRES LE PATCH 3.6.11.12, un songe lance par A et accepte
+// a la main sur B, journal-groupe.log. Les octets sont dans
+// test/fixtures/songe-ixm.hex, -ivj.hex et -ixo.hex.
+//
+//   out request ixm { 1: {1: 1} }        le maitre lance le songe
+//   in  event   ivj { 1: <2o>, 3: -300 } l invitation, chez la mule
+//   out request ixo { 1: 1 }             l acceptation
+//
+// LE CHAMP -300 A CHANGE DE NUMERO, 2 devient 3. Sans consequence ici: ce
+// module ne lit aucun champ de l'invitation, il ne lit que son TYPE. Note
+// quand meme, parce que le prochain qui voudra decoder ce message le cherchera.
+//
+// L'AMBIGUITE SUR ixm EST LEVEE. Le spec du 29/08 ecrivait { 1: {...} } et
+// l'en-tete de ce module { 2: {...} }: l'un des deux se trompait. La mesure
+// donne ixm { 1={1=1} } — le spec avait raison, ce fichier avait tort.
 //
 // VERIFIE EN JEU le 29/08 a 22:24, APRES le correctif — ce sont les lignes
 // d'un vrai songe, maitre 29428 et mule 25460, pas un test:
@@ -23,18 +42,18 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 //
 // La carte de la mule est LA MEME que celle du maitre, et c'est le SERVEUR qui
 // l'envoie: l'acceptation fabriquee ici est donc acceptee. Les deux hypotheses
-// que le design portait sont levees — `iyd` EST l'invitation, et les octets de
-// `ixk` sont les bons.
+// que le design portait sont levees — `ivj` EST l'invitation, et les octets de
+// `ixo` sont les bons.
 //
 // LA MULE N'A PAS BESOIN D'ENTRER DANS LA ZONE. Mesure: son rejeu de `iwo` a
 // ete REFUSE (elle ne connaissait pas son skillInstanceUid pour l'element
 // 539616), elle est restee sur place, et elle a rejoint le songe quand meme.
 // Faire entrer les mules dans la zone serait du travail pour rien.
 //
-// LE FILTRE NE LIT PAS QUI INVITE, ET C'EST VOULU. Le champ 1 de `iyd` fait
+// LE FILTRE NE LIT PAS QUI INVITE, ET C'EST VOULU. Le champ 1 de `ivj` fait
 // DEUX OCTETS: trop peu pour un identifiant de personnage, celui du maitre
 // valant 676438999334. L'invitation ne nomme donc pas l'invitant. Mais elle
-// arrive 34 ms apres le `ixf` d'un de nos propres clients, et celle d'un
+// arrive 34 ms apres le `ixm` d'un de nos propres clients, et celle d'un
 // inconnu n'est precedee de rien. On filtre donc par le TEMPS: pas de
 // lancement recent de chez nous, pas d'acceptation.
 //
@@ -46,25 +65,25 @@ const { encodeRaw, WIRE } = require('./codec/rawProto');
 // moment du lancement.
 //
 // LIMITE CONNUE. Si le client MAITRE (celui qui lance ou rejoint le songe)
-// n'est pas lui-meme attache a OMNI, aucun ixf ni ixk sortant n'est jamais vu
+// n'est pas lui-meme attache a OMNI, aucun ixm ni ixo sortant n'est jamais vu
 // ici: dernierLancement ne s'arme jamais, et toutes les invitations sont
 // refusees, meme legitimes.
 //
 // Ce module ne depend ni d'Electron, ni de Frida, ni du systeme: il se teste
 // avec un double du superviseur, comme l'accepteur d'echange.
 
-const TYPE_LANCEMENT = 'ixf';
-const TYPE_INVITATION = 'iyd';
+const TYPE_LANCEMENT = 'ixm';
+const TYPE_INVITATION = 'ivj';
 // Le type de trame de l'acceptation, distinct de URL_ACCEPTATION (l'url
-// complete portee DANS la trame): sert a reconnaitre un ixk SORTANT emis par
-// un de nos clients, pour l'armement -- voir plus bas.
-const TYPE_ACCEPTATION = 'ixk';
-const URL_ACCEPTATION = 'type.ankama.com/ixk';
+// complete portee DANS la trame): sert a reconnaitre un ixo SORTANT emis par
+// un de nos clients, pour l armement -- voir plus bas.
+const TYPE_ACCEPTATION = 'ixo';
+const URL_ACCEPTATION = 'type.ankama.com/ixo';
 
 // Decision utilisateur du 29/08, apres coup: 10 000 ms ramene a 2 000 ms.
 // Toujours large devant les 34 ms mesures -- 60 fois la marge -- mais le
 // songe est une activite de GROUPE: si un AUTRE joueur lance son propre songe
-// peu apres le notre, la trame d'acceptation `ixk { 1: 1 }` ne designe aucune
+// peu apres le notre, la trame d'acceptation `ixo { 1: 1 }` ne designe aucune
 // invitation en particulier et accepterait la sienne a la place. Reduire la
 // fenetre reduit d'autant ce risque, sans mordre sur la marge de securite.
 const FENETRE_SONGE = 2000;
@@ -76,8 +95,13 @@ const DELAI_REACTION = { minMs: 150, maxMs: 600 };
 // Constante: l'acceptation ne recopie rien de l'invitation. Meme enveloppe que
 // TRAME_ACCEPTATION de l'echange, a ceci pres qu'Any.value porte { 1: 1 }.
 // uid = -1, comme toutes les requetes observees.
+// L'ENVELOPPE EST EN CHAMP 1 DEPUIS LE PATCH, elle etait en champ 2 avant.
+// Correction passee partout ailleurs le 08/09; ce module et src/invitation.js
+// sont les deux qu elle n avait pas atteints. Une requete batie sur l ancien
+// numero ne differe que par son PREMIER OCTET, 12 au lieu de 0a, et le serveur
+// l ignore sans rien dire.
 const TRAME_ACCEPTATION = encodeRaw([
-  { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+  { no: 1, wire: WIRE.LEN, kind: 'message', value: [
     { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'string', value: URL_ACCEPTATION },
       { no: 2, wire: WIRE.LEN, kind: 'message', value: [
@@ -119,13 +143,13 @@ function creerAccepteurSonge({
   return function onTrame({ pid, dir, frame }) {
     if (frame === null || frame === undefined) return;
 
-    // Le lancement (ixf), par N'IMPORTE LEQUEL de nos clients: c'est
+    // Le lancement (ixm), par N'IMPORTE LEQUEL de nos clients: c'est
     // l'application qui pilote, la notion de maitre n'entre pas ici.
     //
-    // TYPE_ACCEPTATION (ixk) arme aussi. REJOINDRE le songe d'un autre ne
-    // passe pas par ixf: seul celui qui LANCE l'emet. Sans cette entree, un
-    // utilisateur qui rejoint le songe d'un tiers (son maitre emet ixk, pas
-    // ixf) verrait ses propres mules refuser l'invitation qui suit -- alors
+    // TYPE_ACCEPTATION (ixo) arme aussi. REJOINDRE le songe d'un autre ne
+    // passe pas par ixm: seul celui qui LANCE l'emet. Sans cette entree, un
+    // utilisateur qui rejoint le songe d'un tiers (son maitre emet ixo, pas
+    // ixm) verrait ses propres mules refuser l'invitation qui suit -- alors
     // qu'il attend qu'elles le suivent, comme pour un songe lance par lui.
     //
     // PAS DE RISQUE DE BOUCLE: les trames qu'OMNI injecte via
@@ -138,7 +162,7 @@ function creerAccepteurSonge({
       return;
     }
 
-    // Meme exigence de kind que l'armement: iyd mesuree est un event, et une
+    // Meme exigence de kind que l'armement: ivj mesuree est un event, et une
     // eventuelle response de meme type ne doit pas etre prise pour
     // l'invitation.
     if (dir !== 'in' || frame.kind !== 'event' || frame.type !== TYPE_INVITATION) return;

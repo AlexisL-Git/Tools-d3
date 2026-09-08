@@ -11,10 +11,11 @@ const MOI = 665809125670n;
 const AMI = 677057659174n;
 const ETRANGER = 123456789012n;
 
-// Le groupe mesure le 20/08, et les octets exacts releves ce jour-la.
-const GROUPE = 36380n;
+// Le groupe mesure le 08/09 APRES LE PATCH 3.6.11.12, et les octets exacts
+// releves ce jour-la, dans test/fixtures/invitation-ikg.hex.
+const GROUPE = 7028n;
 const HEX_ACCEPTATION =
-  '12280a1b0a13747970652e616e6b616d612e636f6d2f696a781204089c9c0210ffffffffffffffffff01';
+  '0a270a1a0a13747970652e616e6b616d612e636f6d2f696b67120308f43610ffffffffffffffffff01';
 
 function fauxSuperviseur(comptes = [[1, MOI], [2, AMI]]) {
   const emis = [];
@@ -29,20 +30,21 @@ function fauxSuperviseur(comptes = [[1, MOI], [2, AMI]]) {
   };
 }
 
-// CHAMP_INVITANT = 2 et CHAMP_GROUPE = 5, mesures en tache 1. Le champ 1 porte
+// CHAMP_INVITANT = 1 et CHAMP_GROUPE = 6, REMESURES le 08/09. Le champ 7 porte
 // le DESTINATAIRE, c'est-a-dire nous: s'en servir comme invitant reviendrait a
-// accepter tout le monde.
+// accepter tout le monde. Avant le patch les deux roles occupaient les champs
+// 1 et 2 dans l ordre inverse: le piege a change de cote, il n a pas disparu.
 const invitation = (invitant, groupe = GROUPE) => ({
   kind: 'event', type: TYPE_INVITATION,
   payload: [
-    { no: 1, value: MOI },
+    { no: 7, value: MOI },
     { no: CHAMP_INVITANT, value: invitant },
     { no: CHAMP_GROUPE, value: groupe },
   ],
 });
 const invitationSansGroupe = (invitant) => ({
   kind: 'event', type: TYPE_INVITATION,
-  payload: [{ no: 1, value: MOI }, { no: CHAMP_INVITANT, value: invitant }],
+  payload: [{ no: 7, value: MOI }, { no: CHAMP_INVITANT, value: invitant }],
 });
 const evenement = (frame, pid = 1) => ({ pid, dir: 'in', frame, brute: Buffer.alloc(0) });
 
@@ -139,13 +141,13 @@ test('deux comptes sont independants', () => {
 });
 
 // L'acceptation N'EST PAS constante: l'identifiant de groupe a valu 35949,
-// 36074 puis 36380 sur trois mesures. Une trame figee n'accepterait que le
+// 36074, 36380 puis 7028 sur quatre mesures. Une trame figee n'accepterait que le
 // groupe du jour de la mesure.
 test('l identifiant de groupe de l invitation est recopie dans l acceptation', () => {
   const sup = fauxSuperviseur();
   accepteur(sup)(evenement(invitation(AMI, 4242n)));
   const f = decodeFrameRaw(sup.emis[0].octets);
-  assert.strictEqual(f.type, 'ijx');
+  assert.strictEqual(f.type, 'ikg');
   const c = f.payload.find((x) => x.no === 1);
   assert.strictEqual(c.value, 4242n);
 });
@@ -193,4 +195,40 @@ test('une invitation refusee n est jamais marquee', () => {
   a(evenementBrut(invitationSansGroupe(AMI), BRUTE));
   assert.strictEqual(sup.emis.length, 0);
   assert.strictEqual(masquees.length, 0);
+});
+
+// --- LA CAPTURE REELLE DU 08/09 -------------------------------------------
+//
+// Les tests ci-dessus fabriquent leurs trames a partir des constantes du
+// module: si une constante est fausse, ils restent VERTS et la fonction est
+// morte en jeu. C'est exactement ce qui est arrive au patch 3.6.11.12 — 1231
+// tests verts, et plus une seule invitation acceptee.
+//
+// Ceux-ci partent des OCTETS captures, jamais des constantes. Ils ne peuvent
+// pas mentir de la meme facon.
+const fs = require('node:fs');
+const octets = (nom) => Buffer.from(fs.readFileSync('test/fixtures/' + nom + '.hex', 'utf8').trim(), 'hex');
+
+const INVITANT_REEL = 676438999334n;   // celui qui invite: champ 1 de ikb
+const NOUS_REEL = 666951024934n;       // le destinataire: champ 7
+
+test('l invitation REELLE du 08/09 produit l acceptation REELLE, octet pour octet', () => {
+  const sup = fauxSuperviseur([[1, NOUS_REEL], [2, INVITANT_REEL]]);
+  const brute = octets('invitation-ikb');
+  const frame = decodeFrameRaw(brute);
+  assert.strictEqual(frame.type, TYPE_INVITATION, 'la fixture doit porter le type que le module ecoute');
+  accepteur(sup)({ pid: 1, dir: 'in', frame, brute });
+  assert.strictEqual(sup.emis.length, 1, 'une invitation reelle doit etre acceptee');
+  assert.ok(sup.emis[0].octets.equals(octets('invitation-ikg')),
+    'l acceptation emise doit etre identique a celle qu a emise le vrai client');
+});
+
+// Le champ 2 porte la constante 1 dans la trame reelle. Un filtre reste sur
+// l'ancien numero d'invitant la comparerait a nos identifiants, ne la
+// trouverait jamais, et refuserait TOUTES les invitations en silence.
+test('les champs de la trame reelle sont bien ceux que le module lit', () => {
+  const frame = decodeFrameRaw(octets('invitation-ikb'));
+  assert.strictEqual(frame.payload.find((c) => c.no === 2).value, 1n);
+  assert.strictEqual(frame.payload.find((c) => c.no === CHAMP_INVITANT).value, INVITANT_REEL);
+  assert.strictEqual(frame.payload.find((c) => c.no === CHAMP_GROUPE).value, 7028n);
 });
