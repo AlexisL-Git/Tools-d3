@@ -1,6 +1,7 @@
 'use strict';
-const { lookup, estRejouable, estDialogue } = require('./protocol/omni');
+const { lookup, estRejouable, estDialogue, estOuvertureHdv } = require('./protocol/omni');
 const { estSensible, cleDe, DELAI_PLANCHER_MS } = require('./garde-combat');
+const { estClicInteractif, PLANCHER_HDV_MS } = require('./garde-hdv');
 
 // La decision de rejeu, et elle seule.
 //
@@ -44,8 +45,13 @@ const ETALEMENT_REJEU = { minMs: MIN_TICK_WINDOWS, maxMs: 80 };
 //   le maitre. Faux par defaut: sans elle, la politique est celle d'avant.
 // dansUnSonge — dit si le maitre est en ce moment dans un songe. Faux par
 //   defaut: sans lui, la politique est celle d'avant.
+// fileDialogue — la file par mule qui deroule imp / inh / kiy. Null par defaut:
+//   sans elle, le dialogue se rejoue comme avant, et les tests qui ne s'en
+//   servent pas restent valables. Les deux appelants reels — l'application et
+//   le CLI — la fournissent.
 function creerDuplicateur({
   superviseur, onCompteRendu = () => {}, estApprise = () => false, dansUnSonge = () => false,
+  fileDialogue = null,
 }) {
   return function onTrame({ pid, dir, frame, brute, estMaitre }) {
     // Seules les requetes SORTANTES du maitre se rejouent: ce que le serveur
@@ -88,6 +94,42 @@ function creerDuplicateur({
       return;
     }
 
+    // L'HOTEL DE VENTE NE SUIT PAS. Demande de l'utilisateur du 09/09: « je veux
+    // que tu enleves le replicate ouvrir hdv avec les mules ». Sept panneaux
+    // d'hotel de vente qui s'ouvrent parce qu'on ouvre le sien est
+    // insupportable a l'usage.
+    //
+    // C'EST UNE OUVERTURE QU'ON COUPE, PAS L'HDV: la lecture des prix, la
+    // remise en vente et la mise en vente continuent de fonctionner — elles ne
+    // passent pas par `imp`. Seule la vente automatique a besoin, une fois par
+    // session, que le panneau de la mule ait ete ouvert pour connaitre son
+    // stock: il faudra l'ouvrir a la main. Arbitrage assume par l'utilisateur.
+    //
+    // Le refus se rend esclave par esclave, comme celui des songes: une mule
+    // qui ne rejoue pas ressemble sinon a une mule inactive.
+    if (estOuvertureHdv(frame)) {
+      const refuses = [...superviseur.comptes.esclaves(pid)].map((etat) => ({
+        pid: etat.pid, ok: false, emis: false,
+        raison: 'ouverture de l hotel de vente : le maitre seul',
+      }));
+      if (refuses.length === 0) return;
+      onCompteRendu({ pidMaitre: pid, type: frame.type, nom: connu.name, arme: superviseur.arme, rendu: refuses });
+      return;
+    }
+
+    // LE DIALOGUE PASSE PAR SA FILE, pas par rejouer(). Une mule ne peut pas
+    // repondre a une question qu'elle n'a pas encore recue: mesure du 09/09,
+    // une reponse de quete rejouee chez une mule qui ne l'a pas laissait sa
+    // fenetre ouverte POUR TOUJOURS, et tous les PNJ suivants etaient refuses
+    // par un `imq {}`. Voir docs/superpowers/specs/2026-09-09-file-dialogue-design.md.
+    //
+    // APRES la garde des songes, jamais avant: dans un songe, le dialogue ne
+    // doit pas partir du tout, ni tout de suite ni plus tard.
+    if (fileDialogue !== null && estDialogue(frame.type)) {
+      fileDialogue.pousser({ pidMaitre: pid, type: frame.type, brute });
+      return;
+    }
+
     // UNE ACTION DEJA VUE LANCER UN COMBAT n'est ni retardee ni tentee. Le
     // refus se rend esclave par esclave: un compte qui ne rejoue pas
     // ressemble sinon a un compte inactif, le mode d'echec le plus couteux
@@ -108,7 +150,13 @@ function creerDuplicateur({
     // condition: rejouer() a deja retardPlancher = 0 par defaut, donc les
     // deux formes sont equivalentes en comportement, et l'objet d'appel
     // garde la meme forme pour tous les types.
-    const retardPlancher = estSensible(frame.type) ? DELAI_PLANCHER_MS : 0;
+    // Le clic sur un element interactif est retarde LUI AUSSI, pour une raison
+    // differente: l'hotel de vente s'ouvre par le meme `iva` qu'un zaap, et
+    // seule la reponse du serveur les distingue. Le plancher laisse au
+    // garde-hdv le temps d'annuler avant que la fenetre ne s'ouvre chez les
+    // mules. Voir src/garde-hdv.js.
+    const retardPlancher = estSensible(frame.type) ? DELAI_PLANCHER_MS
+      : estClicInteractif(frame.type) ? PLANCHER_HDV_MS : 0;
     const rendu = superviseur.rejouer({ type: frame.type, brute, pidMaitre: pid, retardPlancher });
     // Le maitre seul en jeu: aucun esclave, rien a signaler.
     if (rendu.length === 0) return;

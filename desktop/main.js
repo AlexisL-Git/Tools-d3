@@ -6,13 +6,16 @@ const { app, BrowserWindow, ipcMain, globalShortcut, dialog, screen } = require(
 const { Superviseur } = require('../src/superviseur');
 const { creerDuplicateur, ETALEMENT_REJEU } = require('../src/duplicateur');
 const { creerGardeCombat } = require('../src/garde-combat');
+const { creerGardeHdv } = require('../src/garde-hdv');
 const { creerAbandonGroupe } = require('../src/abandon-combat');
 const { creerPasseur } = require('../src/passeur');
 const { creerMasque, composerDescendant } = require('../src/masque');
+const { creerFermeturePopup } = require('../src/popup-echange');
 const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/songes');
 const { creerSuiviSonge } = require('../src/songe-en-cours');
+const { creerFileDialogue } = require('../src/file-dialogue');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const hdvReprix = require('../src/hdv/reprix');
 const hdvVente = require('../src/hdv/vente');
@@ -402,6 +405,14 @@ const reglagesHdv = {
 // demonstration complete est en tete de src/masque.js.
 const masque = creerMasque({
   onCompteRendu: ({ pid, conn, raison }) => journal(pid, `masque (connexion ${conn}) : ${raison}`),
+});
+
+// LE SYMETRIQUE DU MASQUE, pour l'echange. Le masquage empeche un panneau de
+// naitre; celui-ci ferme une fenetre nee d'une trame qu'on a laissee passer
+// EXPRES — masquer `jyv` a ete essaye le 04/09 et rend la mule aveugle a son
+// propre echange. Voir src/popup-echange.js pour la mesure du 09/09.
+const fermeturePopup = creerFermeturePopup({
+  onCompteRendu: ({ pid, conn, raison }) => journal(pid, `echange (connexion ${conn}) : ${raison}`),
 });
 
 const DEPART = Date.now();
@@ -1098,7 +1109,8 @@ app.whenReady().then(async () => {
     // ... puis, apres lui, le masquage des trames qu'OMNI a acceptees a la
     // place du joueur. Le no-anim REECRIT, le masque RETIRE: dans cet ordre,
     // le masque travaille sur ce que le client verrait vraiment.
-    }), (buf, conn) => masque.transformer(buf, conn)),
+    }), (buf, conn) => masque.transformer(buf, conn),
+    (buf, conn) => fermeturePopup.transformer(buf, conn)),
     onSouris: ({ clic }) => jouerSouris(clic),
   });
 
@@ -1380,12 +1392,31 @@ app.whenReady().then(async () => {
   // songe avant que le duplicateur ne se prononce sur son dialogue.
   const suiviSonge = creerSuiviSonge();
 
+  // La file de dialogue est de la PLOMBERIE, comme le suivi de songe: elle ne
+  // fait rien par elle-meme, elle cadence ce que le duplicateur lui donne. Elle
+  // n'est donc pas derriere protege() — un droit qui l'eteindrait laisserait
+  // des mules avec une fenetre de dialogue ouverte, et personne ne verrouille
+  // une securite.
+  //
+  // Son compte rendu passe par les DEUX canaux, comme celui des songes:
+  // journal() date la decision sous OMNI_JOURNAL=complet, `messages` la porte
+  // sur la ligne du compte, seul endroit ou l'utilisateur la verra.
+  const fileDialogue = creerFileDialogue({
+    superviseur,
+    onCompteRendu: ({ pid, raison }) => {
+      journal(pid, `dialogue : ${raison}`);
+      messages.set(pid, `dialogue : ${raison}`);
+    },
+  });
+
   superviseur.onTrame = composer(
     suiviSonge.onTrame,
+    fileDialogue.onTrame,
     creerDuplicateur({
       superviseur,
       estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
       dansUnSonge: suiviSonge.dansUnSonge,
+      fileDialogue,
       onCompteRendu: ({ type, nom, rendu }) => {
         // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
         // compte qui ne rejoue pas ressemble a un compte inactif. On garde le
@@ -1399,6 +1430,13 @@ app.whenReady().then(async () => {
           else messages.set(r.pid, `${nom} : ${r.raison}`);
         }
       },
+    }),
+    // Le garde de l'hotel de vente est de la PLOMBERIE, comme le suivi de songe
+    // et la file de dialogue: il n'emet rien, il annule. Pas derriere protege()
+    // — personne ne verrouille une restriction.
+    creerGardeHdv({
+      superviseur,
+      onCompteRendu: ({ pidMaitre, annules }) => journal(pidMaitre, `hotel de vente : ${annules} rejeu(x) annule(s), le maitre seul l ouvre`),
     }),
     creerGardeCombat({
       superviseur,
@@ -1476,6 +1514,11 @@ app.whenReady().then(async () => {
       onCompteRendu: ({ pid, ok, raison, validation, retardMs }) => {
         if (ok) journal(pid, `echange : ${validation ? 'valide' : 'accepte'} apres ${retardMs} ms`);
         else journal(pid, `echange : ${raison}`);
+        // C'est l'ACCEPTATION qui laisse la pop-up ouverte chez la mule, pas la
+        // validation: le client n'a jamais vu passer le clic qu'OMNI a fait a
+        // sa place. On note le compte ici, la fermeture partira a la fin de
+        // l'echange, dans le flux descendant.
+        if (ok && !validation) fermeturePopup.marquer(pid);
       },
     })),
     protege('songe', creerAccepteurSonge({

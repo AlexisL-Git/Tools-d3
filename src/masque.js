@@ -139,15 +139,26 @@ function creerMasque({ onCompteRendu = () => {} } = {}) {
 // composition naive qui rendrait toujours un Buffer ferait tomber la Garantie
 // 1 du no-anim: eteint ne signifierait plus intouche, et chaque octet du
 // chemin critique serait recopie pour rien.
-function composerDescendant(noAnim, masquer) {
+// VARIADIQUE DEPUIS LE 09/09: ils sont trois — le no-anim REECRIT, le masquage
+// RETIRE, la fermeture de pop-up INSERE. L'ordre est celui des arguments, et il
+// compte: chacun travaille sur ce que le client verrait vraiment si les
+// precedents s'arretaient la.
+function composerDescendant(...fonctions) {
   const f = (buf, conn) => {
-    const apresNoAnim = noAnim(buf, conn);
-    const apresMasque = masquer(Buffer.isBuffer(apresNoAnim) ? apresNoAnim : buf, conn);
-    return apresMasque === null ? apresNoAnim : apresMasque;
+    // `null` tant que personne n'a touche a rien: c'est ce qui garantit qu'une
+    // chaine entierement inerte ne recopie pas un seul octet.
+    let courant = null;
+    for (const g of fonctions) {
+      const sortie = g(courant === null ? buf : courant, conn);
+      if (Buffer.isBuffer(sortie)) courant = sortie;
+    }
+    return courant;
   };
   // Sans ce relais, l'etat par connexion du no-anim ne serait plus jamais
   // purge: le superviseur appelle fermer() sur CE qu'on lui a donne.
-  f.fermer = (id) => { if (typeof noAnim.fermer === 'function') noAnim.fermer(id); };
+  f.fermer = (id) => {
+    for (const g of fonctions) if (typeof g.fermer === 'function') g.fermer(id);
+  };
   return f;
 }
 
