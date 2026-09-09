@@ -8,9 +8,12 @@ const { decodeEnvelope } = require('../codec/envelope');
 const { MessageStats } = require('../stats');
 const { Recorder } = require('../capture/recorder');
 
-const CACHE = path.join(process.env.USERPROFILE || '', '.cache');
+// Le dictionnaire est versionne avec le projet. Il vivait dans .cache, le dossier
+// de dofus-multi, qui le vide a chaque mise a jour : le 2026-08-23 game/ est revenu
+// vide et loadRegistry echouait avant meme d'ouvrir Dofus (cf. protocole/README.md).
+const PROTOCOLE = path.join(__dirname, '..', '..', 'protocole');
 // L'enveloppe et les messages de jeu sont deux roots distincts (cf. registry.js).
-const PROTO_SOURCES = [path.join(CACHE, '_Message.proto'), path.join(CACHE, 'game')];
+const PROTO_SOURCES = [path.join(PROTOCOLE, '_Message.proto'), path.join(PROTOCOLE, 'game')];
 
 const SEUIL_INCONNUS = 0.3;
 
