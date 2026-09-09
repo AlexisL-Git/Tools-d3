@@ -1,5 +1,5 @@
 'use strict';
-const { lookup, estRejouable, estDialogue } = require('./protocol/omni');
+const { lookup, estRejouable, estDialogue, estOuvertureHdv } = require('./protocol/omni');
 const { estSensible, cleDe, DELAI_PLANCHER_MS } = require('./garde-combat');
 
 // La decision de rejeu, et elle seule.
@@ -87,6 +87,29 @@ function creerDuplicateur({
       const refuses = [...superviseur.comptes.esclaves(pid)].map((etat) => ({
         pid: etat.pid, ok: false, emis: false,
         raison: 'dialogue dans un songe : le boost est au maitre',
+      }));
+      if (refuses.length === 0) return;
+      onCompteRendu({ pidMaitre: pid, type: frame.type, nom: connu.name, arme: superviseur.arme, rendu: refuses });
+      return;
+    }
+
+    // L'HOTEL DE VENTE NE SUIT PAS. Demande de l'utilisateur du 09/09: « je veux
+    // que tu enleves le replicate ouvrir hdv avec les mules ». Sept panneaux
+    // d'hotel de vente qui s'ouvrent parce qu'on ouvre le sien est
+    // insupportable a l'usage.
+    //
+    // C'EST UNE OUVERTURE QU'ON COUPE, PAS L'HDV: la lecture des prix, la
+    // remise en vente et la mise en vente continuent de fonctionner — elles ne
+    // passent pas par `imp`. Seule la vente automatique a besoin, une fois par
+    // session, que le panneau de la mule ait ete ouvert pour connaitre son
+    // stock: il faudra l'ouvrir a la main. Arbitrage assume par l'utilisateur.
+    //
+    // Le refus se rend esclave par esclave, comme celui des songes: une mule
+    // qui ne rejoue pas ressemble sinon a une mule inactive.
+    if (estOuvertureHdv(frame)) {
+      const refuses = [...superviseur.comptes.esclaves(pid)].map((etat) => ({
+        pid: etat.pid, ok: false, emis: false,
+        raison: 'ouverture de l hotel de vente : le maitre seul',
       }));
       if (refuses.length === 0) return;
       onCompteRendu({ pidMaitre: pid, type: frame.type, nom: connu.name, arme: superviseur.arme, rendu: refuses });

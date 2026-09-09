@@ -431,6 +431,30 @@ function estDialogue(key) {
   return DIALOGUE.has(key);
 }
 
+// L'OUVERTURE DE L'HOTEL DE VENTE, et elle seule. Demande de l'utilisateur du
+// 09/09: « je veux que tu enleves le replicate ouvrir hdv avec les mules ».
+// Sept panneaux d'hotel de vente qui s'ouvrent parce qu'on ouvre le sien est
+// insupportable a l'usage, et aucune des fonctions HDV n'en depend au point de
+// justifier de le subir.
+//
+// CE QUI DISTINGUE L'HDV DU RESTE, c'est le NUMERO D'ACTION, pas le message:
+// `imp` sert aussi bien a parler (3) qu'a acheter au marchand (11). La mesure
+// du 08/09 releve 5 et 6 a l'hotel de vente, et c'est la meme mesure qui avait
+// fait ecarter `imp` le matin -- on ne l'avait alors vu QUE sur la carte d'un
+// hotel de vente. Les deux numeros sont donc mesures ensemble; si un troisieme
+// existe, il s'ajoutera ici, a un seul endroit.
+//
+// CELA NE VIT PAS DANS LE DUPLICATEUR: c'est la lecture d'un champ de `imp`,
+// donc la table est le seul endroit qui sache ce que le champ 2 veut dire.
+const ACTIONS_HDV = new Set([5n, 6n]);
+
+function estOuvertureHdv(frame) {
+  if (frame === null || frame === undefined || frame.type !== 'imp') return false;
+  const action = (frame.payload || []).find((f) => f.no === 2);
+  if (action === null || action === undefined) return false;
+  return ACTIONS_HDV.has(BigInt(action.value));
+}
+
 // Les messages dont tous les champs decrivent le monde peuvent etre rejoues
 // octet pour octet; les autres doivent etre reconstruits avec l'etat de
 // l'esclave.
@@ -448,4 +472,5 @@ function accountFields(key) {
 
 module.exports = {
   MESSAGES, PERIMES, lookup, lookupByName, needsRewrite, accountFields, estRejouable, estDialogue,
+  estOuvertureHdv, ACTIONS_HDV,
 };

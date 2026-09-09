@@ -457,3 +457,43 @@ test('sans file, le dialogue se rejoue comme avant', () => {
   onTrame(trame({ frame: { kind: 'request', type: 'imp', payload: [] } }));
   assert.deepStrictEqual(s.appels.map((a) => a.type), ['imp']);
 });
+
+// L'HOTEL DE VENTE NE SE REJOUE PAS. Demande de l'utilisateur du 09/09: sept
+// panneaux qui s'ouvrent parce qu'on ouvre le sien est insupportable. Le refus
+// se rend esclave par esclave, comme celui des songes et du garde-combat: une
+// mule qui ne rejoue pas ressemble sinon a une mule inactive.
+test('l ouverture de l hotel de vente ne part ni dans la file ni dans rejouer()', () => {
+  for (const action of [5n, 6n]) {
+    const s = faux();
+    const pousses = [];
+    const comptesRendus = [];
+    const onTrame = creerDuplicateur({
+      superviseur: s,
+      fileDialogue: { pousser: (a) => pousses.push(a) },
+      onCompteRendu: (c) => comptesRendus.push(c),
+    });
+
+    onTrame(trame({ frame: { kind: 'request', type: 'imp', payload: [{ no: 2, value: action }] } }));
+
+    assert.strictEqual(pousses.length, 0, `action ${action}`);
+    assert.strictEqual(s.appels.length, 0, `action ${action}`);
+    assert.match(comptesRendus[0].rendu[0].raison, /hotel de vente/);
+  }
+});
+
+// Le marchand (11) et le dialogue ordinaire (3) passent par le MEME message:
+// couper l'hotel de vente ne doit pas les emporter avec lui.
+test('le marchand et le dialogue ordinaire passent toujours', () => {
+  for (const action of [3n, 11n]) {
+    const s = faux();
+    const pousses = [];
+    const onTrame = creerDuplicateur({
+      superviseur: s,
+      fileDialogue: { pousser: (a) => pousses.push(a) },
+    });
+
+    onTrame(trame({ frame: { kind: 'request', type: 'imp', payload: [{ no: 2, value: action }] } }));
+
+    assert.deepStrictEqual(pousses.map((p) => p.type), ['imp'], `action ${action}`);
+  }
+});
