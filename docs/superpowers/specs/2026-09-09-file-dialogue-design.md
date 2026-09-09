@@ -91,9 +91,12 @@ pour empecher.
 **Le reste du rejeu.** Deplacements, sorts, achats: rien ne change. Seuls les
 trois types de `DIALOGUE` passent par la file.
 
-**L'etalement.** La premiere etape d'un dialogue (`imp`) garde l'ecart par
-esclave existant: trois fenetres qui s'ouvrent a la meme milliseconde restent
-ce qu'on veut eviter. Les etapes suivantes, elles, sont cadencees par la file.
+**L'etalement des AUTRES rejeux.** Deplacements, sorts, achats gardent l'ecart
+cumule de `ETALEMENT_REJEU` (16 a 80 ms). Le dialogue, lui, ne passe plus par
+la: chaque mule tire SON propre delai de 150 a 600 ms a chaque etape. Trois
+tirages independants dans une fenetre de 450 ms suffisent a supprimer la
+simultaneite parfaite -- c'est le seul role que l'etalement cumule jouait, et
+un compteur cumule n'a plus de sens quand chaque mule avance a son rythme.
 
 ## Les messages entrants qu'on ecoute
 
@@ -105,7 +108,10 @@ constantes du module, avec la mesure en commentaire, comme `jpw` dans
     imw { 1 = <question> 3 = {2 = <reponse>} ... }   la question et ses choix
     imq { }                                          refus d'ouverture
     kja { 1 = 1 }                                    le dialogue est ferme
-    inn { 1 = <npc> 3 = <carte> }                    le dialogue s'ouvre
+
+`inn` (l'ouverture) est mesure lui aussi mais ne sert a rien ici: la file
+n'attend pas l'ouverture, elle attend la QUESTION. Ecouter un message dont on
+ne fait rien serait un etat de plus a tenir en accord avec les autres.
 
 ## Ce qui peut mal tourner, et ce que ca coute
 
