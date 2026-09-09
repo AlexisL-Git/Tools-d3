@@ -44,8 +44,13 @@ const ETALEMENT_REJEU = { minMs: MIN_TICK_WINDOWS, maxMs: 80 };
 //   le maitre. Faux par defaut: sans elle, la politique est celle d'avant.
 // dansUnSonge — dit si le maitre est en ce moment dans un songe. Faux par
 //   defaut: sans lui, la politique est celle d'avant.
+// fileDialogue — la file par mule qui deroule imp / inh / kiy. Null par defaut:
+//   sans elle, le dialogue se rejoue comme avant, et les tests qui ne s'en
+//   servent pas restent valables. Les deux appelants reels — l'application et
+//   le CLI — la fournissent.
 function creerDuplicateur({
   superviseur, onCompteRendu = () => {}, estApprise = () => false, dansUnSonge = () => false,
+  fileDialogue = null,
 }) {
   return function onTrame({ pid, dir, frame, brute, estMaitre }) {
     // Seules les requetes SORTANTES du maitre se rejouent: ce que le serveur
@@ -85,6 +90,19 @@ function creerDuplicateur({
       }));
       if (refuses.length === 0) return;
       onCompteRendu({ pidMaitre: pid, type: frame.type, nom: connu.name, arme: superviseur.arme, rendu: refuses });
+      return;
+    }
+
+    // LE DIALOGUE PASSE PAR SA FILE, pas par rejouer(). Une mule ne peut pas
+    // repondre a une question qu'elle n'a pas encore recue: mesure du 09/09,
+    // une reponse de quete rejouee chez une mule qui ne l'a pas laissait sa
+    // fenetre ouverte POUR TOUJOURS, et tous les PNJ suivants etaient refuses
+    // par un `imq {}`. Voir docs/superpowers/specs/2026-09-09-file-dialogue-design.md.
+    //
+    // APRES la garde des songes, jamais avant: dans un songe, le dialogue ne
+    // doit pas partir du tout, ni tout de suite ni plus tard.
+    if (fileDialogue !== null && estDialogue(frame.type)) {
+      fileDialogue.pousser({ pidMaitre: pid, type: frame.type, brute });
       return;
     }
 

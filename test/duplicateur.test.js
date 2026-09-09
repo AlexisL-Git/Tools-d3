@@ -25,6 +25,9 @@ function faux({ arme = false, rendu = [{ pid: 2, ok: true, emis: false, action: 
     arme,
     appels,
     clients: new Map(),
+    // Un seul esclave: assez pour les refus rendus esclave par esclave (songe,
+    // garde-combat) sans alourdir les autres tests.
+    comptes: { esclaves: () => [{ pid: 2 }] },
     rejouer(args) { appels.push(args); return rendu; },
   };
 }
@@ -408,4 +411,49 @@ test('sans dansUnSonge, le dialogue se rejoue: le defaut ne coupe rien', () => {
   const onTrame = creerDuplicateur({ superviseur: s });
   onTrame(dialogue('imp'));
   assert.strictEqual(s.appels.length, 1);
+});
+
+// LA FILE DE DIALOGUE. Le dialogue ne se tire plus vers toutes les mules d'un
+// coup: il s'empile, et chaque mule le deroule a son rythme. Voir
+// docs/superpowers/specs/2026-09-09-file-dialogue-design.md.
+test('un dialogue va dans la file, pas dans rejouer()', () => {
+  const s = faux();
+  const pousses = [];
+  const onTrame = creerDuplicateur({
+    superviseur: s,
+    fileDialogue: { pousser: (a) => pousses.push(a) },
+  });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'imp', payload: [] } }));
+
+  assert.strictEqual(s.appels.length, 0, 'rejouer() ne doit plus voir le dialogue');
+  assert.deepStrictEqual(pousses.map((p) => p.type), ['imp']);
+});
+
+// LE VERROU DES SONGES. Si la file passait AVANT la garde, les mules
+// rejoueraient le dialogue du PNJ a boost -- en silence, et seule une session
+// en jeu le verrait. Voir src/songe-en-cours.js.
+test('dans un songe, le dialogue n entre meme pas dans la file', () => {
+  const s = faux();
+  const pousses = [];
+  const comptesRendus = [];
+  const onTrame = creerDuplicateur({
+    superviseur: s,
+    dansUnSonge: () => true,
+    fileDialogue: { pousser: (a) => pousses.push(a) },
+    onCompteRendu: (c) => comptesRendus.push(c),
+  });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'imp', payload: [] } }));
+
+  assert.strictEqual(pousses.length, 0);
+  assert.strictEqual(s.appels.length, 0);
+  assert.match(comptesRendus[0].rendu[0].raison, /songe/);
+});
+
+test('sans file, le dialogue se rejoue comme avant', () => {
+  const s = faux();
+  const onTrame = creerDuplicateur({ superviseur: s });
+  onTrame(trame({ frame: { kind: 'request', type: 'imp', payload: [] } }));
+  assert.deepStrictEqual(s.appels.map((a) => a.type), ['imp']);
 });
