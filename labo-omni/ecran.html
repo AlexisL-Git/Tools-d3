@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — l'écran d'accueil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,400;50..150,700;50..150,800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   L IDENTITE APPLIQUEE. Memes couleurs, memes lettres, meme coin
+   coupe que la planche. Rien de nouveau n est invente ici: l ecran
+   n est que du montage.
+   ============================================================ */
+:root{
+  --nuit:#0A0B12;
+  --plaque:#12141E;
+  --plaque-haute:#191C29;
+  --filet:#262B3C;
+  --filet-clair:#38405A;
+  --texte:#E8EAF2;
+  --sourd:#818AA6;
+  --tres-sourd:#4E5670;
+  --volt:#7C5CFF;
+  --volt-sombre:#2A1F63;
+  --braise:#FF8A3D;
+  --jade:#2FE0A8;
+  --rouge:#FF4D6D;
+  --ui:"Public Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Anybody","Public Sans",system-ui,sans-serif;
+  --coupe:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:#050609;color:var(--texte);font-family:var(--ui);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:18px;padding:34px 20px;
+}
+a.retour{
+  position:fixed;top:18px;left:20px;color:var(--tres-sourd);text-decoration:none;
+  font-size:13px;border-bottom:1px solid var(--filet);padding-bottom:2px;
+}
+a.retour:hover{color:var(--volt);border-bottom-color:var(--volt)}
+.legende{max-width:1097px;color:var(--sourd);font-size:13.5px;line-height:1.6;margin:0}
+.legende b{color:var(--texte);font-weight:600}
+
+.fenetre{
+  width:1097px;height:720px;background:var(--nuit);overflow:hidden;
+  display:flex;flex-direction:column;border:1px solid #1B1F2C;
+  box-shadow:0 30px 90px rgba(0,0,0,.8);
+}
+
+/* ---- barre de titre ---- */
+.barre{
+  height:44px;flex:none;display:flex;align-items:center;gap:13px;
+  padding-left:16px;border-bottom:1px solid var(--filet);
+}
+.mot{
+  font-family:var(--titre);font-weight:800;font-stretch:128%;
+  font-size:17px;letter-spacing:.02em;line-height:1;
+}
+.badge{
+  display:inline-flex;align-items:center;gap:7px;padding:6px 11px;
+  background:var(--volt-sombre);color:#CBBBFF;font:700 11px/1 var(--ui);letter-spacing:.05em;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%);
+  border:0;cursor:pointer;
+}
+.badge i{width:6px;height:6px;background:var(--volt);border-radius:50%;box-shadow:0 0 7px var(--volt)}
+.version{margin-left:auto;color:var(--tres-sourd);font-size:12px}
+.bouts{display:flex;margin-left:12px}
+.bouts button{width:44px;height:44px;background:transparent;border:0;color:var(--tres-sourd);cursor:pointer}
+.bouts button:hover{background:rgba(255,255,255,.06);color:var(--texte)}
+.bouts button.fermer:hover{background:var(--rouge);color:#fff}
+
+/* ---- le verdict, avec la couronne vivante ---- */
+.verdict{display:flex;align-items:center;gap:26px;padding:22px 22px 20px;border-bottom:1px solid var(--filet)}
+.verdict .dit{flex:1;min-width:0}
+.verdict h1{
+  font-family:var(--titre);font-weight:800;font-stretch:126%;
+  font-size:33px;line-height:1;letter-spacing:-.015em;margin:0;
+}
+.verdict h1 .sur{color:var(--tres-sourd)}
+.verdict p{margin:11px 0 0;color:var(--sourd);font-size:14px;line-height:1.5;max-width:70ch}
+.verdict .gestes{display:flex;flex-direction:column;gap:8px;flex:none}
+.bt{
+  border:0;font:600 13px/1 var(--ui);padding:11px 16px;cursor:pointer;color:#0A0713;
+  background:var(--volt);text-align:left;white-space:nowrap;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%);
+}
+.bt.creux{background:transparent;color:var(--texte);border:1px solid var(--filet-clair)}
+.bt.creux:hover{border-color:var(--volt);color:var(--volt)}
+
+/* ---- le rang de huit ---- */
+.rang{display:grid;grid-template-columns:repeat(8,1fr);gap:9px;padding:18px 22px 0;flex:none}
+.carte{
+  position:relative;background:var(--plaque);border:1px solid var(--filet);
+  clip-path:var(--coupe);padding:13px 12px 12px;height:268px;
+  display:flex;flex-direction:column;
+}
+.carte:hover{background:var(--plaque-haute)}
+.carte .fil{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--jade)}
+.carte.attente .fil{background:linear-gradient(180deg,var(--braise) 44%,var(--filet) 44%)}
+.carte.absent{background:#0D0F16}
+.carte.absent .fil{background:repeating-linear-gradient(180deg,var(--filet) 0 5px,transparent 5px 10px)}
+.carte.meneur .fil{background:var(--braise);width:4px}
+
+.classe{
+  align-self:flex-start;font:700 10px/1 var(--ui);letter-spacing:.09em;
+  color:var(--sourd);border:1px solid var(--filet);padding:4px 7px;
+}
+.carte.meneur .classe{color:var(--braise);border-color:#5A3313}
+.nom{
+  font-family:var(--titre);font-weight:700;font-stretch:112%;
+  font-size:15.5px;line-height:1.1;margin-top:12px;letter-spacing:-.01em;
+  word-break:break-word;
+}
+.compte{font-size:11.5px;color:var(--tres-sourd);margin-top:3px}
+.carte.absent .nom{color:var(--sourd)}
+
+.etat{display:flex;align-items:center;gap:7px;margin-top:13px;font-size:12.5px;font-weight:600;color:var(--jade)}
+.etat .los{width:8px;height:8px;transform:rotate(45deg);flex:none;background:var(--jade)}
+.carte.attente .etat{color:var(--braise)}
+.carte.attente .etat .los{background:transparent;border:1.5px solid var(--braise)}
+.carte.absent .etat{color:var(--rouge)}
+.carte.absent .etat .los{background:transparent;border:1.5px dashed var(--rouge)}
+.carte.meneur .etat{color:var(--braise)}
+.carte.meneur .etat .los{background:var(--braise)}
+
+.ou{font-size:11.5px;color:var(--sourd);margin-top:7px;line-height:1.35}
+
+.bas-carte{margin-top:auto;padding-top:12px;border-top:1px solid var(--filet)}
+.pips{display:flex;gap:4px}
+.pips i{width:9px;height:9px;border:1.5px solid var(--filet-clair);background:transparent}
+.pips i.on{background:var(--volt);border-color:var(--volt)}
+.carte.absent .pips i.on{background:#2E3247;border-color:#2E3247}
+.cabochon{
+  display:inline-block;margin-top:10px;border:1px solid var(--filet-clair);
+  color:var(--sourd);font:600 10.5px/1 var(--ui);padding:5px 8px;letter-spacing:.05em;
+}
+
+/* ---- ce qui tourne ---- */
+.tourne{flex:1;min-height:0;padding:18px 22px 20px;display:flex;flex-direction:column;gap:9px}
+.act{
+  display:flex;align-items:center;gap:13px;background:var(--plaque);
+  border:1px solid var(--filet);clip-path:var(--coupe);padding:12px 15px;
+}
+.act .los{width:9px;height:9px;transform:rotate(45deg);flex:none;background:var(--volt)}
+.act.pause .los{background:transparent;border:1.5px solid var(--braise)}
+.act .txt{font-size:13.5px;color:var(--sourd);line-height:1.4}
+.act .txt b{color:var(--texte);font-weight:600}
+.act .droite{margin-left:auto;display:flex;align-items:center;gap:13px;flex:none}
+.act .chiffre{font-family:var(--titre);font-weight:700;font-stretch:120%;font-size:15px;color:var(--texte)}
+.jaugette{width:112px;height:6px;background:#1A1E2B;overflow:hidden}
+.jaugette span{display:block;height:100%;background:var(--volt)}
+.act .bt-mini{
+  background:transparent;border:1px solid var(--filet-clair);color:var(--sourd);
+  font:600 11.5px/1 var(--ui);padding:7px 11px;cursor:pointer;
+}
+.act .bt-mini:hover{border-color:var(--volt);color:var(--volt)}
+.repos{color:var(--tres-sourd);font-size:12.5px;padding-left:2px}
+</style></head>
+<body>
+<a class="retour" href="/identite.html">← la planche d’identité</a>
+
+<div class="fenetre">
+
+  <div class="barre">
+    <!-- LA COURONNE VIVANTE, en icone de barre: 6 segments jade, 1 braise
+         (le meneur), 1 gris (pas entre), 1 eteint (pas lance). -->
+    <svg width="22" height="22" viewBox="0 0 48 48" aria-label="6 personnages sur 8 en jeu">
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#FF8A3D" stroke-width="7.5" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="5" stroke-dasharray="9.35 97.46" transform="rotate(-61.1 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="5" stroke-dasharray="9.35 97.46" transform="rotate(-16.1 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="5" stroke-dasharray="9.35 97.46" transform="rotate(28.9 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="5" stroke-dasharray="9.35 97.46" transform="rotate(73.9 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#4E5670" stroke-width="5" stroke-dasharray="9.35 97.46" transform="rotate(118.9 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="5" stroke-dasharray="9.35 97.46" transform="rotate(163.9 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#262B3C" stroke-width="5" stroke-dasharray="9.35 97.46" transform="rotate(208.9 24 24)"/>
+    </svg>
+    <span class="mot">OMNI</span>
+    <button class="badge"><i></i>ARMÉ</button>
+    <span class="version">0.3.6</span>
+    <span class="bouts">
+      <button><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
+      <button class="fermer"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
+    </span>
+  </div>
+
+  <div class="verdict">
+    <svg width="96" height="96" viewBox="0 0 48 48" style="flex:none" aria-label="6 personnages sur 8 en jeu">
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#FF8A3D" stroke-width="6" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(-61.1 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(-16.1 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(28.9 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(73.9 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#4E5670" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(118.9 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(163.9 24 24)"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#262B3C" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(208.9 24 24)"/>
+    </svg>
+    <div class="dit">
+      <h1>6 EN JEU <span class="sur">SUR 8</span></h1>
+      <p>Kwakoun est resté à l’écran de sélection — le client tourne, mais personne n’est entré. Tacatak n’a aucun client ouvert. Les six autres suivent Vahlkyr depuis 41 minutes.</p>
+    </div>
+    <div class="gestes">
+      <button class="bt">Réveiller Kwakoun</button>
+      <button class="bt creux">Lancer le client de Tacatak</button>
+    </div>
+  </div>
+
+  <div class="rang">
+
+    <div class="carte meneur"><span class="fil"></span>
+      <span class="classe">IOP</span>
+      <div class="nom">Vahlkyr</div><div class="compte">jibef-1</div>
+      <div class="etat"><span class="los"></span>commande</div>
+      <div class="ou">Astrub, place du marché</div>
+      <div class="bas-carte">
+        <span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+        <span class="cabochon">F1</span>
+      </div>
+    </div>
+
+    <div class="carte"><span class="fil"></span>
+      <span class="classe">ENI</span>
+      <div class="nom">Noméa</div><div class="compte">jibef-2</div>
+      <div class="etat"><span class="los"></span>en jeu</div>
+      <div class="ou">suit Vahlkyr</div>
+      <div class="bas-carte">
+        <span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+        <span class="cabochon">F2</span>
+      </div>
+    </div>
+
+    <div class="carte"><span class="fil"></span>
+      <span class="classe">SAC</span>
+      <div class="nom">Ptit-Bras</div><div class="compte">jibef-3</div>
+      <div class="etat"><span class="los"></span>en jeu</div>
+      <div class="ou">suit Vahlkyr</div>
+      <div class="bas-carte">
+        <span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>
+        <span class="cabochon">F3</span>
+      </div>
+    </div>
+
+    <div class="carte"><span class="fil"></span>
+      <span class="classe">SRA</span>
+      <div class="nom">Sombrelle</div><div class="compte">jibef-4</div>
+      <div class="etat"><span class="los"></span>à l’hôtel</div>
+      <div class="ou">relève les prix</div>
+      <div class="bas-carte">
+        <span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+        <span class="cabochon">F4</span>
+      </div>
+    </div>
+
+    <div class="carte"><span class="fil"></span>
+      <span class="classe">OSA</span>
+      <div class="nom">Ourseline</div><div class="compte">jibef-5</div>
+      <div class="etat"><span class="los"></span>en jeu</div>
+      <div class="ou">suit Vahlkyr</div>
+      <div class="bas-carte">
+        <span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+        <span class="cabochon">F5</span>
+      </div>
+    </div>
+
+    <div class="carte attente"><span class="fil"></span>
+      <span class="classe">CRA</span>
+      <div class="nom">Kwakoun</div><div class="compte">jibef-6</div>
+      <div class="etat"><span class="los"></span>pas entré</div>
+      <div class="ou">écran de sélection</div>
+      <div class="bas-carte">
+        <span class="pips"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span>
+        <span class="cabochon">F6</span>
+      </div>
+    </div>
+
+    <div class="carte"><span class="fil"></span>
+      <span class="classe">STE</span>
+      <div class="nom">Bricoline</div><div class="compte">jibef-7</div>
+      <div class="etat"><span class="los"></span>en pause</div>
+      <div class="ou">sac plein</div>
+      <div class="bas-carte">
+        <span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+        <span class="cabochon">F7</span>
+      </div>
+    </div>
+
+    <div class="carte absent"><span class="fil"></span>
+      <span class="classe">ZOB</span>
+      <div class="nom">Tacatak</div><div class="compte">jibef-8</div>
+      <div class="etat"><span class="los"></span>pas lancé</div>
+      <div class="ou">aucun client ouvert</div>
+      <div class="bas-carte">
+        <span class="pips"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="cabochon">F8</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="tourne">
+    <div class="act">
+      <span class="los"></span>
+      <span class="txt"><b>Sombrelle</b> relève les prix de l’hôtel de vente</span>
+      <span class="droite">
+        <span class="chiffre">412 / 664</span>
+        <span class="jaugette"><span style="width:62%"></span></span>
+        <button class="bt-mini">Arrêter</button>
+      </span>
+    </div>
+    <div class="act pause">
+      <span class="los"></span>
+      <span class="txt"><b>Bricoline</b> a mis sa course en pause : le sac est plein</span>
+      <span class="droite">
+        <span class="chiffre">14 / 20 lots</span>
+        <span class="jaugette"><span style="width:70%;background:#FF8A3D"></span></span>
+        <button class="bt-mini">Reprendre</button>
+      </span>
+    </div>
+    <div class="repos">178 archimonstres relevés sur 6 inventaires · 3 lots invendus à l’hôtel · rien d’autre ne tourne</div>
+  </div>
+
+</div>
+
+<p class="legende"><b>L’identité appliquée.</b> Regarde la couronne en haut à gauche de la fenêtre : c’est le logo, et c’est aussi ton compteur. Six segments jade, un orange (le meneur), un gris (Kwakoun pas entré), un éteint (Tacatak pas lancé). La même image sera l’icône de la barre des tâches et le repère sur la barre flottante en combat. <b>Rien n’a été inventé sur cet écran</b> — tout vient de la planche d’identité.</p>
+</body></html>

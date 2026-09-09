@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — combien de couleurs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,400;50..150,700;50..150,800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --nuit:#0C0D10;--plaque:#14161A;--plaque-haute:#1B1E23;
+  --filet:#272A31;--filet-clair:#3B4049;
+  --texte:#E9EAEC;--sourd:#8A9099;--tres-sourd:#565C66;
+  --accent:#E9EAEC;          /* pilote par les pastilles */
+  --accent-encre:#0C0D10;
+  --ui:"Public Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Anybody","Public Sans",system-ui,sans-serif;
+  --coupe:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--nuit);color:var(--texte);font-family:var(--ui);line-height:1.55;padding:52px 28px 90px}
+main{max-width:1000px;margin:0 auto}
+a.retour{position:fixed;top:18px;left:20px;color:var(--tres-sourd);text-decoration:none;font-size:13px;border-bottom:1px solid var(--filet);padding-bottom:2px;z-index:5}
+a.retour:hover{color:var(--texte)}
+
+h1{font-family:var(--titre);font-weight:800;font-stretch:125%;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:0 0 14px}
+.chapo{color:var(--sourd);font-size:15px;max-width:70ch;margin:0 0 6px}
+.chapo strong{color:var(--texte);font-weight:600}
+
+/* ---------- les manettes ---------- */
+.manettes{margin-top:34px;background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);padding:22px 24px}
+.groupe{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.groupe + .groupe{margin-top:18px;padding-top:18px;border-top:1px solid var(--filet)}
+.etiq{font-family:var(--titre);font-weight:700;font-stretch:112%;font-size:12.5px;color:var(--sourd);width:132px;flex:none}
+.bt-mode{
+  background:transparent;border:1px solid var(--filet-clair);color:var(--sourd);
+  font:600 13px/1 var(--ui);padding:10px 15px;cursor:pointer;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%);
+}
+.bt-mode:hover{color:var(--texte);border-color:var(--texte)}
+.bt-mode[aria-pressed="true"]{background:var(--texte);border-color:var(--texte);color:var(--nuit)}
+.pastilles{display:flex;gap:8px;flex-wrap:wrap}
+.pastille{width:34px;height:34px;border:1px solid var(--filet-clair);cursor:pointer;padding:0;position:relative}
+.pastille[aria-pressed="true"]{outline:2px solid var(--texte);outline-offset:2px}
+.pastille.neutre{background:#E9EAEC}
+.nom-teinte{color:var(--tres-sourd);font-size:12.5px;margin-left:auto}
+.explique{margin-top:18px;padding-top:16px;border-top:1px solid var(--filet);color:var(--sourd);font-size:13.5px;line-height:1.55;max-width:78ch}
+.explique b{color:var(--texte);font-weight:600}
+
+/* ================= LE FRAGMENT ================= */
+.essai{margin-top:26px;width:100%;background:var(--nuit);border:1px solid #1E2126;box-shadow:0 22px 60px rgba(0,0,0,.7)}
+
+.barre{height:44px;display:flex;align-items:center;gap:13px;padding-left:15px;border-bottom:1px solid var(--filet)}
+.mot{font-family:var(--titre);font-weight:800;font-stretch:128%;font-size:17px;letter-spacing:.02em}
+.badge{
+  display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid var(--filet-clair);
+  color:var(--sourd);font:700 11px/1 var(--ui);letter-spacing:.05em;background:transparent;cursor:pointer;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%);
+}
+.badge i{width:7px;height:7px;background:var(--sourd);transform:rotate(45deg)}
+.version{margin-left:auto;color:var(--tres-sourd);font-size:12px;padding-right:16px}
+
+.verdict{display:flex;align-items:center;gap:22px;padding:20px 20px 18px;border-bottom:1px solid var(--filet)}
+.verdict h2{font-family:var(--titre);font-weight:800;font-stretch:126%;font-size:29px;line-height:1;letter-spacing:-.015em;margin:0}
+.verdict h2 .sur{color:var(--tres-sourd)}
+.verdict p{margin:9px 0 0;color:var(--sourd);font-size:13.5px;line-height:1.5;max-width:64ch}
+.verdict .bt{
+  margin-left:auto;flex:none;border:1px solid var(--filet-clair);background:transparent;color:var(--texte);
+  font:600 13px/1 var(--ui);padding:11px 16px;cursor:pointer;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%);
+}
+
+.rang{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;padding:18px 20px}
+.carte{position:relative;background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);padding:13px 14px 12px;height:176px;display:flex;flex-direction:column}
+.carte .fil{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--filet-clair)}
+.classe{align-self:flex-start;font:700 10px/1 var(--ui);letter-spacing:.09em;color:var(--sourd);border:1px solid var(--filet);padding:4px 7px}
+.nom{font-family:var(--titre);font-weight:700;font-stretch:112%;font-size:16px;line-height:1.1;margin-top:12px;letter-spacing:-.01em}
+.compte{font-size:11.5px;color:var(--tres-sourd);margin-top:3px}
+.etat{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;font-weight:600;color:var(--texte)}
+.etat .los{width:9px;height:9px;transform:rotate(45deg);flex:none;background:var(--texte)}
+.bas-carte{margin-top:auto;padding-top:11px;border-top:1px solid var(--filet);display:flex;align-items:center;gap:9px}
+.pips{display:flex;gap:4px}
+.pips i{width:9px;height:9px;border:1.5px solid var(--filet-clair);background:transparent}
+.pips i.on{background:var(--texte);border-color:var(--texte)}
+.cabochon{margin-left:auto;border:1px solid var(--filet-clair);color:var(--sourd);font:600 10.5px/1 var(--ui);padding:5px 8px;letter-spacing:.05em}
+
+.act{display:flex;align-items:center;gap:13px;background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);padding:12px 15px;margin:0 20px 9px}
+.act:last-child{margin-bottom:20px}
+.act .los{width:9px;height:9px;transform:rotate(45deg);flex:none;background:var(--texte)}
+.act .txt{font-size:13.5px;color:var(--sourd);line-height:1.4}
+.act .txt b{color:var(--texte);font-weight:600}
+.act .droite{margin-left:auto;display:flex;align-items:center;gap:13px;flex:none}
+.act .chiffre{font-family:var(--titre);font-weight:700;font-stretch:120%;font-size:15px;color:var(--texte)}
+.jaugette{width:112px;height:6px;background:#22252B;overflow:hidden}
+.jaugette span{display:block;height:100%;background:var(--texte)}
+
+/* ---- ETATS PAR LA FORME (valables dans TOUS les modes) ---- */
+.carte.meneur .fil{width:4px}
+.carte.attente .fil{background:linear-gradient(180deg,var(--filet-clair) 46%,transparent 46%)}
+.carte.absent{background:#101216}
+.carte.absent .fil{background:repeating-linear-gradient(180deg,var(--filet-clair) 0 5px,transparent 5px 10px)}
+.carte.attente .etat .los{background:transparent;border:1.5px solid currentColor}
+.carte.absent .etat .los{background:transparent;border:1.5px dashed currentColor}
+.carte.absent .nom{color:var(--sourd)}
+.carte.absent .etat{color:var(--sourd)}
+.act.pause .los{background:transparent;border:1.5px solid currentColor}
+
+/* ---- MODE « une » : l accent ne marque QUE ce qui reclame ton attention ---- */
+[data-mode="une"] .carte.attente .fil{background:linear-gradient(180deg,var(--accent) 46%,transparent 46%)}
+[data-mode="une"] .carte.absent .fil{background:repeating-linear-gradient(180deg,var(--accent) 0 5px,transparent 5px 10px)}
+[data-mode="une"] .carte.attente .etat,
+[data-mode="une"] .carte.absent .etat{color:var(--accent)}
+[data-mode="une"] .act.pause .los{border-color:var(--accent)}
+[data-mode="une"] .act.pause .txt b{color:var(--accent)}
+[data-mode="une"] .verdict .bt{border-color:var(--accent);color:var(--accent)}
+[data-mode="une"] .verdict h2 .compte-manque{color:var(--accent)}
+
+/* ---- MODE « deux » : accent = ce qui va + ce qui est arme ; rouge = ce qui manque ---- */
+[data-mode="deux"] .carte .fil{background:var(--accent)}
+[data-mode="deux"] .carte .etat{color:var(--accent)}
+[data-mode="deux"] .carte .etat .los{background:var(--accent)}
+[data-mode="deux"] .carte.meneur .fil{background:var(--accent)}
+[data-mode="deux"] .carte.attente .fil{background:linear-gradient(180deg,#D8555F 46%,transparent 46%)}
+[data-mode="deux"] .carte.attente .etat{color:#D8555F}
+[data-mode="deux"] .carte.attente .etat .los{background:transparent;border-color:#D8555F}
+[data-mode="deux"] .carte.absent .fil{background:repeating-linear-gradient(180deg,#D8555F 0 5px,transparent 5px 10px)}
+[data-mode="deux"] .carte.absent .etat{color:#D8555F}
+[data-mode="deux"] .carte.absent .etat .los{border-color:#D8555F}
+[data-mode="deux"] .pips i.on{background:var(--accent);border-color:var(--accent)}
+[data-mode="deux"] .badge i{background:var(--accent)}
+[data-mode="deux"] .badge{color:var(--texte);border-color:var(--accent)}
+[data-mode="deux"] .act .los{background:var(--accent)}
+[data-mode="deux"] .act.pause .los{background:transparent;border-color:#D8555F}
+[data-mode="deux"] .jaugette span{background:var(--accent)}
+[data-mode="deux"] .verdict .bt{border-color:var(--accent);color:var(--accent)}
+
+.pied{margin-top:30px;color:var(--tres-sourd);font-size:13px;line-height:1.6;max-width:78ch}
+.pied b{color:var(--texte)}
+</style></head>
+<body>
+<a class="retour" href="/">← retour</a>
+<main>
+
+<h1>Combien de couleurs, et laquelle</h1>
+<p class="chapo">Tu as raison, quatre couleurs qui se battent sur un écran que tu regardes des heures, c’est fatigant. Alors <strong>tourne les boutons toi-même</strong> : le même bout d’OMNI se redessine en direct.</p>
+<p class="chapo">Le logo à quatre barres ne bouge pas — il marche avec n’importe laquelle de ces palettes.</p>
+
+<div class="manettes">
+  <div class="groupe">
+    <span class="etiq">Combien</span>
+    <button class="bt-mode" data-set-mode="aucune" aria-pressed="false">Aucune</button>
+    <button class="bt-mode" data-set-mode="une" aria-pressed="true">Une seule</button>
+    <button class="bt-mode" data-set-mode="deux" aria-pressed="false">Deux</button>
+  </div>
+  <div class="groupe">
+    <span class="etiq">Laquelle</span>
+    <span class="pastilles">
+      <button class="pastille neutre" data-teinte="#E9EAEC" data-nom="aucune teinte, gris clair"></button>
+      <button class="pastille" data-teinte="#7E96AE" data-nom="acier" style="background:#7E96AE"></button>
+      <button class="pastille" data-teinte="#A98B5B" data-nom="bronze" style="background:#A98B5B" aria-pressed="true"></button>
+      <button class="pastille" data-teinte="#7E9C8B" data-nom="sauge" style="background:#7E9C8B"></button>
+      <button class="pastille" data-teinte="#B0705A" data-nom="terre cuite" style="background:#B0705A"></button>
+      <button class="pastille" data-teinte="#8C7EA0" data-nom="prune" style="background:#8C7EA0"></button>
+      <button class="pastille" data-teinte="#C9A227" data-nom="or" style="background:#C9A227"></button>
+      <button class="pastille" data-teinte="#4FA9C4" data-nom="cyan éteint" style="background:#4FA9C4"></button>
+      <button class="pastille" data-teinte="#D8555F" data-nom="rouge" style="background:#D8555F"></button>
+    </span>
+    <span class="nom-teinte" id="nomTeinte">bronze</span>
+  </div>
+  <p class="explique" id="explique"></p>
+</div>
+
+<!-- ================= LE FRAGMENT ================= -->
+<div class="essai" id="essai" data-mode="une">
+
+  <div class="barre">
+    <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
+      <g transform="translate(4.66,0) skewX(-11)" stroke-width="7.5" stroke-linecap="butt">
+        <line x1="7" y1="19" x2="7" y2="29" stroke="currentColor"/>
+        <line x1="18.3" y1="14.2" x2="18.3" y2="33.8" stroke="currentColor"/>
+        <line x1="29.7" y1="14.2" x2="29.7" y2="33.8" stroke="currentColor" class="pupille"/>
+        <line x1="41" y1="19" x2="41" y2="29" stroke="currentColor"/>
+      </g>
+    </svg>
+    <span class="mot">OMNI</span>
+    <button class="badge"><i></i>ARMÉ</button>
+    <span class="version">0.3.6</span>
+  </div>
+
+  <div class="verdict">
+    <div>
+      <h2>6 EN JEU <span class="sur">SUR</span> <span class="compte-manque">8</span></h2>
+      <p>Kwakoun est resté à l’écran de sélection. Tacatak n’a aucun client ouvert. Les six autres suivent Vahlkyr.</p>
+    </div>
+    <button class="bt">Réveiller Kwakoun</button>
+  </div>
+
+  <div class="rang">
+    <div class="carte meneur"><span class="fil"></span>
+      <span class="classe">IOP</span>
+      <div class="nom">Vahlkyr</div><div class="compte">jibef-1</div>
+      <div class="etat"><span class="los"></span>commande</div>
+      <div class="bas-carte"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="cabochon">F1</span></div>
+    </div>
+    <div class="carte"><span class="fil"></span>
+      <span class="classe">ENI</span>
+      <div class="nom">Noméa</div><div class="compte">jibef-2</div>
+      <div class="etat"><span class="los"></span>en jeu</div>
+      <div class="bas-carte"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="cabochon">F2</span></div>
+    </div>
+    <div class="carte attente"><span class="fil"></span>
+      <span class="classe">CRA</span>
+      <div class="nom">Kwakoun</div><div class="compte">jibef-6</div>
+      <div class="etat"><span class="los"></span>pas entré</div>
+      <div class="bas-carte"><span class="pips"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="cabochon">F6</span></div>
+    </div>
+    <div class="carte absent"><span class="fil"></span>
+      <span class="classe">ZOB</span>
+      <div class="nom">Tacatak</div><div class="compte">jibef-8</div>
+      <div class="etat"><span class="los"></span>pas lancé</div>
+      <div class="bas-carte"><span class="pips"><i></i><i></i><i></i><i></i><i></i></span><span class="cabochon">F8</span></div>
+    </div>
+  </div>
+
+  <div class="act">
+    <span class="los"></span>
+    <span class="txt"><b>Sombrelle</b> relève les prix de l’hôtel de vente</span>
+    <span class="droite">
+      <span class="chiffre">412 / 664</span>
+      <span class="jaugette"><span style="width:62%"></span></span>
+    </span>
+  </div>
+  <div class="act pause">
+    <span class="los"></span>
+    <span class="txt"><b>Bricoline</b> a mis sa course en pause : le sac est plein</span>
+    <span class="droite"><span class="chiffre">14 / 20 lots</span></span>
+  </div>
+
+</div>
+
+<p class="pied">Le <b>logo suit la teinte</b> que tu choisis, et il est ici en position « plissé » — il te manque deux persos. Tout le reste de l’écran tient <b>par la forme</b> : trait plein tu es en jeu, trait à moitié tu n’es pas entré, trait pointillé tu n’es pas lancé, carré plein la fonction est armée. La couleur ne fait que renforcer — c’est pour ça qu’on peut la couper entièrement sans rien perdre.</p>
+
+<script>
+(function(){
+  var essai = document.getElementById('essai');
+  var nom = document.getElementById('nomTeinte');
+  var explique = document.getElementById('explique');
+  var TEXTES = {
+    aucune:'<b>Aucune couleur.</b> Tout se lit à la forme et au niveau de gris. Le plus reposant, et rigoureusement lisible — mais rien n’attire l’œil tout seul : c’est toi qui dois parcourir l’écran.',
+    une:'<b>Une seule couleur, et elle ne sert qu’à une chose : ce qui réclame ton attention.</b> Tout ce qui va bien reste gris. Résultat, la couleur veut toujours dire « regarde ici », et ton œil la trouve sans chercher. C’est le réglage que je te conseille.',
+    deux:'<b>Deux couleurs.</b> La teinte marque ce qui va bien et ce qui est armé, le rouge marque ce qui manque. Plus vivant, plus classique — mais l’écran redevient coloré partout, et la couleur perd son pouvoir d’alerte.'
+  };
+  function poser(mode){
+    essai.setAttribute('data-mode', mode);
+    explique.innerHTML = TEXTES[mode];
+    document.querySelectorAll('[data-set-mode]').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.setMode === mode));
+    });
+  }
+  function teinter(hex, libelle, bouton){
+    document.documentElement.style.setProperty('--accent', hex);
+    essai.style.color = hex;                      /* le logo suit */
+    nom.textContent = libelle;
+    document.querySelectorAll('.pastille').forEach(function(p){ p.setAttribute('aria-pressed','false'); });
+    bouton.setAttribute('aria-pressed','true');
+  }
+  document.querySelectorAll('[data-set-mode]').forEach(function(b){
+    b.addEventListener('click', function(){ poser(b.dataset.setMode); });
+  });
+  document.querySelectorAll('.pastille').forEach(function(p){
+    p.addEventListener('click', function(){ teinter(p.dataset.teinte, p.dataset.nom, p); });
+  });
+  poser('une');
+  teinter('#A98B5B','bronze',document.querySelector('[data-teinte="#A98B5B"]'));
+})();
+</script>
+
+</main>
+</body></html>

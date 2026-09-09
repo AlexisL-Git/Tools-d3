@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — la maquette de l'app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   OMNI — maquette cliquable des six ecrans.
+   Une seule couleur (le jaune), un noir, un fond clair, des coins
+   arrondis, une typo ronde. Le noir remplace le rouge: dans un
+   ecran clair, c est lui qui saute aux yeux.
+   ============================================================ */
+/* ------------------------------------------------------------
+   LES DEUX THEMES.
+   `--encre` ne veut pas dire « noir »: il veut dire LE CONTRAIRE DU
+   FOND. En clair il est noir, en sombre il est creme. C est ce seul
+   basculement qui retourne toute l app -- et c est pour ca que la
+   regle survit au changement de theme:
+
+     la carte qui TRANCHE avec le fond, c est celle qui te reclame.
+
+   Le jaune, lui, ne bouge pas: c est la marque.
+   ------------------------------------------------------------ */
+:root{
+  --fond:#E7EBE4;--carte:#F6F7F3;--carte-creuse:#EDEFE9;
+  --encre:#16181A;--encre-douce:#6E756C;
+  --trait:#D8DCD3;--trait-fort:#B9BFB4;
+  --contre-doux:#A9AFA7;--contre-creux:#25282B;--contre-trait:#333739;
+  --acide:#E2F27C;--acide-sur-contre:#E2F27C;--sur-acide:#16181A;
+  --inter-off:#CDD3C7;--inter-bouton:#F6F7F3;
+  --rail:#16181A;
+  --dehors:#B9C2B4;--dehors-texte:#3E463C;--dehors-fort:#16181A;--dehors-trait:#8D978A;
+  --ui:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Outfit","Plus Jakarta Sans",system-ui,sans-serif;
+}
+:root[data-theme="sombre"]{
+  --fond:#14171A;--carte:#1D2124;--carte-creuse:#262B2F;
+  --encre:#EFF2EC;--encre-douce:#8E958C;
+  --trait:#2E3438;--trait-fort:#3B4348;
+  --contre-doux:#5E6660;--contre-creux:#DDE2D8;--contre-trait:#C6CDC0;
+  --acide:#E2F27C;--acide-sur-contre:#C9DC5C;--sur-acide:#16181A;
+  --inter-off:#3B4348;--inter-bouton:#8E958C;
+  --rail:#0B0D0F;
+  --dehors:#07080A;--dehors-texte:#7C8479;--dehors-fort:#E9EDE6;--dehors-trait:#2A2F33;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--dehors);font-family:var(--ui);color:var(--encre);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:18px;padding:30px 20px;
+}
+a.retour{position:fixed;top:18px;left:20px;color:var(--dehors-texte);text-decoration:none;font-size:13px;border-bottom:1px solid var(--dehors-trait);padding-bottom:2px}
+a.retour:hover{color:var(--dehors-fort)}
+.aide{max-width:1097px;color:var(--dehors-texte);font-size:13.5px;line-height:1.6;margin:0}
+.aide b{color:var(--dehors-fort);font-weight:700}
+
+/* ============ coquille ============ */
+.fenetre{
+  width:1097px;height:720px;background:var(--fond);overflow:hidden;
+  display:flex;gap:14px;padding:14px;border-radius:22px;box-shadow:0 26px 70px rgba(0,0,0,.34);
+}
+/* Le rail reste la colonne la plus sombre dans les DEUX themes: en clair il
+   tranche sur le papier, en sombre il s enfonce sous le fond. */
+.rail{width:62px;flex:none;background:var(--rail);border-radius:20px;display:flex;flex-direction:column;align-items:center;padding:13px 0 12px;gap:5px}
+.rail .logo{margin-bottom:12px}
+.rail .marque line{stroke:#F6F7F3}
+.rail .marque line.pupille{stroke:var(--acide)}
+.rail button{width:40px;height:40px;border:0;background:transparent;border-radius:13px;display:grid;place-items:center;color:#7C837A;cursor:pointer}
+.rail button:hover{background:rgba(255,255,255,.09);color:#E7EBE4}
+.rail button.actif{background:var(--acide);color:var(--sur-acide)}
+.rail .pousse{margin-top:auto}
+.rail .moi{width:36px;height:36px;border-radius:12px;background:linear-gradient(150deg,#5B6E4A,#2C3826);margin-top:8px;flex:none}
+
+.corps{flex:1;min-width:0;display:flex;flex-direction:column;gap:13px}
+.haut{display:flex;align-items:center;gap:10px;height:36px;flex:none}
+.armer{display:inline-flex;align-items:center;gap:9px;height:36px;padding:0 17px 0 14px;background:var(--encre);color:var(--carte);border:0;border-radius:999px;font:600 13px/1 var(--ui);cursor:pointer}
+.armer .point{width:8px;height:8px;border-radius:50%;background:var(--acide)}
+.fant{display:inline-flex;align-items:center;height:36px;padding:0 15px;border-radius:999px;border:1px solid var(--trait);color:var(--encre-douce);font:500 12.5px/1 var(--ui);background:transparent;cursor:pointer}
+.fant:hover{border-color:var(--encre);color:var(--encre)}
+.fant.theme{gap:8px}
+.fant.theme svg{flex:none}
+.i-lune{display:none}
+:root[data-theme="sombre"] .i-lune{display:block}
+:root[data-theme="sombre"] .i-soleil{display:none}
+.fenetre-bt{margin-left:auto;display:flex;gap:6px}
+.fenetre-bt button{width:34px;height:34px;border-radius:50%;border:1px solid var(--trait);background:transparent;color:var(--encre-douce);display:grid;place-items:center;cursor:pointer}
+.fenetre-bt button:hover{background:var(--encre);border-color:var(--encre);color:var(--carte)}
+
+.vue{display:none;flex:1;min-height:0;flex-direction:column;gap:13px}
+.vue.actif{display:flex}
+.titre{flex:none}
+.titre h1{font-family:var(--titre);font-weight:700;font-size:34px;line-height:1.04;letter-spacing:-.028em;margin:0}
+.titre h1 .marqueur{display:inline-block;background:var(--acide);color:var(--sur-acide);border-radius:999px;padding:0 15px;line-height:1.18}
+.titre p{margin:8px 0 0;color:var(--encre-douce);font-size:13.5px;max-width:86ch;line-height:1.5}
+
+/* ============ briques ============ */
+.tuiles{display:grid;gap:12px;flex:none}
+.tuile{background:var(--carte);border-radius:22px;padding:15px 18px 14px;display:flex;flex-direction:column}
+.tuile.acide{background:var(--acide);color:var(--sur-acide)}
+.tuile.noire{background:var(--encre);color:var(--carte)}
+.tuile .tete{display:flex;align-items:center;gap:10px}
+.tuile .rond{width:29px;height:29px;border-radius:50%;background:var(--carte-creuse);display:grid;place-items:center;flex:none}
+.tuile.acide .rond{background:rgba(22,24,26,.13)}
+.tuile.noire .rond{background:var(--contre-creux)}
+.tuile .quoi{font:600 13px/1 var(--ui)}
+.tuile .plus{margin-left:auto;color:var(--encre-douce);font-size:16px;line-height:1}
+.tuile.noire .plus{color:var(--contre-doux)}
+.tuile .grand{font-family:var(--titre);font-weight:700;font-size:31px;line-height:1;letter-spacing:-.03em;margin-top:11px}
+.tuile .grand small{font-family:var(--ui);font-size:12.5px;font-weight:500;color:var(--encre-douce);letter-spacing:0}
+.tuile.acide .grand small{color:#5C6644}
+.tuile.noire .grand small{color:var(--contre-doux)}
+.tuile .segments{display:flex;gap:4px;margin-top:auto;padding-top:12px}
+.tuile .segments i{flex:1;height:17px;border-radius:999px;background:var(--encre)}
+.tuile .segments i.vide{background:transparent;border:1px dashed var(--trait-fort)}
+.tuile.acide .segments i.vide{border-color:rgba(22,24,26,.3)}
+.tuile.noire .segments i{background:var(--acide-sur-contre)}
+.tuile.noire .segments i.vide{background:transparent;border:1px dashed var(--contre-trait)}
+.tuile .txt{font-size:12.5px;line-height:1.45;color:var(--encre-douce);margin-top:9px}
+.tuile.noire .txt{color:var(--contre-doux)}
+.tuile .bt-clair{margin-top:auto;align-self:flex-start;background:var(--carte);color:var(--encre);border:0;border-radius:999px;height:32px;padding:0 15px;font:600 12.5px/1 var(--ui);cursor:pointer}
+.tuile.noire .bt-clair{background:var(--acide-sur-contre);color:var(--sur-acide)}
+
+/* TOUT CE QUI EST POSE SUR DU JAUNE reste sombre dans les deux themes:
+   le jaune ne bouge pas, donc ce qu on ecrit dessus ne bouge pas non plus. */
+.tuile.acide .segments i,
+.perso.mene .pips i,
+.perso.mene .capsule span,
+.pastille-etat.pleine i{background:var(--sur-acide)}
+.perso.mene .jeton,.perso.mene .touche{color:var(--sur-acide)}
+.perso.mene .capsule em{background:var(--acide)}
+
+.bt-jaune{background:var(--acide);color:var(--sur-acide);border:0;border-radius:999px;height:32px;padding:0 15px;font:700 12.5px/1 var(--ui);cursor:pointer}
+.bt-noir{background:var(--encre);color:var(--carte);border:0;border-radius:999px;height:32px;padding:0 15px;font:600 12.5px/1 var(--ui);cursor:pointer}
+.bt-vide{background:transparent;color:var(--encre-douce);border:1px solid var(--trait);border-radius:999px;height:32px;padding:0 14px;font:500 12.5px/1 var(--ui);cursor:pointer}
+.bt-vide:hover{border-color:var(--encre);color:var(--encre)}
+
+.filtres{display:flex;gap:7px;align-items:center;flex:none;flex-wrap:wrap}
+.grp{display:flex;gap:5px;background:var(--carte);border-radius:999px;padding:4px}
+.grp button{height:30px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--encre-douce);font:500 12.5px/1 var(--ui);cursor:pointer}
+.grp button.on{background:var(--encre);color:var(--carte);font-weight:600}
+/* Dans les petites cartes de reglage, la place manque: le groupe passe a
+   la ligne plutot que de deborder, et garde ses capsules. */
+.regle .grp{flex-wrap:wrap;row-gap:4px}
+.regle .grp button{height:27px;padding:0 11px;font-size:12px}
+.cherche{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--carte);border-radius:999px;height:38px;padding:0 16px;color:var(--encre-douce);font-size:12.5px}
+
+.panneau{background:var(--carte);border-radius:22px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.panneau .entete,.panneau .ligne{display:grid;align-items:center;gap:14px;padding:0 20px}
+.panneau .entete{height:40px;flex:none;color:var(--encre-douce);font:600 11.5px/1 var(--ui);border-bottom:1px solid var(--trait)}
+.panneau .liste{flex:1;min-height:0;overflow:auto}
+.panneau .ligne{height:52px;border-bottom:1px solid var(--carte-creuse);font-size:13.5px}
+.panneau .ligne:last-child{border-bottom:0}
+.panneau .ligne:hover{background:var(--carte-creuse)}
+.panneau .ligne b{font-weight:600}
+.panneau .ligne .doux{color:var(--encre-douce);font-size:12.5px;white-space:nowrap}
+.d{text-align:right}
+
+.jeton{width:32px;height:32px;border-radius:11px;background:var(--carte-creuse);flex:none;display:grid;place-items:center;font:700 10.5px/1 var(--ui);color:var(--encre-douce);letter-spacing:.02em}
+.perso-mini{display:flex;align-items:center;gap:10px;min-width:0}
+.perso-mini .n{font-family:var(--titre);font-weight:600;font-size:14.5px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.capsule{width:88px;height:17px;border-radius:999px;background:var(--carte-creuse);position:relative;overflow:hidden;flex:none}
+.capsule span{position:absolute;inset:0 auto 0 0;background:var(--encre);border-radius:999px}
+.capsule em{position:absolute;top:50%;transform:translate(-50%,-50%);width:7px;height:7px;border-radius:50%;background:var(--acide)}
+
+.pastille-etat{display:inline-flex;align-items:center;gap:7px;border-radius:999px;background:var(--carte-creuse);padding:6px 12px;font:600 12px/1 var(--ui)}
+.pastille-etat i{width:7px;height:7px;border-radius:50%;background:var(--encre)}
+.pastille-etat.creux{background:transparent;border:1px solid var(--trait);color:var(--encre-douce)}
+.pastille-etat.creux i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--encre-douce)}
+.pastille-etat.pleine{background:var(--acide);color:var(--sur-acide)}
+
+/* ============ 1. la flotte ============ */
+.flotte{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:1fr 1fr;gap:11px}
+.perso{background:var(--carte);border-radius:20px;padding:13px 15px 12px;display:flex;flex-direction:column}
+.perso.mene{background:var(--acide);color:var(--sur-acide)}
+.perso.probleme{background:var(--encre);color:var(--carte)}
+.perso .tete{display:flex;align-items:center;gap:10px}
+.perso.mene .jeton{background:rgba(22,24,26,.14);color:var(--encre)}
+.perso.probleme .jeton{background:var(--contre-creux);color:var(--contre-doux)}
+.perso .qui{flex:1;min-width:0}
+.perso .nom{display:block;font-family:var(--titre);font-weight:600;font-size:16px;line-height:1.15;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.perso .compte{display:block;font-size:11px;line-height:1.2;color:var(--encre-douce);margin-top:2px}
+.perso.probleme .compte{color:var(--contre-doux)}
+.perso .touche{align-self:flex-start;border-radius:999px;background:var(--carte-creuse);color:var(--encre-douce);font:600 10.5px/1 var(--ui);padding:6px 9px;flex:none}
+.perso.mene .touche{background:rgba(22,24,26,.14);color:var(--encre)}
+.perso.probleme .touche{background:var(--contre-creux);color:var(--contre-doux)}
+.perso .dit{margin-top:11px;font-size:12.5px;line-height:1.35}
+.perso .dit b{font-weight:600}
+.perso .dit span{display:block;color:var(--encre-douce);font-size:11.5px;margin-top:2px}
+.perso.probleme .dit span{color:var(--contre-doux)}
+.perso.mene .dit span{color:#5C6644}
+.perso .pied{margin-top:auto;display:flex;align-items:center;gap:9px;padding-top:11px}
+.pips{display:flex;gap:4px}
+.pips i{width:9px;height:9px;border-radius:50%;background:var(--encre)}
+.pips i.off{background:transparent;box-shadow:inset 0 0 0 1.5px var(--trait-fort)}
+.perso.mene .pips i.off{box-shadow:inset 0 0 0 1.5px rgba(22,24,26,.32)}
+.perso.probleme .pips i{background:var(--acide-sur-contre)}
+.perso.probleme .pips i.off{box-shadow:inset 0 0 0 1.5px var(--contre-trait)}
+.perso .capsule{margin-left:auto}
+.perso.mene .capsule{background:rgba(22,24,26,.14)}
+.perso.probleme .capsule{background:var(--contre-creux)}
+.perso.probleme .capsule span{background:var(--acide-sur-contre)}
+.perso.probleme .capsule em{background:var(--encre)}
+.bt-mini{margin-left:auto;background:var(--acide-sur-contre);color:var(--sur-acide);border:0;border-radius:999px;height:28px;padding:0 13px;font:700 11.5px/1 var(--ui);cursor:pointer}
+
+/* ---- sous-vues d un meme ecran ---- */
+.sous-vue{display:none}
+.sous-vue.actif{display:flex}
+.pied-panneau{flex:none;display:flex;align-items:center;gap:14px;padding:12px 20px;border-top:1px solid var(--trait)}
+.pied-panneau .doux{color:var(--encre-douce);font-size:12.5px}
+.pied-panneau b{color:var(--encre);font-weight:700}
+
+/* Un gain, c est la normale: il reste discret. Une perte est l exception,
+   donc elle prend la pastille qui tranche avec le fond -- la meme que les
+   personnages a rattraper. Aucune couleur en plus. */
+.gain{font-weight:600}
+.perte b{
+  display:inline-block;background:var(--encre);color:var(--carte);
+  border-radius:999px;padding:4px 10px;font-weight:700;
+}
+
+/* ---- les reglages de l outil de prix ----
+   La grosse carte du haut est celle qu on touche vraiment: elle porte la
+   regle de prix ET l exemple chiffre qu elle produit. Une regle qu on ne
+   voit pas s appliquer sur un vrai objet ne se regle pas de tete. */
+.reglages-prix{
+  flex:1;min-height:0;overflow:auto;padding:10px 14px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-content:start;
+}
+.regle{background:var(--carte-creuse);border-radius:18px;padding:12px 15px 13px;display:flex;flex-direction:column}
+.regle.large{grid-column:span 3;background:var(--encre);color:var(--carte)}
+.regle h4{font-family:var(--titre);font-weight:700;font-size:15px;letter-spacing:-.015em;margin:0 0 5px}
+.dit-r{margin:0 0 10px;color:var(--encre-douce);font-size:12.5px;line-height:1.45;max-width:64ch}
+.regle.large .dit-r{color:var(--contre-doux)}
+.choix-r{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:auto}
+.regle .grp{background:var(--carte)}
+.regle.large .grp{background:var(--contre-creux)}
+.regle.large .grp button{color:var(--contre-doux)}
+.regle.large .grp button.on{background:var(--acide-sur-contre);color:var(--sur-acide)}
+.pas{display:inline-flex;align-items:center;gap:11px;font-family:var(--titre);font-weight:700;font-size:16px}
+.rond-r{width:28px;height:28px;border-radius:50%;border:1px solid var(--trait);background:transparent;color:var(--encre-douce);font:600 15px/1 var(--ui);cursor:pointer}
+.rond-r:hover{border-color:var(--encre);color:var(--encre)}
+.regle.large .rond-r{border-color:var(--contre-trait);color:var(--contre-doux)}
+.case{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer}
+.choix-r .doux{color:var(--encre-douce);font-size:12.5px}
+.exemple{
+  margin-top:11px;background:var(--contre-creux);border-radius:14px;padding:10px 14px;
+  font-size:13px;line-height:1.5;color:var(--carte);
+}
+/* Un chiffre se lit avant d etre joli: il garde la couleur du texte, qui
+   contraste dans les deux themes. L accent est deja porte par la capsule
+   jaune juste au-dessus. */
+.exemple b{color:inherit;font-weight:700}
+.exemple .et{display:block;color:var(--contre-doux);font-size:10.5px;font-weight:600;letter-spacing:.06em;margin-bottom:3px}
+
+/* ============ 4. archimonstres ============ */
+.archi-grille{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;padding:16px 18px;overflow:auto;flex:1;min-height:0;align-content:start}
+.archi{background:var(--carte-creuse);border-radius:14px;padding:11px 13px}
+.archi.manquant{background:var(--encre);color:var(--carte)}
+.archi .an{font-family:var(--titre);font-weight:600;font-size:13.5px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.archi .aq{font-size:11px;color:var(--encre-douce);margin-top:3px}
+.archi.manquant .aq{color:var(--contre-doux)}
+
+/* ============ 5. raccourcis ============ */
+.inter{width:34px;height:20px;border-radius:999px;background:var(--inter-off);position:relative;border:0;cursor:pointer;flex:none}
+.inter::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--inter-bouton);transition:left .12s}
+.inter.on{background:var(--encre)}
+.inter.on::after{left:16px;background:var(--acide-sur-contre)}
+.cabochon{border-radius:999px;background:var(--carte-creuse);color:var(--encre);font:700 11.5px/1 var(--ui);padding:8px 12px;justify-self:start}
+
+/* ============ 6. reglages ============ */
+.reglages{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;flex:1;min-height:0}
+.bloc-r{background:var(--carte);border-radius:22px;padding:20px 22px;display:flex;flex-direction:column;min-height:0}
+.bloc-r.noir{background:var(--encre);color:var(--carte)}
+.bloc-r h3{font-family:var(--titre);font-weight:700;font-size:17px;letter-spacing:-.02em;margin:0 0 4px}
+.bloc-r .sous{color:var(--encre-douce);font-size:12.5px;margin:0 0 14px}
+.bloc-r.noir .sous{color:var(--contre-doux)}
+.droits{display:flex;flex-wrap:wrap;gap:6px}
+.droit{border-radius:999px;background:var(--acide);color:var(--sur-acide);font:600 12px/1 var(--ui);padding:8px 13px}
+.droit.non{background:transparent;border:1px dashed var(--trait);color:var(--encre-douce)}
+.notes{overflow:auto;min-height:0}
+.note{display:flex;gap:11px;padding:10px 0;border-bottom:1px solid var(--contre-trait);font-size:12.5px;line-height:1.45;color:var(--contre-doux)}
+.note:last-child{border-bottom:0}
+.note .pip{width:7px;height:7px;border-radius:50%;background:var(--acide-sur-contre);flex:none;margin-top:6px}
+.note b{color:var(--carte);font-weight:600}
+.rangee-r{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--carte-creuse);font-size:13px}
+.rangee-r:last-child{border-bottom:0}
+.rangee-r .doux{color:var(--encre-douce);font-size:12px}
+.rangee-r .fin{margin-left:auto}
+</style></head>
+<body>
+<a class="retour" href="/">← retour</a>
+
+<div class="fenetre">
+
+  <!-- ================= RAIL ================= -->
+  <div class="rail">
+    <span class="logo">
+      <svg width="32" height="32" viewBox="0 0 48 48" aria-label="OMNI">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="8.4" stroke-linecap="round" class="marque">
+          <line x1="6.5" y1="18.5" x2="6.5" y2="29.5"/>
+          <line x1="18.2" y1="10.5" x2="18.2" y2="37.5"/>
+          <line x1="29.8" y1="10.5" x2="29.8" y2="37.5" class="pupille"/>
+          <line x1="41.5" y1="18.5" x2="41.5" y2="29.5"/>
+        </g>
+      </svg>
+    </span>
+    <button class="actif" data-vue="flotte" title="Ma flotte">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2.2"/><rect x="14" y="3" width="7" height="7" rx="2.2"/><rect x="3" y="14" width="7" height="7" rx="2.2"/><rect x="14" y="14" width="7" height="7" rx="2.2"/></svg>
+    </button>
+    <button data-vue="courses" title="Courses">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h2l2.2 10.5h9.3L20 8H7"/><circle cx="10" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg>
+    </button>
+    <button data-vue="hotel" title="Hôtel de vente">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20v-7M12 20V9M18 20v-4"/></svg>
+    </button>
+    <button data-vue="archi" title="Archimonstres">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1.2 2.4-3.1 3.5-4.2 5.3a5.6 5.6 0 1 0 8.4 0C14.1 6.5 13.2 5.4 12 3Z"/></svg>
+    </button>
+    <button data-vue="raccourcis" title="Raccourcis">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="3"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg>
+    </button>
+    <button class="pousse" data-vue="reglages" title="Réglages">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+    </button>
+    <span class="moi"></span>
+  </div>
+
+  <!-- ================= CORPS ================= -->
+  <div class="corps">
+
+    <div class="haut">
+      <button class="armer"><span class="point"></span>OMNI est armé</button>
+      <button class="fant">Vahlkyr commande</button>
+      <button class="fant theme" id="btTheme" title="Changer de thème">
+        <svg class="i-soleil" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
+        <svg class="i-lune" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+        <span id="libTheme">Sombre</span>
+      </button>
+      <span class="fenetre-bt">
+        <button><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 6h8"/></svg></button>
+        <button><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
+      </span>
+    </div>
+
+    <!-- ============ 1 · MA FLOTTE ============ -->
+    <div class="vue actif" id="v-flotte">
+      <div class="titre">
+        <h1>Six persos en jeu, <span class="marqueur">deux à rattraper</span></h1>
+        <p>Kwakoun est resté à l’écran de sélection. Tacatak n’a aucun client ouvert. Les six autres suivent Vahlkyr depuis 41 minutes.</p>
+      </div>
+
+      <div class="tuiles" style="grid-template-columns:1fr 1fr 1.2fr">
+        <div class="tuile">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 7 9 18l-5-5"/></svg></span><span class="quoi">En jeu</span><span class="plus">⋯</span></div>
+          <div class="grand">6 <small>/ 8 clients</small></div>
+          <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i></div>
+        </div>
+        <div class="tuile acide">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h2l2.2 10.5h9.3L20 8H7"/></svg></span><span class="quoi">Courses</span><span class="plus" style="color:#5C6644">⋯</span></div>
+          <div class="grand">14 <small>/ 20 lots</small></div>
+          <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i><i class="vide"></i></div>
+        </div>
+        <div class="tuile noire">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.4v.01"/></svg></span><span class="quoi">À faire</span><span class="plus">⋯</span></div>
+          <div class="txt">Deux clients ne répondent pas. Kwakoun n’a jamais choisi son personnage, Tacatak n’est pas lancé.</div>
+          <button class="bt-clair">Régler les deux</button>
+        </div>
+      </div>
+
+      <div class="flotte">
+        <div class="perso mene">
+          <div class="tete"><span class="jeton">IOP</span><span class="qui"><span class="nom">Vahlkyr</span><span class="compte">jibef-1</span></span><span class="touche">F1</span></div>
+          <div class="dit"><b>Il mène</b><span>Astrub, place du marché</span></div>
+          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i class="off"></i></span></div>
+        </div>
+        <div class="perso">
+          <div class="tete"><span class="jeton">ENI</span><span class="qui"><span class="nom">Noméa</span><span class="compte">jibef-2</span></span><span class="touche">F2</span></div>
+          <div class="dit"><b>En jeu</b><span>suit Vahlkyr</span></div>
+          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i class="off"></i></span></div>
+        </div>
+        <div class="perso">
+          <div class="tete"><span class="jeton">SAC</span><span class="qui"><span class="nom">Ptit-Bras</span><span class="compte">jibef-3</span></span><span class="touche">F3</span></div>
+          <div class="dit"><b>En jeu</b><span>suit Vahlkyr</span></div>
+          <div class="pied"><span class="pips"><i></i><i></i><i></i><i class="off"></i><i class="off"></i></span></div>
+        </div>
+        <div class="perso">
+          <div class="tete"><span class="jeton">SRA</span><span class="qui"><span class="nom">Sombrelle</span><span class="compte">jibef-4</span></span><span class="touche">F4</span></div>
+          <div class="dit"><b>Relève les prix</b><span>412 objets sur 664</span></div>
+          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i></i></span><span class="capsule"><span style="width:62%"></span><em style="left:62%"></em></span></div>
+        </div>
+        <div class="perso">
+          <div class="tete"><span class="jeton">OSA</span><span class="qui"><span class="nom">Ourseline</span><span class="compte">jibef-5</span></span><span class="touche">F5</span></div>
+          <div class="dit"><b>En jeu</b><span>suit Vahlkyr</span></div>
+          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i class="off"></i></span></div>
+        </div>
+        <div class="perso probleme">
+          <div class="tete"><span class="jeton">CRA</span><span class="qui"><span class="nom">Kwakoun</span><span class="compte">jibef-6</span></span><span class="touche">F6</span></div>
+          <div class="dit"><b>Pas entré en jeu</b><span>resté à l’écran de sélection</span></div>
+          <div class="pied"><span class="pips"><i></i><i></i><i class="off"></i><i class="off"></i><i class="off"></i></span><button class="bt-mini">Réveiller</button></div>
+        </div>
+        <div class="perso">
+          <div class="tete"><span class="jeton">STE</span><span class="qui"><span class="nom">Bricoline</span><span class="compte">jibef-7</span></span><span class="touche">F7</span></div>
+          <div class="dit"><b>Course en pause</b><span>sac plein, 14 lots sur 20</span></div>
+          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i></i></span><span class="capsule"><span style="width:70%"></span><em style="left:70%"></em></span></div>
+        </div>
+        <div class="perso probleme">
+          <div class="tete"><span class="jeton">ZOB</span><span class="qui"><span class="nom">Tacatak</span><span class="compte">jibef-8</span></span><span class="touche">F8</span></div>
+          <div class="dit"><b>Pas lancé</b><span>aucun client Dofus ouvert</span></div>
+          <div class="pied"><span class="pips"><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i></span><button class="bt-mini">Lancer</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 2 · COURSES ============ -->
+    <div class="vue" id="v-courses">
+      <div class="titre">
+        <h1>La course est <span class="marqueur">en pause</span></h1>
+        <p>Bricoline a le sac plein après 14 lots. Vide-le et reprends — le plafond de dépense n’est pas encore atteint, il reste de quoi finir la liste.</p>
+      </div>
+
+      <div class="tuiles" style="grid-template-columns:1fr 1fr 1.2fr">
+        <div class="tuile">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h2l2.2 10.5h9.3L20 8H7"/></svg></span><span class="quoi">Lots achetés</span><span class="plus">⋯</span></div>
+          <div class="grand">14 <small>/ 20 prévus</small></div>
+          <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i><i class="vide"></i></div>
+        </div>
+        <div class="tuile acide">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.5 10h5M9.5 14h5"/></svg></span><span class="quoi">Dépensé</span><span class="plus" style="color:#5C6644">⋯</span></div>
+          <div class="grand">1,24 M <small>/ 2 M de plafond</small></div>
+          <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i><i class="vide"></i><i class="vide"></i></div>
+        </div>
+        <div class="tuile noire">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9.5 8v8M14.5 8v8"/></svg></span><span class="quoi">En pause</span><span class="plus">⋯</span></div>
+          <div class="txt">Le sac de Bricoline est plein. OMNI n’a rien abandonné : la course reprendra là où elle s’est arrêtée.</div>
+          <button class="bt-clair">Reprendre la course</button>
+        </div>
+      </div>
+
+      <div class="panneau">
+        <div class="entete" style="grid-template-columns:1.6fr 90px 110px 120px 1fr 110px">
+          <span>Objet</span><span class="d">Voulu</span><span class="d">Acheté</span><span class="d">Prix max</span><span>Avancement</span><span class="d">Payé</span>
+        </div>
+        <div class="liste">
+          <div class="ligne" style="grid-template-columns:1.6fr 90px 110px 120px 1fr 110px">
+            <span><b>Pierre médicinale</b><br><span class="doux">lot de 10</span></span>
+            <span class="d">200</span><span class="d">200</span><span class="d">1 600 k</span>
+            <span class="capsule"><span style="width:100%"></span><em style="left:calc(100% - 6px)"></em></span>
+            <span class="d">304 000 k</span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.6fr 90px 110px 120px 1fr 110px">
+            <span><b>Fleur de mandragore</b><br><span class="doux">lot de 100</span></span>
+            <span class="d">500</span><span class="d">400</span><span class="d">12 000 k</span>
+            <span class="capsule"><span style="width:80%"></span><em style="left:80%"></em></span>
+            <span class="d">441 000 k</span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.6fr 90px 110px 120px 1fr 110px">
+            <span><b>Poudre de perlinpimpin</b><br><span class="doux">lot de 10</span></span>
+            <span class="d">150</span><span class="d">150</span><span class="d">2 400 k</span>
+            <span class="capsule"><span style="width:100%"></span><em style="left:calc(100% - 6px)"></em></span>
+            <span class="d">331 500 k</span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.6fr 90px 110px 120px 1fr 110px">
+            <span><b>Graine de bulbe</b><br><span class="doux">lot de 100</span></span>
+            <span class="d">300</span><span class="d">100</span><span class="d">9 000 k</span>
+            <span class="capsule"><span style="width:33%"></span><em style="left:33%"></em></span>
+            <span class="d">163 500 k</span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.6fr 90px 110px 120px 1fr 110px">
+            <span><b>Bois de frêne</b><br><span class="doux">lot de 100 — <b>trop cher, sauté</b></span></span>
+            <span class="d">400</span><span class="d">0</span><span class="d">3 000 k</span>
+            <span class="capsule"><span style="width:0"></span></span>
+            <span class="d">—</span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.6fr 90px 110px 120px 1fr 110px">
+            <span><b>Orchidée freyesque</b><br><span class="doux">lot de 10 — pas encore commencé</span></span>
+            <span class="d">80</span><span class="d">0</span><span class="d">18 000 k</span>
+            <span class="capsule"><span style="width:0"></span></span>
+            <span class="d">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="filtres">
+        <button class="bt-noir">Modifier la liste</button>
+        <button class="bt-vide">Changer le plafond</button>
+        <button class="bt-vide">Choisir qui fait les courses</button>
+        <span class="cherche" style="margin-left:auto;background:transparent">Bricoline · sac 986 / 1 000 pods</span>
+      </div>
+    </div>
+
+    <!-- ============ 3 · HÔTEL DE VENTE ============ -->
+    <div class="vue" id="v-hotel">
+      <div class="titre">
+        <h1>Sombrelle relève les prix, <span class="marqueur">3 lots invendus</span></h1>
+        <p>La passe de prix en est aux deux tiers. Trois lots ne sont pas partis à la dernière mise en vente — OMNI te dit pourquoi pour chacun.</p>
+      </div>
+
+      <div class="tuiles" id="tuilesHotel" style="grid-template-columns:1fr 1fr 1.2fr">
+        <div class="tuile">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20h16M6 20v-7M12 20V9M18 20v-4"/></svg></span><span class="quoi">Prix relevés</span><span class="plus">⋯</span></div>
+          <div class="grand">412 <small>/ 664 objets</small></div>
+          <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i><i class="vide"></i><i class="vide"></i></div>
+        </div>
+        <div class="tuile acide">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h16v11H4zM8 8V5h8v3"/></svg></span><span class="quoi">En vente</span><span class="plus" style="color:#5C6644">⋯</span></div>
+          <div class="grand">17 <small>lots en ligne</small></div>
+          <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i></div>
+        </div>
+        <div class="tuile noire">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg></span><span class="quoi">Pas partis</span><span class="plus">⋯</span></div>
+          <div class="txt">Trois lots refusés à la dernière passe. Deux emplacements pleins, un prix sous le minimum du serveur.</div>
+          <button class="bt-clair">Voir les trois</button>
+        </div>
+      </div>
+
+      <div class="filtres">
+        <span class="grp" data-sousvues="hotel">
+          <button class="on" data-sv="parti">Ce qui est parti</button>
+          <button data-sv="ecartes">Ce qui n’est pas parti</button>
+          <button data-sv="regles">Mes règles de prix</button>
+        </span>
+        <span class="cherche">Chercher un objet…</span>
+      </div>
+
+      <!-- ---- l historique des ventes ----
+           Ce qui est EN VENTE, le jeu le montre deja. Ce qui est PARTI,
+           non: c est la seule facon de savoir ce qui se vend vraiment, a
+           quel prix, et en combien de temps. Le compte des lots en ligne
+           reste sur la tuile jaune du haut. -->
+      <div class="panneau sous-vue actif" data-sv="parti">
+        <div class="entete" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
+          <span>Objet</span><span class="d">Lot</span><span class="d">Vendu</span><span class="d">Payé</span><span class="d">Gagné</span><span class="d">Parti en</span><span>Vendeur</span>
+        </div>
+        <div class="liste">
+          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
+            <span><b>Pierre médicinale</b><br><span class="doux">il y a 12 min</span></span>
+            <span class="d">100</span><span class="d">17 400 k</span><span class="d doux">15 200 k</span><span class="d gain">+2 200 k</span><span class="d doux">1 h 40</span>
+            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
+            <span><b>Fleur de mandragore</b><br><span class="doux">il y a 48 min</span></span>
+            <span class="d">100</span><span class="d">121 000 k</span><span class="d doux">110 250 k</span><span class="d gain">+10 750 k</span><span class="d doux">3 h</span>
+            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
+            <span><b>Poudre de perlinpimpin</b><br><span class="doux">il y a 2 h</span></span>
+            <span class="d">10</span><span class="d">2 350 k</span><span class="d doux">2 210 k</span><span class="d gain">+140 k</span><span class="d doux">22 min</span>
+            <span class="perso-mini"><span class="jeton">STE</span><span class="n">Bricoline</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
+            <span><b>Graine de bulbe</b><br><span class="doux">il y a 4 h</span></span>
+            <span class="d">100</span><span class="d">8 900 k</span><span class="d doux">5 450 k</span><span class="d gain">+3 450 k</span><span class="d doux">6 h</span>
+            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
+            <span><b>Orchidée freyesque</b><br><span class="doux">hier, 22 h 10</span></span>
+            <span class="d">10</span><span class="d">17 200 k</span><span class="d doux">18 000 k</span><span class="d perte"><b>−800 k</b></span><span class="d doux">14 h</span>
+            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
+            <span><b>Bois de frêne</b><br><span class="doux">hier, 19 h 35</span></span>
+            <span class="d">100</span><span class="d">2 780 k</span><span class="d doux">2 400 k</span><span class="d gain">+380 k</span><span class="d doux">9 h</span>
+            <span class="perso-mini"><span class="jeton">STE</span><span class="n">Bricoline</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
+            <span><b>Cuir de tofu</b><br><span class="doux">hier, 17 h 02</span></span>
+            <span class="d">100</span><span class="d">720 k</span><span class="d doux">640 k</span><span class="d gain">+80 k</span><span class="d doux">40 min</span>
+            <span class="perso-mini"><span class="jeton">STE</span><span class="n">Bricoline</span></span>
+          </div>
+        </div>
+        <div class="pied-panneau">
+          <span class="doux">Sept lots partis depuis hier — <b>170 350 k</b> encaissés, <b>16 200 k</b> de mieux que ce que tu les avais payés.</span>
+          <span class="doux" style="margin-left:auto">L’orchidée est la seule perte : tu l’avais achetée trop cher.</span>
+        </div>
+      </div>
+
+      <!-- ---- ce qui n a pas ete pose ---- -->
+      <div class="panneau sous-vue" data-sv="ecartes">
+        <div class="entete" style="grid-template-columns:1.7fr 90px 130px 1.6fr 1fr">
+          <span>Objet</span><span class="d">Lot</span><span class="d">Ton prix</span><span>Pourquoi ça n’est pas parti</span><span>Vendeur</span>
+        </div>
+        <div class="liste">
+          <div class="ligne" style="grid-template-columns:1.7fr 90px 130px 1.6fr 1fr">
+            <span><b>Chêne mou</b></span><span class="d">100</span><span class="d">4 200 k</span>
+            <span><b>Tes 30 emplacements étaient pleins.</b><br><span class="doux">retire un lot invendu et il repassera</span></span>
+            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.7fr 90px 130px 1.6fr 1fr">
+            <span><b>Peau de bouftou</b></span><span class="d">100</span><span class="d">890 k</span>
+            <span><b>Tes 30 emplacements étaient pleins.</b><br><span class="doux">retire un lot invendu et il repassera</span></span>
+            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.7fr 90px 130px 1.6fr 1fr">
+            <span><b>Cuir de tofu</b></span><span class="d">10</span><span class="d">62 k</span>
+            <span><b>Prix sous le minimum du serveur.</b><br><span class="doux">le jeu refuse en dessous de 70 k pour ce lot</span></span>
+            <span class="perso-mini"><span class="jeton">STE</span><span class="n">Bricoline</span></span>
+          </div>
+        </div>
+        <div class="pied-panneau">
+          <span class="doux">Trois lots sur vingt sont revenus dans l’inventaire de leur vendeur. Rien n’a été perdu.</span>
+          <button class="bt-noir" style="margin-left:auto">Réessayer les trois</button>
+        </div>
+      </div>
+
+      <!-- ---- les reglages de l outil de prix ---- -->
+      <div class="panneau sous-vue" data-sv="regles">
+        <div class="reglages-prix">
+
+          <div class="regle large">
+            <h4>Comment OMNI fixe ton prix</h4>
+            <p class="dit-r">Il regarde le prix du marché au moment de poser, et se place juste dessous pour passer devant les autres vendeurs.</p>
+            <div class="choix-r">
+              <span class="grp"><button>Prix du marché</button><button class="on">Juste dessous</button><button>Prix fixe</button></span>
+              <span class="pas">
+                <button class="rond-r">−</button><b>2 %</b><button class="rond-r">+</button>
+              </span>
+            </div>
+            <div class="exemple">
+              <span class="et">Ce que ça donne</span>
+              La pierre médicinale par 100 est à <b>17 800 k</b> sur le marché.
+              Tu la poseras à <b>17 444 k</b>, soit 356 k de moins.
+            </div>
+          </div>
+
+          <div class="regle">
+            <h4>Prix plancher</h4>
+            <p class="dit-r">Sous ce prix, OMNI ne pose pas plutôt que de brader. Ici : 15 % sous le marché.</p>
+            <div class="choix-r">
+              <span class="grp"><button>Aucun</button><button class="on">−15 %</button><button>Par objet</button></span>
+            </div>
+          </div>
+
+          <div class="regle">
+            <h4>Tailles de lot à poser</h4>
+            <p class="dit-r">Les lots de 100 partent moins vite, mais rapportent plus.</p>
+            <div class="choix-r">
+              <label class="case"><button class="inter"></button> par 1</label>
+              <label class="case"><button class="inter on"></button> par 10</label>
+              <label class="case"><button class="inter on"></button> par 100</label>
+            </div>
+          </div>
+
+          <div class="regle">
+            <h4>Emplacements</h4>
+            <p class="dit-r">OMNI garde de la place pour ce que tu poses à la main.</p>
+            <div class="choix-r">
+              <span class="pas"><button class="rond-r">−</button><b>30</b><button class="rond-r">+</button></span>
+              <span class="doux">sur 40 possibles</span>
+            </div>
+          </div>
+
+          <div class="regle">
+            <h4>Un lot qui ne part pas</h4>
+            <p class="dit-r">Au bout de 24 h sans acheteur, il rebaisse une seule fois.</p>
+            <div class="choix-r">
+              <span class="grp"><button class="on">Rebaisser</button><button>Laisser</button><button>Reprendre</button></span>
+            </div>
+          </div>
+
+          <div class="regle" style="grid-column:span 2">
+            <h4>Quand relire les prix</h4>
+            <p class="dit-r">Une relecture complète prend environ trois minutes par personnage.</p>
+            <div class="choix-r">
+              <span class="grp"><button>À la demande</button><button class="on">Toutes les 6 h</button><button>À chaque passage</button></span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 4 · ARCHIMONSTRES ============ -->
+    <div class="vue" id="v-archi">
+      <div class="titre">
+        <h1>178 archimonstres sur 286, <span class="marqueur">108 à trouver</span></h1>
+        <p>Six inventaires lus sur huit. Kwakoun et Tacatak n’ont pas encore été comptés : le total peut donc encore monter tout seul.</p>
+      </div>
+
+      <div class="filtres">
+        <span class="grp"><button class="on">Archimonstres</button><button>Boss</button></span>
+        <span class="grp"><button class="on">Liste</button><button>Par zone</button></span>
+        <span class="grp"><button>Tous</button><button class="on">Manquants</button><button>Possédés</button></span>
+        <span class="cherche">Chercher un nom…</span>
+      </div>
+
+      <div class="tuiles" style="grid-template-columns:1fr 1fr 1.2fr">
+        <div class="tuile">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1.2 2.4-3.1 3.5-4.2 5.3a5.6 5.6 0 1 0 8.4 0C14.1 6.5 13.2 5.4 12 3Z"/></svg></span><span class="quoi">Âmes en poche</span><span class="plus">⋯</span></div>
+          <div class="grand">178 <small>/ 286</small></div>
+          <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i><i class="vide"></i><i class="vide"></i></div>
+        </div>
+        <div class="tuile acide">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="8" r="5"/><path d="M11 13 9.5 20M14 13l2 7"/></svg></span><span class="quoi">Boss</span><span class="plus" style="color:#5C6644">⋯</span></div>
+          <div class="grand">31 <small>/ 51</small></div>
+          <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i><i class="vide"></i><i class="vide"></i></div>
+        </div>
+        <div class="tuile noire">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 4v16M4 12h16"/></svg></span><span class="quoi">Dofus Ocre</span><span class="plus">⋯</span></div>
+          <div class="txt">Il te manque 108 archimonstres et 20 boss. Deux inventaires ne sont pas encore lus.</div>
+          <button class="bt-clair">Relire les inventaires</button>
+        </div>
+      </div>
+
+      <div class="panneau">
+        <div class="archi-grille">
+          <div class="archi manquant"><div class="an">Bouftou Royal</div><div class="aq">manquant</div></div>
+          <div class="archi manquant"><div class="an">Bworkette</div><div class="aq">manquant</div></div>
+          <div class="archi manquant"><div class="an">Chef de Guerre</div><div class="aq">manquant</div></div>
+          <div class="archi manquant"><div class="an">Craqueleur Légend.</div><div class="aq">manquant</div></div>
+          <div class="archi manquant"><div class="an">Dragodinde Ivoire</div><div class="aq">manquant</div></div>
+          <div class="archi manquant"><div class="an">Gelée Royale Bleue</div><div class="aq">manquant</div></div>
+          <div class="archi manquant"><div class="an">Kwakwa Immaculé</div><div class="aq">manquant</div></div>
+          <div class="archi manquant"><div class="an">Larve Bleue</div><div class="aq">manquant</div></div>
+          <div class="archi manquant"><div class="an">Maître Corbac</div><div class="aq">manquant</div></div>
+          <div class="archi manquant"><div class="an">Minotoror</div><div class="aq">manquant</div></div>
+          <div class="archi"><div class="an">Abraknyde Ancestral</div><div class="aq">Vahlkyr</div></div>
+          <div class="archi"><div class="an">Arakne Majeure</div><div class="aq">Noméa</div></div>
+          <div class="archi"><div class="an">Bitajout</div><div class="aq">Sombrelle</div></div>
+          <div class="archi"><div class="an">Blop Coquelicot</div><div class="aq">Ourseline</div></div>
+          <div class="archi"><div class="an">Champa Vert</div><div class="aq">Vahlkyr</div></div>
+          <div class="archi"><div class="an">Chêne Mou</div><div class="aq">Ptit-Bras</div></div>
+          <div class="archi"><div class="an">Chouque</div><div class="aq">Bricoline</div></div>
+          <div class="archi"><div class="an">Corbac</div><div class="aq">Noméa</div></div>
+          <div class="archi"><div class="an">Crabe Sourimeur</div><div class="aq">Sombrelle</div></div>
+          <div class="archi"><div class="an">Fungus</div><div class="aq">Vahlkyr</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 5 · RACCOURCIS ============ -->
+    <div class="vue" id="v-raccourcis">
+      <div class="titre">
+        <h1>Tes huit touches, <span class="marqueur">et ce que chacun suit</span></h1>
+        <p>Une touche par personnage pour passer sur sa fenêtre. Les cinq interrupteurs disent ce que chacun recopie du meneur — clique sur un titre de colonne pour l’armer partout d’un coup.</p>
+      </div>
+
+      <div class="panneau">
+        <div class="entete" style="grid-template-columns:1.72fr 92px repeat(5,1fr) 122px">
+          <span>Personnage</span><span>Touche</span>
+          <span>Réplication</span><span>Passe-tour</span><span>Invitations</span><span>Sans anim.</span><span>Échanges</span>
+          <span class="d">Commande</span>
+        </div>
+        <div class="liste">
+          <div class="ligne" style="grid-template-columns:1.72fr 92px repeat(5,1fr) 122px">
+            <span class="perso-mini"><span class="jeton">IOP</span><span><span class="n">Vahlkyr</span><br><span class="doux">Iop · jibef-1</span></span></span>
+            <span class="cabochon">F1</span>
+            <button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter"></button>
+            <span class="d"><span class="pastille-etat pleine">Il commande</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.72fr 92px repeat(5,1fr) 122px">
+            <span class="perso-mini"><span class="jeton">ENI</span><span><span class="n">Noméa</span><br><span class="doux">Eniripsa · jibef-2</span></span></span>
+            <span class="cabochon">F2</span>
+            <button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter"></button>
+            <span class="d"><button class="bt-vide">Désigner</button></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.72fr 92px repeat(5,1fr) 122px">
+            <span class="perso-mini"><span class="jeton">SAC</span><span><span class="n">Ptit-Bras</span><br><span class="doux">Sacrieur · jibef-3</span></span></span>
+            <span class="cabochon">F3</span>
+            <button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter"></button><button class="inter"></button>
+            <span class="d"><button class="bt-vide">Désigner</button></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.72fr 92px repeat(5,1fr) 122px">
+            <span class="perso-mini"><span class="jeton">SRA</span><span><span class="n">Sombrelle</span><br><span class="doux">Sram · jibef-4</span></span></span>
+            <span class="cabochon">F4</span>
+            <button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter on"></button>
+            <span class="d"><button class="bt-vide">Désigner</button></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.72fr 92px repeat(5,1fr) 122px">
+            <span class="perso-mini"><span class="jeton">OSA</span><span><span class="n">Ourseline</span><br><span class="doux">Osamodas · jibef-5</span></span></span>
+            <span class="cabochon">F5</span>
+            <button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter"></button>
+            <span class="d"><button class="bt-vide">Désigner</button></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.72fr 92px repeat(5,1fr) 122px">
+            <span class="perso-mini"><span class="jeton">CRA</span><span><span class="n">Kwakoun</span><br><span class="doux">Cra · jibef-6</span></span></span>
+            <span class="cabochon">F6</span>
+            <button class="inter on"></button><button class="inter on"></button><button class="inter"></button><button class="inter"></button><button class="inter"></button>
+            <span class="d"><span class="pastille-etat creux">Pas entré</span></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.72fr 92px repeat(5,1fr) 122px">
+            <span class="perso-mini"><span class="jeton">STE</span><span><span class="n">Bricoline</span><br><span class="doux">Steamer · jibef-7</span></span></span>
+            <span class="cabochon">F7</span>
+            <button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter on"></button><button class="inter on"></button>
+            <span class="d"><button class="bt-vide">Désigner</button></span>
+          </div>
+          <div class="ligne" style="grid-template-columns:1.72fr 92px repeat(5,1fr) 122px">
+            <span class="perso-mini"><span class="jeton">ZOB</span><span><span class="n">Tacatak</span><br><span class="doux">Zobal · jibef-8</span></span></span>
+            <span class="cabochon">F8</span>
+            <button class="inter"></button><button class="inter"></button><button class="inter"></button><button class="inter"></button><button class="inter"></button>
+            <span class="d"><span class="pastille-etat creux">Pas lancé</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 6 · RÉGLAGES ============ -->
+    <div class="vue" id="v-reglages">
+      <div class="titre">
+        <h1>OMNI <span class="marqueur">0.3.6</span></h1>
+        <p>Ta clé donne accès à onze fonctions sur douze. Les courses en hôtel de vente arriveront dans une prochaine version.</p>
+      </div>
+
+      <div class="reglages">
+        <div class="bloc-r noir">
+          <h3>Quoi de neuf</h3>
+          <p class="sous">Ce qui a changé depuis la version que tu avais.</p>
+          <div class="notes">
+            <div class="note"><span class="pip"></span><span><b>0.3.6 —</b> entretien interne. Rien ne change dans l’interface ni dans les fonctions : tout ce que tu avais réglé reste en place.</span></div>
+            <div class="note"><span class="pip"></span><span><b>0.3.5 —</b> le passe-tour est enfin sur la barre flottante, plus besoin d’ouvrir le panneau en plein combat.</span></div>
+            <div class="note"><span class="pip"></span><span><b>0.3.4 —</b> corrigé : à partir du deuxième combat, tes personnages pouvaient ne plus équiper leur pierre d’âme. OMNI attend maintenant le bon signal et réessaie.</span></div>
+            <div class="note"><span class="pip"></span><span><b>0.3.3 —</b> corrigé : ouvrir ton banquier faisait entrer le contenu de ta banque dans le stock de pierres. Seul ce que le personnage a sur lui compte.</span></div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+          <div class="bloc-r">
+            <h3>Ce que ta clé ouvre</h3>
+            <p class="sous">Onze fonctions sur douze.</p>
+            <div class="droits">
+              <span class="droit">réplication</span><span class="droit">passe-tour</span><span class="droit">invitation</span>
+              <span class="droit">sans animation</span><span class="droit">échange</span><span class="droit">hôtel</span>
+              <span class="droit">vente</span><span class="droit">archimonstres</span><span class="droit">chasse</span>
+              <span class="droit">zaap</span><span class="droit">duplicateur</span><span class="droit non">courses</span>
+            </div>
+          </div>
+
+          <div class="bloc-r" style="flex:1">
+            <h3>La machine</h3>
+            <p class="sous">Où OMNI range ses affaires.</p>
+            <div class="rangee-r"><span><b>Démarrer avec Windows</b><br><span class="doux">OMNI doit tourner avant tes clients</span></span><span class="fin"><button class="inter on"></button></span></div>
+            <div class="rangee-r"><span><b>Journal détaillé</b><br><span class="doux">à n’allumer que pour un diagnostic</span></span><span class="fin"><button class="inter"></button></span></div>
+            <div class="rangee-r"><span><b>Dossier d’OMNI</b><br><span class="doux">C:\Users\jibef\AppData\OMNI</span></span><span class="fin"><button class="bt-vide">Ouvrir</button></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p class="aide"><b>C’est cliquable.</b> Les six icônes du rail noir changent d’écran pour de vrai — passe de Ma flotte à Courses, Hôtel de vente, Archimonstres, Raccourcis et Réglages. Chaque écran garde la même règle : le jaune pour ce qui mène et ce qui tourne, le noir pour ce qui réclame ton attention, le clair pour tout ce qui va bien.</p>
+
+<script>
+document.querySelectorAll('.rail button[data-vue]').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.rail button[data-vue]').forEach(function(x){ x.classList.remove('actif'); });
+    document.querySelectorAll('.vue').forEach(function(v){ v.classList.remove('actif'); });
+    b.classList.add('actif');
+    document.getElementById('v-' + b.dataset.vue).classList.add('actif');
+  });
+});
+document.querySelectorAll('.inter').forEach(function(i){
+  i.addEventListener('click', function(){ i.classList.toggle('on'); });
+});
+/* Le theme se pose sur la racine: une seule ligne bascule toute l app,
+   parce que rien n a de couleur en dur -- tout passe par les variables. */
+(function(){
+  var bt = document.getElementById('btTheme');
+  var lib = document.getElementById('libTheme');
+  bt.addEventListener('click', function(){
+    var sombre = document.documentElement.getAttribute('data-theme') === 'sombre';
+    if (sombre) document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', 'sombre');
+    lib.textContent = sombre ? 'Sombre' : 'Clair';
+  });
+})();
+document.querySelectorAll('.grp').forEach(function(g){
+  g.querySelectorAll('button').forEach(function(b){
+    b.addEventListener('click', function(){
+      g.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      /* Un groupe marque `data-sousvues` ne fait pas que s allumer:
+         il change vraiment le contenu du panneau en dessous. */
+      if (g.dataset.sousvues && b.dataset.sv) {
+        var ecran = g.closest('.vue');
+        ecran.querySelectorAll('.sous-vue').forEach(function(p){
+          p.classList.toggle('actif', p.dataset.sv === b.dataset.sv);
+        });
+        /* Les trois tuiles parlent de ce qui est en vente: elles n ont rien
+           a dire sur un ecran de reglages, donc elles s effacent. */
+        var t = document.getElementById('tuilesHotel');
+        if (t) t.style.display = (b.dataset.sv === 'regles') ? 'none' : '';
+      }
+    });
+  });
+});
+</script>
+</body></html>

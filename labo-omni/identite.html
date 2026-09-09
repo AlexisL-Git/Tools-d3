@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — planche d'identité</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,400;50..150,700;50..150,800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   OMNI — IDENTITE
+   Famille visuelle: outil de gamer. Pas le noir + un vert acide de
+   tout le monde. Ce qui signe l identite ici, ce n est pas la
+   couleur, c est la GEOMETRIE: tout panneau a un coin coupe, et il
+   est toujours coupe du meme cote, a la meme taille. C est ca qu on
+   reconnait, meme en niveaux de gris.
+
+   TROIS COULEURS, TROIS METIERS, aucun recouvrement:
+     volt   #7C5CFF  OMNI lui-meme -- la marque, ce qui est arme
+     braise #FF8A3D  ce qui commande (le meneur)
+     jade   #2FE0A8  ce qui va bien, ce qui est en jeu
+     rouge  #FF4D6D  ce qui manque ou ce qui casse
+   ============================================================ */
+:root{
+  --nuit:#0A0B12;
+  --plaque:#12141E;
+  --plaque-haute:#191C29;
+  --filet:#262B3C;
+  --filet-clair:#38405A;
+  --texte:#E8EAF2;
+  --sourd:#818AA6;
+  --tres-sourd:#4E5670;
+  --volt:#7C5CFF;
+  --volt-sombre:#2A1F63;
+  --braise:#FF8A3D;
+  --jade:#2FE0A8;
+  --rouge:#FF4D6D;
+  --ui:"Public Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Anybody","Public Sans",system-ui,sans-serif;
+  --coupe:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--nuit);color:var(--texte);font-family:var(--ui);
+  line-height:1.55;padding:56px 28px 90px;
+}
+main{max-width:1100px;margin:0 auto}
+a.retour{
+  position:fixed;top:18px;left:20px;color:var(--tres-sourd);text-decoration:none;
+  font-size:13px;border-bottom:1px solid var(--filet);padding-bottom:2px;z-index:5;
+}
+a.retour:hover{color:var(--volt);border-bottom-color:var(--volt)}
+
+h1{
+  font-family:var(--titre);font-weight:800;font-stretch:125%;
+  font-size:40px;line-height:1.05;letter-spacing:-.02em;margin:0 0 14px;
+}
+.chapo{color:var(--sourd);font-size:15.5px;max-width:70ch;margin:0 0 8px}
+.chapo strong{color:var(--texte);font-weight:600}
+
+h2{
+  font-family:var(--titre);font-weight:700;font-stretch:118%;
+  font-size:13px;letter-spacing:.02em;margin:0;color:var(--volt);
+}
+section{margin-top:54px;border-top:1px solid var(--filet);padding-top:18px}
+section > p{color:var(--sourd);font-size:14.5px;max-width:72ch;margin:8px 0 24px}
+section > p strong{color:var(--texte);font-weight:600}
+
+/* ---------- les trois symboles ---------- */
+.marques{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.marque{
+  background:var(--plaque);border:1px solid var(--filet);padding:26px 24px 22px;
+  clip-path:var(--coupe);
+}
+.marque .scene{display:flex;align-items:flex-end;gap:22px;min-height:98px}
+.marque h3{
+  font-family:var(--titre);font-weight:700;font-stretch:112%;
+  font-size:18px;margin:22px 0 6px;letter-spacing:-.01em;
+}
+.marque p{margin:0;color:var(--sourd);font-size:13.5px;line-height:1.5}
+.marque .tailles{
+  display:flex;align-items:center;gap:14px;margin-top:18px;padding-top:14px;
+  border-top:1px solid var(--filet);
+}
+.marque .tailles span{color:var(--tres-sourd);font-size:11.5px;margin-left:auto}
+.recommande{border-color:var(--volt-sombre)}
+.recommande .fanion{
+  display:inline-block;background:var(--volt);color:#0A0713;font-weight:700;
+  font-size:10.5px;padding:3px 9px;letter-spacing:.04em;margin-bottom:14px;
+  clip-path:polygon(0 0,100% 0,100% 100%,6px 100%,0 calc(100% - 6px));
+}
+
+/* ---------- le logo vivant ---------- */
+.vivant{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.etat-logo{
+  background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);
+  padding:22px;text-align:center;
+}
+.etat-logo b{display:block;font-family:var(--titre);font-weight:700;font-stretch:112%;font-size:14px;margin-top:14px}
+.etat-logo small{display:block;color:var(--sourd);font-size:12.5px;margin-top:3px;line-height:1.4}
+
+/* ---------- palette ---------- */
+.palette{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.teinte{background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);overflow:hidden}
+.teinte .bloc{height:88px}
+.teinte .info{padding:14px 16px 16px}
+.teinte .nom{font-family:var(--titre);font-weight:700;font-stretch:112%;font-size:15px}
+.teinte .hex{color:var(--tres-sourd);font-size:12px;letter-spacing:.06em;margin-top:2px}
+.teinte .role{color:var(--sourd);font-size:13px;margin-top:8px;line-height:1.45}
+.fonds{display:flex;gap:14px;margin-top:14px}
+.fond{flex:1;border:1px solid var(--filet);padding:12px 14px;font-size:12.5px;color:var(--sourd)}
+.fond b{display:block;color:var(--texte);font-family:var(--titre);font-weight:700;font-size:13px;margin-bottom:3px}
+
+/* ---------- typo ---------- */
+.typo{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bloc-typo{background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);padding:24px}
+.demo-large{font-family:var(--titre);font-weight:800;font-stretch:130%;font-size:46px;line-height:1;letter-spacing:-.02em}
+.demo-moyen{font-family:var(--titre);font-weight:700;font-stretch:118%;font-size:24px;line-height:1.1;margin-top:16px}
+.demo-corps{font-size:15px;line-height:1.6;color:var(--sourd);margin-top:16px;max-width:48ch}
+.note-typo{margin-top:18px;padding-top:14px;border-top:1px solid var(--filet);color:var(--tres-sourd);font-size:12.5px;line-height:1.5}
+.note-typo b{color:var(--texte)}
+.chiffres{font-family:var(--titre);font-weight:700;font-stretch:125%;font-size:34px;letter-spacing:.01em}
+
+/* ---------- briques ---------- */
+.briques{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.brique{background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);padding:22px}
+.brique .quoi{color:var(--tres-sourd);font-size:12px;margin-bottom:14px}
+.rangee{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+
+.bt{
+  border:0;font:600 13px/1 var(--ui);padding:10px 16px;cursor:pointer;color:#0A0713;
+  background:var(--volt);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%);
+}
+.bt.creux{background:transparent;color:var(--texte);border:1px solid var(--filet-clair)}
+.bt.creux:hover{border-color:var(--volt);color:var(--volt)}
+.bt.danger{background:var(--rouge);color:#2A0209}
+
+.badge{
+  display:inline-flex;align-items:center;gap:8px;padding:6px 12px;
+  background:var(--volt-sombre);color:#CBBBFF;font:600 12px/1 var(--ui);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%);
+}
+.badge i{width:7px;height:7px;background:var(--volt);border-radius:50%;box-shadow:0 0 8px var(--volt)}
+.badge.repos{background:#1A1E2B;color:var(--sourd)}
+.badge.repos i{background:var(--tres-sourd);box-shadow:none}
+
+.etat{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.etat .los{width:9px;height:9px;transform:rotate(45deg)}
+.etat.jeu{color:var(--jade)}      .etat.jeu .los{background:var(--jade)}
+.etat.att{color:var(--braise)}    .etat.att .los{background:transparent;border:1.5px solid var(--braise)}
+.etat.hs{color:var(--rouge)}      .etat.hs .los{background:transparent;border:1.5px dashed var(--rouge)}
+
+.pips{display:flex;gap:5px}
+.pips i{width:10px;height:10px;border:1.5px solid var(--filet-clair);background:transparent}
+.pips i.on{background:var(--volt);border-color:var(--volt)}
+
+.cabochon{
+  border:1px solid var(--filet-clair);color:var(--sourd);background:#0E1017;
+  font:600 11.5px/1 var(--ui);padding:6px 10px;letter-spacing:.04em;
+}
+.jaugette{height:6px;background:#1A1E2B;width:100%;overflow:hidden}
+.jaugette span{display:block;height:100%;background:var(--volt)}
+
+.principes{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:8px}
+.principe{border-left:2px solid var(--volt);padding:4px 0 4px 16px}
+.principe b{display:block;font-family:var(--titre);font-weight:700;font-stretch:112%;font-size:15px;margin-bottom:4px}
+.principe span{color:var(--sourd);font-size:13.5px;line-height:1.5}
+
+.suite{
+  margin-top:56px;background:var(--plaque-haute);border:1px solid var(--filet);
+  clip-path:var(--coupe);padding:28px 30px;
+}
+.suite b{font-family:var(--titre);font-weight:700;font-stretch:118%;font-size:19px;display:block;margin-bottom:8px}
+.suite p{color:var(--sourd);font-size:14.5px;margin:0 0 18px;max-width:70ch}
+.suite a{
+  display:inline-block;background:var(--volt);color:#0A0713;text-decoration:none;
+  font-weight:700;font-size:14px;padding:12px 20px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%);
+}
+</style></head>
+<body>
+<a class="retour" href="/">← retour</a>
+<main>
+
+  <h1>L’identité d’OMNI</h1>
+  <p class="chapo">Pas un habillage. Le <strong>symbole</strong>, les <strong>couleurs et leur métier</strong>, les <strong>lettres</strong>, et les <strong>briques</strong> avec lesquelles tout l’outil sera construit. Une fois ça posé, chaque écran d’OMNI se dessine tout seul — et deux écrans faits à six mois d’écart se ressembleront.</p>
+  <p class="chapo">Famille : outil de gamer. Mais ce qui signe OMNI, ce n’est pas la couleur — c’est la <strong>géométrie</strong>. Chaque panneau a un coin coupé, toujours le même, toujours du même côté. Passe la page en noir et blanc : tu reconnais encore OMNI.</p>
+
+  <!-- ============ LE SYMBOLE ============ -->
+  <section>
+    <h2>1 — Le symbole</h2>
+    <p>Trois pistes. Toutes fonctionnent en icône de fenêtre à 16 pixels, en noir et blanc, et gravées sur la barre flottante en combat. <strong>Choisis-en une</strong> et je construis tout autour.</p>
+
+    <div class="marques">
+
+      <div class="marque recommande">
+        <span class="fanion">ma préférée</span>
+        <div class="scene">
+          <!-- La couronne: 8 segments = tes 8 personnages -->
+          <svg width="84" height="84" viewBox="0 0 48 48" aria-label="Symbole la couronne">
+            <circle cx="24" cy="24" r="17" fill="none" stroke="#E8EAF2" stroke-width="3.6"
+                    stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/>
+            <circle cx="24" cy="24" r="17" fill="none" stroke="#7C5CFF" stroke-width="6"
+                    stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+          </svg>
+          <svg width="44" height="44" viewBox="0 0 48 48">
+            <circle cx="24" cy="24" r="17" fill="none" stroke="#E8EAF2" stroke-width="3.6"
+                    stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/>
+            <circle cx="24" cy="24" r="17" fill="none" stroke="#7C5CFF" stroke-width="6"
+                    stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+          </svg>
+        </div>
+        <h3>La couronne</h3>
+        <p>Huit segments, un par personnage. Le segment épais, c’est celui qui commande. Le symbole, c’est ta flotte — et il peut <b style="color:#E8EAF2">s’allumer en vrai</b> : un segment éteint = un perso pas connecté.</p>
+        <div class="tailles">
+          <svg width="24" height="24" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17" fill="none" stroke="#E8EAF2" stroke-width="4.4" stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/><circle cx="24" cy="24" r="17" fill="none" stroke="#7C5CFF" stroke-width="7" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/></svg>
+          <svg width="16" height="16" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17" fill="none" stroke="#E8EAF2" stroke-width="5.5" stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/><circle cx="24" cy="24" r="17" fill="none" stroke="#7C5CFF" stroke-width="8.5" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/></svg>
+          <span>24 px · 16 px</span>
+        </div>
+      </div>
+
+      <div class="marque">
+        <div class="scene">
+          <!-- L omega anguleux -->
+          <svg width="84" height="84" viewBox="0 0 48 48" aria-label="Symbole l oméga">
+            <path d="M9 39 h8 v-6 l-6-7 v-9 l6-7 h14 l6 7 v9 l-6 7 v6 h8"
+                  fill="none" stroke="#E8EAF2" stroke-width="4.2" stroke-linejoin="miter"/>
+            <path d="M17 10 h14 l6 7" fill="none" stroke="#7C5CFF" stroke-width="4.2" stroke-linejoin="miter"/>
+          </svg>
+          <svg width="44" height="44" viewBox="0 0 48 48">
+            <path d="M9 39 h8 v-6 l-6-7 v-9 l6-7 h14 l6 7 v9 l-6 7 v6 h8" fill="none" stroke="#E8EAF2" stroke-width="4.2"/>
+            <path d="M17 10 h14 l6 7" fill="none" stroke="#7C5CFF" stroke-width="4.2"/>
+          </svg>
+        </div>
+        <h3>L’oméga</h3>
+        <p>Un oméga taillé à l’équerre. Oméga, c’est la dernière lettre — le tout, l’ultime. Ça sonne avec « omni », et la forme se retient tout de suite. Le plus classique des trois, et le plus solide.</p>
+        <div class="tailles">
+          <svg width="24" height="24" viewBox="0 0 48 48"><path d="M9 39 h8 v-6 l-6-7 v-9 l6-7 h14 l6 7 v9 l-6 7 v6 h8" fill="none" stroke="#E8EAF2" stroke-width="5.4"/><path d="M17 10 h14 l6 7" fill="none" stroke="#7C5CFF" stroke-width="5.4"/></svg>
+          <svg width="16" height="16" viewBox="0 0 48 48"><path d="M9 39 h8 v-6 l-6-7 v-9 l6-7 h14 l6 7 v9 l-6 7 v6 h8" fill="none" stroke="#E8EAF2" stroke-width="6.6"/><path d="M17 10 h14 l6 7" fill="none" stroke="#7C5CFF" stroke-width="6.6"/></svg>
+          <span>24 px · 16 px</span>
+        </div>
+      </div>
+
+      <div class="marque">
+        <div class="scene">
+          <!-- Le relais: un geste, recopie -->
+          <svg width="84" height="84" viewBox="0 0 48 48" aria-label="Symbole le relais">
+            <path d="M6 40 L12 8 h7 L13 40 Z" fill="#7C5CFF" opacity=".22"/>
+            <path d="M15 40 L21 8 h7 L22 40 Z" fill="#7C5CFF" opacity=".42"/>
+            <path d="M24 40 L30 8 h7 L31 40 Z" fill="#7C5CFF" opacity=".68"/>
+            <path d="M33 40 L39 8 h7 L40 40 Z" fill="#FF8A3D"/>
+          </svg>
+          <svg width="44" height="44" viewBox="0 0 48 48">
+            <path d="M6 40 L12 8 h7 L13 40 Z" fill="#7C5CFF" opacity=".22"/>
+            <path d="M15 40 L21 8 h7 L22 40 Z" fill="#7C5CFF" opacity=".42"/>
+            <path d="M24 40 L30 8 h7 L31 40 Z" fill="#7C5CFF" opacity=".68"/>
+            <path d="M33 40 L39 8 h7 L40 40 Z" fill="#FF8A3D"/>
+          </svg>
+        </div>
+        <h3>Le relais</h3>
+        <p>Le même geste, recopié. C’est littéralement ce que fait OMNI : tu joues sur un personnage, les autres refont la même chose. La barre orange, c’est le meneur ; les violettes, ceux qui suivent.</p>
+        <div class="tailles">
+          <svg width="24" height="24" viewBox="0 0 48 48"><path d="M6 40 L12 8 h7 L13 40 Z" fill="#7C5CFF" opacity=".22"/><path d="M15 40 L21 8 h7 L22 40 Z" fill="#7C5CFF" opacity=".42"/><path d="M24 40 L30 8 h7 L31 40 Z" fill="#7C5CFF" opacity=".68"/><path d="M33 40 L39 8 h7 L40 40 Z" fill="#FF8A3D"/></svg>
+          <svg width="16" height="16" viewBox="0 0 48 48"><path d="M6 40 L12 8 h7 L13 40 Z" fill="#7C5CFF" opacity=".28"/><path d="M15 40 L21 8 h7 L22 40 Z" fill="#7C5CFF" opacity=".5"/><path d="M24 40 L30 8 h7 L31 40 Z" fill="#7C5CFF" opacity=".75"/><path d="M33 40 L39 8 h7 L40 40 Z" fill="#FF8A3D"/></svg>
+          <span>24 px · 16 px</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ LE LOGO VIVANT ============ -->
+  <section>
+    <h2>2 — Le symbole qui te parle</h2>
+    <p>Voilà pourquoi je penche pour la couronne. Elle ne reste pas figée : <strong>c’est ton indicateur</strong>. Icône de la barre des tâches, coin de la fenêtre, barre flottante en plein combat — d’un coup d’œil tu sais combien de persos sont debout, sans lire un seul mot ni ouvrir OMNI.</p>
+    <div class="vivant">
+
+      <div class="etat-logo">
+        <svg width="66" height="66" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#FF8A3D" stroke-width="6" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+        </svg>
+        <b>8 sur 8</b><small>tout le monde est en jeu — la couronne est fermée</small>
+      </div>
+
+      <div class="etat-logo">
+        <svg width="66" height="66" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#262B3C" stroke-width="3.6" stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 4.0 9.35 4.0 9.35 4.0 9.35 4.0 9.35 57.4" transform="rotate(-106.1 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#FF8A3D" stroke-width="6" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+        </svg>
+        <b>6 sur 8</b><small>deux segments éteints : il t’en manque deux</small>
+      </div>
+
+      <div class="etat-logo">
+        <svg width="66" height="66" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#262B3C" stroke-width="3.6" stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#FF4D6D" stroke-width="6" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+        </svg>
+        <b>Personne</b><small>le meneur est tombé — segment rouge, anneau éteint</small>
+      </div>
+
+      <div class="etat-logo">
+        <svg width="66" height="66" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#4E5670" stroke-width="3.6" stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#818AA6" stroke-width="6" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+        </svg>
+        <b>Au repos</b><small>OMNI n’est pas armé — tout est en gris</small>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ COULEURS ============ -->
+  <section>
+    <h2>3 — Les couleurs, et leur métier</h2>
+    <p>Quatre couleurs, quatre métiers. <strong>Aucune n’en fait deux.</strong> C’est la règle qui compte le plus : le jour où tu vois de l’orange, tu sais que ça parle du meneur, sans réfléchir. Une couleur qui sert à deux choses ne veut plus rien dire.</p>
+
+    <div class="palette">
+      <div class="teinte"><div class="bloc" style="background:#7C5CFF"></div><div class="info">
+        <div class="nom">Volt</div><div class="hex">#7C5CFF</div>
+        <div class="role">OMNI lui-même. La marque, et tout ce qui est armé, actif, en cours.</div></div></div>
+      <div class="teinte"><div class="bloc" style="background:#FF8A3D"></div><div class="info">
+        <div class="nom">Braise</div><div class="hex">#FF8A3D</div>
+        <div class="role">Ce qui commande. Le meneur, et rien d’autre. La seule couleur chaude.</div></div></div>
+      <div class="teinte"><div class="bloc" style="background:#2FE0A8"></div><div class="info">
+        <div class="nom">Jade</div><div class="hex">#2FE0A8</div>
+        <div class="role">Ce qui va bien. En jeu, connecté, terminé sans incident.</div></div></div>
+      <div class="teinte"><div class="bloc" style="background:#FF4D6D"></div><div class="info">
+        <div class="nom">Écarlate</div><div class="hex">#FF4D6D</div>
+        <div class="role">Ce qui manque ou ce qui casse. Rare, sinon elle ne réveille plus personne.</div></div></div>
+    </div>
+
+    <div class="fonds">
+      <div class="fond" style="background:#0A0B12"><b>Nuit · #0A0B12</b>le fond de la fenêtre</div>
+      <div class="fond" style="background:#12141E"><b>Plaque · #12141E</b>les panneaux posés dessus</div>
+      <div class="fond" style="background:#191C29"><b>Plaque haute · #191C29</b>ce qui est survolé ou choisi</div>
+      <div class="fond" style="background:#0A0B12;border-color:#262B3C"><b>Filet · #262B3C</b>les séparations</div>
+    </div>
+  </section>
+
+  <!-- ============ TYPO ============ -->
+  <section>
+    <h2>4 — Les lettres</h2>
+    <p>Deux polices, deux rôles bien séparés. <strong>Anybody</strong> pour tout ce qui se lit de loin : elle s’étire en largeur, ce qui lui donne cet air de maillot de sport et de tableau de score. <strong>Public Sans</strong> pour tout ce qui se lit de près, parce qu’une police à caractère fatigue sur des phrases entières.</p>
+    <div class="typo">
+      <div class="bloc-typo">
+        <div class="demo-large">6 EN JEU</div>
+        <div class="demo-moyen">Anybody — large, 800</div>
+        <div class="chiffres" style="margin-top:16px;color:var(--volt)">0123456789</div>
+        <div class="note-typo">Pour les <b>titres, les verdicts et les chiffres</b>. Étirée à 125 % de sa largeur normale : c’est cet étirement qui fait la signature, pas la police toute seule.</div>
+      </div>
+      <div class="bloc-typo">
+        <div class="demo-moyen" style="margin-top:0">Public Sans — 400 / 600</div>
+        <div class="demo-corps">Kwakoun est resté à l’écran de sélection : le client tourne, mais personne n’est entré en jeu. Les six autres suivent Vahlkyr depuis quarante et une minutes.</div>
+        <div class="note-typo">Pour <b>tout le reste</b>. Neutre exprès. Chiffres bien lisibles, ce qui compte quand on lit des kamas et des quantités toute la journée.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BRIQUES ============ -->
+  <section>
+    <h2>5 — Les briques</h2>
+    <p>Les morceaux avec lesquels chaque écran sera monté. Regarde le <strong>coin coupé</strong> : il est sur les panneaux et sur les boutons, jamais sur les petites choses. C’est ça, la grammaire.</p>
+    <div class="briques">
+
+      <div class="brique"><div class="quoi">Boutons</div>
+        <div class="rangee">
+          <button class="bt">Réveiller Kwakoun</button>
+          <button class="bt creux">Voir le détail</button>
+          <button class="bt danger">Fermer le client</button>
+        </div>
+      </div>
+
+      <div class="brique"><div class="quoi">L’interrupteur maître</div>
+        <div class="rangee">
+          <span class="badge"><i></i>ARMÉ</span>
+          <span class="badge repos"><i></i>AU REPOS</span>
+        </div>
+      </div>
+
+      <div class="brique"><div class="quoi">États d’un personnage</div>
+        <div class="rangee" style="gap:18px">
+          <span class="etat jeu"><span class="los"></span>en jeu</span>
+          <span class="etat att"><span class="los"></span>pas entré</span>
+          <span class="etat hs"><span class="los"></span>pas lancé</span>
+        </div>
+      </div>
+
+      <div class="brique"><div class="quoi">Fonctions armées</div>
+        <div class="rangee"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></div>
+        <p style="color:var(--tres-sourd);font-size:12.5px;margin:14px 0 0;line-height:1.45">Carré plein = armé, carré creux = pas armé. La forme dit tout, la couleur ne fait que renforcer.</p>
+      </div>
+
+      <div class="brique"><div class="quoi">Touche assignée</div>
+        <div class="rangee"><span class="cabochon">F1</span><span class="cabochon">CTRL + 2</span><span class="cabochon" style="color:var(--tres-sourd)">aucune</span></div>
+      </div>
+
+      <div class="brique"><div class="quoi">Avancement</div>
+        <div class="jaugette"><span style="width:62%"></span></div>
+        <p style="color:var(--tres-sourd);font-size:12.5px;margin:14px 0 0;line-height:1.45">Sans coin coupé et sans arrondi : une jauge doit se lire au pixel près.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ PRINCIPES ============ -->
+  <section>
+    <h2>6 — Les quatre règles</h2>
+    <p>Ce qu’il faudra tenir pour que l’identité ne se délave pas au fil des versions.</p>
+    <div class="principes">
+      <div class="principe"><b>Le coin coupé, toujours du même côté</b><span>En haut à droite et en bas à gauche, 14 pixels. C’est la signature d’OMNI. Un panneau arrondi n’est pas un panneau d’OMNI.</span></div>
+      <div class="principe"><b>Une couleur, un métier</b><span>Volt = OMNI. Braise = qui commande. Jade = ça va. Écarlate = ça manque. Aucune n’en fait deux, jamais.</span></div>
+      <div class="principe"><b>La forme avant la couleur</b><span>Plein contre creux, fermé contre pointillé. Un daltonien doit lire l’écran aussi bien que toi — et toi aussi, du coin de l’œil.</span></div>
+      <div class="principe"><b>L’écran dit ce qui se passe</b><span>Un interrupteur ne se contente pas d’être coché : il dit ce qu’il fait en ce moment. OMNI est un tableau de bord, pas un panneau de config.</span></div>
+    </div>
+  </section>
+
+  <div class="suite">
+    <b>Et maintenant</b>
+    <p>Dis-moi juste : <strong>quel symbole</strong>, et si cette famille de couleurs te parle. Si oui, je redessine l’écran d’accueil complet avec — et tous les écrans suivants s’enchaîneront sans qu’on ait à rediscuter du dessin.</p>
+    <a href="/ecran.html">Voir l’écran d’accueil monté avec cette identité →</a>
+  </div>
+
+</main>
+</body></html>

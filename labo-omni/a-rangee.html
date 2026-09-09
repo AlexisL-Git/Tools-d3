@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — A · Rang de bataille</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   A — RANG DE BATAILLE
+   Le cuir et le laiton. L ecran est un instrument, pas une page web.
+   La rangee de huit colonnes EST la jauge: pleine = en jeu, a moitie
+   = pas encore entre, creuse = pas lance. On lit la silhouette avant
+   de lire un seul mot.
+   ============================================================ */
+:root{
+  --cuir:#1B1614;
+  --cuir-creux:#141010;
+  --grave:#3A2E26;
+  --laiton:#C6A15B;
+  --laiton-sombre:#8A6E3A;
+  --os:#EFE6D6;
+  --os-attenue:#9B8F7E;
+  --vert:#79B79A;
+  --ambre:#E0A03C;
+  --brique:#CF4B36;
+  --ui:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Fraunces",Georgia,serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:#0B0A09;color:var(--os);font-family:var(--ui);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:18px;padding:34px 20px;
+}
+a.retour{
+  position:fixed;top:18px;left:20px;color:#6E6459;text-decoration:none;
+  font-size:13px;border-bottom:1px solid #332C25;padding-bottom:2px;
+}
+a.retour:hover{color:var(--laiton);border-bottom-color:var(--laiton)}
+.legende{max-width:1097px;color:#7C7268;font-size:13.5px;line-height:1.55;margin:0}
+.legende b{color:var(--laiton);font-weight:600}
+
+/* ---- la fenetre reelle d OMNI: 1097 x 720 ---- */
+.fenetre{
+  width:1097px;height:720px;background:var(--cuir);overflow:hidden;
+  display:flex;flex-direction:column;
+  border:1px solid #35291F;
+  box-shadow:0 30px 90px rgba(0,0,0,.7);
+}
+
+/* ---- barre de titre ---- */
+.barre{
+  height:40px;flex:none;display:flex;align-items:center;gap:14px;
+  padding-left:18px;border-bottom:1px solid var(--grave);
+  background:linear-gradient(180deg,#221B17,#1B1614);
+}
+.marque{font-family:var(--titre);font-weight:500;font-size:20px;letter-spacing:.01em}
+.marque em{font-style:normal;color:var(--laiton)}
+.maitre{
+  display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 11px;
+  background:var(--laiton);color:#241804;border:0;
+  font:600 12.5px/1 var(--ui);letter-spacing:.03em;cursor:pointer;
+}
+.maitre .pastille{width:7px;height:7px;background:#241804;border-radius:50%}
+.version{margin-left:auto;color:var(--os-attenue);font-size:12px;letter-spacing:.04em}
+.bouts{display:flex;margin-left:14px}
+.bouts button{
+  width:44px;height:40px;background:transparent;border:0;color:var(--os-attenue);cursor:pointer;
+}
+.bouts button:hover{background:rgba(255,255,255,.06);color:var(--os)}
+.bouts button.fermer:hover{background:var(--brique);color:#fff}
+
+/* ---- le rang ---- */
+.rang-zone{padding:26px 18px 0;flex:none}
+.rang{display:grid;grid-template-columns:repeat(8,1fr);gap:9px}
+
+.colonne{
+  position:relative;height:352px;background:var(--cuir-creux);
+  border:1px solid var(--grave);display:flex;flex-direction:column;
+}
+.jauge{position:absolute;left:0;right:0;bottom:0;background:rgba(121,183,154,.13)}
+.colonne.attente .jauge{background:rgba(224,160,60,.14)}
+.colonne.absent .jauge{background:transparent}
+.colonne::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--vert);
+}
+.colonne.attente::after{background:var(--ambre)}
+.colonne.absent::after{background:var(--grave)}
+
+.tete{position:relative;padding:13px 11px 0;text-align:center}
+.plaque{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:42px;height:42px;border:1px solid var(--laiton-sombre);
+  color:var(--laiton);font:600 12.5px/1 var(--ui);letter-spacing:.03em;
+  background:linear-gradient(160deg,rgba(198,161,91,.16),rgba(198,161,91,.03));
+}
+.colonne.absent .plaque{border-color:var(--grave);color:#5F564C;background:none}
+
+.nom{
+  position:relative;font-family:var(--titre);font-size:16.5px;font-weight:500;
+  padding:11px 6px 0;text-align:center;line-height:1.15;
+}
+.compte{position:relative;text-align:center;font-size:11.5px;color:var(--os-attenue);padding-top:3px}
+.colonne.absent .nom,.colonne.absent .compte{color:#6B6157}
+.classe{
+  position:relative;text-align:center;font-size:11.5px;color:var(--laiton-sombre);
+  padding-top:9px;letter-spacing:.05em;
+}
+.touche{
+  position:relative;align-self:center;margin-top:11px;
+  border:1px solid var(--grave);color:var(--os-attenue);
+  font:500 11px/1 var(--ui);padding:5px 9px;letter-spacing:.04em;
+}
+.pips{position:relative;display:flex;justify-content:center;gap:5px;padding:14px 0 0}
+.pips i{width:9px;height:9px;border:1px solid var(--laiton-sombre);border-radius:50%;background:transparent}
+.pips i.on{background:var(--laiton);border-color:var(--laiton)}
+.colonne.absent .pips i{border-color:var(--grave)}
+.colonne.absent .pips i.on{background:#4A4038;border-color:#4A4038}
+
+.etat{
+  position:relative;margin-top:auto;padding:0 8px 13px;text-align:center;
+  font-family:var(--titre);font-size:13.5px;font-weight:500;color:var(--vert);line-height:1.2;
+}
+.colonne.attente .etat{color:var(--ambre)}
+.colonne.absent .etat{color:#6B6157}
+.etat small{display:block;font-family:var(--ui);font-size:11px;color:var(--os-attenue);font-weight:400;padding-top:3px}
+
+.colonne.meneur{border-color:var(--laiton-sombre)}
+.colonne.meneur .bandeau{position:absolute;top:0;left:0;right:0;height:4px;background:var(--laiton)}
+.colonne.meneur .nom{color:var(--laiton)}
+
+/* ---- bande basse: ce qui tourne ---- */
+.bas{margin-top:22px;border-top:1px solid var(--grave);padding:14px 18px 0;flex:1;min-height:0}
+.activite{display:flex;align-items:baseline;gap:12px;padding:9px 0;border-bottom:1px solid rgba(58,46,38,.55)}
+.activite .tick{width:7px;height:7px;flex:none;background:var(--laiton);transform:rotate(45deg);position:relative;top:-1px}
+.activite .tick.pause{background:transparent;border:1px solid var(--ambre)}
+.activite .quoi{font-size:14px}
+.activite .quoi b{font-family:var(--titre);font-weight:500}
+.activite .duree{margin-left:auto;color:var(--os-attenue);font-size:12.5px;letter-spacing:.03em}
+.activite.calme{color:var(--os-attenue);font-size:13.5px;border-bottom:0}
+</style></head>
+<body>
+<a class="retour" href="/">← les trois propositions</a>
+
+<div class="fenetre">
+  <div class="barre">
+    <span class="marque"><em>O</em>MNI</span>
+    <button class="maitre"><span class="pastille"></span>armé</button>
+    <span class="version">0.3.6</span>
+    <span class="bouts">
+      <button><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
+      <button class="fermer"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
+    </span>
+  </div>
+
+  <div class="rang-zone">
+    <div class="rang">
+
+      <div class="colonne meneur"><span class="bandeau"></span><span class="jauge" style="height:100%"></span>
+        <div class="tete"><span class="plaque">IOP</span></div>
+        <div class="nom">Vahlkyr</div><div class="compte">jibef&#8209;1</div>
+        <div class="classe">Iop</div>
+        <div class="touche">F1</div>
+        <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+        <div class="etat">commande<small>depuis 41 min</small></div>
+      </div>
+
+      <div class="colonne"><span class="jauge" style="height:100%"></span>
+        <div class="tete"><span class="plaque">ENI</span></div>
+        <div class="nom">Noméa</div><div class="compte">jibef&#8209;2</div>
+        <div class="classe">Eniripsa</div>
+        <div class="touche">F2</div>
+        <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+        <div class="etat">en jeu<small>Astrub</small></div>
+      </div>
+
+      <div class="colonne"><span class="jauge" style="height:100%"></span>
+        <div class="tete"><span class="plaque">SAC</span></div>
+        <div class="nom">Ptit&#8209;Bras</div><div class="compte">jibef&#8209;3</div>
+        <div class="classe">Sacrieur</div>
+        <div class="touche">F3</div>
+        <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div>
+        <div class="etat">en jeu<small>Astrub</small></div>
+      </div>
+
+      <div class="colonne"><span class="jauge" style="height:100%"></span>
+        <div class="tete"><span class="plaque">SRA</span></div>
+        <div class="nom">Sombrelle</div><div class="compte">jibef&#8209;4</div>
+        <div class="classe">Sram</div>
+        <div class="touche">F4</div>
+        <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
+        <div class="etat">à l’hôtel<small>prix, 62 %</small></div>
+      </div>
+
+      <div class="colonne"><span class="jauge" style="height:100%"></span>
+        <div class="tete"><span class="plaque">OSA</span></div>
+        <div class="nom">Ourseline</div><div class="compte">jibef&#8209;5</div>
+        <div class="classe">Osamodas</div>
+        <div class="touche">F5</div>
+        <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+        <div class="etat">en jeu<small>Astrub</small></div>
+      </div>
+
+      <div class="colonne attente"><span class="jauge" style="height:44%"></span>
+        <div class="tete"><span class="plaque">CRA</span></div>
+        <div class="nom">Kwakoun</div><div class="compte">jibef&#8209;6</div>
+        <div class="classe">Cra</div>
+        <div class="touche">F6</div>
+        <div class="pips"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="etat">pas entré<small>écran de perso</small></div>
+      </div>
+
+      <div class="colonne"><span class="jauge" style="height:100%"></span>
+        <div class="tete"><span class="plaque">STE</span></div>
+        <div class="nom">Bricoline</div><div class="compte">jibef&#8209;7</div>
+        <div class="classe">Steamer</div>
+        <div class="touche">F7</div>
+        <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
+        <div class="etat">course en pause<small>sac plein</small></div>
+      </div>
+
+      <div class="colonne absent"><span class="jauge"></span>
+        <div class="tete"><span class="plaque">—</span></div>
+        <div class="nom">Tacatak</div><div class="compte">jibef&#8209;8</div>
+        <div class="classe">Zobal</div>
+        <div class="touche">F8</div>
+        <div class="pips"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="etat">pas lancé<small>client fermé</small></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="bas">
+    <div class="activite">
+      <span class="tick"></span>
+      <span class="quoi"><b>Sombrelle</b> met à jour les prix — 412 objets sur 664</span>
+      <span class="duree">1 min 12</span>
+    </div>
+    <div class="activite">
+      <span class="tick pause"></span>
+      <span class="quoi"><b>Bricoline</b> a mis sa course en pause : le sac est plein, 14 lots achetés sur 20</span>
+      <span class="duree">en attente</span>
+    </div>
+    <div class="activite calme">Rien d’autre ne tourne. 178 archimonstres relevés sur les six inventaires lus.</div>
+  </div>
+</div>
+
+<p class="legende"><b>A — Rang de bataille.</b> Le cuir et le laiton, l’écran comme un instrument. Les huit colonnes sont la jauge : pleine tu es en jeu, à moitié tu n’es pas entré, creuse tu n’es pas lancé. Tu lis la silhouette avant de lire un mot. Le laiton ne sert qu’à une chose : ce qui commande.</p>
+</body></html>

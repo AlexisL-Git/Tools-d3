@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — l'icône</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --papier:#E7EBE4;--carte:#F6F7F3;--carte-creuse:#EDEFE9;
+  --encre:#16181A;--encre-douce:#6E756C;--trait:#D8DCD3;
+  /* UN seul jaune, deux valeurs. Le vif pour les fonds sombres et les
+     aplats, le pose pour la pupille sur la pastille blanche -- le vif y
+     serait trop pale pour se lire a 16 px. */
+  --acide:#E2F27C;--acide-pose:#C9DC5C;
+  --ui:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Outfit","Plus Jakarta Sans",system-ui,sans-serif;
+  --coupe:polygon(0 0,calc(100% - 14%) 0,100% 14%,100% 100%,14% 100%,0 calc(100% - 14%));
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--papier);color:var(--encre);font-family:var(--ui);line-height:1.55;padding:54px 28px 90px}
+main{max-width:1040px;margin:0 auto}
+a.retour{position:fixed;top:18px;left:20px;color:var(--encre-douce);text-decoration:none;font-size:13px;border-bottom:1px solid var(--trait);padding-bottom:2px;z-index:5}
+a.retour:hover{color:var(--encre)}
+
+h1{font-family:var(--titre);font-weight:700;font-size:40px;line-height:1.04;letter-spacing:-.028em;margin:0 0 14px}
+h1 .marqueur{display:inline-block;background:var(--acide);border-radius:999px;padding:0 16px;line-height:1.16}
+.chapo{color:var(--encre-douce);font-size:15px;max-width:72ch;margin:0 0 6px}
+.chapo strong{color:var(--encre);font-weight:600}
+
+section{margin-top:46px}
+h2{font-family:var(--titre);font-weight:700;font-size:22px;letter-spacing:-.02em;margin:0 0 6px}
+section > p{color:var(--encre-douce);font-size:14px;max-width:74ch;margin:0 0 20px}
+section > p strong{color:var(--encre);font-weight:600}
+
+.bloc{background:var(--encre);border-radius:24px;padding:26px 28px}
+
+/* la pastille */
+.pastille{background:#FFFFFF;display:grid;place-items:center;clip-path:var(--coupe);flex:none}
+.pastille.ronde{clip-path:none;border-radius:22%}
+.pastille.noire{background:var(--encre)}
+
+/* heros */
+.heros{display:flex;align-items:center;gap:40px;background:var(--encre);color:var(--carte);border-radius:24px;padding:34px 36px}
+.heros .dit{max-width:40ch;color:#A9AFA7;font-size:14px;line-height:1.6}
+.heros .dit b{color:var(--carte)}
+.heros .mot{font-family:var(--titre);font-weight:700;font-size:52px;letter-spacing:-.03em;line-height:1}
+
+/* tailles reelles */
+.tailles{display:flex;align-items:flex-end;gap:26px;flex-wrap:wrap}
+.taille{text-align:center}
+.taille small{display:block;color:#A9AFA7;font-size:11.5px;margin-top:10px}
+
+/* choix */
+.choix{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.opt{background:var(--encre);color:var(--carte);border-radius:22px;padding:24px;text-align:center;border:2px solid transparent}
+.opt.retenu{border-color:var(--acide)}
+.opt .scene{display:flex;justify-content:center;align-items:flex-end;gap:14px;min-height:86px}
+.opt b{display:block;font-family:var(--titre);font-weight:600;font-size:16px;margin-top:16px}
+.opt .hex{display:block;font:700 12.5px/1 var(--ui);letter-spacing:.05em;margin-top:6px}
+.opt small{display:block;color:#A9AFA7;font-size:12.5px;margin-top:7px;line-height:1.45}
+.opt .fanion{display:inline-block;background:var(--acide);color:var(--encre);border-radius:999px;font:700 10.5px/1 var(--ui);padding:5px 11px;margin-top:12px}
+
+/* en situation */
+.situ{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cadre{background:var(--carte);border-radius:22px;padding:22px 24px}
+.cadre .titre-situ{font:600 13px/1 var(--ui);color:var(--encre-douce);margin-bottom:16px}
+
+.barre-taches{background:#1C1C1F;border-radius:12px;height:52px;display:flex;align-items:center;justify-content:center;gap:12px;padding:0 16px}
+.barre-taches .app{width:26px;height:26px;border-radius:7px;background:#33353A}
+.barre-taches .omni{position:relative}
+.barre-taches .omni::after{content:"";position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);width:14px;height:3px;border-radius:2px;background:var(--acide)}
+
+.bureau{background:linear-gradient(150deg,#4A5E6B,#22313A);border-radius:12px;padding:20px;display:flex;gap:26px}
+.raccourci{text-align:center;width:74px}
+.raccourci span{display:block;color:#EDF1F4;font-size:11.5px;margin-top:7px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+
+.barre-titre{background:var(--papier);border-radius:14px;height:52px;display:flex;align-items:center;gap:12px;padding:0 14px}
+.barre-titre .armer{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 15px 0 12px;background:var(--encre);color:var(--carte);border-radius:999px;font:600 12.5px/1 var(--ui)}
+.barre-titre .armer i{width:7px;height:7px;border-radius:50%;background:var(--acide)}
+.barre-titre .nom-appli{font-family:var(--titre);font-weight:700;font-size:16px;letter-spacing:-.01em}
+
+.combat{background:#111315;border-radius:14px;height:52px;display:flex;align-items:center;gap:14px;padding:0 16px;color:#C6CCC2;font:600 12.5px/1 var(--ui)}
+.combat b{color:#F6F7F3}
+
+.pied{margin-top:44px;background:var(--encre);color:#C9CFC5;border-radius:24px;padding:26px 28px}
+.pied b.tt{display:block;font-family:var(--titre);font-weight:700;font-size:19px;color:var(--carte);margin-bottom:10px}
+.pied p{margin:0 0 10px;font-size:14px;max-width:76ch}
+.pied ul{margin:0;padding-left:20px;font-size:14px}
+.pied li{margin-bottom:7px}
+.pied li b{color:var(--carte)}
+</style></head>
+<body>
+<a class="retour" href="/">← retour</a>
+<main>
+
+<h1>L’icône <span class="marqueur">d’OMNI</span></h1>
+<p class="chapo">Le petit logo sur fond clair que tu as repéré, fini pour de vrai : <strong>les quatre barres noires, la pupille jaune, la pastille claire à coin coupé</strong>. C’est cette image qui vivra dans ta barre des tâches, sur ton bureau et dans le coin de la fenêtre.</p>
+
+<!-- ================= HEROS ================= -->
+<section>
+  <div class="heros">
+    <span class="pastille" style="width:128px;height:128px">
+      <svg width="76" height="76" viewBox="0 0 48 48" aria-label="OMNI">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4" stroke-linecap="butt">
+          <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#16181A"/>
+          <line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#16181A"/>
+          <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#C9DC5C"/>
+          <line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#16181A"/>
+        </g>
+      </svg>
+    </span>
+    <span class="mot">OMNI</span>
+    <span class="dit">Le coin coupé n’est pas décoratif : c’est ce qui empêche la pastille d’être un carré arrondi comme les cinquante autres icônes de ta barre. <b>C’est la forme qu’on reconnaît de loin</b>, avant même de voir les barres.</span>
+  </div>
+</section>
+
+<!-- ================= TAILLES ================= -->
+<section>
+  <h2>Aux vraies tailles</h2>
+  <p>Le trait s’épaissit quand la pastille rétrécit — sinon les barres disparaîtraient. <strong>À 16 px on lit encore les quatre barres et la pupille</strong> : c’est la seule preuve qui compte pour une icône.</p>
+  <div class="bloc">
+    <div class="tailles">
+
+      <div class="taille">
+        <span class="pastille" style="width:96px;height:96px">
+          <svg width="58" height="58" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4" stroke-linecap="butt">
+            <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#16181A"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#16181A"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#C9DC5C"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#16181A"/>
+          </g></svg>
+        </span><small>96 px</small>
+      </div>
+
+      <div class="taille">
+        <span class="pastille" style="width:64px;height:64px">
+          <svg width="38" height="38" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="6.8" stroke-linecap="butt">
+            <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#16181A"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#16181A"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#C9DC5C"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#16181A"/>
+          </g></svg>
+        </span><small>64 px</small>
+      </div>
+
+      <div class="taille">
+        <span class="pastille" style="width:48px;height:48px">
+          <svg width="29" height="29" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="7.2" stroke-linecap="butt">
+            <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#16181A"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#16181A"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#C9DC5C"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#16181A"/>
+          </g></svg>
+        </span><small>48 px</small>
+      </div>
+
+      <div class="taille">
+        <span class="pastille" style="width:32px;height:32px">
+          <svg width="20" height="20" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="7.8" stroke-linecap="butt">
+            <line x1="7" y1="16" x2="7" y2="32" stroke="#16181A"/><line x1="18.3" y1="7" x2="18.3" y2="41" stroke="#16181A"/>
+            <line x1="29.7" y1="7" x2="29.7" y2="41" stroke="#C9DC5C"/><line x1="41" y1="16" x2="41" y2="32" stroke="#16181A"/>
+          </g></svg>
+        </span><small>32 px</small>
+      </div>
+
+      <div class="taille">
+        <span class="pastille" style="width:24px;height:24px">
+          <svg width="15" height="15" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="8.6" stroke-linecap="butt">
+            <line x1="7" y1="16" x2="7" y2="32" stroke="#16181A"/><line x1="18.3" y1="7" x2="18.3" y2="41" stroke="#16181A"/>
+            <line x1="29.7" y1="7" x2="29.7" y2="41" stroke="#C9DC5C"/><line x1="41" y1="16" x2="41" y2="32" stroke="#16181A"/>
+          </g></svg>
+        </span><small>24 px</small>
+      </div>
+
+      <div class="taille">
+        <span class="pastille" style="width:16px;height:16px">
+          <svg width="11" height="11" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="9.6" stroke-linecap="butt">
+            <line x1="7" y1="17" x2="7" y2="31" stroke="#16181A"/><line x1="18.3" y1="8" x2="18.3" y2="40" stroke="#16181A"/>
+            <line x1="29.7" y1="8" x2="29.7" y2="40" stroke="#C9DC5C"/><line x1="41" y1="17" x2="41" y2="31" stroke="#16181A"/>
+          </g></svg>
+        </span><small>16 px</small>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ================= LE CHOIX ================= -->
+<section>
+  <h2>Le jaune, et rien d’autre</h2>
+  <p>Tranché : la pupille est <strong>jaune</strong>, comme l’écran d’accueil. OMNI n’a plus qu’une seule couleur, et elle veut dire la même chose partout — <strong>ce qui mène, ce qui tourne</strong>.</p>
+  <div class="choix">
+
+    <div class="opt retenu">
+      <div class="scene">
+        <span class="pastille" style="width:86px;height:86px">
+          <svg width="52" height="52" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4" stroke-linecap="butt">
+            <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#16181A"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#16181A"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#C9DC5C"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#16181A"/>
+          </g></svg>
+        </span>
+      </div>
+      <b>Sur la pastille blanche</b>
+      <span class="hex" style="color:#C9DC5C">#C9DC5C</span>
+      <small>Le jaune posé — un cran plus foncé que celui de l’écran. Le vif serait trop pâle sur du blanc et disparaîtrait à 16 px.</small>
+      <span class="fanion">l’icône</span>
+    </div>
+
+    <div class="opt">
+      <div class="scene">
+        <span class="pastille noire" style="width:86px;height:86px">
+          <svg width="52" height="52" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4" stroke-linecap="butt">
+            <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#F6F7F3"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#F6F7F3"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#E2F27C"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#F6F7F3"/>
+          </g></svg>
+        </span>
+      </div>
+      <b>Sur fond sombre</b>
+      <span class="hex" style="color:#E2F27C">#E2F27C</span>
+      <small>Le jaune vif, celui de l’écran d’accueil. Les barres passent en clair, la pupille reste la pupille.</small>
+    </div>
+
+    <div class="opt">
+      <div class="scene">
+        <span class="pastille" style="width:86px;height:86px">
+          <svg width="52" height="52" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4" stroke-linecap="butt" stroke="#16181A">
+            <line x1="7" y1="15.2" x2="7" y2="32.8"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2"/><line x1="41" y1="15.2" x2="41" y2="32.8"/>
+          </g></svg>
+        </span>
+      </div>
+      <b>En une seule couleur</b>
+      <small>Pour l’impression, le noir et blanc, ou un fond qui jure. Tout logo doit avoir cette version-là de côté.</small>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= EN SITUATION ================= -->
+<section>
+  <h2>Là où elle vivra</h2>
+  <p>Quatre endroits réels. C’est là qu’une icône se juge — pas en grand sur une page de présentation.</p>
+  <div class="situ">
+
+    <div class="cadre">
+      <div class="titre-situ">Ta barre des tâches Windows</div>
+      <div class="barre-taches">
+        <span class="app"></span><span class="app"></span>
+        <span class="pastille omni" style="width:30px;height:30px">
+          <svg width="19" height="19" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="7.8" stroke-linecap="butt">
+            <line x1="7" y1="16" x2="7" y2="32" stroke="#16181A"/><line x1="18.3" y1="7" x2="18.3" y2="41" stroke="#16181A"/>
+            <line x1="29.7" y1="7" x2="29.7" y2="41" stroke="#C9DC5C"/><line x1="41" y1="16" x2="41" y2="32" stroke="#16181A"/>
+          </g></svg>
+        </span>
+        <span class="app"></span><span class="app"></span>
+      </div>
+    </div>
+
+    <div class="cadre">
+      <div class="titre-situ">Sur ton bureau</div>
+      <div class="bureau">
+        <span class="raccourci">
+          <span class="pastille" style="width:48px;height:48px;margin:0 auto">
+            <svg width="29" height="29" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="7.2" stroke-linecap="butt">
+              <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#16181A"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#16181A"/>
+              <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#C9DC5C"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#16181A"/>
+            </g></svg>
+          </span>
+          <span>OMNI</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="cadre">
+      <div class="titre-situ">Le coin de la fenêtre — ici, <b>pas de pastille</b></div>
+      <div class="barre-titre">
+        <svg width="24" height="24" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="7" stroke-linecap="butt">
+          <line x1="7" y1="16" x2="7" y2="32" stroke="#16181A"/><line x1="18.3" y1="7" x2="18.3" y2="41" stroke="#16181A"/>
+          <line x1="29.7" y1="7" x2="29.7" y2="41" stroke="#C9DC5C"/><line x1="41" y1="16" x2="41" y2="32" stroke="#16181A"/>
+        </g></svg>
+        <span class="nom-appli">OMNI</span>
+        <span class="armer"><i></i>armé</span>
+      </div>
+    </div>
+
+    <div class="cadre">
+      <div class="titre-situ">La barre flottante, en plein combat</div>
+      <div class="combat">
+        <span class="pastille" style="width:28px;height:28px">
+          <svg width="18" height="18" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="8.2" stroke-linecap="butt">
+            <line x1="7" y1="16" x2="7" y2="32" stroke="#16181A"/><line x1="18.3" y1="7" x2="18.3" y2="41" stroke="#16181A"/>
+            <line x1="29.7" y1="7" x2="29.7" y2="41" stroke="#C9DC5C"/><line x1="41" y1="16" x2="41" y2="32" stroke="#16181A"/>
+          </g></svg>
+        </span>
+        <span>RÉPL. <b>armé</b></span>
+        <span>TOUR <b>M</b></span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= PIED ================= -->
+<div class="pied">
+  <b class="tt">Ce qui est posé, ce qui reste</b>
+  <p>La couleur est tranchée : <b>jaune</b>, partout, pour un seul métier — ce qui mène et ce qui tourne. OMNI n’a plus qu’une couleur et un noir. Il reste ceci :</p>
+  <ul>
+    <li><b>Le coin coupé.</b> Je l’ai gardé parce que c’est ce qui distingue ta pastille des cinquante carrés arrondis de ta barre des tâches. Mais l’écran d’accueil, lui, est tout en rond. Soit on assume ce contraste — l’icône est taillée, l’intérieur est doux — soit on arrondit aussi la pastille.</li>
+    <li><b>Une règle découverte en montant cette page :</b> la pastille blanche n’existe que <b>dehors</b>, sur les fonds sombres de Windows — barre des tâches, bureau, barre de combat. Dans OMNI, qui est clair, elle deviendrait invisible : à l’intérieur, on n’affiche que les quatre barres en noir, sans pastille. Un logo a le droit d’avoir deux versions ; c’est même la marque des logos qui tiennent.</li>
+  </ul>
+</div>
+
+</main>
+</body></html>

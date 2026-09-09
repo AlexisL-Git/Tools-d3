@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — le chantier graphique</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,700;50..150,800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#0A0B12;color:#E8EAF2;
+  font-family:"Public Sans","Segoe UI",system-ui,sans-serif;
+  padding:56px 28px 90px;line-height:1.55;
+}
+main{max-width:1000px;margin:0 auto}
+h1{
+  font-family:"Anybody","Public Sans",system-ui,sans-serif;
+  font-weight:800;font-stretch:126%;font-size:36px;line-height:1.05;
+  letter-spacing:-.02em;margin:0 0 14px;
+}
+.intro{color:#818AA6;font-size:15.5px;max-width:70ch;margin:0 0 6px}
+.intro strong{color:#E8EAF2;font-weight:600}
+
+h2{
+  font-family:"Anybody","Public Sans",system-ui,sans-serif;
+  font-weight:700;font-stretch:118%;font-size:13px;color:#7C5CFF;margin:0;
+}
+section{margin-top:44px;border-top:1px solid #262B3C;padding-top:18px}
+section > p.sous{color:#818AA6;font-size:14.5px;max-width:72ch;margin:8px 0 22px}
+
+a.gros{
+  display:flex;align-items:center;gap:26px;text-decoration:none;color:inherit;
+  background:#12141E;border:1px solid #262B3C;padding:26px 28px;
+  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
+}
+a.gros:hover{background:#191C29;border-color:#38405A}
+a.gros h3{
+  font-family:"Anybody","Public Sans",system-ui,sans-serif;
+  font-weight:700;font-stretch:118%;font-size:21px;margin:0 0 6px;letter-spacing:-.01em;
+}
+a.gros p{margin:0;color:#818AA6;font-size:14px;max-width:60ch}
+a.gros .fleche{margin-left:auto;color:#7C5CFF;font-size:22px}
+.paire{display:grid;gap:14px}
+
+.vieux{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;opacity:.55}
+.vieux:hover{opacity:1}
+a.petit{
+  display:block;text-decoration:none;color:inherit;background:#0E1017;
+  border:1px solid #1E2230;padding:16px 18px;
+}
+a.petit:hover{border-color:#38405A}
+a.petit .ech{height:44px;display:flex;border:1px solid #1E2230;margin-bottom:13px}
+a.petit .ech span{flex:1}
+a.petit b{display:block;font-size:14px;font-weight:600;margin-bottom:3px}
+a.petit small{color:#4E5670;font-size:12.5px;line-height:1.45;display:block}
+footer{margin-top:50px;color:#4E5670;font-size:13px;max-width:74ch;line-height:1.6}
+code{background:#12141E;padding:2px 6px;font-size:12.5px;color:#818AA6}
+</style></head>
+<body>
+<main>
+  <h1>OMNI — le chantier graphique</h1>
+  <p class="intro">Première passe : trois habillages, tous rejetés. Le diagnostic était juste — le problème n’était pas la couleur, c’est qu’<strong>OMNI n’avait pas d’identité</strong>. On repart de là.</p>
+
+  <section>
+    <h2>La maquette de l app — six écrans cliquables</h2>
+    <p class="sous">Ma flotte · Courses · Hôtel de vente · Archimonstres · Raccourcis · Réglages, en thème clair ET sombre. Le rail et le bouton de thème marchent pour de vrai.</p>
+    <div class="paire">
+      <a class="gros" href="/app.html">
+        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
+          <rect x="2" y="10" width="10" height="28" fill="#8A9099"/>
+          <rect x="14" y="10" width="10" height="28" fill="#A98B5B"/>
+          <rect x="26" y="10" width="10" height="28" fill="#7E96AE"/>
+          <rect x="38" y="10" width="8" height="28" fill="#E9EAEC"/>
+        </svg>
+        <span>
+          <h3>0 · L app complète</h3>
+          <p>Les six écrans à la vraie taille de fenêtre, avec la navigation qui marche. L écran d accueil seul reste sur clair.html.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2>À regarder aussi — l icône</h2>
+    <p class="sous">Quatre barres qui dessinent un œil rien que par leur hauteur. Le dessin ne bouge plus ; c’est l’œil qui s’ouvre et se ferme selon ta flotte.</p>
+    <div class="paire">
+      <a class="gros" href="/icone.html">
+        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
+          <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt" stroke="#E8EAF2">
+            <line x1="7" y1="15.2" x2="7" y2="32.8"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2"/><line x1="41" y1="15.2" x2="41" y2="32.8"/>
+          </g>
+        </svg>
+        <span>
+          <h3>1 · L icône d OMNI</h3>
+          <p>Le petit logo sur pastille claire que tu as repéré, fini : vraies tailles de 96 à 16 px, barre des tâches, bureau, barre de combat — et la couleur de la pupille à trancher.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2>À refaire — les deux pages de l’ancienne palette</h2>
+    <p class="sous">Ces deux-là portent encore la couronne et les quatre couleurs qui t’ont saoulé. Ce qui reste bon dedans : les lettres, les briques et les quatre règles. Je les refais dès que tu m’auras dit combien de couleurs tu veux.</p>
+    <div class="paire">
+
+      <a class="gros" href="/identite.html">
+        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#E8EAF2" stroke-width="3.6" stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#7C5CFF" stroke-width="6" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+        </svg>
+        <span>
+          <h3>2 · La planche d’identité</h3>
+          <p>Trois symboles au choix, la palette et le métier de chaque couleur, les deux polices, les briques de base et les quatre règles à tenir.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+
+      <a class="gros" href="/ecran.html">
+        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#FF8A3D" stroke-width="6" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(-61.1 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(-16.1 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(28.9 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(73.9 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#4E5670" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(118.9 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(163.9 24 24)"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#262B3C" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(208.9 24 24)"/>
+        </svg>
+        <span>
+          <h3>3 · L’écran d’accueil monté avec</h3>
+          <p>La même flotte que la première passe, à la taille exacte de la vraie fenêtre. Le logo y sert de compteur : tu vois d’un coup d’œil qu’il te manque deux persos.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>La passe rejetée — pour mémoire</h2>
+    <p class="sous">Gardées pour pouvoir dire « ça au moins c’était mieux » si jamais.</p>
+    <div class="vieux">
+      <a class="petit" href="/a-rangee.html">
+        <span class="ech"><span style="background:#1B1614"></span><span style="background:#C6A15B"></span><span style="background:#79B79A"></span><span style="background:#EFE6D6"></span></span>
+        <b>A · Rang de bataille</b><small>Cuir et laiton. Tu sais par la forme.</small>
+      </a>
+      <a class="petit" href="/b-plein-jour.html">
+        <span class="ech"><span style="background:#E3E7E2"></span><span style="background:#27527F"></span><span style="background:#E0A526"></span><span style="background:#181C1A"></span></span>
+        <b>B · Plein jour</b><small>Plaque émaillée, en clair. Tu sais par les mots.</small>
+      </a>
+      <a class="petit" href="/c-huit-couleurs.html">
+        <span class="ech"><span style="background:#101215"></span><span style="background:#FF7A5C"></span><span style="background:#4FD1A5"></span><span style="background:#7B9BFF"></span></span>
+        <b>C · Les huit couleurs</b><small>Une couleur par perso. Tu sais par reconnaissance.</small>
+      </a>
+    </div>
+  </section>
+
+  <footer>Toutes les maquettes sont à la taille exacte de la vraie fenêtre d’OMNI : <code>1097 × 720</code>. Rien n’est branché sur le vrai OMNI, c’est du dessin — mais les informations affichées sont celles qu’OMNI connaît déjà. Les noms de personnages sont inventés : donne-moi les vrais et je les remets.</footer>
+</main>
+</body></html>
