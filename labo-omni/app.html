@@ -205,9 +205,6 @@ a.retour:hover{color:var(--dehors-fort)}
 .perso.probleme .capsule em{background:var(--encre)}
 .bt-mini{margin-left:auto;background:var(--acide-sur-contre);color:var(--sur-acide);border:0;border-radius:999px;height:28px;padding:0 13px;font:700 11.5px/1 var(--ui);cursor:pointer}
 
-/* ---- sous-vues d un meme ecran ---- */
-.sous-vue{display:none}
-.sous-vue.actif{display:flex}
 .pied-panneau{flex:none;display:flex;align-items:center;gap:14px;padding:12px 20px;border-top:1px solid var(--trait)}
 .pied-panneau .doux{color:var(--encre-douce);font-size:12.5px}
 .pied-panneau b{color:var(--encre);font-weight:700}
@@ -494,119 +491,31 @@ a.retour:hover{color:var(--dehors-fort)}
     <!-- ============ 3 · HÔTEL DE VENTE ============ -->
     <div class="vue" id="v-hotel">
       <div class="titre">
-        <h1>Sombrelle relève les prix, <span class="marqueur">3 lots invendus</span></h1>
-        <p>La passe de prix en est aux deux tiers. Trois lots ne sont pas partis à la dernière mise en vente — OMNI te dit pourquoi pour chacun.</p>
+        <h1>Tes règles de prix, <span class="marqueur">et ce qu’OMNI pose avec</span></h1>
+        <p>Il pose et repose tes objets tout seul en suivant ces règles. Tu les changes ici, et elles valent pour tous tes personnages.</p>
       </div>
 
-      <div class="tuiles" id="tuilesHotel" style="grid-template-columns:1fr 1fr 1.2fr">
-        <div class="tuile">
-          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20h16M6 20v-7M12 20V9M18 20v-4"/></svg></span><span class="quoi">Prix relevés</span><span class="plus">⋯</span></div>
-          <div class="grand">412 <small>/ 664 objets</small></div>
+      <!-- ---- les deux seuls chiffres qui ont leur place ici ----
+           Un ecran de reglages ne raconte pas la vente. Ces deux-la si:
+           combien de lots sont poses, et ce que ca pese. La valeur est la
+           somme de TES prix poses, pas une estimation du marche: elle est
+           donc juste par construction, et elle se recalcule toute seule a
+           chaque passe de prix. D ou la date sous le chiffre -- entre deux
+           passes, ce montant a le droit d avoir vieilli. -->
+      <div class="tuiles" style="grid-template-columns:repeat(2,minmax(0,300px))">
+        <div class="tuile acide">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h16v11H4zM8 8V5h8v3"/></svg></span><span class="quoi">Total mis en vente</span><span class="plus" style="color:#5C6644">⋯</span></div>
+          <div class="grand">17 <small>lots sur 30 emplacements</small></div>
           <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i><i class="vide"></i><i class="vide"></i></div>
         </div>
-        <div class="tuile acide">
-          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h16v11H4zM8 8V5h8v3"/></svg></span><span class="quoi">En vente</span><span class="plus" style="color:#5C6644">⋯</span></div>
-          <div class="grand">17 <small>lots en ligne</small></div>
-          <div class="segments"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="vide"></i><i class="vide"></i></div>
-        </div>
-        <div class="tuile noire">
-          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg></span><span class="quoi">Pas partis</span><span class="plus">⋯</span></div>
-          <div class="txt">Trois lots refusés à la dernière passe. Deux emplacements pleins, un prix sous le minimum du serveur.</div>
-          <button class="bt-clair">Voir les trois</button>
+        <div class="tuile">
+          <div class="tete"><span class="rond"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h5M9.5 13.5h5"/></svg></span><span class="quoi">Ce que ça pèse</span><span class="plus">⋯</span></div>
+          <div class="grand">408 600 <small>k posés</small></div>
+          <div class="txt">Somme de tes prix en ligne. Recalculée à chaque passe — la dernière date d’il y a 40 min.</div>
         </div>
       </div>
 
-      <div class="filtres">
-        <span class="grp" data-sousvues="hotel">
-          <button class="on" data-sv="parti">Ce qui est parti</button>
-          <button data-sv="ecartes">Ce qui n’est pas parti</button>
-          <button data-sv="regles">Mes règles de prix</button>
-        </span>
-        <span class="cherche">Chercher un objet…</span>
-      </div>
-
-      <!-- ---- l historique des ventes ----
-           Ce qui est EN VENTE, le jeu le montre deja. Ce qui est PARTI,
-           non: c est la seule facon de savoir ce qui se vend vraiment, a
-           quel prix, et en combien de temps. Le compte des lots en ligne
-           reste sur la tuile jaune du haut. -->
-      <div class="panneau sous-vue actif" data-sv="parti">
-        <div class="entete" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
-          <span>Objet</span><span class="d">Lot</span><span class="d">Vendu</span><span class="d">Payé</span><span class="d">Gagné</span><span class="d">Parti en</span><span>Vendeur</span>
-        </div>
-        <div class="liste">
-          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
-            <span><b>Pierre médicinale</b><br><span class="doux">il y a 12 min</span></span>
-            <span class="d">100</span><span class="d">17 400 k</span><span class="d doux">15 200 k</span><span class="d gain">+2 200 k</span><span class="d doux">1 h 40</span>
-            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
-          </div>
-          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
-            <span><b>Fleur de mandragore</b><br><span class="doux">il y a 48 min</span></span>
-            <span class="d">100</span><span class="d">121 000 k</span><span class="d doux">110 250 k</span><span class="d gain">+10 750 k</span><span class="d doux">3 h</span>
-            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
-          </div>
-          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
-            <span><b>Poudre de perlinpimpin</b><br><span class="doux">il y a 2 h</span></span>
-            <span class="d">10</span><span class="d">2 350 k</span><span class="d doux">2 210 k</span><span class="d gain">+140 k</span><span class="d doux">22 min</span>
-            <span class="perso-mini"><span class="jeton">STE</span><span class="n">Bricoline</span></span>
-          </div>
-          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
-            <span><b>Graine de bulbe</b><br><span class="doux">il y a 4 h</span></span>
-            <span class="d">100</span><span class="d">8 900 k</span><span class="d doux">5 450 k</span><span class="d gain">+3 450 k</span><span class="d doux">6 h</span>
-            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
-          </div>
-          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
-            <span><b>Orchidée freyesque</b><br><span class="doux">hier, 22 h 10</span></span>
-            <span class="d">10</span><span class="d">17 200 k</span><span class="d doux">18 000 k</span><span class="d perte"><b>−800 k</b></span><span class="d doux">14 h</span>
-            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
-          </div>
-          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
-            <span><b>Bois de frêne</b><br><span class="doux">hier, 19 h 35</span></span>
-            <span class="d">100</span><span class="d">2 780 k</span><span class="d doux">2 400 k</span><span class="d gain">+380 k</span><span class="d doux">9 h</span>
-            <span class="perso-mini"><span class="jeton">STE</span><span class="n">Bricoline</span></span>
-          </div>
-          <div class="ligne" style="grid-template-columns:1.7fr 80px 120px 110px 1fr 120px 1fr">
-            <span><b>Cuir de tofu</b><br><span class="doux">hier, 17 h 02</span></span>
-            <span class="d">100</span><span class="d">720 k</span><span class="d doux">640 k</span><span class="d gain">+80 k</span><span class="d doux">40 min</span>
-            <span class="perso-mini"><span class="jeton">STE</span><span class="n">Bricoline</span></span>
-          </div>
-        </div>
-        <div class="pied-panneau">
-          <span class="doux">Sept lots partis depuis hier — <b>170 350 k</b> encaissés, <b>16 200 k</b> de mieux que ce que tu les avais payés.</span>
-          <span class="doux" style="margin-left:auto">L’orchidée est la seule perte : tu l’avais achetée trop cher.</span>
-        </div>
-      </div>
-
-      <!-- ---- ce qui n a pas ete pose ---- -->
-      <div class="panneau sous-vue" data-sv="ecartes">
-        <div class="entete" style="grid-template-columns:1.7fr 90px 130px 1.6fr 1fr">
-          <span>Objet</span><span class="d">Lot</span><span class="d">Ton prix</span><span>Pourquoi ça n’est pas parti</span><span>Vendeur</span>
-        </div>
-        <div class="liste">
-          <div class="ligne" style="grid-template-columns:1.7fr 90px 130px 1.6fr 1fr">
-            <span><b>Chêne mou</b></span><span class="d">100</span><span class="d">4 200 k</span>
-            <span><b>Tes 30 emplacements étaient pleins.</b><br><span class="doux">retire un lot invendu et il repassera</span></span>
-            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
-          </div>
-          <div class="ligne" style="grid-template-columns:1.7fr 90px 130px 1.6fr 1fr">
-            <span><b>Peau de bouftou</b></span><span class="d">100</span><span class="d">890 k</span>
-            <span><b>Tes 30 emplacements étaient pleins.</b><br><span class="doux">retire un lot invendu et il repassera</span></span>
-            <span class="perso-mini"><span class="jeton">SRA</span><span class="n">Sombrelle</span></span>
-          </div>
-          <div class="ligne" style="grid-template-columns:1.7fr 90px 130px 1.6fr 1fr">
-            <span><b>Cuir de tofu</b></span><span class="d">10</span><span class="d">62 k</span>
-            <span><b>Prix sous le minimum du serveur.</b><br><span class="doux">le jeu refuse en dessous de 70 k pour ce lot</span></span>
-            <span class="perso-mini"><span class="jeton">STE</span><span class="n">Bricoline</span></span>
-          </div>
-        </div>
-        <div class="pied-panneau">
-          <span class="doux">Trois lots sur vingt sont revenus dans l’inventaire de leur vendeur. Rien n’a été perdu.</span>
-          <button class="bt-noir" style="margin-left:auto">Réessayer les trois</button>
-        </div>
-      </div>
-
-      <!-- ---- les reglages de l outil de prix ---- -->
-      <div class="panneau sous-vue" data-sv="regles">
+      <div class="panneau">
         <div class="reglages-prix">
 
           <div class="regle large">
@@ -872,18 +781,6 @@ document.querySelectorAll('.grp').forEach(function(g){
     b.addEventListener('click', function(){
       g.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
       b.classList.add('on');
-      /* Un groupe marque `data-sousvues` ne fait pas que s allumer:
-         il change vraiment le contenu du panneau en dessous. */
-      if (g.dataset.sousvues && b.dataset.sv) {
-        var ecran = g.closest('.vue');
-        ecran.querySelectorAll('.sous-vue').forEach(function(p){
-          p.classList.toggle('actif', p.dataset.sv === b.dataset.sv);
-        });
-        /* Les trois tuiles parlent de ce qui est en vente: elles n ont rien
-           a dire sur un ecran de reglages, donc elles s effacent. */
-        var t = document.getElementById('tuilesHotel');
-        if (t) t.style.display = (b.dataset.sv === 'regles') ? 'none' : '';
-      }
     });
   });
 });
