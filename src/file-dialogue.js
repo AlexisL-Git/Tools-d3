@@ -116,11 +116,47 @@ function creerFileDialogue({
 
   const retard = () => delai.minMs + Math.floor(alea() * (delai.maxMs - delai.minMs + 1));
 
+  function leverAttente(e) {
+    if (e.minuteur !== null) { annuler(e.minuteur); e.minuteur = null; }
+    e.attend = null;
+  }
+
+  // La SEULE fonction qui ferme. Toutes les sorties passent par elle: c'est ce
+  // qui garantit qu'aucune mule ne reste avec une fenetre ouverte.
+  function fermer(pid, e) {
+    if (!e.ouvert) return;
+    e.ouvert = false;
+    e.question = null;
+    const etat = superviseur.comptes.get(pid);
+    if (!superviseur.arme || etat === null || etat === undefined || etat.exclu) return;
+    superviseur.emettre(pid, TRAME_FERMETURE);
+  }
+
+  // Une mule qui ne peut pas suivre: on vide sa file, on ferme, et on le DIT.
+  // Une mule qui decroche en silence ressemble trait pour trait a une mule
+  // inactive — le mode d'echec le plus couteux du projet.
+  function echec(pid, raison) {
+    const e = files.get(pid);
+    if (e === undefined) return;
+    const type = e.attend === null ? null : e.attend.type;
+    e.etapes.length = 0;
+    leverAttente(e);
+    fermer(pid, e);
+    onCompteRendu({ pid, ok: false, raison, type });
+  }
+
   function avancer(pid) {
     const e = files.get(pid);
     if (e === undefined || e.enVol || e.attend !== null) return;
     const etape = e.etapes.shift();
-    if (etape === undefined) return;
+    if (etape === undefined) {
+      // FIN DE FILE: on ne ferme QUE si le maitre a fini son propre dialogue.
+      // Entre deux de ses clics la file est vide et la fenetre ouverte — c'est
+      // l'etat NORMAL d'un dialogue en cours, pas une mule oubliee. Fermer la
+      // aurait coupe la mule pendant que le maitre lit sa reponse.
+      if (e.maitreAFini) fermer(pid, e);
+      return;
+    }
     e.enVol = true;
     planifier(() => emettre(pid, etape), retard());
   }
@@ -134,32 +170,99 @@ function creerFileDialogue({
     // pu se decocher, le client se fermer, et Windows reattribuer le pid a un
     // AUTRE client Dofus. Meme garde que src/passeur.js et src/echange.js.
     if (!superviseur.arme || etat === null || etat === undefined || etat.exclu) return;
+
+    // OUVRIR FERME D'ABORD. C'est la ceinture, en plus des bretelles: meme si
+    // `kja` etait renomme par un patch et que plus rien ne fermait, le `imq {}`
+    // du 09/09 — le serveur qui refuse d'ouvrir parce qu'un dialogue traine —
+    // deviendrait impossible.
+    if (etape.type === TYPE_OUVERTURE && e.ouvert) fermer(pid, e);
+
     superviseur.emettre(pid, etape.brute);
+
+    // DEMANDER L'OUVERTURE VAUT OUVERTURE tant qu'on n'a pas la preuve du
+    // contraire. Sans cette ligne, une mule qui ouvre et a qui le serveur ne
+    // repond jamais ne serait JAMAIS fermee: on croirait n'avoir rien ouvert.
+    // Le prix de l'inverse est nul — une fermeture chez une mule qui n'a rien
+    // d'ouvert est ignoree par le serveur (mesure du 08/09, deux `kiy` de
+    // suite a 230048 et 230049 ms).
+    if (etape.type === TYPE_OUVERTURE) e.ouvert = true;
+
+    // Une fermeture n'appelle aucune reponse du serveur: armer une attente
+    // derriere elle bloquerait la file 3 s a chaque dialogue termine.
+    if (etape.type === TYPE_FERMETURE) {
+      e.ouvert = false;
+      e.question = null;
+      avancer(pid);
+      return;
+    }
+
     // On retient la question d'AVANT l'envoi: si la MEME revient, la reponse a
     // ete refusee.
     e.attend = { type: etape.type, question: e.question };
-    avancer(pid);
+    e.minuteur = planifier(
+      () => echec(pid, 'aucune reponse du serveur en 3 s'), DELAI_ATTENTE_MS,
+    );
   }
 
   // Empile une action du maitre chez chaque esclave. `esclaves()` ecarte deja
   // les comptes dont la case de rejeu est decochee.
   function pousser({ pidMaitre, type, brute }) {
     for (const etat of superviseur.comptes.esclaves(pidMaitre)) {
-      etatDe(etat.pid).etapes.push({ type, brute });
+      const e = etatDe(etat.pid);
+      // Le maitre agit de nouveau: son dialogue precedent est derriere nous.
+      e.maitreAFini = false;
+      e.etapes.push({ type, brute });
       avancer(etat.pid);
     }
   }
 
-  function onTrame({ pid, dir, frame }) {
+  function onTrame({ pid, dir, frame, estMaitre }) {
     if (dir !== 'in' || frame === null || frame === undefined) return;
+
+    // LA FIN DU DIALOGUE DU MAITRE n'arrive que par un message ENTRANT — c'est
+    // pour ca que le duplicateur ne pouvait pas la voir, il ne rejoue que le
+    // sortant. Chaque mule finit sa file, PUIS ferme.
+    if (estMaitre) {
+      if (frame.type !== TYPE_FERME) return;
+      for (const [autre, e] of files) { e.maitreAFini = true; avancer(autre); }
+      return;
+    }
+
     const e = files.get(pid);
     if (e === undefined) return;
-    if (frame.type !== TYPE_QUESTION) return;
-    const q = champ(frame, CHAMP_QUESTION);
-    e.question = q === null ? null : q.value;
-    e.ouvert = true;
-    e.attend = null;
-    avancer(pid);
+
+    if (frame.type === TYPE_QUESTION) {
+      const q = champ(frame, CHAMP_QUESTION);
+      const valeur = q === null ? null : q.value;
+      const attente = e.attend;
+      e.ouvert = true;
+      // LA MEME QUESTION QU'AVANT: la reponse a ete refusee. C'est le seul
+      // signal de refus qui existe — le serveur ne renvoie aucune erreur que
+      // nous sachions lire.
+      if (attente !== null && attente.type === TYPE_REPONSE
+          && attente.question !== null && valeur === attente.question) {
+        echec(pid, 'la mule n a pas cette reponse');
+        return;
+      }
+      e.question = valeur;
+      leverAttente(e);
+      avancer(pid);
+      return;
+    }
+
+    if (frame.type === TYPE_REFUS_OUVERTURE) {
+      echec(pid, 'la mule n a pas pu ouvrir le dialogue');
+      return;
+    }
+
+    if (frame.type === TYPE_FERME) {
+      // Le serveur referme de lui-meme a la derniere reponse d'un arbre: il n'y
+      // a plus rien a fermer, et un kiy de plus partirait dans le vide.
+      e.ouvert = false;
+      e.question = null;
+      leverAttente(e);
+      avancer(pid);
+    }
   }
 
   return { onTrame, pousser };
