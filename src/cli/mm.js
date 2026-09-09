@@ -3,6 +3,7 @@ const { Superviseur } = require('../superviseur');
 const { findDofusProcesses } = require('../injector');
 const { creerDuplicateur, ETALEMENT_REJEU } = require('../duplicateur');
 const { creerSuiviSonge } = require('../songe-en-cours');
+const { creerFileDialogue } = require('../file-dialogue');
 const { creerGardeCombat } = require('../garde-combat');
 const { creerPasseur } = require('../passeur');
 const { composer } = require('../composer');
@@ -127,10 +128,20 @@ async function main() {
   // empecher.
   const suiviSonge = creerSuiviSonge();
 
+  // La file cadence le dialogue: une etape par mule a la fois, la suivante
+  // apres la question du serveur. Meme objet que dans l'application, pour la
+  // meme raison que creerDuplicateur est partage — une regle recopiee finit
+  // par diverger.
+  const fileDialogue = creerFileDialogue({
+    superviseur,
+    onCompteRendu: ({ pid, raison }) => console.log(`${nomCourt(pid, superviseur.clients)} — dialogue : ${raison}`),
+  });
+
   const rejouer = creerDuplicateur({
     superviseur,
     estApprise,
     dansUnSonge: suiviSonge.dansUnSonge,
+    fileDialogue,
     onCompteRendu: ({ type, nom, arme: armeAlors, rendu }) => {
       const ok = rendu.filter((r) => r.ok);
       const refus = rendu.filter((r) => !r.ok);
@@ -171,7 +182,7 @@ async function main() {
 
   // Le superviseur n'appelle qu'un seul onTrame: les quatre politiques se
   // composent ici, sans se gener l'une l'autre.
-  const traiter = composer(suiviSonge.onTrame, rejouer, garde, passer);
+  const traiter = composer(suiviSonge.onTrame, fileDialogue.onTrame, rejouer, garde, passer);
 
   // Le journal brut est propre au CLI et precede toute decision: il doit
   // porter TOUTES les trames, y compris celles qui ne se rejouent pas.

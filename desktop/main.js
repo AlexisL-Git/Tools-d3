@@ -13,6 +13,7 @@ const { creerAccepteur } = require('../src/invitation');
 const { creerAccepteurEchange, DELAI_REACTION } = require('../src/echange');
 const { creerAccepteurSonge, DELAI_REACTION: DELAI_SONGE } = require('../src/songes');
 const { creerSuiviSonge } = require('../src/songe-en-cours');
+const { creerFileDialogue } = require('../src/file-dialogue');
 const { creerTransformateurFlux } = require('../src/noanim-flux');
 const hdvReprix = require('../src/hdv/reprix');
 const hdvVente = require('../src/hdv/vente');
@@ -1380,12 +1381,31 @@ app.whenReady().then(async () => {
   // songe avant que le duplicateur ne se prononce sur son dialogue.
   const suiviSonge = creerSuiviSonge();
 
+  // La file de dialogue est de la PLOMBERIE, comme le suivi de songe: elle ne
+  // fait rien par elle-meme, elle cadence ce que le duplicateur lui donne. Elle
+  // n'est donc pas derriere protege() — un droit qui l'eteindrait laisserait
+  // des mules avec une fenetre de dialogue ouverte, et personne ne verrouille
+  // une securite.
+  //
+  // Son compte rendu passe par les DEUX canaux, comme celui des songes:
+  // journal() date la decision sous OMNI_JOURNAL=complet, `messages` la porte
+  // sur la ligne du compte, seul endroit ou l'utilisateur la verra.
+  const fileDialogue = creerFileDialogue({
+    superviseur,
+    onCompteRendu: ({ pid, raison }) => {
+      journal(pid, `dialogue : ${raison}`);
+      messages.set(pid, `dialogue : ${raison}`);
+    },
+  });
+
   superviseur.onTrame = composer(
     suiviSonge.onTrame,
+    fileDialogue.onTrame,
     creerDuplicateur({
       superviseur,
       estApprise: (cle) => favoris !== null && favoris.combats().includes(cle),
       dansUnSonge: suiviSonge.dansUnSonge,
+      fileDialogue,
       onCompteRendu: ({ type, nom, rendu }) => {
         // Un refus est la seule chose que l'utilisateur ne peut pas deviner: un
         // compte qui ne rejoue pas ressemble a un compte inactif. On garde le
