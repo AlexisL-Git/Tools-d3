@@ -67,8 +67,22 @@ prefixe de longueur est deja remis par `emettre`.
 - **Reponse refusee** — le `imw` qui revient porte le MEME identifiant de
   question que le precedent (2681 chez toi). La file emet `kiy`, vide la file,
   et rend `la mule n'a pas cette reponse`.
-- **Rien au bout de 3 s** — meme sortie: `kiy`, file videe, compte rendu.
-- **File videe normalement** — `kiy` si la fenetre est encore ouverte.
+- **Rien au bout de 3 s apres une REPONSE** — meme sortie: `kiy`, file videe,
+  compte rendu. Apres une OUVERTURE, non: la boutique d'un marchand passe par le
+  meme `imp` (action 11) et repond par sa liste d'articles, pas par une
+  question. Fermer la aurait ferme la boutique des mules 3 s apres l'ouverture,
+  donc avant l'achat (mesure du 08/09: ouverture a 219435 ms, achat a
+  229028 ms). Une ouverture muette est rattrapee par la regle suivante.
+- **Le dialogue du MAITRE se termine** (son `kja` entrant) — la mule finit sa
+  file, puis `kiy` si sa fenetre est encore ouverte. Pas avant: entre deux clics
+  du maitre, une file vide et une fenetre ouverte sont l'etat NORMAL d'un
+  dialogue en cours, et fermer la aurait coupe la mule pendant que le maitre
+  lit sa reponse.
+
+**ET OUVRIR FERME D'ABORD.** Avant de rejouer une ouverture chez une mule dont
+le dialogue est encore ouvert, la file envoie `kiy`. C'est la garantie qui tient
+meme si `kja` etait renomme par un patch: le `imq {}` du 09/09 — le serveur qui
+refuse d'ouvrir parce qu'un dialogue traine — devient impossible.
 
 Quel que soit le chemin, **la fenetre finit fermee**. C'est la seule propriete
 qui compte: c'est elle qui supprime la cascade.

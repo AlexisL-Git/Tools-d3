@@ -145,6 +145,29 @@ function creerFileDialogue({
     onCompteRendu({ pid, ok: false, raison, type });
   }
 
+  // Le serveur n'a rien renvoye dans le delai. Ce que ca veut dire depend de ce
+  // qu'on attendait, et LES DEUX CAS SONT OPPOSES:
+  //
+  //   - apres une REPONSE, la fenetre est ouverte et le dialogue ne bouge plus:
+  //     c'est exactement la mule bloquee du 09/09. On ferme, on le dit.
+  //   - apres une OUVERTURE, l'absence de question est NORMALE: la boutique
+  //     d'un marchand passe par le meme `imp` (action 11) et repond par sa
+  //     liste d'articles, pas par une question. Fermer la aurait ferme la
+  //     boutique des mules 3 s apres l'ouverture — donc avant l'achat, qui
+  //     vient une dizaine de secondes plus tard (mesure du 08/09: ouverture a
+  //     219435 ms, achat a 229028 ms). On leve l'attente et on continue, sans
+  //     compte rendu: une boutique n'est pas un incident.
+  //
+  // La fenetre d'une mule dont l'ouverture est restee muette sera fermee par
+  // l'ouverture suivante — c'est a ca que sert « ouvrir ferme d'abord ».
+  function abandonner(pid, type) {
+    if (type === TYPE_REPONSE) return echec(pid, 'aucune reponse du serveur en 3 s');
+    const e = files.get(pid);
+    if (e === undefined) return;
+    leverAttente(e);
+    avancer(pid);
+  }
+
   function avancer(pid) {
     const e = files.get(pid);
     if (e === undefined || e.enVol || e.attend !== null) return;
@@ -199,9 +222,7 @@ function creerFileDialogue({
     // On retient la question d'AVANT l'envoi: si la MEME revient, la reponse a
     // ete refusee.
     e.attend = { type: etape.type, question: e.question };
-    e.minuteur = planifier(
-      () => echec(pid, 'aucune reponse du serveur en 3 s'), DELAI_ATTENTE_MS,
-    );
+    e.minuteur = planifier(() => abandonner(pid, etape.type), DELAI_ATTENTE_MS);
   }
 
   // Empile une action du maitre chez chaque esclave. `esclaves()` ecarte deja

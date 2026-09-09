@@ -131,24 +131,6 @@ test('la meme question deux fois: la mule ferme et on le dit', () => {
   );
 });
 
-test('aucune reponse en 3 s: la mule ferme, et la file ne repart jamais', () => {
-  const sup = faux([2]);
-  const h = horloge();
-  const rendus = [];
-  const file = creer(sup, h, (r) => rendus.push(r));
-
-  file.pousser({ pidMaitre: 1, ...etape('imp', 0x11) });
-  file.pousser({ pidMaitre: 1, ...etape('inh', 0x22) });
-  h.avancer(150);
-  assert.strictEqual(sup.emis.length, 1);
-  h.avancer(3000);
-
-  assert.deepStrictEqual(rendus.map((r) => r.raison), ['aucune reponse du serveur en 3 s']);
-  assert.strictEqual(fermetures(sup).length, 1);
-  h.avancer(10000);
-  assert.strictEqual(sup.emis.filter((e) => e.octets[0] === 0x22).length, 0);
-});
-
 test('imq: la mule n a pas pu ouvrir, on vide la file', () => {
   const sup = faux([2]);
   const h = horloge();
@@ -290,4 +272,46 @@ test('le kiy du maitre ferme sans armer d attente', () => {
 
   assert.deepStrictEqual(sup.emis.map((e) => e.octets[0]), [0x11, 0x44]);
   assert.deepStrictEqual(rendus, []);
+});
+
+// LA BOUTIQUE D'UN MARCHAND passe par le MEME `imp` (action 11 au lieu de 3),
+// mais le serveur y repond par la liste des articles, PAS par une question.
+// Sans ce cas, le delai d'abandon fermait la boutique des mules 3 s apres
+// l'ouverture — donc avant l'achat, qui vient une dizaine de secondes plus tard
+// (mesure du 08/09: ouverture a 219435 ms, achat a 229028 ms).
+test('une ouverture sans question ne ferme rien: c est une boutique', () => {
+  const sup = faux([2]);
+  const h = horloge();
+  const rendus = [];
+  const file = creer(sup, h, (r) => rendus.push(r));
+
+  file.pousser({ pidMaitre: 1, ...etape('imp', 0x11) });
+  h.avancer(150);
+  h.avancer(3000);
+
+  assert.strictEqual(fermetures(sup).length, 0);
+  assert.deepStrictEqual(rendus, [], 'une boutique n est pas un incident');
+});
+
+// ...mais une REPONSE sans suite, elle, laisse bien une fenetre ouverte.
+test('une reponse sans suite ferme au bout de 3 s', () => {
+  const sup = faux([2]);
+  const h = horloge();
+  const rendus = [];
+  const file = creer(sup, h, (r) => rendus.push(r));
+
+  file.pousser({ pidMaitre: 1, ...etape('imp', 0x11) });
+  h.avancer(150);
+  file.onTrame({ pid: 2, dir: 'in', frame: question(2681) });
+  file.pousser({ pidMaitre: 1, ...etape('inh', 0x22) });
+  file.pousser({ pidMaitre: 1, ...etape('inh', 0x33) });
+  h.avancer(150);
+  h.avancer(3000);
+
+  assert.strictEqual(fermetures(sup).length, 1);
+  assert.deepStrictEqual(rendus.map((r) => r.raison), ['aucune reponse du serveur en 3 s']);
+  // La file est VIDEE: l'etape suivante ne part jamais apres coup, ni tout de
+  // suite ni dans dix secondes.
+  h.avancer(10000);
+  assert.strictEqual(sup.emis.filter((e) => e.octets[0] === 0x33).length, 0);
 });
