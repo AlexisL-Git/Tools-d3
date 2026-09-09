@@ -1,6 +1,7 @@
 'use strict';
 const { lookup, estRejouable, estDialogue, estOuvertureHdv } = require('./protocol/omni');
 const { estSensible, cleDe, DELAI_PLANCHER_MS } = require('./garde-combat');
+const { estClicInteractif, PLANCHER_HDV_MS } = require('./garde-hdv');
 
 // La decision de rejeu, et elle seule.
 //
@@ -149,7 +150,13 @@ function creerDuplicateur({
     // condition: rejouer() a deja retardPlancher = 0 par defaut, donc les
     // deux formes sont equivalentes en comportement, et l'objet d'appel
     // garde la meme forme pour tous les types.
-    const retardPlancher = estSensible(frame.type) ? DELAI_PLANCHER_MS : 0;
+    // Le clic sur un element interactif est retarde LUI AUSSI, pour une raison
+    // differente: l'hotel de vente s'ouvre par le meme `iva` qu'un zaap, et
+    // seule la reponse du serveur les distingue. Le plancher laisse au
+    // garde-hdv le temps d'annuler avant que la fenetre ne s'ouvre chez les
+    // mules. Voir src/garde-hdv.js.
+    const retardPlancher = estSensible(frame.type) ? DELAI_PLANCHER_MS
+      : estClicInteractif(frame.type) ? PLANCHER_HDV_MS : 0;
     const rendu = superviseur.rejouer({ type: frame.type, brute, pidMaitre: pid, retardPlancher });
     // Le maitre seul en jeu: aucun esclave, rien a signaler.
     if (rendu.length === 0) return;

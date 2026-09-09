@@ -6,6 +6,7 @@ const { app, BrowserWindow, ipcMain, globalShortcut, dialog, screen } = require(
 const { Superviseur } = require('../src/superviseur');
 const { creerDuplicateur, ETALEMENT_REJEU } = require('../src/duplicateur');
 const { creerGardeCombat } = require('../src/garde-combat');
+const { creerGardeHdv } = require('../src/garde-hdv');
 const { creerAbandonGroupe } = require('../src/abandon-combat');
 const { creerPasseur } = require('../src/passeur');
 const { creerMasque, composerDescendant } = require('../src/masque');
@@ -1429,6 +1430,13 @@ app.whenReady().then(async () => {
           else messages.set(r.pid, `${nom} : ${r.raison}`);
         }
       },
+    }),
+    // Le garde de l'hotel de vente est de la PLOMBERIE, comme le suivi de songe
+    // et la file de dialogue: il n'emet rien, il annule. Pas derriere protege()
+    // — personne ne verrouille une restriction.
+    creerGardeHdv({
+      superviseur,
+      onCompteRendu: ({ pidMaitre, annules }) => journal(pidMaitre, `hotel de vente : ${annules} rejeu(x) annule(s), le maitre seul l ouvre`),
     }),
     creerGardeCombat({
       superviseur,

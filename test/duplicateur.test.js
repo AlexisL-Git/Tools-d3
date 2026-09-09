@@ -497,3 +497,17 @@ test('le marchand et le dialogue ordinaire passent toujours', () => {
     assert.deepStrictEqual(pousses.map((p) => p.type), ['imp'], `action ${action}`);
   }
 });
+
+// L'hotel de vente s'ouvre par le MEME `iva` qu'un zaap: seule la reponse du
+// serveur les distingue. Le rejeu part donc avec un plancher, pour laisser au
+// garde-hdv le temps de l'annuler. Voir src/garde-hdv.js.
+test('un clic sur un element interactif part avec un plancher de retard', () => {
+  const { PLANCHER_HDV_MS } = require('../src/garde-hdv');
+  const s = faux();
+  const onTrame = creerDuplicateur({ superviseur: s });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'iva', payload: [] } }));
+
+  assert.strictEqual(s.appels.length, 1);
+  assert.strictEqual(s.appels[0].retardPlancher, PLANCHER_HDV_MS);
+});

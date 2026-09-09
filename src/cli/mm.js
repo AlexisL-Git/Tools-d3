@@ -5,6 +5,7 @@ const { creerDuplicateur, ETALEMENT_REJEU } = require('../duplicateur');
 const { creerSuiviSonge } = require('../songe-en-cours');
 const { creerFileDialogue } = require('../file-dialogue');
 const { creerGardeCombat } = require('../garde-combat');
+const { creerGardeHdv } = require('../garde-hdv');
 const { creerPasseur } = require('../passeur');
 const { composer } = require('../composer');
 
@@ -182,7 +183,16 @@ async function main() {
 
   // Le superviseur n'appelle qu'un seul onTrame: les quatre politiques se
   // composent ici, sans se gener l'une l'autre.
-  const traiter = composer(suiviSonge.onTrame, fileDialogue.onTrame, rejouer, garde, passer);
+  // Le meme garde que dans l'application: l'hotel de vente ne s'ouvre que chez
+  // le maitre. Il annule les rejeux d'`iva` quand la reponse dit « etal ».
+  const gardeHdv = creerGardeHdv({
+    superviseur,
+    onCompteRendu: ({ pidMaitre, annules }) => console.log(
+      `${nomCourt(pidMaitre, superviseur.clients)} — hôtel de vente : ${annules} rejeu(x) annulé(s)`,
+    ),
+  });
+
+  const traiter = composer(suiviSonge.onTrame, fileDialogue.onTrame, rejouer, gardeHdv, garde, passer);
 
   // Le journal brut est propre au CLI et precede toute decision: il doit
   // porter TOUTES les trames, y compris celles qui ne se rejouent pas.
