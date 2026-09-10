@@ -160,6 +160,28 @@ test('la route / relit vraiment faux-etat.js a chaque requete', async () => {
   }
 });
 
+// Reproduction du defaut: si faux-etat.js est momentanement invalide (faute
+// de frappe en cours de frappe, enregistrement pris a mi-chemin), le require
+// qui le recharge doit lever DANS la portee du try/catch qui protege deja le
+// gestionnaire -- pas dans un callback fs ulterieur ou plus rien ne rattrape
+// l exception et le processus meurt en silence (reveal: silent). La deuxieme
+// requete sur / est celle qui prouve la survie: sans elle, un simple 500 sur
+// la premiere ne distingue pas "protege" de "mort avant de repondre".
+test('un faux-etat.js momentanement invalide rend 500 et le serveur survit', async () => {
+  const cheminFauxEtat = path.join(__dirname, '..', 'outils', 'faux-etat.js');
+  const original = fs.readFileSync(cheminFauxEtat, 'utf8');
+  try {
+    fs.writeFileSync(cheminFauxEtat, 'const x = ;\n');
+    const r1 = await fetch(`${base}/`);
+    assert.strictEqual(r1.status, 500, 'le rechargement invalide doit rendre 500, pas casser la connexion');
+  } finally {
+    fs.writeFileSync(cheminFauxEtat, original);
+  }
+
+  const r2 = await fetch(`${base}/`);
+  assert.strictEqual(r2.status, 200, 'le serveur ne repond plus apres un faux-etat.js invalide');
+});
+
 test('le devlog est servi tel quel', async () => {
   const r = await fetch(`${base}/faux/devlog`);
   assert.strictEqual(r.status, 200);

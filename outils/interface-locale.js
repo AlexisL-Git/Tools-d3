@@ -136,9 +136,27 @@ function creerServeur() {
     // mot) est pire qu'un banc qui rend une erreur visible.
     try {
       if (chemin === '/' || chemin === '/index.html') {
+        // chargerFauxEtat() (et fabriquerEtat()) sont appeles ICI, avant
+        // fs.readFile, et non dans son callback: un require() qui leve a
+        // l'interieur d'un callback fs n'est plus rattrapable par le try qui
+        // entoure ce gestionnaire -- il devient une uncaughtException et le
+        // banc meurt EN SILENCE (reveal: silent dans la tache VS Code),
+        // precisement au moment ou l'on modifie faux-etat.js. Ici l'appel
+        // reste dans la portee synchrone du try englobant, qui le rattrape
+        // et rend 500 au lieu de faire tomber le process.
+        const etat = chargerFauxEtat().fabriquerEtat();
         return fs.readFile(path.join(RACINE, 'index.html'), 'utf8', (err, html) => {
           if (err) return repondre(res, 500, 'text/plain; charset=utf-8', 'index.html illisible');
-          return repondre(res, 200, TYPES['.html'], injecter(html, chargerFauxEtat().fabriquerEtat()));
+          // Meme raison que ci-dessus: le try englobant ne couvre pas ce
+          // callback. On protege ici, localement, injecter() dont
+          // JSON.stringify peut lever de facon synchrone (reference
+          // circulaire, BigInt) si un faux etat mal forme s'y glisse.
+          try {
+            return repondre(res, 200, TYPES['.html'], injecter(html, etat));
+          } catch (e) {
+            console.error(`[banc] erreur pendant l injection sur ${chemin} :`, e);
+            return repondre(res, 500, 'text/plain; charset=utf-8', 'erreur interne');
+          }
         });
       }
 
