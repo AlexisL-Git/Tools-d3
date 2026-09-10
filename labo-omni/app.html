@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
-   OMNI — maquette cliquable des six ecrans.
+   OMNI — maquette cliquable des cinq ecrans.
    Une seule couleur (le jaune), un noir, un fond clair, des coins
    arrondis, une typo ronde. Le noir remplace le rouge: dans un
    ecran clair, c est lui qui saute aux yeux.
@@ -380,7 +380,7 @@ a.retour:hover{color:var(--dehors-fort)}
         </g>
       </svg>
     </span>
-    <button class="actif" data-vue="flotte" title="Ma flotte">
+    <button class="actif" data-vue="raccourcis" title="Raccourcis">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2.2"/><rect x="14" y="3" width="7" height="7" rx="2.2"/><rect x="3" y="14" width="7" height="7" rx="2.2"/><rect x="14" y="14" width="7" height="7" rx="2.2"/></svg>
     </button>
     <button data-vue="courses" title="Courses">
@@ -391,9 +391,6 @@ a.retour:hover{color:var(--dehors-fort)}
     </button>
     <button data-vue="archi" title="Archimonstres">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1.2 2.4-3.1 3.5-4.2 5.3a5.6 5.6 0 1 0 8.4 0C14.1 6.5 13.2 5.4 12 3Z"/></svg>
-    </button>
-    <button data-vue="raccourcis" title="Raccourcis">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="3"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg>
     </button>
     <button class="pousse" data-vue="reglages" title="Réglages">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
@@ -417,62 +414,6 @@ a.retour:hover{color:var(--dehors-fort)}
         <button><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 6h8"/></svg></button>
         <button><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
       </span>
-    </div>
-
-    <!-- ============ 1 · MA FLOTTE ============ -->
-    <div class="vue actif" id="v-flotte">
-      <div class="titre">
-        <h1>Six persos en jeu, <span class="marqueur sourd">deux à rattraper</span></h1>
-        <p>Kwakoun est resté à l’écran de sélection. Tacatak n’a aucun client ouvert. Les six autres suivent Vahlkyr depuis 41 minutes.</p>
-      </div>
-
-      <!-- ---- pas de tuiles ici ----
-           « 6 sur 8 » se compte sur la grille, « 14 lots sur 20 » est ecrit
-           sur la carte de Bricoline, et « deux clients muets » sont les deux
-           cartes inversees. Trois tuiles pour redire ce qui est deja dessous
-           prenaient le tiers haut de l ecran le plus regarde de l app. -->
-      <div class="flotte">
-        <div class="perso mene">
-          <div class="tete"><span class="jeton">IOP</span><span class="qui"><span class="nom">Vahlkyr</span><span class="compte">jibef-1</span></span><span class="touche">F1</span></div>
-          <div class="dit"><b>Il mène</b><span>Astrub, place du marché</span></div>
-          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i class="off"></i></span></div>
-        </div>
-        <div class="perso">
-          <div class="tete"><span class="jeton">ENI</span><span class="qui"><span class="nom">Noméa</span><span class="compte">jibef-2</span></span><span class="touche">F2</span></div>
-          <div class="dit"><b>En jeu</b><span>suit Vahlkyr</span></div>
-          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i class="off"></i></span></div>
-        </div>
-        <div class="perso">
-          <div class="tete"><span class="jeton">SAC</span><span class="qui"><span class="nom">Ptit-Bras</span><span class="compte">jibef-3</span></span><span class="touche">F3</span></div>
-          <div class="dit"><b>En jeu</b><span>suit Vahlkyr</span></div>
-          <div class="pied"><span class="pips"><i></i><i></i><i></i><i class="off"></i><i class="off"></i></span></div>
-        </div>
-        <div class="perso">
-          <div class="tete"><span class="jeton">SRA</span><span class="qui"><span class="nom">Sombrelle</span><span class="compte">jibef-4</span></span><span class="touche">F4</span></div>
-          <div class="dit"><b>Relève les prix</b><span>412 objets sur 664</span></div>
-          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i></i></span><span class="capsule"><span style="width:62%"></span><em style="left:62%"></em></span></div>
-        </div>
-        <div class="perso">
-          <div class="tete"><span class="jeton">OSA</span><span class="qui"><span class="nom">Ourseline</span><span class="compte">jibef-5</span></span><span class="touche">F5</span></div>
-          <div class="dit"><b>En jeu</b><span>suit Vahlkyr</span></div>
-          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i class="off"></i></span></div>
-        </div>
-        <div class="perso probleme">
-          <div class="tete"><span class="jeton">CRA</span><span class="qui"><span class="nom">Kwakoun</span><span class="compte">jibef-6</span></span><span class="touche">F6</span></div>
-          <div class="dit"><b>Pas entré en jeu</b><span>resté à l’écran de sélection</span></div>
-          <div class="pied"><span class="pips"><i></i><i></i><i class="off"></i><i class="off"></i><i class="off"></i></span><button class="bt-mini">Réveiller</button></div>
-        </div>
-        <div class="perso probleme">
-          <div class="tete"><span class="jeton">STE</span><span class="qui"><span class="nom">Bricoline</span><span class="compte">jibef-7</span></span><span class="touche">F7</span></div>
-          <div class="dit"><b>Course en pause</b><span>sac plein, 14 lots sur 20</span></div>
-          <div class="pied"><span class="pips"><i></i><i></i><i></i><i></i><i></i></span><span class="capsule"><span style="width:70%"></span><em style="left:70%"></em></span></div>
-        </div>
-        <div class="perso probleme">
-          <div class="tete"><span class="jeton">ZOB</span><span class="qui"><span class="nom">Tacatak</span><span class="compte">jibef-8</span></span><span class="touche">F8</span></div>
-          <div class="dit"><b>Pas lancé</b><span>aucun client Dofus ouvert</span></div>
-          <div class="pied"><span class="pips"><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i></span><button class="bt-mini">Lancer</button></div>
-        </div>
-      </div>
     </div>
 
     <!-- ============ 2 · COURSES ============ -->
@@ -806,8 +747,8 @@ a.retour:hover{color:var(--dehors-fort)}
       </div>
     </div>
 
-    <!-- ============ 5 · RACCOURCIS ============ -->
-    <div class="vue" id="v-raccourcis">
+    <!-- ============ 1 · RACCOURCIS ============ -->
+    <div class="vue actif" id="v-raccourcis">
       <div class="titre">
         <h1>Tes huit touches, <span class="marqueur sourd">et ce que chacun suit</span></h1>
         <p>Une touche par personnage pour passer sur sa fenêtre. Les cinq interrupteurs disent ce que chacun recopie du meneur — clique sur un titre de colonne pour l’armer partout d’un coup.</p>
@@ -872,7 +813,7 @@ a.retour:hover{color:var(--dehors-fort)}
       </div>
     </div>
 
-    <!-- ============ 6 · RÉGLAGES ============ -->
+    <!-- ============ 5 · RÉGLAGES ============ -->
     <div class="vue" id="v-reglages">
       <div class="titre">
         <h1>OMNI <span class="marqueur sourd">0.3.6</span></h1>
@@ -917,7 +858,7 @@ a.retour:hover{color:var(--dehors-fort)}
   </div>
 </div>
 
-<p class="aide"><b>C’est cliquable.</b> Les six icônes du rail noir changent d’écran pour de vrai — passe de Ma flotte à Courses, Hôtel de vente, Archimonstres, Raccourcis et Réglages. Chaque écran garde la même règle : le jaune pour ce qui mène et ce qui tourne, le noir pour ce qui réclame ton attention, le clair pour tout ce qui va bien.</p>
+<p class="aide"><b>C’est cliquable.</b> Les cinq icônes du rail noir changent d’écran pour de vrai — passe de Raccourcis à Courses, Hôtel de vente, Archimonstres et Réglages. Chaque écran garde la même règle : le jaune pour ce qui mène et ce qui tourne, le noir pour ce qui réclame ton attention, le clair pour tout ce qui va bien.</p>
 
 <script>
 document.querySelectorAll('.rail button[data-vue]').forEach(function(b){
@@ -966,11 +907,10 @@ document.querySelectorAll('.grp').forEach(function(g){
 (function(){
   var HOTE = 'https://api.dofusdb.fr/img';
 
-  // Le rail. QUATRE entrees sur six seulement: « raccourcis » et « reglages »
-  // ne sont pas des choses du jeu, aucun picto d Ankama ne les dit. Leur
-  // mettre un objet au hasard serait du decor.
+  // Le rail. Les quatre entrees metier prennent un picto du jeu. Reglages
+  // reste volontairement generique: aucun objet d Ankama ne le dit.
   var RAIL = {
-    flotte:  'breeds/symbol_8',   // l epee du Iop -- la classe de celui qui mene
+    raccourcis: 'breeds/symbol_8', // l epee du Iop -- l entree principale d OMNI
     courses: 'items/24243',       // la bourse de kamas -- on depense
     hotel:   'items/24044',       // le coffre familial -- on stocke et on vend
     archi:   'items/85001',       // la pierre d ame pleine -- l objet du chasseur
