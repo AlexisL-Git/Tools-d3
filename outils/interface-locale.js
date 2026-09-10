@@ -64,7 +64,12 @@ function creerServeur() {
   return http.createServer((req, res) => {
     let chemin;
     try {
-      chemin = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
+      // Lire le req.url brut au lieu de new URL().pathname qui normalise les
+      // segments .., y compris leur forme encodee %2e%2e. Si on passait par
+      // new URL, la garde 403 ci-dessous serait du code mort: les tentatives
+      // de traversee seraient deja resolues avant qu'on puisse les refuser.
+      const urlBrute = req.url.split('?')[0];
+      chemin = decodeURIComponent(urlBrute);
     } catch (e) {
       return repondre(res, 400, 'text/plain; charset=utf-8', 'chemin illisible');
     }

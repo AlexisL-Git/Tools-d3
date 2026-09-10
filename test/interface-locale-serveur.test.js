@@ -1,10 +1,24 @@
 'use strict';
+const http = require('node:http');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { creerServeur, injecter } = require('../outils/interface-locale');
 
 let serveur;
 let base;
+
+// fetch normalise les segments `..` avant l'envoi: une tentative de traversee
+// n'arriverait jamais jusqu'au serveur. Ce client brut envoie le chemin tel quel.
+const brut = (chemin) => new Promise((ok, ko) => {
+  const req = http.request({ host: '127.0.0.1', port: serveur.address().port, path: chemin }, (r) => {
+    let corps = '';
+    r.setEncoding('utf8');
+    r.on('data', (m) => { corps += m; });
+    r.on('end', () => ok({ status: r.statusCode, corps }));
+  });
+  req.on('error', ko);
+  req.end();
+});
 
 before(async () => {
   serveur = creerServeur();
@@ -75,8 +89,13 @@ test('les polices et le son sont servis avec leur type', async () => {
 // Le serveur n'ecoute que sur 127.0.0.1, mais la regle ne coute rien et evite
 // d'avoir a y revenir le jour ou quelqu'un le publie « juste pour essayer ».
 test('un chemin qui sort de desktop est refuse', async () => {
-  const r = await fetch(`${base}/%2e%2e/package.json`);
-  assert.strictEqual(r.status, 403);
+  const r1 = await brut('/%2e%2e/package.json');
+  assert.strictEqual(r1.status, 403);
+  assert.ok(!r1.corps.includes('"name":'), 'fichier du depot ne doit pas etre servi');
+
+  const r2 = await brut('/../package.json');
+  assert.strictEqual(r2.status, 403);
+  assert.ok(!r2.corps.includes('"name":'), 'fichier du depot ne doit pas etre servi');
 });
 
 test('un fichier absent rend 404', async () => {
