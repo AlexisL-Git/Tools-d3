@@ -150,6 +150,12 @@ if (typeof window !== 'undefined') {
     b.onclick = () => window.app.__ambiance();
     document.body.appendChild(b);
   });
+  // Tu enregistres, l'onglet se recharge. Sans ca, le Simple Browser demande
+  // un clic droit puis « Reload » a chaque essai -- exactement le frottement
+  // que le banc existe pour supprimer.
+  if (typeof EventSource !== 'undefined') {
+    new EventSource('/faux/rechargement').onmessage = () => location.reload();
+  }
 }
 
 if (typeof module !== 'undefined' && module.exports) {

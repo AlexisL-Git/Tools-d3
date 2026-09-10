@@ -61,7 +61,47 @@ function servirFichier(res, chemin) {
   });
 }
 
+// LE REGROUPEMENT N'EST PAS UN LUXE: fs.watch emet souvent deux evenements
+// pour un seul enregistrement d'editeur, et le second rechargement d'onglet
+// arriverait pendant le premier.
+function creerDiffuseur(options) {
+  const delaiMs = (options && options.delaiMs) || 100;
+  const abonnes = new Set();
+  let minuterie = null;
+
+  return {
+    abonner(res) {
+      abonnes.add(res);
+      res.on('close', () => abonnes.delete(res));
+    },
+    signaler() {
+      if (minuterie !== null) return;
+      minuterie = setTimeout(() => {
+        minuterie = null;
+        for (const res of abonnes) res.write('data: recharge\n\n');
+      }, delaiMs);
+      // Une minuterie en vol ne doit pas retenir le process au moment de
+      // fermer le serveur.
+      if (typeof minuterie.unref === 'function') minuterie.unref();
+    },
+    nombreAbonnes: () => abonnes.size,
+  };
+}
+
 function creerServeur() {
+  const diffuseur = creerDiffuseur({ delaiMs: 100 });
+  // Les deux fichiers qui changent pendant une seance de mise en page. Le shim
+  // n'y est pas: le modifier demande de toute facon un rechargement complet du
+  // serveur, qui redemarre la tache et donc l'onglet.
+  for (const cible of [path.join(RACINE, 'index.html'), path.join(__dirname, 'faux-etat.js')]) {
+    try {
+      const veilleur = fs.watch(cible, () => diffuseur.signaler());
+      veilleur.unref();
+    } catch (e) {
+      console.warn(`[banc] surveillance impossible : ${cible}`);
+    }
+  }
+
   return http.createServer((req, res) => {
     let chemin;
     try {
@@ -83,6 +123,16 @@ function creerServeur() {
     }
 
     if (chemin === '/faux-app.js') return servirFichier(res, SHIM);
+
+    if (chemin === '/faux/rechargement') {
+      res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-store',
+        connection: 'keep-alive',
+      });
+      res.write('\n');
+      return diffuseur.abonner(res);
+    }
 
     if (chemin === '/faux/tableau-archi') {
       // `chemin` vient de req.url coupe au premier `?`: il ne contient plus
@@ -125,4 +175,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { creerServeur, injecter, PORT_DEFAUT };
+module.exports = { creerServeur, injecter, creerDiffuseur, PORT_DEFAUT };

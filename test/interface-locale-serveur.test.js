@@ -131,3 +131,38 @@ test('le devlog est servi tel quel', async () => {
   const attendu = require('../desktop/devlog.json');
   assert.deepStrictEqual(await r.json(), attendu);
 });
+
+const { creerDiffuseur } = require('../outils/interface-locale');
+
+// fs.watch emet souvent DEUX evenements pour un seul enregistrement
+// d'editeur. Sans regroupement, l'onglet se rechargerait deux fois -- et le
+// second rechargement arrive pendant le premier.
+test('deux signaux rapproches ne font qu un evenement', async () => {
+  const diffuseur = creerDiffuseur({ delaiMs: 10 });
+  const ecrits = [];
+  diffuseur.abonner({ write: (t) => ecrits.push(t), on: () => {} });
+  diffuseur.signaler();
+  diffuseur.signaler();
+  await new Promise((ok) => setTimeout(ok, 40));
+  assert.strictEqual(ecrits.length, 1, `evenements ecrits : ${ecrits.length}`);
+  assert.ok(ecrits[0].includes('data:'));
+});
+
+test('deux signaux espaces font deux evenements', async () => {
+  const diffuseur = creerDiffuseur({ delaiMs: 10 });
+  const ecrits = [];
+  diffuseur.abonner({ write: (t) => ecrits.push(t), on: () => {} });
+  diffuseur.signaler();
+  await new Promise((ok) => setTimeout(ok, 40));
+  diffuseur.signaler();
+  await new Promise((ok) => setTimeout(ok, 40));
+  assert.strictEqual(ecrits.length, 2);
+});
+
+test('la route de rechargement ouvre un flux d evenements', async () => {
+  const ctrl = new AbortController();
+  const r = await fetch(`${base}/faux/rechargement`, { signal: ctrl.signal });
+  assert.strictEqual(r.status, 200);
+  assert.match(r.headers.get('content-type'), /text\/event-stream/);
+  ctrl.abort();
+});
