@@ -32,15 +32,30 @@ function doubleSuperviseur(pids = [42]) {
   };
 }
 
-// kae { 1={ 3: le combattant }, 2: l identifiant du COMBAT }: un combattant
+// jym { 1={ 5: le combattant }, 2: l identifiant du COMBAT }: un combattant
 // entre dans un combat. Le combattant NEGATIF est le groupe de monstres, et il
 // n est nomme que chez celui qui attaque.
-const kae = (idCombat, idActeur) => ({ type: 'kae', payload: [
+//
+// REMAPPEE LE 10/09: le message s appelait `kae` et l acteur etait au champ 3.
+// Les octets reels sont figes dans test/pda-archi-trames.test.js, contre les
+// fixtures pda-archi-jym-*.hex; ici on ne rejoue que la forme.
+const jym = (idCombat, idActeur) => ({ type: 'jym', payload: [
   { no: 1, wire: WIRE.LEN, kind: 'message', value: [
-    { no: 3, wire: WIRE.VARINT, value: BigInt(idActeur) },
+    { no: 5, wire: WIRE.VARINT, value: BigInt(idActeur) },
   ] },
   { no: 2, wire: WIRE.VARINT, value: BigInt(idCombat) },
 ] });
+
+// LE NOM `ivq` EST MORT DEPUIS LE PATCH 3.6.11.12 ET SON REMPLACANT EST INCONNU
+// — voir l en-tete de lirePosition dans src/pda-archi/trames.js. Les tests qui
+// s en servent ci-dessous restent VRAIS pour la logique qu ils decrivent
+// (l attente, la purge, le minuteur, la position suivie), et FAUX pour le nom
+// qui la declenche: en jeu cette trame n arrive plus.
+//
+// ILS NE SONT PAS SAUTES POUR AUTANT, parce que le chemin qui compte, lui, est
+// mesure: une pierre prise dans une pile arrive en `isa`, et c est ce que
+// couvrent les tests bases sur isa() plus bas. Le jour ou la mesure donnera le
+// nouveau nom, seule cette fonction changera.
 const ivq = (uid, pos) => ({ type: 'ivq', payload: [
   { no: 1, wire: WIRE.VARINT, value: BigInt(uid) },
   { no: 2, wire: WIRE.VARINT, value: BigInt(pos) },
@@ -75,8 +90,8 @@ function entrer(chasse, pid, idGroupe = -300, idCombat = idGroupe === null ? 1 :
   // joueur precede celui du groupe, donc entre les deux le niveau du combat est
   // legitimement inconnu -- et rien ne doit s en plaindre.
   chasse.onTrame({ pid, dir: 'in', frame: kmk(-1, -2, 777) });
-  chasse.onTrame({ pid, dir: 'in', frame: kae(idCombat, 777) });
-  if (idGroupe !== null) chasse.onTrame({ pid, dir: 'in', frame: kae(idCombat, idGroupe) });
+  chasse.onTrame({ pid, dir: 'in', frame: jym(idCombat, 777) });
+  if (idGroupe !== null) chasse.onTrame({ pid, dir: 'in', frame: jym(idCombat, idGroupe) });
   chasse.onTrame({ pid, dir: 'in', frame: kmk(-1, -2, 777) });
 }
 
@@ -232,7 +247,7 @@ test('un niveau au-dela de 190 ne fait rien et le dit', () => {
 // choses qu'on ne lit qu'en entree.
 test('une trame sortante est ignoree', () => {
   const { superviseur, chasse } = monte();
-  chasse.onTrame({ pid: 42, dir: 'out', frame: kae(1, -300) });
+  chasse.onTrame({ pid: 42, dir: 'out', frame: jym(1, -300) });
   assert.strictEqual(superviseur.envois.length, 0);
 });
 
@@ -277,7 +292,14 @@ test('la position se met a jour meme eteinte', { skip: "PDA-archi attend sa mesu
 
 // MESURE DU 08/09: la pile passe du champ 3 au 2, la position du 1 au 3, et
 // dans le detail l'uid du 4 au 1, la quantite du 3 au 2, le gid du 1 au 5.
-const iua = (uid, gid, qte, pos) => ({ type: 'iua', payload: [
+//
+// LE NOM, LUI, ETAIT RESTE `iua` JUSQU AU 10/09. La forme avait ete remesuree
+// le 08/09 et corrigee ici; le nom du message ne l avait pas ete, ni dans ce
+// constructeur ni dans src/pda-archi/pda-archi.js, qui cherchait en plus la
+// pile au champ 3. Les deux erreurs se compensaient dans ces tests — un `iua`
+// fabrique ici n atteignait jamais la branche `isa` du module — et le vert
+// restait entier sur un chemin qui ne pouvait plus s executer en jeu.
+const isa = (uid, gid, qte, pos) => ({ type: 'isa', payload: [
   { no: 2, wire: WIRE.LEN, kind: 'message', value: [
     { no: 3, wire: WIRE.VARINT, value: BigInt(pos) },
     { no: 5, wire: WIRE.LEN, kind: 'message', value: [
@@ -287,8 +309,8 @@ const iua = (uid, gid, qte, pos) => ({ type: 'iua', payload: [
     ] },
   ] },
 ] });
-const ium = (uid) => ({ type: 'ium', payload: [{ no: 1, wire: WIRE.VARINT, value: BigInt(uid) }] });
-const ivj = (uid, qte) => ({ type: 'ivj', payload: [
+const irz = (uid) => ({ type: 'irz', payload: [{ no: 1, wire: WIRE.VARINT, value: BigInt(uid) }] });
+const isf = (uid, qte) => ({ type: 'isf', payload: [
   { no: 3, wire: WIRE.LEN, kind: 'message', value: [
     { no: 2, wire: WIRE.VARINT, value: BigInt(uid) },
     { no: 3, wire: WIRE.VARINT, value: BigInt(qte) },
@@ -309,7 +331,7 @@ test('un depart de joueur ne fait plus dire groupe inconnu', () => {
 // serveur ignorerait l'ordre sans un mot.
 test('une pile disparue n est plus proposee', { skip: "PDA-archi attend sa mesure: ces tests reposent sur un inventaire portant une pierre d'ame EQUIPEE et des pierres rangees a des emplacements precis, que la capture HDV du 08/09 ne contient pas. Une chasse a l'archimonstre les retablira." }, () => {
   const { superviseur, chasse, rendus } = monte();
-  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) }); // la Grande
+  chasse.onTrame({ pid: 42, dir: 'in', frame: irz(233526391) }); // la Grande
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 0);
@@ -318,8 +340,8 @@ test('une pile disparue n est plus proposee', { skip: "PDA-archi attend sa mesur
 
 test('une pile neuve devient equipable', { skip: "PDA-archi attend sa mesure: ces tests reposent sur un inventaire portant une pierre d'ame EQUIPEE et des pierres rangees a des emplacements precis, que la capture HDV du 08/09 ne contient pas. Une chasse a l'archimonstre les retablira." }, () => {
   const { superviseur, chasse, rendus } = monte();
-  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999001, 9688, 12, 63) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: irz(233526391) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: isa(999001, 9688, 12, 63) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 1);
@@ -332,8 +354,8 @@ test('une pile neuve devient equipable', { skip: "PDA-archi attend sa mesure: ce
 
 test('une quantite mise a jour est suivie', { skip: "PDA-archi attend sa mesure: ces tests reposent sur un inventaire portant une pierre d'ame EQUIPEE et des pierres rangees a des emplacements precis, que la capture HDV du 08/09 ne contient pas. Une chasse a l'archimonstre les retablira." }, () => {
   const { superviseur, chasse } = monte();
-  chasse.onTrame({ pid: 42, dir: 'in', frame: ivj(233526391, 7) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999002, 9688, 3, 63) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: isf(233526391, 7) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: isa(999002, 9688, 3, 63) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   entrer(chasse, 42, -300);
   // 7 contre 3: la plus grosse pile reste celle d'origine.
@@ -390,7 +412,7 @@ const { POSITION_INVENTAIRE } = require('../src/hdv/trames');
 // Rien a l'emplacement, rien a purger: un seul ordre.
 test('sans rien a l emplacement, aucune purge n est emise', { skip: "PDA-archi attend sa mesure: ces tests reposent sur un inventaire portant une pierre d'ame EQUIPEE et des pierres rangees a des emplacements precis, que la capture HDV du 08/09 ne contient pas. Une chasse a l'archimonstre les retablira." }, () => {
   const { superviseur, chasse } = monte();
-  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233525940) }); // la Moyenne s en va
+  chasse.onTrame({ pid: 42, dir: 'in', frame: irz(233525940) }); // la Moyenne s en va
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 1);
@@ -410,8 +432,8 @@ test('sans rien a l emplacement, aucune purge n est emise', { skip: "PDA-archi a
 // Le gid ci-dessous reste arbitraire, et c'est tout ce que le test demande.
 test('une pierre pleine restee a l emplacement est purgee', { skip: "PDA-archi attend sa mesure: ces tests reposent sur un inventaire portant une pierre d'ame EQUIPEE et des pierres rangees a des emplacements precis, que la capture HDV du 08/09 ne contient pas. Une chasse a l'archimonstre les retablira." }, () => {
   const { superviseur, chasse, rendus } = monte();
-  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233525940) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(999003, 7010, 1, POSITION_PIERRE) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: irz(233525940) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: isa(999003, 7010, 1, POSITION_PIERRE) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   entrer(chasse, 42, -300);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
@@ -437,7 +459,7 @@ test('une pile neuve a l emplacement confirme la pose', { skip: "PDA-archi atten
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   entrer(chasse, 42, -300);
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
-  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(242186527, 9688, 1, POSITION_PIERRE) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: isa(242186527, 9688, 1, POSITION_PIERRE) });
   assert.strictEqual(rendus.at(-1).quoi, 'equipe');
   assert.strictEqual(rendus.at(-1).gid, 9688);
 });
@@ -446,7 +468,7 @@ test('une pile neuve rangee ailleurs ne confirme rien', () => {
   const { chasse, rendus } = monte();
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   entrer(chasse, 42, -300);
-  chasse.onTrame({ pid: 42, dir: 'in', frame: iua(242186528, 9688, 1, 63) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: isa(242186528, 9688, 1, 63) });
   assert.strictEqual(rendus.at(-1).quoi, 'envoye');
 });
 
@@ -465,7 +487,7 @@ test('un seul client voit le groupe, tous s equipent en rejoignant', () => {
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   // Seul le maitre voit le groupe entrer dans le combat: c est lui qui en
   // apprend le niveau, et il l apprend POUR LE COMBAT, pas pour lui.
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kae(300, -300) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jym(300, -300) });
   assert.strictEqual(superviseur.envois.length, 0, 'rien avant d etre dans le combat');
   for (const pid of [42, 43, 44]) entrer(chasse, pid, null, 300);
   for (const pid of [42, 43, 44]) {
@@ -496,7 +518,7 @@ test('une liste d acteurs de carte n equipe personne', () => {
   const chasse = creerPdaArchi({ superviseur, actif: true });
   chasse.onTrame({ pid: 42, dir: 'in', frame: fixture('hdv-isb-inventaire.hex') });
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kae(300, -300) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jym(300, -300) });
   chasse.onTrame({ pid: 42, dir: 'in', frame: kmk(777, 888) });
   assert.strictEqual(superviseur.envois.length, 0);
 });
@@ -823,8 +845,8 @@ test('un second combat attend la liste des combattants, pas le seul kae', () => 
 
   // Un autre combat, qui demande l'Enorme. Le `kae` seul ne doit RIEN faire.
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(180, -301) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kae(195, 777) });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: kae(195, -301) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jym(195, 777) });
+  chasse.onTrame({ pid: 42, dir: 'in', frame: jym(195, -301) });
   assert.strictEqual(superviseur.envois.length, apres, 'rien tant que kmk n est pas tombe');
 
   // `kmk` retombe a chaque tour: celui qui suit le `kae` sert le personnage.
@@ -878,7 +900,7 @@ test('les tentatives d un meme combat sont bornees a trois', async () => {
 // repli ETEINT, et c'est lui qui garde le defaut.
 test('avec le repli, la Grande manquante fait partir l Enorme', { skip: "PDA-archi attend sa mesure: ces tests reposent sur un inventaire portant une pierre d'ame EQUIPEE et des pierres rangees a des emplacements precis, que la capture HDV du 08/09 ne contient pas. Une chasse a l'archimonstre les retablira." }, () => {
   const { superviseur, chasse, rendus } = monte({ repli: () => true });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) }); // la Grande
+  chasse.onTrame({ pid: 42, dir: 'in', frame: irz(233526391) }); // la Grande
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 1);
@@ -899,7 +921,7 @@ test('avec le repli, la Grande manquante fait partir l Enorme', { skip: "PDA-arc
 test('cocher le repli entre deux combats change le combat suivant', { skip: "PDA-archi attend sa mesure: ces tests reposent sur un inventaire portant une pierre d'ame EQUIPEE et des pierres rangees a des emplacements precis, que la capture HDV du 08/09 ne contient pas. Une chasse a l'archimonstre les retablira." }, () => {
   let coche = false;
   const { superviseur, chasse, rendus } = monte({ repli: () => coche });
-  chasse.onTrame({ pid: 42, dir: 'in', frame: ium(233526391) }); // la Grande
+  chasse.onTrame({ pid: 42, dir: 'in', frame: irz(233526391) }); // la Grande
   chasse.onTrame({ pid: 42, dir: 'in', frame: jpoNiveau(120) });
   entrer(chasse, 42, -300);
   assert.strictEqual(superviseur.envois.length, 0);
