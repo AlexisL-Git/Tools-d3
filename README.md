@@ -26,6 +26,28 @@ rien a l'ecran en mode normal.**
 `node_modules\electron\dist\electron.exe`, qui n'est pas signe. Le binaire
 produit par le packaging, lui, passe — d'ou la commande ci-dessus.
 
+## Voir l'interface sans lancer le jeu
+
+```powershell
+node outils\interface-locale.js   # http://localhost:8787
+```
+
+Un banc d'essai: la page d'OMNI servie en HTTP avec un **faux etat** — six
+comptes fictifs couvrant les six etats, aucune connexion a Dofus. Les cases
+cochent, le maitre change, le tableau des archimonstres se construit. Utile
+pour travailler la mise en page sans refabriquer le paquet ni ouvrir un seul
+client.
+
+VS Code lance ce serveur tout seul a l'ouverture du dossier
+(`.vscode/tasks.json`); il demande **une fois** d'autoriser les taches
+automatiques du dossier. L'onglet, lui, s'ouvre a la main la premiere fois —
+`Ctrl+Shift+P`, « Simple Browser: Show », `http://localhost:8787` — et VS Code
+le restaure ensuite a chaque reouverture.
+
+Ce banc ne rejoue aucune regle metier: cocher « passe-tour » y coche une case,
+rien de plus. Il ne part pas dans le paquet des amis (`outils/` n'est pas
+emporte par `faire-paquet-code.js`).
+
 ## Publier une mise a jour aux amis
 
 Rien ne part tant que la derniere etape n'est pas faite a la main.
