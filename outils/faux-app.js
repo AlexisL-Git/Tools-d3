@@ -14,6 +14,20 @@
 // Le shim ne rejoue AUCUNE regle metier. Il ecrit le champ demande et reemet
 // l'etat: le banc sert le comportement de la page, pas la logique du produit.
 
+// Recopie de src/comptes/colonnes.js (lecture seule, inaccessible ici: ce
+// fichier est charge par le navigateur, aucun require n'y survivrait).
+// desktop/index.html:2164-2170 fait deja la meme recopie pour la meme raison.
+// SOURCE DE VERITE: src/comptes/colonnes.js. Les cinq noms sont ceux que
+// desktop/index.html:2196 envoie via b.dataset.colonne -- jamais un champ de
+// ligne -- et 'repl' est la seule inversee (cochee = NON exclue).
+const COLONNES = {
+  repl: { champ: 'exclu', inverse: true },
+  tour: { champ: 'passeTour', inverse: false },
+  groupe: { champ: 'invitation', inverse: false },
+  anim: { champ: 'noAnim', inverse: false },
+  echange: { champ: 'echange', inverse: false },
+};
+
 function creerFauxApp(etatInitial, deps) {
   const options = deps || {};
   const chercher = options.fetch || (typeof globalThis !== 'undefined' ? globalThis.fetch : null);
@@ -28,6 +42,10 @@ function creerFauxApp(etatInitial, deps) {
   const ligneParId = (id) => etat.lignes.find((l) => l.id === id);
   const lignePid = (pid) => etat.lignes.find((l) => l.pid === pid);
   const inconnu = (nom, args) => journal(`[banc] canal inconnu : ${nom}(${JSON.stringify(args)})`);
+  // basculerVersCompte et boutonSouris sont des canaux CONNUS (voir plus bas):
+  // les journaliser comme « inconnu » remplirait la console en usage normal,
+  // basculerVersCompte partant a chaque clic sur le nom d'une ligne.
+  const inerte = (nom, args) => journal(`[banc] canal sans effet sur le banc : ${nom}(${JSON.stringify(args)})`);
 
   // Un champ booleen d'une ligne, par identifiant de compte.
   const poser = (id, champ, valeur) => {
@@ -38,6 +56,11 @@ function creerFauxApp(etatInitial, deps) {
 
   const app = {
     // --- reception -------------------------------------------------------
+    // DIVERGENCE ASSUMEE D'AVEC ELECTRON: le vrai ipcRenderer.on('etat', ...)
+    // n'appelle jamais son rappel de facon synchrone -- le premier etat reel
+    // arrive apres did-finish-load. Ici il n'y a pas de tick de chargement a
+    // attendre, donc appeler tout de suite est ce qui evite un ecran vide
+    // jusqu'au prochain evenement.
     surEtat: (rappel) => { abonnesEtat.push(rappel); rappel(etat); },
     surAmbiance: (rappel) => { abonnesAmbiance.push(rappel); },
     surPdaArchiAlerte: (rappel) => { abonnesAlerte.push(rappel); },
@@ -53,11 +76,23 @@ function creerFauxApp(etatInitial, deps) {
 
     // --- les cases -------------------------------------------------------
     basculerColonne: async (nom, ids) => {
+      const colonne = COLONNES[nom];
+      // desktop/main.js:1999 fait `if (!parNom.has(nom)) return;`: un nom de
+      // colonne inconnu ne doit rien ecrire, ici non plus.
+      if (!colonne) { inconnu('basculerColonne', [nom, ids]); return; }
       const vises = Array.isArray(ids) ? ids : [];
-      // Le losange dit « tous » seulement si TOUTES les lignes visees le sont:
-      // la bascule vise donc l'inverse de l'etat d'ensemble courant.
-      const tous = vises.every((id) => { const l = ligneParId(id); return l && l[nom]; });
-      for (const id of vises) { const l = ligneParId(id); if (l) l[nom] = !tous; }
+      // Ce que la case AFFICHE pour cette ligne, inversion comprise: pour
+      // 'repl', la case affiche !l.exclu.
+      const affiche = (l) => (colonne.inverse ? !l[colonne.champ] : Boolean(l[colonne.champ]));
+      // Le losange dit « tous » seulement si TOUTES les lignes visees
+      // affichent coche: la bascule vise donc l'inverse de l'etat d'ensemble
+      // courant (semantique « indetermine -> tout cocher »).
+      const tous = vises.every((id) => { const l = ligneParId(id); return l && affiche(l); });
+      const cible = !tous;
+      for (const id of vises) {
+        const l = ligneParId(id);
+        if (l) l[colonne.champ] = colonne.inverse ? !cible : cible;
+      }
       emettre();
     },
     exclureCompte: async (id, exclu) => poser(id, 'exclu', exclu),
@@ -74,7 +109,7 @@ function creerFauxApp(etatInitial, deps) {
       etat.sansMaitre = !etat.lignes.some((x) => x.estMaitre);
       emettre();
     },
-    basculerVersCompte: async (id) => { inconnu('basculerVersCompte (sans effet sur le banc)', [id]); },
+    basculerVersCompte: async (id) => { inerte('basculerVersCompte', [id]); },
 
     // --- les raccourcis --------------------------------------------------
     reglerTouche: async (id, accelerateur) => {
@@ -91,7 +126,7 @@ function creerFauxApp(etatInitial, deps) {
 
     // --- la barre flottante et la souris ---------------------------------
     basculerOverlay: async () => { etat.overlayOuvert = !etat.overlayOuvert; emettre(); },
-    boutonSouris: async (clic) => { inconnu('boutonSouris (sans effet sur le banc)', [clic]); },
+    boutonSouris: async (clic) => { inerte('boutonSouris', [clic]); },
 
     reglerDelai: async (secondes) => {
       const v = Number(secondes);

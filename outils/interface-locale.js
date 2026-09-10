@@ -13,8 +13,15 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { fabriquerEtat, comptesArchi } = require('./faux-etat');
 const { construire: construireTableauArchi } = require('../src/pda-archi/tableau');
+
+// Node met les modules en cache: sans cette invalidation, enregistrer
+// faux-etat.js rechargerait l'onglet pour y afficher l'etat d'avant. Le
+// veilleur se declencherait, et le banc mentirait sur lui-meme.
+function chargerFauxEtat() {
+  delete require.cache[require.resolve('./faux-etat')];
+  return require('./faux-etat');
+}
 
 const RACINE = path.join(__dirname, '..', 'desktop');
 const SHIM = path.join(__dirname, 'faux-app.js');
@@ -115,46 +122,63 @@ function creerServeur() {
       return repondre(res, 400, 'text/plain; charset=utf-8', 'chemin illisible');
     }
 
-    if (chemin === '/' || chemin === '/index.html') {
-      return fs.readFile(path.join(RACINE, 'index.html'), 'utf8', (err, html) => {
-        if (err) return repondre(res, 500, 'text/plain; charset=utf-8', 'index.html illisible');
-        return repondre(res, 200, TYPES['.html'], injecter(html, fabriquerEtat()));
-      });
+    // Verifie moi-meme: GET /%00 fait tomber le process. fs.readFile leve
+    // ERR_INVALID_ARG_VALUE de facon SYNCHRONE sur un chemin contenant un
+    // octet NUL -- avant meme d'atteindre son callback -- donc la seule
+    // facon fiable de s'en proteger est de refuser ce chemin ici, avant
+    // qu'aucune des routes ci-dessous ne le touche.
+    if (chemin.indexOf('\0') !== -1) {
+      return repondre(res, 400, 'text/plain; charset=utf-8', 'chemin illisible');
     }
 
-    if (chemin === '/faux-app.js') return servirFichier(res, SHIM);
+    // Le corps entier est protege: un banc qui meurt en silence (reveal:
+    // silent dans la tache VS Code laisse un Simple Browser blanc, sans un
+    // mot) est pire qu'un banc qui rend une erreur visible.
+    try {
+      if (chemin === '/' || chemin === '/index.html') {
+        return fs.readFile(path.join(RACINE, 'index.html'), 'utf8', (err, html) => {
+          if (err) return repondre(res, 500, 'text/plain; charset=utf-8', 'index.html illisible');
+          return repondre(res, 200, TYPES['.html'], injecter(html, chargerFauxEtat().fabriquerEtat()));
+        });
+      }
 
-    if (chemin === '/faux/rechargement') {
-      res.writeHead(200, {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-store',
-        connection: 'keep-alive',
-      });
-      res.write('\n');
-      return diffuseur.abonner(res);
+      if (chemin === '/faux-app.js') return servirFichier(res, SHIM);
+
+      if (chemin === '/faux/rechargement') {
+        res.writeHead(200, {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-store',
+          connection: 'keep-alive',
+        });
+        res.write('\n');
+        return diffuseur.abonner(res);
+      }
+
+      if (chemin === '/faux/tableau-archi') {
+        // `chemin` vient de req.url coupe au premier `?`: il ne contient plus
+        // la chaine de requete. On relit req.url une seconde fois, via
+        // new URL().searchParams cette fois, pour le seul parametre `quoi` --
+        // sans risque ici puisqu'on ne s'en sert jamais comme chemin de
+        // fichier, la normalisation de new URL n'a donc rien a exploiter.
+        const quoi = new URL(req.url, 'http://127.0.0.1').searchParams.get('quoi');
+        const table = construireTableauArchi({
+          quoi: typeof quoi === 'string' && quoi ? quoi : 'archi',
+          comptes: chargerFauxEtat().comptesArchi(),
+        });
+        return repondre(res, 200, TYPES['.json'], JSON.stringify(table));
+      }
+
+      if (chemin === '/faux/devlog') return servirFichier(res, path.join(RACINE, 'devlog.json'));
+
+      const resolu = path.resolve(RACINE, '.' + chemin);
+      if (resolu !== RACINE && !resolu.startsWith(RACINE + path.sep)) {
+        return repondre(res, 403, 'text/plain; charset=utf-8', 'hors du dossier');
+      }
+      return servirFichier(res, resolu);
+    } catch (e) {
+      console.error(`[banc] erreur pendant la requete ${chemin} :`, e);
+      return repondre(res, 500, 'text/plain; charset=utf-8', 'erreur interne');
     }
-
-    if (chemin === '/faux/tableau-archi') {
-      // `chemin` vient de req.url coupe au premier `?`: il ne contient plus
-      // la chaine de requete. On relit req.url une seconde fois, via
-      // new URL().searchParams cette fois, pour le seul parametre `quoi` --
-      // sans risque ici puisqu'on ne s'en sert jamais comme chemin de
-      // fichier, la normalisation de new URL n'a donc rien a exploiter.
-      const quoi = new URL(req.url, 'http://127.0.0.1').searchParams.get('quoi');
-      const table = construireTableauArchi({
-        quoi: typeof quoi === 'string' && quoi ? quoi : 'archi',
-        comptes: comptesArchi(),
-      });
-      return repondre(res, 200, TYPES['.json'], JSON.stringify(table));
-    }
-
-    if (chemin === '/faux/devlog') return servirFichier(res, path.join(RACINE, 'devlog.json'));
-
-    const resolu = path.resolve(RACINE, '.' + chemin);
-    if (resolu !== RACINE && !resolu.startsWith(RACINE + path.sep)) {
-      return repondre(res, 403, 'text/plain; charset=utf-8', 'hors du dossier');
-    }
-    return servirFichier(res, resolu);
   });
 }
 

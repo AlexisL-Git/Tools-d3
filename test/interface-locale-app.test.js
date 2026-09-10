@@ -69,14 +69,58 @@ test('definirMaitre deplace le maitre sur une seule ligne', () => {
 
 // Le losange du titre de colonne lit les cinq cases: si l'action groupee ne
 // touchait qu'une partie des lignes, il resterait « partiel » pour toujours.
-test('basculerColonne bascule toutes les lignes visees', () => {
-  const app = creerFauxApp(fabriquerEtat());
-  app.surEtat(() => {});
-  const ids = app.__etat().lignes.filter((l) => l.id !== null).map((l) => l.id);
-  app.basculerColonne('passeTour', ids);
-  for (const l of app.__etat().lignes) {
-    if (l.id !== null) assert.strictEqual(l.passeTour, true, `ligne ${l.id} non basculee`);
+//
+// Les CINQ VRAIS NOMS sont ceux que desktop/index.html:2196 envoie via
+// b.dataset.colonne ('repl' | 'tour' | 'groupe' | 'anim' | 'echange'), jamais
+// le nom du champ de ligne -- c'est exactement la confusion qui rendait
+// quatre des cinq titres inertes et 'repl' inversee.
+test('basculerColonne bascule les cinq vraies colonnes, aller-retour compris', () => {
+  const COLS = [
+    { nom: 'repl', champ: 'exclu', inverse: true },
+    { nom: 'tour', champ: 'passeTour', inverse: false },
+    { nom: 'groupe', champ: 'invitation', inverse: false },
+    { nom: 'anim', champ: 'noAnim', inverse: false },
+    { nom: 'echange', champ: 'echange', inverse: false },
+  ];
+  for (const { nom, champ, inverse } of COLS) {
+    const app = creerFauxApp(fabriquerEtat());
+    app.surEtat(() => {});
+    const ids = app.__etat().lignes.filter((l) => l.id !== null).map((l) => l.id);
+    const affiche = (l) => (inverse ? !l[champ] : Boolean(l[champ]));
+
+    app.basculerColonne(nom, ids);
+    for (const l of app.__etat().lignes) {
+      if (l.id === null) continue;
+      assert.strictEqual(affiche(l), true, `colonne ${nom}, ligne ${l.id} pas cochee`);
+    }
+    // Cas 'repl' explicite: cocher la colonne (= « suit le meneur ») doit
+    // ecrire exclu = false, pas un champ parasite nomme 'repl'.
+    if (inverse) {
+      for (const l of app.__etat().lignes) {
+        if (l.id !== null) assert.strictEqual(l.exclu, false, `repl coche: exclu doit etre false`);
+      }
+    }
+
+    // L'aller-retour: tout-coche puis re-bascule doit rendre tout-decoche.
+    app.basculerColonne(nom, ids);
+    for (const l of app.__etat().lignes) {
+      if (l.id === null) continue;
+      assert.strictEqual(affiche(l), false, `colonne ${nom}, ligne ${l.id} pas decochee apres re-bascule`);
+    }
   }
+});
+
+// desktop/main.js:1999 fait `if (!parNom.has(nom)) return;`: le shim doit
+// suivre la meme regle plutot que d'ecrire un champ au nom de la colonne.
+test('basculerColonne sur un nom inconnu ne modifie rien et le journalise', () => {
+  const dits = [];
+  const app = creerFauxApp(fabriquerEtat(), { journal: (m) => dits.push(m) });
+  app.surEtat(() => {});
+  const avant = JSON.stringify(app.__etat().lignes);
+  app.basculerColonne('nimportequoi', [1, 2, 3]);
+  assert.strictEqual(JSON.stringify(app.__etat().lignes), avant, 'un nom inconnu ne doit rien ecrire');
+  assert.strictEqual(dits.length, 1);
+  assert.ok(dits[0].includes('nimportequoi'));
 });
 
 test('reglerDelai et reglerTouche ecrivent dans l etat', () => {
@@ -147,4 +191,21 @@ test('un canal inconnu est journalise, pas silencieux', () => {
   app.__inconnu('canalQuiNExistePas', [1, 2]);
   assert.strictEqual(dits.length, 1);
   assert.ok(dits[0].includes('canalQuiNExistePas'));
+});
+
+// basculerVersCompte part a CHAQUE clic sur le nom d'une ligne -- le geste le
+// plus frequent du panneau. Le journaliser comme « canal inconnu » remplirait
+// la console en usage normal et detruirait la valeur du garde-fou. Ces deux
+// canaux sont CONNUS, juste sans effet sur le banc: ils doivent utiliser un
+// message different de celui de __inconnu.
+test('basculerVersCompte et boutonSouris ne se journalisent pas comme canal inconnu', () => {
+  const dits = [];
+  const app = creerFauxApp(fabriquerEtat(), { journal: (m) => dits.push(m) });
+  app.basculerVersCompte(1);
+  app.boutonSouris('gauche');
+  assert.strictEqual(dits.length, 2);
+  for (const m of dits) {
+    assert.ok(!m.includes('canal inconnu'), `message ambigu avec canal inconnu : ${m}`);
+    assert.ok(m.includes('sans effet sur le banc'), `message inattendu : ${m}`);
+  }
 });

@@ -1,5 +1,7 @@
 'use strict';
 const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { creerServeur, injecter } = require('../outils/interface-locale');
@@ -102,6 +104,19 @@ test('un fichier absent rend 404', async () => {
   assert.strictEqual((await fetch(`${base}/rien-du-tout.css`)).status, 404);
 });
 
+// Verifie moi-meme: GET /%00 faisait tomber le processus. fs.readFile leve
+// ERR_INVALID_ARG_VALUE de facon SYNCHRONE sur un chemin contenant un octet
+// NUL, hors du try/catch qui n'entoure que decodeURIComponent. La seconde
+// assertion (une requete SUIVANTE sur / repond toujours 200) est celle qui
+// prouve que le serveur a survecu, pas seulement que celle-ci a un code 400.
+test('un chemin avec un octet NUL est refuse et le serveur survit', async () => {
+  const r1 = await brut('/%00');
+  assert.strictEqual(r1.status, 400);
+
+  const r2 = await fetch(`${base}/`);
+  assert.strictEqual(r2.status, 200, 'le serveur ne repond plus apres /%00');
+});
+
 // Le navigateur ne peut pas charger un module CommonJS: c'est Node qui calcule
 // le tableau avec le VRAI src/pda-archi/tableau.js, la page qui l'affiche.
 test('le tableau archi est calcule par le vrai module', async () => {
@@ -122,6 +137,27 @@ test('une collection inconnue retombe sur les archimonstres', async () => {
   const a = await (await fetch(`${base}/faux/tableau-archi?quoi=nimportequoi`)).json();
   const b = await (await fetch(`${base}/faux/tableau-archi?quoi=archi`)).json();
   assert.strictEqual(a.titre, b.titre);
+});
+
+// Node met les modules require() en cache: sans invalidation explicite,
+// enregistrer outils/faux-etat.js rechargerait l'onglet (le veilleur se
+// declenche bien) pour reservir un etat IDENTIQUE -- le banc mentirait sur
+// lui-meme. On modifie le vrai fichier sur disque, on verifie que le
+// changement apparait dans la reponse, PUIS on le restaure a l'identique
+// dans un finally pour que git status reste propre meme si l'assertion rate.
+test('la route / relit vraiment faux-etat.js a chaque requete', async () => {
+  const cheminFauxEtat = path.join(__dirname, '..', 'outils', 'faux-etat.js');
+  const original = fs.readFileSync(cheminFauxEtat, 'utf8');
+  const marqueur = "version: 'dev'";
+  assert.ok(original.includes(marqueur), 'marqueur introuvable, le test doit etre adapte');
+  try {
+    const modifie = original.replace(marqueur, "version: 'banc-modifie-par-le-test'");
+    fs.writeFileSync(cheminFauxEtat, modifie);
+    const html = await (await fetch(`${base}/`)).text();
+    assert.ok(html.includes('banc-modifie-par-le-test'), 'la modification de faux-etat.js n a pas ete relue');
+  } finally {
+    fs.writeFileSync(cheminFauxEtat, original);
+  }
 });
 
 test('le devlog est servi tel quel', async () => {

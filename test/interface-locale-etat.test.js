@@ -30,14 +30,59 @@ test('une ligne et une seule est maitre, et elle est pilotable', () => {
   assert.strictEqual(etat.sansMaitre, false);
 });
 
-// Les trois champs que main.js pose APRES construireVue (lignes 785 a 809).
-// Les oublier ne casse rien au chargement: ca se voit comme une colonne vide.
-test('chaque ligne porte touche, archi et embleme', () => {
-  for (const l of fabriquerEtat().lignes) {
+// Les huit champs que main.js pose APRES construireVue: touche, archi et
+// embleme (main.js:785-809), puis les cinq champs hdv* (main.js:754-765) que
+// le menu HDV de chaque ligne et la fenetre des lots ecartes lisent
+// directement. Les oublier ne casse rien au chargement: ca se voit comme une
+// colonne vide, ou un menu HDV grise et inerte.
+test('chaque ligne porte touche, archi, embleme et les cinq champs hdv*', () => {
+  const lignes = fabriquerEtat().lignes;
+  for (const l of lignes) {
     assert.ok('touche' in l, 'touche manquante');
     assert.ok('archi' in l, 'archi manquant');
     assert.strictEqual(l.embleme, null, 'le banc ne telecharge aucun embleme');
+    assert.strictEqual(typeof l.hdvLots, 'number', 'hdvLots manquant ou mal type');
+    assert.strictEqual(typeof l.hdvEnCours, 'boolean', 'hdvEnCours manquant ou mal type');
+    assert.strictEqual(typeof l.hdvPiles, 'number', 'hdvPiles manquant ou mal type');
+    assert.strictEqual(typeof l.hdvVenteEnCours, 'boolean', 'hdvVenteEnCours manquant ou mal type');
+    assert.ok(l.hdvEcartes === null || typeof l.hdvEcartes === 'object', 'hdvEcartes de forme inattendue');
   }
+
+  // Varie: au moins une ligne dans chaque cas, sinon un menu HDV grise
+  // resterait grise en permanence sur le banc sans qu'un test le remarque.
+  assert.ok(lignes.some((l) => l.hdvLots > 0), 'aucune ligne avec des lots');
+  assert.ok(lignes.some((l) => l.hdvEnCours === true), 'aucune ligne avec une passe de prix en cours');
+  assert.ok(lignes.some((l) => l.hdvPiles > 0), 'aucune ligne avec des piles en attente');
+  assert.ok(lignes.some((l) => l.hdvVenteEnCours === true), 'aucune ligne en vente');
+  const avecEcartes = lignes.find((l) => l.hdvEcartes !== null);
+  assert.ok(avecEcartes, 'aucune ligne avec des lots ecartes');
+  // La forme attendue par desktop/index.html: ouvrirEcartes() lit e.quoi,
+  // e.lots, e.lignes (avec nom ou gid, taille, lots, moyenUnitaire, vise,
+  // borne, motif) et e.tronque.
+  assert.ok(['prix', 'vente'].includes(avecEcartes.hdvEcartes.quoi));
+  assert.strictEqual(typeof avecEcartes.hdvEcartes.lots, 'number');
+  assert.strictEqual(typeof avecEcartes.hdvEcartes.tronque, 'boolean');
+  assert.ok(Array.isArray(avecEcartes.hdvEcartes.lignes) && avecEcartes.hdvEcartes.lignes.length > 0);
+  const ligneEcartee = avecEcartes.hdvEcartes.lignes[0];
+  for (const champ of ['gid', 'taille', 'lots', 'moyenUnitaire', 'vise', 'borne', 'motif']) {
+    assert.ok(champ in ligneEcartee, `champ manquant dans une ligne ecartee : ${champ}`);
+  }
+
+  // Une ligne sans pid retombe sur le cas « pas de client », comme main.js
+  // avec son aUnPid.
+  const sansPid = lignes.find((l) => l.pid === null || l.pid === undefined);
+  assert.ok(sansPid, 'aucune ligne sans pid pour verifier le repli');
+  assert.deepStrictEqual(
+    {
+      hdvLots: sansPid.hdvLots,
+      hdvEnCours: sansPid.hdvEnCours,
+      hdvPiles: sansPid.hdvPiles,
+      hdvVenteEnCours: sansPid.hdvVenteEnCours,
+      hdvEcartes: sansPid.hdvEcartes,
+    },
+    { hdvLots: 0, hdvEnCours: false, hdvPiles: 0, hdvVenteEnCours: false, hdvEcartes: null },
+    'une ligne sans pid doit avoir le repli 0 / false / null',
+  );
 });
 
 // `null` et 0 ne veulent pas dire la meme chose: un inventaire pas encore lu

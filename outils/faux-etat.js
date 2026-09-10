@@ -17,6 +17,7 @@ const { NOMS: DROITS } = require('../src/droits/liste');
 const { estArchimonstre } = require('../src/pda-archi/archimonstres');
 const hdvReprix = require('../src/hdv/reprix');
 const hdvVente = require('../src/hdv/vente');
+const { nomDe } = require('../src/hdv/objets');
 
 // Six comptes: un par etat de vue.js, plus le client sans idCompte qui produit
 // le sixieme (« inconnu ») en se rangeant tout seul en fin de liste.
@@ -53,6 +54,44 @@ const AMES = new Map([
 ]);
 
 const TOUCHES = { 1: 'F1', 2: 'F2', 3: 'F3' };
+
+// CE QUE LE MENU HDV DE CHAQUE LIGNE DOIT SAVOIR (desktop/main.js:754-765).
+// Sans ces cinq champs, les deux entrees du menu HDV restent grisees et la
+// fenetre des lots ecartes est inatteignable -- l'interface meme que ce banc
+// sert a travailler. Fonction et non table statique: chaque appel de
+// fabriquerEtat() doit rendre des objets neufs, jamais une reference
+// partagee entre deux onglets.
+function hdvDe(pid) {
+  switch (pid) {
+    // Des lots connus, aucune passe en cours: l'entree « mettre a jour les
+    // prix (3 lots) » doit etre active mais pas tournante.
+    case 101: return { hdvLots: 3, hdvEnCours: false, hdvPiles: 0, hdvVenteEnCours: false, hdvEcartes: null };
+    // Une passe de prix en cours: l'icone tourne, meme sans lot connu encore.
+    case 102: return { hdvLots: 0, hdvEnCours: true, hdvPiles: 0, hdvVenteEnCours: false, hdvEcartes: null };
+    // Des piles en attente de mise en vente.
+    case 103: return { hdvLots: 0, hdvEnCours: false, hdvPiles: 4, hdvVenteEnCours: false, hdvEcartes: null };
+    // Une mise en vente en cours.
+    case 104: return { hdvLots: 0, hdvEnCours: false, hdvPiles: 0, hdvVenteEnCours: true, hdvEcartes: null };
+    // Des lots ecartes a la derniere passe: la forme est celle de
+    // src/hdv/ecartes.js (noterEcart), relue par desktop/index.html:1372
+    // (ouvrirEcartes). Le gid, le marche delirant et le plafond viennent de
+    // l'exemple ecrit en tete de src/hdv/ecartes.js.
+    case 105: return {
+      hdvLots: 0, hdvEnCours: false, hdvPiles: 0, hdvVenteEnCours: false,
+      hdvEcartes: {
+        quoi: 'prix',
+        lots: 6,
+        tronque: false,
+        lignes: [
+          { gid: 13731, taille: 10, lots: 6, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 1520, nom: nomDe(13731) },
+        ],
+      },
+    };
+    // Aucune activite HDV connue pour ce pid: le meme repli que « pas de
+    // client », donc aussi la valeur pour toute ligne sans pid.
+    default: return { hdvLots: 0, hdvEnCours: false, hdvPiles: 0, hdvVenteEnCours: false, hdvEcartes: null };
+  }
+}
 
 const BORNES = {
   reprix: {
@@ -98,7 +137,9 @@ function fabriquerEtat() {
     echange: new Set([2]),
   });
 
-  // Les trois champs que desktop/main.js pose APRES construireVue.
+  // Les huit champs que desktop/main.js pose APRES construireVue: touche,
+  // archi, embleme (main.js:785-809), puis les cinq champs hdv* (main.js:
+  // 754-765).
   for (const l of lignes) {
     l.touche = l.id === null ? null : (TOUCHES[l.id] || null);
     const ames = l.pid === null || l.pid === undefined ? undefined : AMES.get(l.pid);
@@ -106,6 +147,11 @@ function fabriquerEtat() {
     // Le banc ne telecharge rien: la page retombe sur l'abreviation de classe,
     // chemin qu'elle sait deja prendre quand le cache d'emblemes est froid.
     l.embleme = null;
+
+    // Meme garde que l'aUnPid de main.js: sans pid, les cinq champs hdv*
+    // retombent sur « pas de client ».
+    const aUnPid = l.pid !== null && l.pid !== undefined;
+    Object.assign(l, hdvDe(aUnPid ? l.pid : null));
   }
 
   return {
