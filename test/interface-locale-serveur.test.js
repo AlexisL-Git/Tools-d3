@@ -101,3 +101,33 @@ test('un chemin qui sort de desktop est refuse', async () => {
 test('un fichier absent rend 404', async () => {
   assert.strictEqual((await fetch(`${base}/rien-du-tout.css`)).status, 404);
 });
+
+// Le navigateur ne peut pas charger un module CommonJS: c'est Node qui calcule
+// le tableau avec le VRAI src/pda-archi/tableau.js, la page qui l'affiche.
+test('le tableau archi est calcule par le vrai module', async () => {
+  const r = await fetch(`${base}/faux/tableau-archi?quoi=archi`);
+  assert.strictEqual(r.status, 200);
+  const table = await r.json();
+  assert.ok(table.total > 200, `total suspect : ${table.total}`);
+  assert.strictEqual(table.lignes.length, table.total);
+  assert.ok(Array.isArray(table.comptes) && table.comptes.length > 0);
+  assert.ok(table.comptes.some((c) => c.lu === true), 'aucun inventaire lu');
+  assert.ok(table.comptes.some((c) => c.lu === false), 'aucun inventaire non lu');
+  assert.ok(table.zones, 'la vue par zones manque');
+});
+
+// Meme repli que le handler d'OMNI: une valeur inconnue rend les
+// archimonstres, le panneau ne peut pas casser sur une faute de frappe.
+test('une collection inconnue retombe sur les archimonstres', async () => {
+  const a = await (await fetch(`${base}/faux/tableau-archi?quoi=nimportequoi`)).json();
+  const b = await (await fetch(`${base}/faux/tableau-archi?quoi=archi`)).json();
+  assert.strictEqual(a.titre, b.titre);
+});
+
+test('le devlog est servi tel quel', async () => {
+  const r = await fetch(`${base}/faux/devlog`);
+  assert.strictEqual(r.status, 200);
+  assert.match(r.headers.get('content-type'), /json/);
+  const attendu = require('../desktop/devlog.json');
+  assert.deepStrictEqual(await r.json(), attendu);
+});

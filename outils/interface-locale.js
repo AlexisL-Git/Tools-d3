@@ -13,7 +13,8 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { fabriquerEtat } = require('./faux-etat');
+const { fabriquerEtat, comptesArchi } = require('./faux-etat');
+const { construire: construireTableauArchi } = require('../src/pda-archi/tableau');
 
 const RACINE = path.join(__dirname, '..', 'desktop');
 const SHIM = path.join(__dirname, 'faux-app.js');
@@ -82,6 +83,22 @@ function creerServeur() {
     }
 
     if (chemin === '/faux-app.js') return servirFichier(res, SHIM);
+
+    if (chemin === '/faux/tableau-archi') {
+      // `chemin` vient de req.url coupe au premier `?`: il ne contient plus
+      // la chaine de requete. On relit req.url une seconde fois, via
+      // new URL().searchParams cette fois, pour le seul parametre `quoi` --
+      // sans risque ici puisqu'on ne s'en sert jamais comme chemin de
+      // fichier, la normalisation de new URL n'a donc rien a exploiter.
+      const quoi = new URL(req.url, 'http://127.0.0.1').searchParams.get('quoi');
+      const table = construireTableauArchi({
+        quoi: typeof quoi === 'string' && quoi ? quoi : 'archi',
+        comptes: comptesArchi(),
+      });
+      return repondre(res, 200, TYPES['.json'], JSON.stringify(table));
+    }
+
+    if (chemin === '/faux/devlog') return servirFichier(res, path.join(RACINE, 'devlog.json'));
 
     const resolu = path.resolve(RACINE, '.' + chemin);
     if (resolu !== RACINE && !resolu.startsWith(RACINE + path.sep)) {
