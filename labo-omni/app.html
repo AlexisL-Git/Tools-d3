@@ -325,6 +325,43 @@ a.retour:hover{color:var(--dehors-fort)}
 .rangee-r:last-child{border-bottom:0}
 .rangee-r .doux{color:var(--encre-douce);font-size:12px}
 .rangee-r .fin{margin-left:auto}
+
+/* ============================================================
+   LES PICTOS DU JEU. Les images viennent de DofusDB
+   (api.dofusdb.fr), un PNG transparent par identifiant, en CORS
+   ouvert. Rien n est embarque dans le depot: c est exactement ce
+   que fait deja src/comptes/emblemes.js pour les emblemes de
+   classe, et pour la meme raison -- on ne redistribue pas l art
+   d Ankama, chaque machine se fait son cache.
+
+   LE DESSIN OMNI NE PART PAS. Il reste sous chaque picto. Si une
+   image ne charge pas, `sans-pic` le remet en place: un picto
+   absent est un defaut d agrement, pas une panne.
+   ============================================================ */
+
+/* -- le rail -- */
+.rail .pic{width:22px;height:22px;object-fit:contain}
+.rail button.a-picto>svg{display:none}
+.rail button.a-picto.sans-pic>svg{display:block}
+
+/* -- le jeton de classe, sur les cartes de perso -- */
+.jeton{position:relative}
+.jeton .pic{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:2px}
+.jeton.a-picto>.sigle{visibility:hidden}
+.jeton.a-picto.sans-pic>.sigle{visibility:visible}
+
+/* -- l objet, sur les lignes de courses -- */
+.ligne>span.objet{display:flex;align-items:center;gap:10px}
+.ligne .pic.obj{width:26px;height:26px;object-fit:contain;flex:none}
+.objet .txt{min-width:0}
+
+/* -- la bete, sur la grille d archimonstres --
+   En filigrane au coin, pas en vignette: la grille se lit toujours par les
+   NOMS, l illustration ne fait que confirmer. Un archi manquant garde sa
+   bete, en gris et effacee: on voit ce qu on n a pas. */
+.archi{position:relative;overflow:hidden;padding-right:44px}
+.archi .pic.bete{position:absolute;right:-4px;bottom:-6px;width:44px;height:44px;object-fit:contain;pointer-events:none}
+.archi.manquant .pic.bete{filter:grayscale(1);opacity:.34}
 </style></head>
 <body>
 <a class="retour" href="/">← retour</a>
@@ -368,7 +405,8 @@ a.retour:hover{color:var(--dehors-fort)}
   <div class="corps">
 
     <div class="haut">
-      <button class="armer"><span class="point"></span>OMNI est armé</button>
+      <!-- « OMNI est armé » retiré : le bouton le plus contraste de la barre ne
+           disait rien qui change, et il prenait la premiere place de lecture. -->
       <button class="fant">Vahlkyr commande</button>
       <button class="fant theme" id="btTheme" title="Changer de thème">
         <svg class="i-soleil" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
@@ -920,5 +958,101 @@ document.querySelectorAll('.grp').forEach(function(g){
     });
   });
 });
+
+/* ============================================================
+   LES PICTOS DU JEU, poses en decorant le DOM. Les tables ci-dessous
+   sont le seul endroit ou un identifiant DofusDB est ecrit.
+   ============================================================ */
+(function(){
+  var HOTE = 'https://api.dofusdb.fr/img';
+
+  // Le rail. QUATRE entrees sur six seulement: « raccourcis » et « reglages »
+  // ne sont pas des choses du jeu, aucun picto d Ankama ne les dit. Leur
+  // mettre un objet au hasard serait du decor.
+  var RAIL = {
+    flotte:  'breeds/symbol_8',   // l epee du Iop -- la classe de celui qui mene
+    courses: 'items/24243',       // la bourse de kamas -- on depense
+    hotel:   'items/24044',       // le coffre familial -- on stocke et on vend
+    archi:   'items/85001',       // la pierre d ame pleine -- l objet du chasseur
+  };
+
+  var CLASSES = {IOP:8,ENI:7,SAC:11,SRA:4,OSA:2,CRA:9,STE:15,ZOB:14};
+
+  var OBJETS = {
+    'pierre médicinale':51496, 'fleur de mandragore':36645,
+    'poudre de perlinpimpin':48002, 'graine de bulbe':34009,
+    'bois de frêne':38017, 'orchidée freyesque':35192,
+  };
+
+  // Plusieurs noms de la grille sont inventes (« Blop Coquelicot » n existe
+  // pas). On leur donne la bete de leur famille.
+  var BETES = {
+    'bouftou royal':74, 'bworkette':265, 'chef de guerre':131,
+    'craqueleur légend.':183, 'dragodinde ivoire':663,
+    'gelée royale bleue':20, 'kwakwa immaculé':854, 'larve bleue':1,
+    'maître corbac':177, 'minotoror':67, 'abraknyde ancestral':97,
+    'arakne majeure':149, 'bitajout':509, 'blop coquelicot':275,
+    'champa vert':347, 'chêne mou':147, 'chouque':33, 'corbac':170,
+    'crabe sourimeur':32, 'fungus':22,
+  };
+
+  var cle = function(t){ return (t||'').trim().toLowerCase(); };
+
+  // Pose une image et marque son hote. Si elle ne charge pas, l image s en va
+  // et l hote passe en `sans-pic`: le dessin OMNI revient tout seul.
+  function poser(hote, chemin, classe){
+    var img = document.createElement('img');
+    img.className = 'pic' + (classe ? ' ' + classe : '');
+    img.alt = '';
+    img.src = HOTE + '/' + chemin + '.png';
+    img.addEventListener('error', function(){
+      img.remove();
+      hote.classList.add('sans-pic');
+    });
+    hote.classList.add('a-picto');
+    hote.appendChild(img);
+    return img;
+  }
+
+  // --- le rail ---
+  document.querySelectorAll('.rail button[data-vue]').forEach(function(b){
+    var chemin = RAIL[b.getAttribute('data-vue')];
+    if (chemin) poser(b, chemin);
+  });
+
+  // --- les jetons de classe ---
+  document.querySelectorAll('.jeton').forEach(function(j){
+    var sigle = j.textContent.trim().toUpperCase();
+    if (!CLASSES[sigle]) return;
+    // Le sigle reste dans le DOM: c est lui qui tient la place quand l embleme
+    // manque, exactement comme dans l app.
+    j.innerHTML = '<span class="sigle">' + sigle + '</span>';
+    poser(j, 'breeds/symbol_' + CLASSES[sigle]);
+  });
+
+  // --- les objets, sur les lignes de courses ---
+  document.querySelectorAll('.ligne').forEach(function(l){
+    var cellule = l.querySelector(':scope > span');
+    if (!cellule) return;
+    var nom = cellule.querySelector('b');
+    if (!nom) return;
+    var id = OBJETS[cle(nom.textContent)];
+    if (!id) return;
+    var txt = document.createElement('span');
+    txt.className = 'txt';
+    while (cellule.firstChild) txt.appendChild(cellule.firstChild);
+    cellule.appendChild(txt);
+    cellule.classList.add('objet');
+    cellule.insertBefore(poser(cellule, 'items/' + id, 'obj'), txt);
+  });
+
+  // --- les betes, sur la grille d archimonstres ---
+  document.querySelectorAll('.archi').forEach(function(a){
+    var nom = a.querySelector('.an');
+    if (!nom) return;
+    var gfx = BETES[cle(nom.textContent)];
+    if (gfx) poser(a, 'monsters/' + gfx, 'bete');
+  });
+})();
 </script>
 </body></html>
