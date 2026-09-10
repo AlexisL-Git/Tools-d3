@@ -52,8 +52,11 @@ Un `http.createServer` sans aucune dependance. Racine: `desktop/`.
   `desktop/` est refuse en 403 — le serveur ecoute sur `127.0.0.1`, mais la
   regle ne coute rien et evite d'y revenir.
 
-- `GET /faux-app.js` sert le shim (piece 3), avec l'etat initial serialise
-  dedans.
+- `GET /faux-app.js` sert le shim (piece 3) tel quel, en fichier statique.
+  L'etat initial ne voyage pas avec lui: il est serialise dans la balise
+  injectee sur `/`, sous `window.__FAUX_ETAT__`, pour que le shim le trouve
+  **de facon synchrone** — la page appelle `surEtat` des son analyse, et un
+  aller-retour reseau arriverait trop tard.
 
 - `GET /faux/tableau-archi?quoi=...` appelle le vrai
   `src/pda-archi/tableau.js` sur les comptes fictifs et rend son JSON. Le
