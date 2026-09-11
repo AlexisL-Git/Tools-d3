@@ -538,6 +538,48 @@
   }
   .arc-pied b { color: var(--texte); font-variant-numeric: tabular-nums; }
 
+  /* LE PANNEAU DES PEPITES. Memes declarations que .vue-archi, .arc-corps,
+     .arc-pied et .arc-cherche, RECOPIEES et non partagees: c'est le prix du
+     prefixe pep-, assume -- une regle commune ferait dependre cette mise en
+     page des retouches faites au panneau voisin. Voir test/pepites-panneau.test.js.
+
+     LE CONTENEUR SE STYLE PAR SON ID, PAS PAR SA CLASSE. La classe pep-vue
+     du balisage reste le marqueur que le test de panneau utilise pour le
+     reperer, mais son allow-list des classes pep- etrangeres ne la connait
+     pas -- exactement comme vue-archi echappe a la garde arc- en ne portant
+     pas ce prefixe. Une regle de classe la casserait; #vuePepites porte la
+     meme geometrie sans y toucher. */
+  #vuePepites {
+    position: absolute; inset: 38px 0 0 0; z-index: 20;
+    background: var(--fond); display: flex; flex-direction: column;
+  }
+  .pep-corps { flex: 1; overflow-y: auto; padding: 0 15px 14px; }
+  .pep-cherche {
+    display: flex; align-items: center; gap: 6px;
+    margin-left: 12px; padding: 3px 8px;
+    border: 1px solid var(--filet); border-radius: 7px; color: var(--attenue);
+  }
+  .pep-pied {
+    padding: 9px 15px; border-top: 1px solid var(--filet);
+    font-size: 12px; color: var(--attenue);
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+
+  .pep-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .pep-table th { text-align: left; opacity: .6; font-weight: 500; padding: 4px 8px; }
+  .pep-table td { padding: 3px 8px; border-top: 1px solid rgba(255,255,255,.06); }
+  .pep-vide { padding: 12px; opacity: .7; }
+  /* LE DOUTE SE VOIT SANS SE CRIER: la ligne reste a sa place et reste lisible.
+     La griser franchement reviendrait a l'ecarter a moitie, ce que la spec
+     refuse -- un marqueur, jamais un filtre. */
+  .pep-suspect { opacity: .72; }
+  .pep-doute { color: #d9a441; }
+  .pep-entree { color: #6fcf82; }
+  .pep-montee { color: #6fcf82; }
+  .pep-descente { color: #e0796f; }
+  .pep-stable { opacity: .35; }
+  .pep-sortie { opacity: .5; }
+
   /* LE RYTHME DES PASSES HDV. Meme forme que les trois panneaux precedents: un
      panneau DANS la fenetre, pas une fenetre modale. */
   .ry-corps { flex: 1; overflow-y: auto; padding: 15px 15px 20px; }
@@ -951,6 +993,22 @@
   <div class="arc-pied" id="arcPied"></div>
 </div>
 
+<!-- LE TABLEAU DES PEPITES. Meme forme que le tableau des archimonstres: un
+     panneau dans la fenetre, ferme par Echap ou par la croix.
+     MEME FORME, CLASSES DISTINCTES: voir test/pepites-panneau.test.js. -->
+<div class="pep-vue" id="vuePepites" hidden>
+  <div class="qdn-tete">
+    <b>Pépites</b>
+    <button id="pepFermer" title="Fermer (Échap)">✕</button>
+  </div>
+  <label class="pep-cherche">
+    <input id="pepChercheTexte" type="search" placeholder="Chercher un objet…"
+           autocomplete="off" spellcheck="false">
+  </label>
+  <div class="pep-corps" id="pepCorps"></div>
+  <div class="pep-pied" id="pepPied"></div>
+</div>
+
 <!-- CE QUI N'EST PAS PARTI A LA DERNIERE PASSE D'HOTEL DE VENTE.
      Meme forme que le panneau des archimonstres, et pour la meme raison: un
      tableau ne tient pas sur la ligne d'un compte, et une fenetre modale se
@@ -1055,6 +1113,15 @@
        rien dire seul, et le lire ailleurs ferait chercher ce qu'il règle. -->
   <button class="maitre-inter" id="interPdaRepli"><span class="temoin"></span><span>Monter en calibre</span></button>
   <button class="pose" id="brythme" title="le rythme des passes HDV et les garde-fous de prix, communs aux deux fonctions">Réglage HDV</button>
+  <!-- LE BOUTON PEPITES, dans la barre du bas a cote des autres bascules
+       GLOBALES -- pas sur une ligne de compte, sur le meme modele que
+       #brythme juste au-dessus: le panneau ne porte le compte d'aucun
+       personnage en particulier, tableauPepites() n'en demande pas. Le
+       poser sur une ligne aurait ajoute un 13e enfant a la grille figee de
+       .rang (douze colonnes, une par colonne de #entete) et decale toute la
+       ligne sur une rangee implicite -- exactement le genre de rupture que
+       rien, ni le navigateur ni les tests, ne signale seul. -->
+  <button class="pose" id="bpepites" title="le classement des objets par coût en kamas de la pépite">Pépites</button>
   <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
 </div>
@@ -1444,6 +1511,136 @@
     }
     document.getElementById('vueArchi').hidden = false;
   }
+
+  // LA TABLE DES CLASSES, DECLAREE EN UN SEUL ENDROIT -- c'est ce qui rend
+  // test/pepites-panneau.test.js possible, et c'est la lecon du 04/09.
+  const PEP = {
+    vide: 'pep-vide',
+    suspect: 'pep-suspect',
+    entree: 'pep-entree',
+    montee: 'pep-montee',
+    stable: 'pep-stable',
+    descente: 'pep-descente',
+    sortie: 'pep-sortie',
+    doute: 'pep-doute',
+  };
+
+  let pepTable = null;
+
+  function fermerPepites() {
+    document.getElementById('vuePepites').hidden = true;
+  }
+
+  // Un prix en kamas, groupe par milliers. Les couts par pepite montent vite:
+  // 4 000 kamas l'unite sur du Bois de Frene, et six chiffres n'ont rien
+  // d'exceptionnel.
+  function kamas(n) {
+    if (n === null || n === undefined) return '—';
+    return Math.round(n).toLocaleString('fr-FR');
+  }
+
+  // Le taux s'ecrit a l'unite, mais il descend a 0,0025: trois decimales le
+  // rendraient a zero. On montre plutot combien d'unites font une pepite,
+  // qui est le chiffre qu'on emporte au prisme.
+  function parPepite(taux) {
+    if (!taux) return '—';
+    if (taux >= 1) return taux.toLocaleString('fr-FR') + ' /u';
+    return Math.ceil(1 / taux).toLocaleString('fr-FR') + ' u';
+  }
+
+  const PEP_ETATS = {
+    entree: '<span class="' + PEP.entree + '" title="Entré dans le classement">▲ nouveau</span>',
+    montee: '<span class="' + PEP.montee + '">▲</span>',
+    stable: '<span class="' + PEP.stable + '">=</span>',
+    descente: '<span class="' + PEP.descente + '">▼</span>',
+    sortie: '<span class="' + PEP.sortie + '">sorti</span>',
+  };
+
+  function dessinerPepites() {
+    const corps = document.getElementById('pepCorps');
+    const pied = document.getElementById('pepPied');
+    if (pepTable === null) { corps.innerHTML = ''; pied.textContent = ''; return; }
+    if (pepTable.raison !== null) {
+      corps.innerHTML = '<div class="' + PEP.vide + '">' + echapper(pepTable.raison) + '</div>';
+      pied.textContent = '';
+      return;
+    }
+    const lignes = pepTable.lignes.map((l, i) => '<tr'
+      + (l.suspect ? ' class="' + PEP.suspect + '"' : '') + '>'
+      + '<td>' + (i + 1) + '</td>'
+      + '<td>' + echapper(l.nom === null ? String(l.gid) : l.nom) + '</td>'
+      + '<td>' + parPepite(l.taux) + '</td>'
+      + '<td>' + kamas(l.prixMoyen) + '</td>'
+      + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
+      + '<td>' + (PEP_ETATS[l.etat] || '') + '</td>'
+      // LE DOUTE SE DIT SUR LA LIGNE, pas dans une legende: une legende ne se
+      // lit qu'une fois, et le marqueur doit parler au moment ou on regarde.
+      + '<td>' + (l.suspect ? '<span title="Prix moyen très bas : l’objet est'
+        + ' peut-être introuvable en hôtel de vente" class="' + PEP.doute + '">prix douteux</span>' : '') + '</td>'
+      + '</tr>').join('');
+    corps.innerHTML = '<table class="pep-table"><thead><tr>'
+      + '<th>#</th><th>Objet</th><th>Pour 1 pépite</th><th>Prix moyen</th>'
+      + '<th>Coût / pépite</th><th></th><th></th>'
+      + '</tr></thead><tbody>' + lignes + '</tbody></table>';
+    const quand = new Date(pepTable.prixQuand);
+    pied.textContent = 'Prix du ' + quand.toLocaleDateString('fr-FR')
+      + ' à ' + quand.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      + (pepTable.perso ? ', vus par ' + pepTable.perso : '')
+      + ' — taux du jeu ' + pepTable.jeu
+      + (pepTable.sorties.length ? ' — ' + pepTable.sorties.length + ' objet(s) sorti(s)' : '');
+  }
+
+  async function ouvrirPepites() {
+    // LE PANNEAU S'OUVRE MEME EN ECHEC, ET DIT POURQUOI -- meme filet que
+    // ouvrirArchi, et pour la meme raison payee le 04/09: sans lui, une
+    // exception laisse simplement le panneau ferme, et l'utilisateur voit un
+    // bouton qui « ne fait rien ».
+    try {
+      pepTable = await window.app.tableauPepites();
+      dessinerPepites();
+    } catch (e) {
+      pepTable = null;
+      document.getElementById('pepCorps').innerHTML = '<div class="' + PEP.vide + '">'
+        + 'Le tableau n’a pas pu être construit : '
+        + echapper(e && e.message ? e.message : String(e)) + '</div>';
+      document.getElementById('pepPied').textContent = '';
+    }
+    document.getElementById('vuePepites').hidden = false;
+  }
+
+  document.getElementById('pepFermer').addEventListener('click', fermerPepites);
+
+  // La recherche remplace le classement tant qu'elle porte du texte, et le
+  // rend des qu'on efface: deux listes cote a cote se disputeraient l'ecran.
+  let pepFrappe = null;
+  document.getElementById('pepChercheTexte').addEventListener('input', (ev) => {
+    const texte = ev.target.value;
+    if (pepFrappe !== null) clearTimeout(pepFrappe);
+    // UN APPEL PAR FRAPPE PARCOURRAIT 4 049 NOMS A CHAQUE LETTRE. Le delai est
+    // court: il ne fait qu'attendre la fin du mot.
+    pepFrappe = setTimeout(async () => {
+      if (texte.trim().length < 2) { dessinerPepites(); return; }
+      const r = await window.app.chercherPepite(texte);
+      const corps = document.getElementById('pepCorps');
+      if (r.length === 0) {
+        corps.innerHTML = '<div class="' + PEP.vide + '">Aucun objet recyclable de ce nom.</div>';
+        return;
+      }
+      corps.innerHTML = '<table class="pep-table"><thead><tr>'
+        + '<th>Objet</th><th>Pour 1 pépite</th><th>Prix moyen</th><th>Coût / pépite</th>'
+        + '</tr></thead><tbody>'
+        + r.map((l) => '<tr' + (l.suspect ? ' class="' + PEP.suspect + '"' : '') + '>'
+          + '<td>' + echapper(l.nom) + '</td>'
+          + '<td>' + parPepite(l.taux) + '</td>'
+          // PRIX INCONNU N'EST PAS PRIX ZERO. C'est la reponse que la spec
+          // demande: un objet recyclable dont personne ne connait le prix se
+          // dit, il ne se cache pas.
+          + '<td>' + (l.prixMoyen === null ? 'prix inconnu' : kamas(l.prixMoyen)) + '</td>'
+          + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
+          + '</tr>').join('')
+        + '</tbody></table>';
+    }, 150);
+  });
 
   // L'embleme de classe d'un personnage, repris du cache de la liste des
   // comptes -- rien n'est retelecharge. Sans embleme en cache, l'abreviation de
@@ -1984,6 +2181,13 @@
   ryConstruire();
   gfConstruire();
 
+  // MEME BASCULE QUE brythme JUSTE AU-DESSUS: un clic ouvre ou ferme, sans
+  // jamais dependre d'une ligne de compte precise.
+  document.getElementById('bpepites').onclick = () => {
+    if (document.getElementById('vuePepites').hidden) ouvrirPepites();
+    else fermerPepites();
+  };
+
   let ecoute = null;
   window.addEventListener('keydown', (e) => {
     // Echap ferme le devlog — mais seulement si aucune saisie de touche n'est
@@ -1994,6 +2198,13 @@
     }
     if (e.key === 'Escape' && ecoute === null && !document.getElementById('vueArchi').hidden) {
       fermerArchi();
+      return;
+    }
+    // Le panneau des pepites suit le meme ordre de garde que celui des
+    // archimonstres, juste apres lui: aucun des deux n'est jamais ouvert
+    // en meme temps que l'autre, mais la regle reste la meme pour les deux.
+    if (e.key === 'Escape' && ecoute === null && !document.getElementById('vuePepites').hidden) {
+      fermerPepites();
       return;
     }
     // Le tableau des ecartes passe APRES celui des archimonstres, comme le

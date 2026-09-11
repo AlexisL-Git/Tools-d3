@@ -41,6 +41,7 @@ const HDV_BORNES = {
   },
 };
 const { PLAFOND_ECARTES } = require('../src/hdv/ecartes');
+const { nomDe } = require('../src/hdv/objets');
 const { creerPdaArchi } = require('../src/pda-archi/pda-archi');
 const { creerCollection } = require('../src/pda-archi/collection');
 const { trameLireInventaire } = require('../src/pda-archi/trames');
@@ -1900,9 +1901,12 @@ ipcMain.handle('tableauPepites', () => {
   }
   const r = pepites.passer();
   const ligne = (dernieresLignes || []).find((l) => l.pid === etat.pid);
+  // NOMMER ICI, PAS DANS LE MODULE: src/pepites/ ne connait que des gids, et
+  // nomDe() vit deja a cote de la table HDV. Un gid sans nom rend `null`, et
+  // le panneau affiche le gid nu -- comme le tableau des ecartes.
   return {
-    lignes: r.variation.lignes,
-    sorties: r.variation.sorties,
+    lignes: r.variation.lignes.map((l) => ({ ...l, nom: nomDe(l.gid) })),
+    sorties: r.variation.sorties.map((l) => ({ ...l, nom: nomDe(l.gid) })),
     quand: r.passe.quand,
     prixQuand: r.passe.prixQuand,
     // Le nom se resout ICI et pas dans le module: la correspondance pid -> nom
