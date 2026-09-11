@@ -118,3 +118,108 @@ test('une table de prix absente rend un classement vide', () => {
   assert.deepStrictEqual(classer({ prixMoyens: null }), []);
   assert.deepStrictEqual(classer({ prixMoyens: new Map() }), []);
 });
+
+const { comparer, chercher } = require('../src/pepites/classement');
+
+// --- comparer() -------------------------------------------------------
+
+function ligne(gid, cout) {
+  return { gid, taux: 1, prixMoyen: cout, coutParPepite: cout, suspect: false };
+}
+
+test('un gid absent de la passe precedente est une entree', () => {
+  const r = comparer([], [ligne(303, 100)]);
+  assert.strictEqual(r.lignes[0].etat, 'entree');
+  assert.strictEqual(r.lignes[0].deltaRang, null);
+  assert.strictEqual(r.lignes[0].deltaCout, null);
+});
+
+test('un gid qui gagne des rangs est une montee', () => {
+  const avant = [ligne(1, 10), ligne(303, 100)];
+  const apres = [ligne(303, 90), ligne(1, 10)];
+  const r = comparer(avant, apres);
+  const l = r.lignes.find((x) => x.gid === 303);
+  assert.strictEqual(l.etat, 'montee');
+  assert.strictEqual(l.deltaRang, 1);
+  assert.strictEqual(l.deltaCout, -10);
+});
+
+test('un gid qui perd des rangs est une descente', () => {
+  const avant = [ligne(303, 90), ligne(1, 100)];
+  const apres = [ligne(1, 100), ligne(303, 110)];
+  const l = comparer(avant, apres).lignes.find((x) => x.gid === 303);
+  assert.strictEqual(l.etat, 'descente');
+  assert.strictEqual(l.deltaRang, -1);
+  assert.strictEqual(l.deltaCout, 20);
+});
+
+test('un gid au meme rang est stable, meme si son prix a bouge', () => {
+  const l = comparer([ligne(303, 100)], [ligne(303, 105)]).lignes[0];
+  assert.strictEqual(l.etat, 'stable');
+  assert.strictEqual(l.deltaRang, 0);
+  assert.strictEqual(l.deltaCout, 5);
+});
+
+// LE CAS QU'ON OUBLIE: il porte sur une ligne ABSENTE du classement courant,
+// donc aucune boucle sur `courant` ne peut le produire.
+test('un gid disparu du classement est une sortie, rendue a part', () => {
+  const r = comparer([ligne(303, 100), ligne(1, 10)], [ligne(1, 10)]);
+  assert.deepStrictEqual(r.lignes.map((x) => x.gid), [1]);
+  assert.strictEqual(r.sorties.length, 1);
+  assert.strictEqual(r.sorties[0].gid, 303);
+  assert.strictEqual(r.sorties[0].etat, 'sortie');
+});
+
+test('une premiere passe sans precedent ne rend que des entrees', () => {
+  const r = comparer(null, [ligne(303, 100), ligne(1, 10)]);
+  assert.deepStrictEqual(r.lignes.map((x) => x.etat), ['entree', 'entree']);
+  assert.deepStrictEqual(r.sorties, []);
+});
+
+// --- chercher() -------------------------------------------------------
+
+test('la recherche trouve un objet recyclable par son nom', () => {
+  const r = chercher({ texte: 'Bois de Frene', prixMoyens: new Map([[303, 12]]) });
+  const l = r.find((x) => x.gid === 303);
+  assert.ok(l, 'le Bois de Frene doit sortir');
+  assert.strictEqual(l.nom, 'Bois de Frêne');
+  assert.strictEqual(l.coutParPepite, 12 / 0.003000000026077032);
+});
+
+// LES NOMS DU JEU PORTENT DES ACCENTS, PAS LES CLAVIERS PRESSES. Chercher
+// Chercher `frene` doit trouver le Bois de Frene, dont le nom du jeu porte
+// un accent circonflexe. Sans cela la barre ne sert qu'a ceux qui savent
+// deja ecrire ce qu'ils cherchent.
+test('la recherche ignore les accents et la casse', () => {
+  const r = chercher({ texte: 'FRENE', prixMoyens: new Map() });
+  assert.ok(r.some((x) => x.gid === 303));
+});
+
+// UN OBJET RECYCLABLE SANS PRIX SE DIT, il ne se cache pas: la recherche
+// repond « prix inconnu » la ou le classement, lui, ne peut pas le ranger.
+test('un objet recyclable sans prix sort avec un cout null', () => {
+  const l = chercher({ texte: 'Bois de Frene', prixMoyens: new Map() })
+    .find((x) => x.gid === 303);
+  assert.strictEqual(l.prixMoyen, null);
+  assert.strictEqual(l.coutParPepite, null);
+});
+
+test('les objets sans prix passent apres ceux qui en ont un', () => {
+  const r = chercher({ texte: 'bois', prixMoyens: new Map([[303, 12]]) });
+  const avecPrix = r.findIndex((x) => x.coutParPepite !== null);
+  const sansPrix = r.findIndex((x) => x.coutParPepite === null);
+  if (sansPrix !== -1) assert.ok(avecPrix < sansPrix);
+});
+
+test('un objet non recyclable ne sort jamais de la recherche', () => {
+  // 44 est l'Epee de Boisaille, taux 0.
+  const r = chercher({ texte: 'Epee de Boisaille', prixMoyens: new Map([[44, 700]]) });
+  assert.deepStrictEqual(r.filter((x) => x.gid === 44), []);
+});
+
+// UNE LETTRE RENDRAIT DES CENTAINES DE LIGNES a chaque frappe.
+test('une recherche de moins de deux caracteres ne rend rien', () => {
+  assert.deepStrictEqual(chercher({ texte: 'b', prixMoyens: new Map() }), []);
+  assert.deepStrictEqual(chercher({ texte: '', prixMoyens: new Map() }), []);
+  assert.deepStrictEqual(chercher({ texte: null, prixMoyens: new Map() }), []);
+});

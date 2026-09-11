@@ -1,5 +1,6 @@
 'use strict';
-const { tauxDe } = require('./taux');
+const { tauxDe, TAUX } = require('./taux');
+const { nomDe } = require('../hdv/objets');
 
 // Du croisement « quel objet donne la pepite la moins chere » au tableau
 // affichable. Fonction pure: ni trame, ni reseau, ni disque, ni Electron.
@@ -63,4 +64,89 @@ function classer({ prixMoyens, limite = LIMITE }) {
   return lignes.slice(0, limite);
 }
 
-module.exports = { classer, LIMITE, PRIX_SUSPECT };
+// Combien de lignes la barre de recherche rend au plus. Au-dela, la liste
+// cesse d'etre une reponse et redevient un catalogue.
+const LIMITE_RECHERCHE = 20;
+
+// De deux passes au mouvement de chacune de leurs lignes.
+//
+// LES SORTIES SONT RENDUES A PART, ET C'EST TOUT L'INTERET DE CETTE FONCTION.
+// Une ligne sortie du classement n'existe PAS dans `courant`: aucune boucle
+// sur la passe courante ne peut la produire. C'est le cas qu'on oublie, et
+// c'est aussi le seul qui interesse -- « qu'est-ce qui n'est plus rentable »
+// est la question qu'on se pose en revenant apres deux jours.
+//
+// LA COMPARAISON PORTE SUR LA PASSE PRECEDENTE, pas sur une moyenne: on veut
+// voir ce qui vient de bouger, pas une tendance lissee qui noierait le
+// mouvement du jour.
+function comparer(precedent, courant) {
+  const avant = new Map();
+  (precedent || []).forEach((l, rang) => {
+    avant.set(l.gid, { rang, cout: l.coutParPepite });
+  });
+  const vus = new Set();
+  const lignes = (courant || []).map((l, rang) => {
+    vus.add(l.gid);
+    const a = avant.get(l.gid);
+    // NULL ET PAS 0 pour une entree: un ecart de zero voudrait dire « rien
+    // n'a bouge », et c'est faux -- il n'y avait rien a quoi se comparer.
+    if (a === undefined) return { ...l, etat: 'entree', deltaRang: null, deltaCout: null };
+    let etat = 'stable';
+    if (rang < a.rang) etat = 'montee';
+    else if (rang > a.rang) etat = 'descente';
+    return { ...l, etat, deltaRang: a.rang - rang, deltaCout: l.coutParPepite - a.cout };
+  });
+  const sorties = (precedent || [])
+    .filter((l) => !vus.has(l.gid))
+    .map((l) => ({ ...l, etat: 'sortie', deltaRang: null, deltaCout: null }));
+  return { lignes, sorties };
+}
+
+// Les noms du jeu portent des accents, les recherches n'en portent pas.
+function sansAccent(s) {
+  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// La recherche libre: le taux et le cout par pepite de N'IMPORTE QUEL objet
+// recyclable, y compris ceux que le classement ne montrera jamais.
+//
+// ELLE PARCOURT LA TABLE DES TAUX, PAS CELLE DES PRIX, et c'est ce qui la
+// distingue de classer(). Un objet recyclable dont personne ne connait le prix
+// doit pouvoir se chercher: la reponse « prix inconnu » est une reponse, alors
+// que l'absence de ligne laisserait croire qu'il n'est pas recyclable.
+function chercher({ texte, prixMoyens, limite = LIMITE_RECHERCHE }) {
+  const q = sansAccent(texte === null || texte === undefined ? '' : texte).trim();
+  if (q.length < 2) return [];
+  const out = [];
+  for (const cle of Object.keys(TAUX)) {
+    const nom = nomDe(cle);
+    if (nom === null || !sansAccent(nom).includes(q)) continue;
+    const gid = Number(cle);
+    const taux = tauxDe(gid);
+    if (taux === null) continue;
+    const brut = prixMoyens === null || prixMoyens === undefined
+      ? undefined
+      : prixMoyens.get(gid);
+    const prixMoyen = typeof brut === 'number' && brut > 0 ? brut : null;
+    out.push({
+      gid,
+      nom,
+      taux,
+      prixMoyen,
+      coutParPepite: prixMoyen === null ? null : prixMoyen / taux,
+      suspect: prixMoyen !== null && prixMoyen <= PRIX_SUSPECT,
+    });
+  }
+  // LES SANS-PRIX EN DERNIER, et pas melanges: ils n'ont pas de cout, donc
+  // aucune place legitime dans un tri par cout. Les mettre en tete ferait
+  // passer « on ne sait pas » pour « c'est le meilleur ».
+  out.sort((a, b) => {
+    if (a.coutParPepite === null && b.coutParPepite === null) return a.gid - b.gid;
+    if (a.coutParPepite === null) return 1;
+    if (b.coutParPepite === null) return -1;
+    return (a.coutParPepite - b.coutParPepite) || (b.taux - a.taux) || (a.gid - b.gid);
+  });
+  return out.slice(0, limite);
+}
+
+module.exports = { classer, comparer, chercher, LIMITE, LIMITE_RECHERCHE, PRIX_SUSPECT };
