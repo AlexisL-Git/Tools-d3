@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('app', {
 
   // Le tableau des archimonstres, construit a la demande cote main.js.
   tableauArchi: (quoi) => ipcRenderer.invoke('tableauArchi', quoi),
+  tableauPepites: () => ipcRenderer.invoke('tableauPepites'),
+  chercherPepite: (texte) => ipcRenderer.invoke('chercherPepite', texte),
   // Redemander l'inventaire de tous les clients, sans reconnexion.
   archiRelire: () => ipcRenderer.invoke('archiRelire'),
   surPdaArchiAlerte: (rappel) => ipcRenderer.on('pdaArchiAlerte', (_e, a) => rappel(a)),

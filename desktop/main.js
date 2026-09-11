@@ -46,6 +46,10 @@ const { creerCollection } = require('../src/pda-archi/collection');
 const { trameLireInventaire } = require('../src/pda-archi/trames');
 const { estArchimonstre } = require('../src/pda-archi/archimonstres');
 const { construire: construireTableauArchi } = require('../src/pda-archi/tableau');
+const { creerPepites } = require('../src/pepites/pepites');
+const { creerHistorique } = require('../src/pepites/historique');
+const { chercher: chercherPepite } = require('../src/pepites/classement');
+const { JEU: JEU_DES_TAUX } = require('../src/pepites/taux');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients, fermerClients } = require('../src/comptes/clients');
@@ -112,6 +116,7 @@ let vente = null;
 // La pierre d'ame equipee a l'entree en combat. Declaree ici comme la vente: le panneau lit son
 // etat, l'interrupteur l'arme, et la perte du droit doit pouvoir la desarmer.
 let pdaArchi = null;
+let pepites = null;
 
 // LES AMES CAPTUREES, POUR LE TABLEAU DES ARCHIMONSTRES.
 //
@@ -1222,6 +1227,29 @@ app.whenReady().then(async () => {
   // l'interrupteur devant un combat n'aurait aucun effet avant le prochain
   // changement de carte, l'inventaire et la carte n'arrivant qu'a ce
   // moment-la.
+  // LE FICHIER VA DANS userData, a cote de favoris.json -- pas dans le depot:
+  // c'est de l'etat d'utilisateur, il survit aux mises a jour de code.
+  pepites = creerPepites({
+    historique: creerHistorique({
+      chemin: path.join(app.getPath('userData'), 'pepites.json'),
+      // UN HISTORIQUE PERDU NE VAUT PAS UN BLOCAGE, mais il ne se perd pas en
+      // silence: sans cette ligne, un fichier corrompu ferait disparaitre la
+      // colonne de variation sans que rien ne le dise.
+      onErreur: (e) => journal(0, `pepites : historique illisible — ${e.message}`),
+    }),
+    onPasse: ({ passe }) => {
+      // `journal(0, ...)` ET PAS `journal(null, ...)`: zero est le pid de
+      // convention pour ce qui ne vient d'aucun client, pose par la mise a
+      // jour git (desktop/main.js:2252). `null` s'imprimerait tel quel entre
+      // crochets.
+      journal(0, `pepites : ${passe.lignes.length} lignes classees`
+        // LE CHIFFRE QUI MANQUE A LA SPEC. Combien des 4 049 objets
+        // recyclables ont un prix dans ivi n'a jamais pu etre mesure: le depot
+        // n'a aucune capture d'ivi reelle. Cette ligne est la mesure.
+        + `, sur ${pepites.etat().taille} prix connus`);
+    },
+  });
+  pepites.demarrer();
   pdaArchi = creerPdaArchi({
     superviseur,
     actif: favoris.pdaArchi(),
@@ -1545,6 +1573,10 @@ app.whenReady().then(async () => {
     protege('pda-archi', pdaArchi.onTrame),
     // Sans porte: elle ne fait que lire l'inventaire pour le tableau.
     collectionArchi.onTrame,
+    // Sans porte, comme collectionArchi: elle ne fait que lire les prix
+    // moyens que le serveur envoie de lui-meme au login. Rien n'est emis, donc
+    // il n'y a rien a verrouiller par cle.
+    pepites.onTrame,
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -1848,6 +1880,45 @@ ipcMain.handle('tableauArchi', (_e, quoi) => construireTableauArchi({
       // et qu'il ne porte aucune ame. tableau.js compte sur la difference.
       ames: collectionArchi.etat().get(l.pid) || null,
     })),
+}));
+
+// LE TABLEAU DES PEPITES. Meme forme que tableauArchi: le panneau demande, le
+// principal croise, et rien n'est emis vers le jeu.
+//
+// LA PROVENANCE PART AVEC LES LIGNES, et ce n'est pas decoratif. Si aucun
+// compte ne s'est reconnecte, la passe des douze heures rend le meme
+// classement qu'avant -- un tableau sans date laisserait croire qu'il est
+// frais.
+ipcMain.handle('tableauPepites', () => {
+  const etat = pepites === null ? null : pepites.etat();
+  if (etat === null) {
+    return {
+      lignes: [], sorties: [], quand: null, prixQuand: null, perso: null,
+      jeu: JEU_DES_TAUX,
+      raison: 'connecte un personnage une fois pour que je voie les prix',
+    };
+  }
+  const r = pepites.passer();
+  const ligne = (dernieresLignes || []).find((l) => l.pid === etat.pid);
+  return {
+    lignes: r.variation.lignes,
+    sorties: r.variation.sorties,
+    quand: r.passe.quand,
+    prixQuand: r.passe.prixQuand,
+    // Le nom se resout ICI et pas dans le module: la correspondance pid -> nom
+    // vit dans dernieresLignes, que src/pepites/ n'a pas a connaitre.
+    perso: ligne ? (ligne.personnage || ligne.nickname) : null,
+    jeu: JEU_DES_TAUX,
+    raison: null,
+  };
+});
+
+// LA RECHERCHE LIBRE. Elle passe par le principal plutot que de livrer les
+// 4 049 taux au rendu: la table vit deja ici, et la recopier a chaque frappe
+// serait absurde.
+ipcMain.handle('chercherPepite', (_e, texte) => chercherPepite({
+  texte: typeof texte === 'string' ? texte : '',
+  prixMoyens: pepites === null ? null : pepites.prixMoyens(),
 }));
 
 // REDEMANDER L'INVENTAIRE DE TOUS LES CLIENTS, sans se deconnecter.
