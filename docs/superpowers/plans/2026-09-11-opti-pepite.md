@@ -602,8 +602,9 @@ test('la recherche trouve un objet recyclable par son nom', () => {
 });
 
 // LES NOMS DU JEU PORTENT DES ACCENTS, PAS LES CLAVIERS PRESSES. Chercher
-// « frene » doit trouver « Frêne », sinon la barre ne sert qu'a ceux qui
-// savent deja ecrire ce qu'ils cherchent.
+// Chercher `frene` doit trouver le Bois de Frene, dont le nom du jeu porte
+// un accent circonflexe. Sans cela la barre ne sert qu'a ceux qui savent
+// deja ecrire ce qu'ils cherchent.
 test('la recherche ignore les accents et la casse', () => {
   const r = chercher({ texte: 'FRENE', prixMoyens: new Map() });
   assert.ok(r.some((x) => x.gid === 303));
