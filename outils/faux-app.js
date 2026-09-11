@@ -169,6 +169,17 @@ function creerFauxApp(etatInitial, deps) {
       const r = await chercher(`/faux/tableau-archi?quoi=${encodeURIComponent(quoi || 'archi')}`);
       return r.json();
     },
+    // MEME FORME QUE tableauArchi JUSTE AU-DESSUS: Node calcule (classer(),
+    // comparer(), chercher() de src/pepites/classement.js, appeles depuis
+    // outils/interface-locale.js), la page affiche.
+    tableauPepites: async () => {
+      const r = await chercher('/faux/tableau-pepites');
+      return r.json();
+    },
+    chercherPepite: async (texte) => {
+      const r = await chercher(`/faux/chercher-pepites?texte=${encodeURIComponent(texte || '')}`);
+      return r.json();
+    },
     devlog: async () => {
       const r = await chercher('/faux/devlog');
       return r.json();
