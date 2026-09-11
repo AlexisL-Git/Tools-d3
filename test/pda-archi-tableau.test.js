@@ -163,3 +163,72 @@ test('le tableau dit de quelle collection il parle', () => {
   assert.strictEqual(construire({ comptes: [] }).titre, 'Archimonstres');
   assert.strictEqual(construire({ comptes: [], quoi: 'boss' }).titre, 'Boss du Dofus Ocre');
 });
+
+// --- « Manquant a au moins un », la regle, en un seul endroit ---------------
+//
+// Elle a ete ecrite trois fois et trois fois de travers -- la vue par zone le
+// 05/09 puis le 11/09, le filtre du panneau le 11/09 -- parce qu'elle existait
+// en trois exemplaires. Elle vit maintenant ici, et les deux vues la lisent.
+// Ces tests sont donc ceux dont depend tout le reste.
+
+const ligneDe = (t, id) => t.lignes.find((l) => l.id === id);
+
+test('une ame que personne n a manque', () => {
+  const t = construire({ comptes: [{ pid: 1, nom: 'Un', ames: new Set() }] });
+  assert.strictEqual(ligneDe(t, PICHAKOTE).manque, true);
+});
+
+test('une ame que tout le monde a ne manque plus', () => {
+  const t = construire({
+    comptes: [
+      { pid: 1, nom: 'Un', ames: new Set([PICHAKOTE]) },
+      { pid: 2, nom: 'Deux', ames: new Set([PICHAKOTE]) },
+    ],
+  });
+  assert.strictEqual(ligneDe(t, PICHAKOTE).manque, false);
+});
+
+// LE COEUR DU BUG DU 11/09, cote filtre: un seul l a, et la ligne restait
+// visible pour l equipe mais quittait les « manquants » du personnage clique.
+test('une ame qu un seul possede manque encore a l autre', () => {
+  const t = construire({
+    comptes: [
+      { pid: 1, nom: 'Un', ames: new Set([PICHAKOTE]) },
+      { pid: 2, nom: 'Deux', ames: new Set() },
+    ],
+  });
+  assert.strictEqual(ligneDe(t, PICHAKOTE).manque, true);
+  assert.deepStrictEqual(ligneDe(t, PICHAKOTE).presents, [1]);
+});
+
+// L AUTRE MOITIE DU BUG DU 11/09, cote inventaire: un inventaire pas encore lu
+// ne prouve rien, il ne peut donc pas faire disparaitre une ligne.
+test('un inventaire pas encore lu laisse la ligne manquante', () => {
+  const t = construire({
+    comptes: [
+      { pid: 1, nom: 'Un', ames: new Set([PICHAKOTE]) },
+      { pid: 2, nom: 'Jamais lu', ames: null },
+    ],
+  });
+  assert.strictEqual(ligneDe(t, PICHAKOTE).manque, true);
+});
+
+// Un panneau ouvert avant que le moindre client soit la doit lister le monde,
+// pas une table vide qui se lirait « tu as tout ».
+test('sans aucun compte, tout manque', () => {
+  const t = construire({ comptes: [] });
+  assert.ok(t.lignes.every((l) => l.manque === true));
+});
+
+// La regle vaut pour les deux collections: le filtre « manquants » de l onglet
+// Boss est celui qui a trahi le 11/09.
+test('la regle vaut aussi pour la collection des boss', () => {
+  const t = construire({
+    quoi: 'boss',
+    comptes: [
+      { pid: 1, nom: 'Un', ames: new Set([BOUFTOU_ROYAL]) },
+      { pid: 2, nom: 'Deux', ames: new Set() },
+    ],
+  });
+  assert.strictEqual(ligneDe(t, BOUFTOU_ROYAL).manque, true);
+});
