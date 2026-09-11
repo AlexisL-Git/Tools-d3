@@ -1061,17 +1061,25 @@ Dans `desktop/index.html`, à côté de `ouvrirPepites` :
   });
 ```
 
-Poser l'élément dans le balisage du panneau, entre la tête et la recherche :
+**CORRIGÉ À LA RECETTE DU 11/09 — le premier jet de ce plan se contredisait.** Le commentaire ci-dessus promet « même panneau fermé », et le balisage qui suivait posait l'élément DANS `#vuePepites`. Mesuré sur le banc : panneau fermé, le texte était à jour et `hidden` valait false, mais son rectangle faisait 0×0. Une passe lancée sans le panneau ouvert serait restée muette — exactement ce que le commentaire voulait éviter.
+
+Poser l'élément dans `.barre-nav`, juste après le champ Délai :
 
 ```html
-  <div class="pep-avance" id="pepAvance" hidden></div>
+  <span class="pep-avance" id="pepAvance" hidden></span>
 ```
 
-Ajouter `avance: 'pep-avance'` à la table `PEP`, et la règle :
+Ajouter `avance: 'pep-avance'` à la table `PEP`, et la règle — même traitement typographique que `.avis-nav`, qui vit déjà dans cette barre :
 
 ```css
-.pep-avance { padding: 4px 15px; font-size: 11px; opacity: .75; }
+.pep-avance {
+  font-size: 11px; opacity: .75;
+  text-transform: none; letter-spacing: 0; font-weight: 400;
+  max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 ```
+
+**Le plafond de largeur n'est pas décoratif.** `.barre-nav` est en `flex-wrap`. Mesure sur le banc à 1097 px de fenêtre : il restait 154 px de marge, et le texte en capitales interlettrées en faisait 155 — « Fermer les clients » passait sur une deuxième rangée et la barre montait de 50 à 92 px. En bas de casse il tombe à 116 px, et le plafond coupe le pire cas au lieu de casser la barre.
 
 **Attention :** l'appel à `ouvrirPepites()` dans l'écouteur rouvre le panneau à chaque avancement, ce qui rechargerait le tableau cinquante fois. Le remplacer par un simple rafraîchissement quand le panneau est déjà ouvert :
 

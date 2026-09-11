@@ -347,3 +347,28 @@ test('une ligne de marche et une ligne de moyenne ne se dessinent pas pareil', a
   assert.strictEqual((html.match(/pep-marche/g) || []).length, 1,
     'la ligne de moyenne ne doit pas le porter');
 });
+
+// L'AVANCEMENT VIT DANS LA BARRE DU BAS, PAS DANS LE PANNEAU. Trouve a la
+// recette du 11/09 sur le banc: `#pepAvance` etait pose entre la tete et la
+// recherche, donc a l'interieur de `#vuePepites`. Panneau ferme, son texte
+// etait bien a jour et `hidden` valait false -- mais son rectangle mesurait
+// 0x0, et personne ne le voyait. Or la passe de marche part TOUTE SEULE a
+// l'ouverture d'un etal: cinquante requetes seraient parties sans que rien ne
+// l'annonce. Assertion sur le SOURCE, comme les tests de classes ci-dessus:
+// un ancetre cache ne se mesure que dans un vrai navigateur.
+test('l avancement se pose dans la barre du bas, hors du panneau', () => {
+  const debutPanneau = html.indexOf('id="vuePepites"');
+  assert.notStrictEqual(debutPanneau, -1, '#vuePepites est introuvable');
+  const debutBarre = html.indexOf('<div class="barre-nav">');
+  assert.notStrictEqual(debutBarre, -1, 'la barre du bas est introuvable');
+
+  // Le panneau va de son ouverture au premier </div> en colonne 0.
+  const finPanneau = html.indexOf('\n</div>', debutPanneau);
+  const panneau = html.slice(debutPanneau, finPanneau);
+  const barre = html.slice(debutBarre, html.indexOf('\n</div>', debutBarre));
+
+  assert.ok(!panneau.includes('id="pepAvance"'),
+    'pepAvance est dans le panneau: il disparait des qu on le ferme');
+  assert.ok(barre.includes('id="pepAvance"'),
+    'pepAvance doit etre dans la barre du bas, visible panneau ferme');
+});

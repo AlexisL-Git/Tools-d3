@@ -580,7 +580,24 @@
     font-size: 12px; color: var(--attenue);
     display: flex; gap: 16px; flex-wrap: wrap;
   }
-  .pep-avance { padding: 4px 15px; font-size: 11px; opacity: .75; }
+  /* Dans la barre du bas, meme traitement que .avis-nav juste au-dessus:
+     la barre est en majuscules interlettrees, et un texte qui change sans
+     arret s'y lit mal -- en bas de casse il se lit, et il occupe un tiers
+     de moins.
+
+     LA LARGEUR EST BORNEE, ET CE PLAFOND N'EST PAS DECORATIF. La barre
+     est en flex-wrap: mesure sur le banc, il lui restait 154 px de marge
+     a 1097 px de fenetre, et un texte de 155 px renvoyait « Fermer les
+     clients » sur une deuxieme rangee -- la barre passait de 50 a 92 px
+     de haut. Plafonne, le pire cas se coupe au lieu de casser la barre.
+     Si une bascule s'ajoute un jour ici, c'est ce nombre qu'il faut
+     remesurer. */
+  .pep-avance {
+    font-size: 11px; opacity: .75;
+    text-transform: none; letter-spacing: 0; font-weight: 400;
+    max-width: 140px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   .pep-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .pep-table th { text-align: left; opacity: .6; font-weight: 500; padding: 4px 8px; }
@@ -1021,7 +1038,6 @@
     <b>Pépites</b>
     <button id="pepFermer" title="Fermer (Échap)">✕</button>
   </div>
-  <div class="pep-avance" id="pepAvance" hidden></div>
   <label class="pep-cherche">
     <input id="pepChercheTexte" type="search" placeholder="Chercher un objet…"
            autocomplete="off" spellcheck="false"
@@ -1125,6 +1141,12 @@
 <div class="barre-nav">
   <span class="avis-nav" id="avisNav"></span>
   <label class="champ-delai">Délai <input id="delai" type="number" min="0" step="0.1" value="0"> s</label>
+  <!-- L'AVANCEMENT DE LA PASSE DE MARCHE EST ICI, PAS DANS LE PANNEAU DES
+       PEPITES: la passe part toute seule a l'ouverture d'un etal, et un
+       texte pose dans le panneau ne se voit que panneau ouvert -- mesure a
+       la recette du 11/09, rectangle 0x0. Vide, il ne prend aucune place:
+       `hidden` le retire de la grille, la barre ne bouge pas au repos. -->
+  <span class="pep-avance" id="pepAvance" hidden></span>
   <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;color:var(--alerte)"></span>
   <!-- La chasse est ici, et pas dans la barre de titre: cette barre porte les
        bascules de FONCTION (overlay, fermeture des clients), la barre de titre
@@ -1707,9 +1729,13 @@
 
   document.getElementById('pepFermer').onclick = fermerPepites;
 
-  // L'AVANCEMENT S'AFFICHE MEME PANNEAU FERME, dans le pied, parce que la
-  // passe part toute seule: si elle ne se voyait que panneau ouvert,
-  // cinquante emissions partiraient sans que rien ne l'annonce.
+  // L'AVANCEMENT S'AFFICHE MEME PANNEAU FERME, parce que la passe part
+  // toute seule: si elle ne se voyait que panneau ouvert, cinquante
+  // emissions partiraient sans que rien ne l'annonce. C'est pour ca que
+  // #pepAvance est pose dans .barre-nav et NON dans #vuePepites -- le
+  // ramener dans le panneau le rendrait invisible, et rien ici ne le
+  // dirait: son texte serait juste, son `hidden` a false, son rectangle
+  // a 0x0. test/pepites-panneau.test.js monte la garde sur ce point.
   //
   // LE TABLEAU NE SE RECHARGE QU'A LA FIN, et `total === 0` est le signal de
   // fin que main.js envoie apres avoir reclasse. Recharger a chaque objet
