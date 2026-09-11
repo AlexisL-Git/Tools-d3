@@ -18,7 +18,7 @@
 - **Les commentaires disent POURQUOI, pas QUOI.**
 - **Tests :** `node --test` avec `node:test` et `node:assert`, fichiers dans `test/`. Aucun framework ajouté.
 - **`node --test test/` sans nom de fichier échoue sur cette installation Windows.** Utiliser `node --test test/<fichier>`, ou `npm test` pour la suite complète.
-- **Deux échecs préexistants et sans rapport** : `test/hdv-reprix.test.js`, `test/hdv-vente.test.js` et `test/framing.test.js` flanchent parfois sous la charge de `npm test` et passent toujours en isolation. Ne pas les imputer à ce travail, ne pas les corriger.
+- **Trois tests instables et préexistants** : `test/hdv-reprix.test.js`, `test/hdv-vente.test.js` et `test/framing.test.js` flanchent parfois sous la charge de `npm test` et passent toujours en isolation. Ne pas les imputer à ce travail, ne pas les corriger.
 - **Aucun nom de trame en dur hors de `src/hdv/trames.js`.** Le jeu renomme ses messages à chaque grosse mise à jour — 148 sur 150 le 8 septembre. On passe par les fonctions de `trames.js`. Seule exception autorisée : `'isb'`, la liste de l'étal, que `garde-hdv.js` et `vente.js` citent déjà.
 - **Signature d'écoute :** `onTrame({ pid, dir, frame })`, garde `dir !== 'in'` en première ligne, comme `src/hdv/vente.js:481`.
 - **Garde d'identité du client :** `superviseur.comptes.get(pid) === passe.etatArme`, jamais une comparaison de pid seule. Windows recycle les pid.
@@ -1045,14 +1045,19 @@ Dans `desktop/index.html`, à côté de `ouvrirPepites` :
 
 ```js
   // L'AVANCEMENT S'AFFICHE MEME PANNEAU FERME, dans le pied, parce que la
-  // passe part toute seule: si elle ne se voyait que panneau ouvert, cinquante
-  // emissions partiraient sans que rien ne l'annonce.
+  // passe part toute seule: si elle ne se voyait que panneau ouvert,
+  // cinquante emissions partiraient sans que rien ne l'annonce.
+  //
+  // LE TABLEAU NE SE RECHARGE QU'A LA FIN, et `total === 0` est le signal de
+  // fin que main.js envoie apres avoir reclasse. Recharger a chaque objet
+  // rejouerait le rendu cinquante fois par passe, pour un tableau dont seule
+  // la derniere version compte.
   window.app.surPepitesAvancement(({ fait, total }) => {
     const el = document.getElementById('pepAvance');
     if (el === null) return;
     el.textContent = total > 0 ? `prix du marché : ${fait} / ${total}` : '';
     el.hidden = total === 0;
-    if (total > 0 || fait === 0) ouvrirPepites();
+    if (total === 0 && !document.getElementById('vuePepites').hidden) ouvrirPepites();
   });
 ```
 
