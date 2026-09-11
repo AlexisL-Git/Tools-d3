@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { creerPepites, PERIODE_MS } = require('../src/pepites/pepites');
+const { creerPepites } = require('../src/pepites/pepites');
 const { WIRE } = require('../src/codec/rawProto');
 
 // Un double d'historique: tout en memoire, aucun disque. L'historique reel a
@@ -43,23 +43,16 @@ function trameIvi(paires) {
 }
 
 function creer(extra = {}) {
-  const minuteurs = [];
   const historique = fauxHistorique();
   const passes = [];
   const p = creerPepites({
     historique,
     onPasse: (r) => passes.push(r),
     maintenant: () => 1000,
-    poserMinuteur: (fn, ms) => { minuteurs.push({ fn, ms }); return minuteurs.length; },
-    oterMinuteur: () => {},
     ...extra,
   });
-  return { p, historique, passes, minuteurs };
+  return { p, historique, passes };
 }
-
-test('la periode vaut douze heures', () => {
-  assert.strictEqual(PERIODE_MS, 12 * 60 * 60 * 1000);
-});
 
 test('une ivi neuve declenche un classement', () => {
   const { p, passes } = creer();
@@ -109,58 +102,36 @@ test('une passe sans ivi ne produit rien', () => {
   assert.deepStrictEqual(historique.passes, []);
 });
 
-test('la minuterie s arme sur douze heures', () => {
-  const { p, minuteurs } = creer();
-  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 12]]) });
-  p.demarrer();
-  assert.strictEqual(minuteurs.length, 1);
-  assert.strictEqual(minuteurs[0].ms, PERIODE_MS);
+test('un prix de marche note change le classement a la passe suivante', () => {
+  const { p, passes } = creer();
+  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 100]]) });
+  const avant = passes[0].passe.lignes[0].coutParPepite;
+  p.noterPrixMarche(303, 10, 1000);
+  p.passer();
+  const apres = passes[1].passe.lignes[0].coutParPepite;
+  assert.ok(apres < avant, 'un prix dix fois moindre doit baisser le cout');
+  assert.strictEqual(passes[1].passe.lignes[0].source, 'marche');
 });
 
-// LE SCENARIO EXACT QUE LA CONCEPTION CONDAMNE: un battement qui tombe sans
-// ivi neuve entretemps recalculerait la MEME table contre elle-meme. `creer()`
-// pose `maintenant` a une constante: sans ivi entre les battements, la table
-// ne change jamais de prixQuand, donc aucun des trois ne doit rien ecrire.
-test('un battement sans ivi neuve n ecrit rien de plus', () => {
-  const { p, passes, minuteurs, historique } = creer();
-  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 12]]) });
-  p.demarrer();
-  minuteurs[0].fn();
-  minuteurs[0].fn();
-  minuteurs[0].fn();
-  assert.strictEqual(passes.length, 1, 'une ivi, trois battements a vide: une seule passe');
-  assert.strictEqual(historique.passes.length, 1);
+// UN PRIX DE MARCHE VIEUX D'UNE SESSION N'EST PLUS UN PRIX DE MARCHE.
+test('une ivi neuve vide les prix de marche', () => {
+  const { p, passes } = creer();
+  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 100]]) });
+  p.noterPrixMarche(303, 10, 1000);
+  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 100]]) });
+  assert.strictEqual(passes[passes.length - 1].passe.lignes[0].source, 'moyen');
 });
 
-// LE CAS OU LE BATTEMENT A QUELQUE CHOSE A DIRE: une ivi arrive APRES
-// l'armement de la minuterie mais avant qu'elle ne sonne. onTrame() passe
-// deja cette ivi tout seul (c'est son travail) -- le battement qui suit n'a
-// donc lui non plus rien de neuf, et c'est la meme garde qui l'arrete.
-test('une ivi entre l armement et le battement n est pas repassee deux fois', () => {
-  const t = (() => { let n = 0; return () => { n += 1; return n; }; })();
-  const { p, passes, minuteurs } = creer({ maintenant: t });
-  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 12]]) });
-  p.demarrer();
-  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 9]]) });
-  assert.strictEqual(passes.length, 2, 'onTrame a deja passe la seconde ivi');
-  minuteurs[0].fn();
-  assert.strictEqual(passes.length, 2, 'le battement n a plus rien a ajouter');
-});
-
-// LES DEUX DECLENCHEURS SONT INDEPENDANTS. Si une ivi rearmait la minuterie,
-// une session de jeu reguliere repousserait le battement indefiniment.
-test('une ivi ne rearme pas la minuterie', () => {
-  const { p, minuteurs } = creer();
-  p.demarrer();
-  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 12]]) });
-  assert.strictEqual(minuteurs.length, 1);
+test('les candidats sont les gids du dernier classement, dans l ordre', () => {
+  const { p } = creer();
+  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 100], [13731, 19]]) });
+  assert.deepStrictEqual(p.candidats(), [13731, 303]);
 });
 
 test('la variation compare a la passe precedente', () => {
   // Horloge qui avance: deux ivi au meme instant sont censees ne jamais
-  // arriver en production, et avec `maintenant` constant la garde de
-  // passer() contre l'auto-comparaison deduperait la seconde comme si rien
-  // n'avait change.
+  // arriver en production. L'horloge qui bouge rend la seconde ivi
+  // distinguable de la premiere dans prixQuand, comme en vrai jeu.
   const t = (() => { let n = 0; return () => { n += 1; return n; }; })();
   const { p, passes } = creer({ maintenant: t });
   p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 12]]) });

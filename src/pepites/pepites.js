@@ -2,37 +2,25 @@
 const { lirePrixMoyens } = require('../hdv/trames');
 const { classer, comparer } = require('./classement');
 
-// Le classement des pepites: une ecoute permanente, et une minuterie.
+// Le classement des pepites: une ecoute permanente.
 //
-// Conception: docs/superpowers/specs/2026-09-11-opti-pepite-design.md.
+// Conception: docs/superpowers/specs/2026-09-11-opti-pepite-design.md,
+// completee par docs/superpowers/specs/2026-09-11-pepites-prix-marche-design.md.
 //
 // IL RESSEMBLE A reprix.js ET vente.js PAR SA FORME -- une ecoute permanente
-// plus un declencheur -- ET IL LEUR MANQUE TOUT LE RESTE. Ce module N'EMET
-// AUCUNE TRAME. Pas de sequenceur, pas de rythme, pas de delai de reponse,
-// pas de garde d'identite de client: rien de ce qui protege ces deux-la n'a
-// d'objet ici, puisque rien ne part vers le jeu.
-//
-// C'EST AUSSI CE QUI REND LA PERIODICITE INOFFENSIVE. La spec du reprix
-// (2026-09-01-maj-prix-hdv-design.md) ecartait explicitement « toute
-// periodicite ». Ce qui etait refuse la-bas, c'est une passe de fond QUI EMET.
-// Une minuterie qui ne fait que diviser des nombres deja recus ne se voit de
-// nulle part.
+// -- ET IL LEUR MANQUE TOUT LE RESTE. Ce module N'EMET AUCUNE TRAME. Pas de
+// sequenceur, pas de rythme, pas de delai de reponse, pas de garde d'identite
+// de client: rien de ce qui protege ces deux-la n'a d'objet ici, puisque rien
+// ne part vers le jeu. C'est src/pepites/marche.js qui emet, pas ce module --
+// voir sa propre note en tete pour ce que ca change.
 //
 // L'ECOUTE EST PERMANENTE PARCE QUE ivi N'ARRIVE QU'AU LOGIN. Elle ne se
 // redemande pas. Un module qui ne se reveillerait qu'a l'ouverture du panneau
 // aurait deja rate la seule trame qui dit les prix.
-const PERIODE_MS = 12 * 60 * 60 * 1000;
-
-// `poserMinuteur` et `oterMinuteur` entrent par argument pour que la minuterie
-// se teste sans piloter d'horloge -- meme raison que le hasard passe en
-// argument dans rythme() de reprix.js.
 function creerPepites({
   historique,
   onPasse = () => {},
-  periodeMs = PERIODE_MS,
   maintenant = () => Date.now(),
-  poserMinuteur = (fn, ms) => setInterval(fn, ms),
-  oterMinuteur = (id) => clearInterval(id),
 }) {
   // La derniere table de prix connue, d'ou qu'elle vienne.
   //
@@ -41,7 +29,16 @@ function creerPepites({
   // par la spec: les prix moyens de deux serveurs ne se moyennent pas, et
   // pretendre le contraire serait pire que la limite.
   let table = null;
-  let minuteur = null;
+
+  // Les prix releves devant l'etal, par gid. VIDEE A CHAQUE ivi NEUVE: une ivi
+  // veut dire nouvelle connexion, et un prix de marche vieux d'une session
+  // n'est plus un prix de marche -- il vaut moins que la moyenne, qui au moins
+  // s'annonce comme une moyenne.
+  const prixMarche = new Map();
+
+  function noterPrixMarche(gid, prix, quand) {
+    prixMarche.set(gid, { prix, quand });
+  }
 
   function onTrame({ pid, dir, frame }) {
     if (frame === null || frame === undefined || dir !== 'in') return;
@@ -50,6 +47,7 @@ function creerPepites({
     // UNE TABLE VIDE N'EFFACE PAS CE QU'ON SAIT, meme regle que les piles dans
     // vente.js: le panneau deviendrait muet sans raison visible.
     if (prixMoyens.size === 0) return;
+    prixMarche.clear();
     table = { prixMoyens, quand: maintenant(), pid };
     passer();
   }
@@ -60,19 +58,7 @@ function creerPepites({
     // encore vu les prix ». C'est au panneau de le dire.
     if (table === null) return null;
     const precedent = historique.dernier();
-    // UNE PASSE NE SE COMPARE PAS A ELLE-MEME. Le battement des douze heures
-    // et l'ivi sont independants (voir plus bas): sans cette garde, un
-    // battement qui tombe sans ivi neuve entretemps recalculerait la MEME
-    // table contre elle-meme -- tout ressortirait 'stable' a deltaCout 0, une
-    // verite fausse plutot que « rien de neuf a comparer » -- et ecrirait une
-    // entree identique dans un historique borne a 30, chassant la derniere
-    // comparaison utile apres quinze jours sans connexion. La conception le
-    // dit explicitement a propos du rattrapage: « Rattraper produirait deux
-    // passes identiques a la file, puisque la table de prix, elle, n'a pas
-    // change entretemps. » Meme defaut, meme correction que celle posee sur
-    // le handler IPC en ronde 1 -- ici sur l'autre declencheur.
-    if (precedent !== null && precedent.prixQuand === table.quand) return null;
-    const lignes = classer({ prixMoyens: table.prixMoyens });
+    const lignes = classer({ prixMoyens: table.prixMoyens, prixMarche });
     const passe = {
       quand: maintenant(),
       prixQuand: table.quand,
@@ -84,21 +70,6 @@ function creerPepites({
     const resultat = { passe, variation };
     onPasse(resultat);
     return resultat;
-  }
-
-  // LA MINUTERIE NE SE REARME PAS SUR UNE ivi, et les deux declencheurs sont
-  // independants: sans cela, une session de jeu reguliere -- donc une ivi par
-  // connexion -- repousserait le battement des douze heures indefiniment, et
-  // la periodicite n'existerait que pour ceux qui ne jouent pas.
-  function demarrer() {
-    if (minuteur !== null) return;
-    minuteur = poserMinuteur(passer, periodeMs);
-  }
-
-  function arreter() {
-    if (minuteur === null) return;
-    oterMinuteur(minuteur);
-    minuteur = null;
   }
 
   // Ce que le panneau a besoin de savoir sans qu'on lui livre la table entiere.
@@ -113,7 +84,17 @@ function creerPepites({
     return table === null ? null : table.prixMoyens;
   }
 
-  return { onTrame, passer, demarrer, arreter, etat, prixMoyens };
+  // Les gids du dernier classement, dans l'ordre. C'est ce que la passe de
+  // marche va tarifer -- et c'est pourquoi elle n'a pas besoin de connaitre le
+  // classeur: elle recoit une liste.
+  function candidats() {
+    const d = historique.dernier();
+    return d === null ? [] : d.lignes.map((l) => l.gid);
+  }
+
+  return {
+    onTrame, passer, etat, prixMoyens, noterPrixMarche, candidats,
+  };
 }
 
-module.exports = { creerPepites, PERIODE_MS };
+module.exports = { creerPepites };

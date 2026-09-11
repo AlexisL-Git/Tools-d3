@@ -48,6 +48,7 @@ const { trameLireInventaire } = require('../src/pda-archi/trames');
 const { estArchimonstre } = require('../src/pda-archi/archimonstres');
 const { construire: construireTableauArchi } = require('../src/pda-archi/tableau');
 const { creerPepites } = require('../src/pepites/pepites');
+const { creerMarche } = require('../src/pepites/marche');
 const { creerHistorique } = require('../src/pepites/historique');
 const { chercher: chercherPepite } = require('../src/pepites/classement');
 const { JEU: JEU_DES_TAUX } = require('../src/pepites/taux');
@@ -118,6 +119,8 @@ let vente = null;
 // etat, l'interrupteur l'arme, et la perte du droit doit pouvoir la desarmer.
 let pdaArchi = null;
 let pepites = null;
+// LA PASSE DE PRIX DE MARCHE, CREEE A COTE DE pepites -- voir plus bas.
+let marche = null;
 // LA DERNIERE PASSE DES PEPITES, MISE EN CACHE PAR onPasse. Voir le handler
 // 'tableauPepites' plus bas: ouvrir le panneau lit ce cache, il ne declenche
 // plus jamais passer() lui-meme.
@@ -1240,11 +1243,12 @@ app.whenReady().then(async () => {
     }),
     onPasse: (resultat) => {
       // LE CACHE SE REMPLIT ICI, PAS DANS LE HANDLER IPC. onPasse ne tire que
-      // sur une vraie passe -- une ivi recue ou la minuterie des douze
-      // heures -- jamais sur l'ouverture d'un panneau. C'est ce qui rend la
-      // lecture du handler sure: ouvrir le panneau deux fois de suite sans
-      // ivi entre les deux doit relire la MEME comparaison, pas en calculer
-      // une nouvelle contre elle-meme.
+      // sur une vraie passe -- une ivi recue ou la fin d'une passe de marche,
+      // qui reclasse une fois pour toutes (voir onFin plus bas) -- jamais sur
+      // l'ouverture d'un panneau. C'est ce qui rend la lecture du handler
+      // sure: ouvrir le panneau deux fois de suite sans passe entre les deux
+      // doit relire la MEME comparaison, pas en calculer une nouvelle contre
+      // elle-meme.
       pepitesResultat = resultat;
       const { passe } = resultat;
       // `journal(0, ...)` ET PAS `journal(null, ...)`: zero est le pid de
@@ -1258,7 +1262,27 @@ app.whenReady().then(async () => {
         + `, sur ${pepites.etat().taille} prix connus`);
     },
   });
-  pepites.demarrer();
+  // LA PASSE PART A L'OUVERTURE D'UN ETAL, et c'est la premiere fois que ce
+  // projet emet sur un geste qui n'est pas un clic dans OMNI. Voir la section
+  // « Ce que ca change dans la nature du projet » de la conception.
+  marche = creerMarche({
+    superviseur,
+    candidats: () => pepites.candidats(),
+    reglages: { rythme: favoris.hdvRythme() },
+    onPrix: ({ gid, prix, quand }) => pepites.noterPrixMarche(gid, prix, quand),
+    onAvancement: ({ pid, fait, total }) => {
+      if (fenetre !== null) fenetre.webContents.send('pepitesAvancement', { pid, fait, total });
+    },
+    onFin: ({ pid, bilan }) => {
+      const b = bilan;
+      journal(pid, `pepites marche : ${b.tarifes} tarifes, ${b.sansOffre} sans offre, `
+        + `${b.echecs} echecs${b.raison ? ` — ${b.raison}` : ''}`);
+      // LE CLASSEMENT SE REFAIT A LA FIN, une seule fois: le refaire a chaque
+      // prix recalculerait cinquante fois pour cinquante lignes.
+      pepites.passer();
+      if (fenetre !== null) fenetre.webContents.send('pepitesAvancement', { pid, fait: 0, total: 0 });
+    },
+  });
   // LA CHASSE A L'ARCHIMONSTRE.
   //
   // Elle ecoute EN PERMANENCE elle aussi, et meme eteinte: sans cela, allumer
@@ -1592,6 +1616,9 @@ app.whenReady().then(async () => {
     // moyens que le serveur envoie de lui-meme au login. Rien n'est emis, donc
     // il n'y a rien a verrouiller par cle.
     pepites.onTrame,
+    // Sans porte, comme pepites.onTrame: la passe ne lit que des prix publics
+    // et ne change rien dans le jeu.
+    marche.onTrame,
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -2382,11 +2409,6 @@ app.on('window-all-closed', async () => {
   // Meme invariant pour la veille des droits: un reveil pendant le demontage
   // appellerait onChangement sur un superviseur deja en train de disparaitre.
   if (veille !== null) veille.arreter();
-  // Meme invariant encore pour la minuterie des pepites: sans cet arret, elle
-  // continuerait de sonner toutes les douze heures sur un process qui n'a
-  // plus de fenetre, jusqu'a ce que la fermeture forcee plus bas la tue avec
-  // tout le reste -- et pas avant.
-  if (pepites !== null) pepites.arreter();
 
   // LA FERMETURE EST BORNEE. `arreter()` decharge les scripts Frida et detache
   // les sessions: ce sont des allers-retours avec des process Dofus qui

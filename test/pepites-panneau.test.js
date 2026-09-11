@@ -154,6 +154,7 @@ async function ouvrirLePanneau({
         surEtat() {},
         surPdaArchiAlerte() {},
         surAmbiance() {},
+        surPepitesAvancement() {},
         // Stubs neutres: le script en depend au chargement (archi partage le
         // meme <script> que les pepites), mais aucun test ici ne les exerce.
         tableauArchi: async () => ({ titre: '', lignes: [] }),

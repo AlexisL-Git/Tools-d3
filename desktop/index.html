@@ -580,6 +580,7 @@
     font-size: 12px; color: var(--attenue);
     display: flex; gap: 16px; flex-wrap: wrap;
   }
+  .pep-avance { padding: 4px 15px; font-size: 11px; opacity: .75; }
 
   .pep-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .pep-table th { text-align: left; opacity: .6; font-weight: 500; padding: 4px 8px; }
@@ -1020,6 +1021,7 @@
     <b>Pépites</b>
     <button id="pepFermer" title="Fermer (Échap)">✕</button>
   </div>
+  <div class="pep-avance" id="pepAvance" hidden></div>
   <label class="pep-cherche">
     <input id="pepChercheTexte" type="search" placeholder="Chercher un objet…"
            autocomplete="off" spellcheck="false"
@@ -1544,6 +1546,7 @@
     sortie: 'pep-sortie',
     doute: 'pep-doute',
     marche: 'pep-marche',
+    avance: 'pep-avance',
   };
 
   let pepTable = null;
@@ -1703,6 +1706,24 @@
   }
 
   document.getElementById('pepFermer').onclick = fermerPepites;
+
+  // L'AVANCEMENT S'AFFICHE MEME PANNEAU FERME, dans le pied, parce que la
+  // passe part toute seule: si elle ne se voyait que panneau ouvert,
+  // cinquante emissions partiraient sans que rien ne l'annonce.
+  //
+  // LE TABLEAU NE SE RECHARGE QU'A LA FIN, et `total === 0` est le signal de
+  // fin que main.js envoie apres avoir reclasse. Recharger a chaque objet
+  // rejouerait le rendu cinquante fois par passe, pour un tableau dont seule
+  // la derniere version compte.
+  window.app.surPepitesAvancement(({ fait, total }) => {
+    const el = document.getElementById('pepAvance');
+    if (el === null) return;
+    el.textContent = total > 0 ? `prix du marché : ${fait} / ${total}` : '';
+    el.hidden = total === 0;
+    // Le tableau ne se recharge qu'a la FIN de la passe, quand main.js a
+    // reclasse: total === 0 est le signal de fin.
+    if (total === 0 && !document.getElementById('vuePepites').hidden) ouvrirPepites();
+  });
 
   // `oninput`/`onkeydown` et non addEventListener, comme arcChamp juste
   // au-dessus: le panneau s'execute aussi dans le DOM de facade des tests,
