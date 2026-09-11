@@ -295,12 +295,20 @@ test('une reponse perimee n ecrase pas un resultat plus recent', async () => {
 // ouvrirLePanneau()) par globalThis.__parPepite / __kamas.
 test('parPepite et kamas sur leurs cas limites', async () => {
   const { contexte } = await ouvrirLePanneau();
-  // Taux >= 1: le nombre s'ecrit a l'unite.
-  assert.strictEqual(contexte.__parPepite(2.5), `${(2.5).toLocaleString('fr-FR')} /u`);
-  // Taux tres petit: on montre combien d'unites font une pepite, arrondi au
+  // LA COLONNE NE PORTE QU'UN NOMBRE, SANS UNITE COLLEE -- correction du 11/09,
+  // signalee en jeu: « il est vraiment pas clair ». L'entete dit l'unite.
+  //
+  // Taux >= 1: un seul objet suffit, et c'est ce que la colonne repond. Le taux
+  // maximal mesure est 8 000 pepites l'unite, ou « 0,000125 objet » serait exact
+  // et illisible; le cout de la pepite porte deja cette finesse.
+  assert.strictEqual(contexte.__parPepite(2.5), '1');
+  assert.strictEqual(contexte.__parPepite(8000), '1');
+  // Taux tres petit: on montre combien d'objets font une pepite, arrondi au
   // dessus -- jamais en dessous, sous peine de promettre une pepite qu'on
   // n'a pas encore payee.
-  assert.strictEqual(contexte.__parPepite(0.01), `${Math.ceil(1 / 0.01).toLocaleString('fr-FR')} u`);
+  assert.strictEqual(contexte.__parPepite(0.01), Math.ceil(1 / 0.01).toLocaleString('fr-FR'));
+  // Le vrai taux du Bois de Frene, celui que Jibef a verifie en jeu.
+  assert.strictEqual(contexte.__parPepite(0.003000000026077032), '334');
   // Valeur nulle ou fausse: un tiret, jamais une division par zero muette.
   assert.strictEqual(contexte.__parPepite(0), '—');
   assert.strictEqual(contexte.__parPepite(null), '—');

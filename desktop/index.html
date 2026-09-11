@@ -1563,12 +1563,25 @@
   }
 
   // Le taux s'ecrit a l'unite, mais il descend a 0,0025: trois decimales le
-  // rendraient a zero. On montre plutot combien d'unites font une pepite,
+  // rendraient a zero. On montre plutot combien d'objets font une pepite,
   // qui est le chiffre qu'on emporte au prisme.
+  //
+  // PAS D'UNITE COLLEE AU NOMBRE, et c'est la correction du 11/09, signalee en
+  // jeu: « il est vraiment pas clair ». Le « u » et le « /u » demandaient de
+  // deviner ce qu'on lisait, et deux colonnes voisines portaient toutes deux un
+  // prix. L'entete dit desormais l'unite, la cellule ne porte qu'un nombre, et
+  // les trois colonnes se lisent comme une multiplication de gauche a droite:
+  // prix de l'objet x nombre d'objets = cout d'une pepite.
+  //
+  // UN OBJET QUI REND PLUS D'UNE PEPITE EN DEMANDE UN SEUL. Le taux maximal
+  // mesure est 8 000 pepites l'unite: « 0,000125 objet » serait exact et
+  // illisible. La colonne plafonne donc a 1, qui est la reponse a la question
+  // posee -- combien j'en emporte -- et le cout de la pepite, lui, porte deja
+  // toute la finesse.
   function parPepite(taux) {
     if (!taux) return '—';
-    if (taux >= 1) return taux.toLocaleString('fr-FR') + ' /u';
-    return Math.ceil(1 / taux).toLocaleString('fr-FR') + ' u';
+    if (taux >= 1) return '1';
+    return Math.ceil(1 / taux).toLocaleString('fr-FR');
   }
 
   const PEP_ETATS = {
@@ -1592,8 +1605,8 @@
       + (l.suspect ? ' class="' + PEP.suspect + '"' : '') + '>'
       + '<td>' + (i + 1) + '</td>'
       + '<td>' + echapper(l.nom === null ? String(l.gid) : l.nom) + '</td>'
-      + '<td>' + parPepite(l.taux) + '</td>'
       + '<td>' + kamas(l.prixMoyen) + '</td>'
+      + '<td>' + parPepite(l.taux) + '</td>'
       + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
       + '<td>' + (PEP_ETATS[l.etat] || '') + '</td>'
       // LE DOUTE SE DIT SUR LA LIGNE, pas dans une legende: une legende ne se
@@ -1602,7 +1615,8 @@
         + ' peut-être introuvable en hôtel de vente" class="' + PEP.doute + '">prix douteux</span>' : '') + '</td>'
       + '</tr>').join('');
     corps.innerHTML = '<table class="pep-table"><thead><tr>'
-      + '<th>#</th><th>Objet</th><th>Pour 1 pépite</th><th>Prix moyen</th>'
+      + '<th>#</th><th>Objet</th><th>Prix item</th>'
+      + '<th>Nb d’item pour 1 pépite</th>'
       + '<th>Coût / pépite</th><th></th><th></th>'
       + '</tr></thead><tbody>' + lignes + '</tbody></table>';
     const quand = new Date(pepTable.prixQuand);
@@ -1627,15 +1641,16 @@
       return;
     }
     corps.innerHTML = '<table class="pep-table"><thead><tr>'
-      + '<th>Objet</th><th>Pour 1 pépite</th><th>Prix moyen</th><th>Coût / pépite</th>'
+      + '<th>Objet</th><th>Prix item</th><th>Nb d’item pour 1 pépite</th>'
+      + '<th>Coût / pépite</th>'
       + '</tr></thead><tbody>'
       + r.map((l) => '<tr' + (l.suspect ? ' class="' + PEP.suspect + '"' : '') + '>'
         + '<td>' + echapper(l.nom) + '</td>'
-        + '<td>' + parPepite(l.taux) + '</td>'
         // PRIX INCONNU N'EST PAS PRIX ZERO. C'est la reponse que la spec
         // demande: un objet recyclable dont personne ne connait le prix se
         // dit, il ne se cache pas.
         + '<td>' + (l.prixMoyen === null ? 'prix inconnu' : kamas(l.prixMoyen)) + '</td>'
+        + '<td>' + parPepite(l.taux) + '</td>'
         + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
         + '</tr>').join('')
       + '</tbody></table>';
