@@ -1677,16 +1677,13 @@ Ajouter le bouton d'ouverture dans la barre du bas, à côté de celui qui ouvre
 
 Dans la feuille de style de `desktop/index.html`, à côté des règles `.arc-` :
 
-Reprendre les valeurs de `.vue-archi`, `.arc-corps`, `.arc-pied` et `.arc-cherche` **en les recopiant** sous les noms `pep-`, sans partager les règles : c'est le prix du préfixe, et il est assumé — une règle partagée ferait dépendre la mise en page de ce panneau des retouches faites à l'autre.
+Les règles ne sont pas partagées avec le panneau voisin, elles sont recopiées : c'est le prix du préfixe, et il est assumé — une règle partagée ferait dépendre la mise en page de ce panneau des retouches faites à l'autre.
+
+**Geometrie du panneau — a lire dans la feuille de style, pas dans ce plan.** Ouvrir le `<style>` de `desktop/index.html`, y lire les quatre regles `.vue-archi`, `.arc-corps`, `.arc-pied` et `.arc-cherche`, et ecrire quatre regles nouvelles `.pep-vue`, `.pep-corps`, `.pep-pied` et `.pep-cherche` portant les memes declarations. Les valeurs ne figurent pas ici volontairement : les recopier dans le plan les figerait a ce qu'elles valaient le 11/09, alors que la feuille de style est la seule source qui reste juste.
+
+Puis ajouter, telles quelles, les regles propres au tableau :
 
 ```css
-/* Le panneau, meme geometrie que .vue-archi: recopiee et non partagee, voir
-   test/pepites-panneau.test.js. */
-.pep-vue { /* recopier ici le corps de la regle .vue-archi */ }
-.pep-corps { /* recopier ici le corps de la regle .arc-corps */ }
-.pep-pied { /* recopier ici le corps de la regle .arc-pied */ }
-.pep-cherche { /* recopier ici le corps de la regle .arc-cherche */ }
-
 .pep-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .pep-table th { text-align: left; opacity: .6; font-weight: 500; padding: 4px 8px; }
 .pep-table td { padding: 3px 8px; border-top: 1px solid rgba(255,255,255,.06); }
@@ -1702,8 +1699,6 @@ Reprendre les valeurs de `.vue-archi`, `.arc-corps`, `.arc-pied` et `.arc-cherch
 .pep-stable { opacity: .35; }
 .pep-sortie { opacity: .5; }
 ```
-
-Les quatre premières règles sont les seules du plan qui portent un commentaire à la place d'un contenu, et c'est délibéré : leurs valeurs se lisent dans la feuille de style au moment de l'écriture, les recopier ici les figerait à ce qu'elles valaient le 11/09.
 
 - [ ] **Step 7: Vérifier que la suite passe toujours**
 
