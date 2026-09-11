@@ -118,6 +118,10 @@ let vente = null;
 // etat, l'interrupteur l'arme, et la perte du droit doit pouvoir la desarmer.
 let pdaArchi = null;
 let pepites = null;
+// LA DERNIERE PASSE DES PEPITES, MISE EN CACHE PAR onPasse. Voir le handler
+// 'tableauPepites' plus bas: ouvrir le panneau lit ce cache, il ne declenche
+// plus jamais passer() lui-meme.
+let pepitesResultat = null;
 
 // LES AMES CAPTUREES, POUR LE TABLEAU DES ARCHIMONSTRES.
 //
@@ -1238,7 +1242,15 @@ app.whenReady().then(async () => {
       // colonne de variation sans que rien ne le dise.
       onErreur: (e) => journal(0, `pepites : historique illisible — ${e.message}`),
     }),
-    onPasse: ({ passe }) => {
+    onPasse: (resultat) => {
+      // LE CACHE SE REMPLIT ICI, PAS DANS LE HANDLER IPC. onPasse ne tire que
+      // sur une vraie passe -- une ivi recue ou la minuterie des douze
+      // heures -- jamais sur l'ouverture d'un panneau. C'est ce qui rend la
+      // lecture du handler sure: ouvrir le panneau deux fois de suite sans
+      // ivi entre les deux doit relire la MEME comparaison, pas en calculer
+      // une nouvelle contre elle-meme.
+      pepitesResultat = resultat;
+      const { passe } = resultat;
       // `journal(0, ...)` ET PAS `journal(null, ...)`: zero est le pid de
       // convention pour ce qui ne vient d'aucun client, pose par la mise a
       // jour git (desktop/main.js:2252). `null` s'imprimerait tel quel entre
@@ -1899,7 +1911,17 @@ ipcMain.handle('tableauPepites', () => {
       raison: 'connecte un personnage une fois pour que je voie les prix',
     };
   }
-  const r = pepites.passer();
+  // OUVRIR LE PANNEAU N'EST PAS UNE PASSE. Une passe compare la table de prix
+  // courante a la derniere passe enregistree; l'appeler ici comparerait la
+  // table A ELLE-MEME des qu'aucune ivi n'est arrivee entre deux ouvertures,
+  // et une comparaison qui se compare a elle-meme ment: tout ressort
+  // 'stable', deltaCout a 0, alors que la verite est qu'il n'y a rien de neuf
+  // a comparer -- pas que rien n'a bouge. Passer() ecrit aussi une entree
+  // dans un historique borne a PASSES_GARDEES: dix ouvertures y couteraient
+  // dix entrees, et les quinze jours annonces tomberaient a la duree d'une
+  // session. Le cache rempli par onPasse ne bouge que sur une vraie passe --
+  // une ivi ou la minuterie des douze heures -- jamais sur un clic.
+  const r = pepitesResultat === null ? pepites.passer() : pepitesResultat;
   const ligne = (dernieresLignes || []).find((l) => l.pid === etat.pid);
   // NOMMER ICI, PAS DANS LE MODULE: src/pepites/ ne connait que des gids, et
   // nomDe() vit deja a cote de la table HDV. Un gid sans nom rend `null`, et

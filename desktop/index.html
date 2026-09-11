@@ -554,11 +554,31 @@
     background: var(--fond); display: flex; flex-direction: column;
   }
   .pep-corps { flex: 1; overflow-y: auto; padding: 0 15px 14px; }
+  /* .arc-cherche vit dans .arc-filtres, une rangee flex: sa seule
+     margin-left: 12px suffit, le reste de l'espacement vient de la barre qui
+     la porte. .pep-cherche est enfant direct de #vuePepites, qui est en
+     flex-direction: column -- sans align-self elle heriterait de
+     align-items: stretch et s'etirerait sur toute la largeur du panneau.
+     align-self: flex-start la remet a sa largeur de contenu, et les deux
+     marges (au lieu d'une seule) et la marge verticale la posent comme le
+     ferait .arc-filtres (padding: 10px 15px 8px) pour .arc-cherche -- alignee
+     sur le padding: 0 15px de .pep-corps juste en dessous. */
   .pep-cherche {
-    display: flex; align-items: center; gap: 6px;
-    margin-left: 12px; padding: 3px 8px;
+    display: flex; align-items: center; gap: 6px; align-self: flex-start;
+    margin: 10px 15px 8px; padding: 3px 8px;
     border: 1px solid var(--filet); border-radius: 7px; color: var(--attenue);
   }
+  .pep-cherche:focus-within { border-color: var(--arme); color: var(--texte); }
+  /* LES SOUS-REGLES DU CHAMP, RECOPIEES AUSSI. Sans elles, l'input rend avec
+     son apparence native a l'interieur d'un label deja borde -- les « deux
+     cadres superposes » que la regle ci-dessus existe pour eviter -- et dans
+     une police differente du reste du panneau. */
+  .pep-cherche input {
+    width: 128px; padding: 1px 0; border: 0; background: transparent;
+    color: var(--texte); font: inherit; font-size: 11px;
+  }
+  .pep-cherche input:focus { outline: none; }
+  .pep-cherche input::placeholder { color: var(--attenue); }
   .pep-pied {
     padding: 9px 15px; border-top: 1px solid var(--filet);
     font-size: 12px; color: var(--attenue);
