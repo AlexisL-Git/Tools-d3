@@ -1,0 +1,116 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>OMNI — banc</title>
+<!--
+  LE CADRE DU BANC, servi a la racine. La page d'OMNI, elle, est a
+  /index.html: c'est elle que l'iframe ci-dessous charge.
+  Conception: docs/superpowers/specs/2026-09-10-interface-locale-design.md
+
+  POURQUOI UNE IFRAME ET PAS DU CSS SUR LA PAGE. desktop/index.html est
+  calibree au pixel pour 1097x720 -- les nombres sont mesures, voir le
+  commentaire de desktop/main.js:887 -- et la barre du bas y est en
+  `position: fixed`. Or `fixed` se cale sur la FENETRE, pas sur le bloc
+  parent: contraindre le `body` a 1097x720 laisserait cette barre collee au
+  bas du panneau VS Code, a cote de l'application au lieu d'etre dedans. Une
+  iframe, elle, EST une fenetre: son viewport fait vraiment 1097x720, et tout
+  ce qui en depend -- position fixe, unites vh, requetes de media -- se
+  comporte exactement comme dans la vraie fenetre d'OMNI.
+
+  Ce fichier ne sert QUE le banc et n'entre dans aucun paquet: outils/ n'est
+  pas emporte par faire-paquet-code.js.
+-->
+<style>
+  /* Le fond n'est PAS celui de l'application (#0F1418). Il faut qu'on voie ou
+     s'arrete la fenetre: meme teinte, les 1097x720 se fondraient dans le
+     panneau et on croirait de nouveau que la page est etiree. */
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #07090b;
+  }
+
+  /* Le bloc garde TOUJOURS ses 1097x720 de boite; c'est la transformation qui
+     le reduit. Origine en haut a gauche et translation calculee en JS: avec
+     une origine centree, la boite non transformee continuerait de deborder et
+     VS Code afficherait deux barres de defilement par-dessus le cadre. */
+  #cadre {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1097px;
+    height: 720px;
+    transform-origin: 0 0;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .55);
+    /* L'application n'a pas de cadre systeme: ce filet en tient lieu, sinon
+       le bord noir de la barre de titre se confond avec le fond. */
+    outline: 1px solid #1f2a30;
+  }
+
+  #cadre iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  /* En 1:1 sur un panneau etroit, il faut bien pouvoir atteindre la droite. */
+  body.reel { overflow: auto; }
+  body.reel #cadre { position: relative; }
+
+  #echelle {
+    position: fixed;
+    right: 10px;
+    bottom: 8px;
+    z-index: 2;
+    padding: 3px 9px;
+    border: 1px solid #223039;
+    border-radius: 3px;
+    background: #0d1216;
+    color: #7d8f99;
+    font: 11px/1.4 ui-monospace, Consolas, monospace;
+    letter-spacing: .04em;
+    cursor: pointer;
+  }
+  #echelle:hover { color: #2FD4C4; border-color: #2FD4C4; }
+</style>
+
+<div id="cadre"><iframe src="/index.html" title="OMNI"></iframe></div>
+<button id="echelle" type="button" title="Basculer entre « ajusté au panneau » et « taille réelle »"></button>
+
+<script>
+  // Les deux nombres de desktop/main.js:887. S'ils bougent la-bas, ils
+  // bougent ici: c'est la seule recopie, et elle est volontairement visible.
+  const LARGEUR = 1097;
+  const HAUTEUR = 720;
+
+  const cadre = document.getElementById('cadre');
+  const bouton = document.getElementById('echelle');
+  let reel = false;
+
+  function ajuster() {
+    if (reel) {
+      cadre.style.transform = 'none';
+      bouton.textContent = '1:1';
+      return;
+    }
+    const l = document.documentElement.clientWidth;
+    const h = document.documentElement.clientHeight;
+    // Jamais au-dessus de 1: agrandir une interface calibree au pixel ne
+    // montrerait pas ce qu'on verra a l'ecran, ca montrerait des pixels gros.
+    const k = Math.min(1, l / LARGEUR, h / HAUTEUR);
+    const x = Math.round((l - LARGEUR * k) / 2);
+    const y = Math.round((h - HAUTEUR * k) / 2);
+    cadre.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + k + ')';
+    bouton.textContent = Math.round(k * 100) + ' %';
+  }
+
+  bouton.addEventListener('click', () => {
+    reel = !reel;
+    document.body.classList.toggle('reel', reel);
+    ajuster();
+  });
+
+  addEventListener('resize', ajuster);
+  ajuster();
+</script>

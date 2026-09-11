@@ -11,13 +11,23 @@ const { encodeRaw, decodeRaw, WIRE } = require('../codec/rawProto');
 
 // La meme enveloppe que src/hdv/trames.js: request { content: Any{ type_url,
 // value }, uid: -1 }.
+//
+// L'ENVELOPPE EST EN CHAMP 1 DEPUIS LE PATCH 3.6.11.12, elle etait en champ 2
+// avant. C'est le plus couteux des cinq defauts remappes le 10/09, et le plus
+// discret: une requete batie sur l'ancien numero ne differe que par son PREMIER
+// OCTET, 12 au lieu de 0a. Elle part alors dans la boite « event » au lieu de
+// « request », et le serveur l'ignore sans rien dire.
+//
+// LE BALAYAGE DU 08/09 AVAIT MANQUE CE MODULE. src/songes.js porte la meme note
+// pour la meme raison: la correction etait passee partout ailleurs ce soir-la,
+// et les modules oublies n'ont rien signale — ils ont juste cesse d'agir.
 const v = (no, valeur) => ({ no, wire: WIRE.VARINT, value: BigInt(valeur) });
 
 function requete(type, champs) {
   const contenu = [{ no: 1, wire: WIRE.LEN, kind: 'string', value: `type.ankama.com/${type}` }];
   if (champs.length > 0) contenu.push({ no: 2, wire: WIRE.LEN, kind: 'message', value: champs });
   return encodeRaw([
-    { no: 2, wire: WIRE.LEN, kind: 'message', value: [
+    { no: 1, wire: WIRE.LEN, kind: 'message', value: [
       { no: 1, wire: WIRE.LEN, kind: 'message', value: contenu },
       // uid = -1, comme toutes les requetes observees depuis le 20/08.
       { no: 2, wire: WIRE.VARINT, value: -1n },
@@ -27,18 +37,42 @@ function requete(type, champs) {
 
 // --- Ce qu'on emet -------------------------------------------------------
 
-// iuk { 1: quantite, 2: uid de la pile, 3: position }
+// isz { 1: position, 2: uid de la pile, 3: quantite }
+//
+// REMAPPEE LE 10/09: le message s'appelait `iuk`, et SES TROIS CHAMPS ONT
+// PERMUTE — la quantite est passee du 1 au 3, la position du 3 au 1. L'uid n'a
+// pas bouge, ce qui rend l'erreur invisible a l'oeil: l'ordre reste bien forme,
+// il demande simplement de deplacer 31 pierres vers l'emplacement 1.
+//
+// LA MESURE, journal-invitation.log a 29818 ms — un desequipement fait a la
+// main, et le seul mouvement de pierre de tous les journaux:
+//
+//   --> isz { 1=63 2=52798638 3=1 }
+//   <-- isf { 3={2=14 3=52799406} }              la pile d'arrivee, 13 -> 14
+//   <-- irv { 2={3=17 4={1=52799406 2=9689}} }   gid 9689: une Enorme
+//   <-- irz { 1=52798638 }                       la pile source disparait
+//
+// CE QUI IDENTIFIE LES TROIS CHAMPS, sans autre lecture possible: le 63 est
+// POSITION_INVENTAIRE, la ou l'on range ce qu'on retire; l'uid du champ 2 est
+// celui que `irz` declare disparu a la milliseconde; et la pile d'arrivee gagne
+// UNE unite, donc la quantite deplacee vaut 1 — le champ 3.
 //
 // LE CLIENT DEPLACE LA PILE ENTIERE quand il equipe, pas une unite: mesure du
 // 03/09, une pile de 89 s'equipe en un seul ordre a 89.
 //
 // LE SERVEUR DESEQUIPE TOUT SEUL. Poser une pile en 31 renvoie en 63 celle qui
 // s'y trouvait, sans qu'on ait rien a demander: un ordre suffit.
+//
+// LES DEUX EMPLACEMENTS N'ONT PAS ETE REMESURES. 31 pour la pierre, 63 pour
+// l'inventaire: ce sont des numeros du JEU, pas des numeros de champ, et rien
+// n'indique qu'un patch les touche. Le 63 ci-dessus le confirme pour
+// l'inventaire; le 31 attend la meme confirmation.
 function trameEquiper({ uid, qte, position }) {
-  return requete('iuk', [v(1, qte), v(2, uid), v(3, position)]);
+  return requete('isz', [v(1, position), v(2, uid), v(3, qte)]);
 }
 
-// itr { 1: rangements demandes, 3: 1 } — REDEMANDER L'INVENTAIRE.
+// iup { 1: 1, 2: rangements demandes } — REDEMANDER L'INVENTAIRE.
+// (`itr { 2: rangements, 3: 1 }` jusqu'au patch 3.6.11.12.)
 //
 // Mesuree le 01/09 dans journal-hdv.log: le jeu l'emet lui-meme en ouvrant un
 // panneau de rangement, et le serveur repond par un `ivx` en 38 ms, trois fois
@@ -59,10 +93,18 @@ function trameEquiper({ uid, qte, position }) {
 // la lecture, pas a la demande.
 const RANGEMENTS = Buffer.from([0x02, 0x03]);
 
+// REMAPPEE LE 10/09: `itr` est devenue `iup`, et la constante a change de champ
+// — 3 avant, 1 apres. LA LISTE DES RANGEMENTS N'A PAS BOUGE: <02 03>, toujours
+// au champ 2, et toujours recopiee sans etre interpretee.
+//
+// CE QUI CONFIRME L'APPARIEMENT est la REPONSE, pas la forme: dans
+// journal-archi.log le serveur rend un `isb` 42 ms apres le premier `iup` et
+// 70 ms apres le second. Le delai mesure au 01/09 pour `itr` etait de 38 ms, et
+// aucun autre sortant de la seance n'est suivi d'un inventaire.
 function trameLireInventaire() {
-  return requete('itr', [
+  return requete('iup', [
+    v(1, 1),
     { no: 2, wire: WIRE.LEN, kind: 'bytes', value: RANGEMENTS },
-    v(3, 1),
   ]);
 }
 
@@ -94,8 +136,27 @@ function sousMessage(f) {
   return null;
 }
 
-// ivq { 1: uid, 2: nouvelle position } est la confirmation d'un deplacement,
+// ivq { 1: uid, 2: nouvelle position } etait la confirmation d'un deplacement,
 // rendue en 40 ms a la mesure. C'est elle qu'on attend, pas un delai.
+//
+// CE NOM EST MORT DEPUIS LE PATCH 3.6.11.12, ET SON REMPLACANT EST INCONNU.
+// C'est le seul des cinq que le remappage du 10/09 n'a pas retrouve, et il faut
+// le dire ici plutot que de le laisser deviner: cette fonction ne rendra jamais
+// autre chose que null tant que la mesure n'aura pas eu lieu.
+//
+// POURQUOI IL MANQUE, et ce n'est pas un oubli: le seul mouvement de pierre de
+// tous les journaux est un desequipement qui FUSIONNE la pierre dans une pile
+// existante. Le serveur repond alors `isf` puis `irz`, et aucune trame ne parle
+// de position. Il faudrait deplacer une pile QUI NE FUSIONNE PAS — un
+// equipement fait a la main pendant une mesure suffira.
+//
+// CE QUE SON ABSENCE COUTE EST BORNE, et c'est pourquoi la chasse repart sans
+// lui: la pose d'une pierre prise dans une pile CREE une pile neuve, deja a
+// l'emplacement, donc arrive en `isa` — le vrai chemin de confirmation depuis
+// le 03/09. Ce qui reste sans suivi est l'equipement fait A LA MAIN entre deux
+// combats: notre copie garde alors une position perimee, et `choisir` peut
+// repondre « deja » sur une pierre qui n'est plus portee. Le prochain `isb`
+// remet tout d'aplomb.
 function lirePosition(frame) {
   if (!frame || frame.type !== 'ivq') return null;
   const uid = entier(frame.payload, 1);
@@ -193,9 +254,15 @@ function lireGroupes(frame) {
   return groupes;
 }
 
-// kae { 1={ 3: identifiant du combattant }, 2: identifiant du COMBAT } dit
+// jym { 1={ 5: identifiant du combattant }, 2: identifiant du COMBAT } dit
 // qu'un combattant est ajoute a un combat. Une trame par combattant, monstres
 // compris.
+//
+// TOUT CE QUI SUIT A ETE ETABLI SOUS SON ANCIEN NOM, `kae`, les 03 et 04/09.
+// Le raisonnement n'a pas bouge d'un mot au remappage du 10/09 — seuls le nom
+// et le numero du champ de l'acteur ont change, voir la note juste au-dessus de
+// la fonction. Les trames citees plus bas gardent donc leur ecriture d'origine:
+// les rebaptiser ferait croire qu'elles ont ete remesurees.
 //
 // C'EST ELLE QUI REMPLACE `kmu`, et le 04/09 a montre pourquoi il fallait le
 // remplacer. `kmu` ne dit que « un acteur quitte la carte »: pour en tirer un
@@ -219,12 +286,25 @@ function lireGroupes(frame) {
 // LE GROUPE N'EST NOMME QUE CHEZ L'ATTAQUANT. Ceux qui rejoignent ne recoivent
 // que les `kae` des joueurs. C'est sans importance: un seul client a besoin
 // d'apprendre le niveau, puisque la cle est le combat et non le personnage.
+// REMAPPEE LE 10/09: le message s'appelait `kae`, c'est `jym`, et
+// L'IDENTIFIANT DU COMBATTANT A CHANGE DE CHAMP — 3 avant, 5 apres. Le
+// combat, lui, reste au champ 2.
+//
+//   kae { 1={2=1 3=-20001 4=1 5=<0o> 6=1} 2=194 }      avant, le 04/09
+//   jym { 1={2=<0o> 3=1 5=-20000 7=1 8=1} 2=100 }      apres, le groupe
+//   jym { 1={2={2={…}} 5=677012898086 8=1} 2=100 }     apres, un joueur
+//
+// DEUX JOURNAUX INDEPENDANTS DONNENT LA MEME FORME: journal-combat.log porte
+// trois `jym`, toutes en combat 100; journal-hdv.log en porte douze, toutes en
+// combat 18. Dans chacun un seul combattant est NEGATIF — le groupe de
+// monstres — et les autres sont des joueurs, grands et positifs. C'est trait
+// pour trait ce que `kae` decrivait ci-dessus.
 function lireEntreeCombat(frame) {
-  if (!frame || frame.type !== 'kae') return null;
+  if (!frame || frame.type !== 'jym') return null;
   const idCombat = entier(frame.payload, 2);
   if (idCombat === null) return null;
   const acteur = sousMessage(champ(frame.payload, 1));
-  const idActeur = acteur === null ? null : entier(acteur, 3);
+  const idActeur = acteur === null ? null : entier(acteur, 5);
   if (idActeur === null) return null;
   return { idCombat, idActeur };
 }

@@ -326,8 +326,20 @@ function creerPdaArchi({
     // reprises telles quelles: `iua` une pile neuve, `ivj` une pile entamee,
     // `ium` une pile disparue.
     if (frame.type === 'isa') {
-      // Meme forme qu'une pile d'ivx, au champ 3 de la trame.
-      const el = (frame.payload || []).find((f) => f.no === 3);
+      // Meme forme qu'une pile d'isb, AU CHAMP 2 de la trame.
+      //
+      // C'ETAIT LE CHAMP 3 AVANT LE PATCH 3.6.11.12, du temps ou le message
+      // s'appelait `iua`. Le remappage du 08/09 a renomme la trame ici sans
+      // deplacer le champ, et la ligne est restee fausse pendant deux jours:
+      // `find` ne trouvait rien, `lirePile` n'etait jamais appele, et la pose
+      // d'une pierre n'etait plus jamais confirmee. Encore un silence.
+      //
+      // src/pda-archi/collection.js lisait DEJA le champ 2 sur la meme trame
+      // (`tous(frame.payload, 2)`), et les deux modules se contredisaient sans
+      // que rien ne le signale. Mesure, journal-combat.log:
+      //
+      //   isa { 2={3=63 5={1=25538871 2=10 4={…} 5=17995}} }
+      const el = (frame.payload || []).find((f) => f.no === 2);
       const pile = el === undefined ? null : lirePile(el);
       if (pile === null) return;
       const piles = stocks.get(pid);
@@ -408,7 +420,12 @@ function creerPdaArchi({
     if (!allume) return;
 
     // L'ENTREE D'UN COMBATTANT DANS UN COMBAT, et elle porte deux choses.
-    if (frame.type === 'kae') {
+    //
+    // `kae` JUSQU'AU PATCH 3.6.11.12, `jym` depuis. C'est le DECLENCHEUR de
+    // toute la chasse: tant que ce nom ne correspond a rien, aucune des lignes
+    // qui suivent n'est atteinte, et la fonction entiere se tait. Tout le reste
+    // du module pouvait etre juste, il n'aurait rien equipe.
+    if (frame.type === 'jym') {
       const e = lireEntreeCombat(frame);
       if (e === null) return;
 
