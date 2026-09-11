@@ -3,7 +3,7 @@
   "tasks": [
     {
       "label": "OMNI — interface locale",
-      "detail": "Sert desktop/index.html sur http://localhost:8787 avec un faux etat",
+      "detail": "Sert le banc sur http://localhost:8787 — à ouvrir dans Simple Browser",
       "type": "shell",
       "command": "node outils/interface-locale.js",
       "isBackground": true,

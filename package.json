@@ -11,6 +11,7 @@
     "analyze": "node src/cli/analyze.js",
     "paquet-code": "node outils/faire-paquet-code.js",
     "app": "electron amorceur/electron.js",
+    "banc": "node outils/interface-locale.js",
     "etape": "echo Lancer avec le binaire package: ELECTRON_RUN_AS_NODE=1 OMNI.exe outils/faire-etape.js",
     "pack": "node outils/faire-paquet.js"
   },

@@ -52,8 +52,8 @@ test('l injection echappe les chevrons de l etat', () => {
   assert.ok(sorti.includes('\\u003c'));
 });
 
-test('la racine sert index.html avec l injection', async () => {
-  const r = await fetch(`${base}/`);
+test('/index.html sert la page avec l injection', async () => {
+  const r = await fetch(`${base}/index.html`);
   assert.strictEqual(r.status, 200);
   assert.match(r.headers.get('content-type'), /text\/html/);
   const html = await r.text();
@@ -64,7 +64,7 @@ test('la racine sert index.html avec l injection', async () => {
 // L'etat injecte doit etre du JSON relisable: s'il ne l'est pas, la page
 // n'affiche rien du tout et l'erreur n'apparait que dans la console.
 test('l etat injecte se relit en JSON', async () => {
-  const html = await (await fetch(`${base}/`)).text();
+  const html = await (await fetch(`${base}/index.html`)).text();
   const m = html.match(/window\.__FAUX_ETAT__ = (\{.*?\});<\/script>/s);
   assert.ok(m, 'etat introuvable dans la page');
   const etat = JSON.parse(m[1].replace(/\\u003c/g, '<'));
@@ -113,7 +113,7 @@ test('un chemin avec un octet NUL est refuse et le serveur survit', async () => 
   const r1 = await brut('/%00');
   assert.strictEqual(r1.status, 400);
 
-  const r2 = await fetch(`${base}/`);
+  const r2 = await fetch(`${base}/index.html`);
   assert.strictEqual(r2.status, 200, 'le serveur ne repond plus apres /%00');
 });
 
@@ -145,7 +145,7 @@ test('une collection inconnue retombe sur les archimonstres', async () => {
 // lui-meme. On modifie le vrai fichier sur disque, on verifie que le
 // changement apparait dans la reponse, PUIS on le restaure a l'identique
 // dans un finally pour que git status reste propre meme si l'assertion rate.
-test('la route / relit vraiment faux-etat.js a chaque requete', async () => {
+test('la route /index.html relit vraiment faux-etat.js a chaque requete', async () => {
   const cheminFauxEtat = path.join(__dirname, '..', 'outils', 'faux-etat.js');
   const original = fs.readFileSync(cheminFauxEtat, 'utf8');
   const marqueur = "version: 'dev'";
@@ -153,7 +153,7 @@ test('la route / relit vraiment faux-etat.js a chaque requete', async () => {
   try {
     const modifie = original.replace(marqueur, "version: 'banc-modifie-par-le-test'");
     fs.writeFileSync(cheminFauxEtat, modifie);
-    const html = await (await fetch(`${base}/`)).text();
+    const html = await (await fetch(`${base}/index.html`)).text();
     assert.ok(html.includes('banc-modifie-par-le-test'), 'la modification de faux-etat.js n a pas ete relue');
   } finally {
     fs.writeFileSync(cheminFauxEtat, original);
@@ -172,13 +172,13 @@ test('un faux-etat.js momentanement invalide rend 500 et le serveur survit', asy
   const original = fs.readFileSync(cheminFauxEtat, 'utf8');
   try {
     fs.writeFileSync(cheminFauxEtat, 'const x = ;\n');
-    const r1 = await fetch(`${base}/`);
+    const r1 = await fetch(`${base}/index.html`);
     assert.strictEqual(r1.status, 500, 'le rechargement invalide doit rendre 500, pas casser la connexion');
   } finally {
     fs.writeFileSync(cheminFauxEtat, original);
   }
 
-  const r2 = await fetch(`${base}/`);
+  const r2 = await fetch(`${base}/index.html`);
   assert.strictEqual(r2.status, 200, 'le serveur ne repond plus apres un faux-etat.js invalide');
 });
 
@@ -223,4 +223,41 @@ test('la route de rechargement ouvre un flux d evenements', async () => {
   assert.strictEqual(r.status, 200);
   assert.match(r.headers.get('content-type'), /text\/event-stream/);
   ctrl.abort();
+});
+
+// LE CADRE EXISTE PARCE QU'UN ONGLET N'A PAS LA TAILLE D'UNE FENETRE. Un
+// Simple Browser fait la largeur du panneau VS Code; desktop/index.html est
+// calibree pour 1097x720 exactement. Servie nue a la racine, elle arrivait
+// etiree sur une mise en page qui n'existe sur l'ecran de personne.
+test('la racine sert le cadre, pas la page', async () => {
+  const r = await fetch(`${base}/`);
+  assert.strictEqual(r.status, 200);
+  const html = await r.text();
+  assert.ok(html.includes('id="cadre"'), 'la racine ne sert pas le cadre');
+  assert.ok(html.includes('src="/index.html"'), 'le cadre ne charge pas la page');
+  // Le cadre est un fichier STATIQUE: aucune injection ne doit l'atteindre,
+  // sinon le faux etat serait pose deux fois -- une fois hors de l'iframe, ou
+  // il ne sert a rien, et une fois dedans.
+  assert.ok(!html.includes('__FAUX_ETAT__'), 'le cadre a recu une injection');
+});
+
+// LES DEUX NOMBRES SONT RECOPIES de desktop/main.js:887. Une recopie qu'aucun
+// test ne relit derive en silence: le cadre continuerait d'afficher 1097x720
+// longtemps apres que la vraie fenetre a change de taille, et on reglerait une
+// mise en page sur des mesures perimees.
+test('le cadre garde les mesures de la vraie fenetre', async () => {
+  const cadre = await (await fetch(`${base}/`)).text();
+  const source = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'main.js'), 'utf8');
+  const bloc = source.slice(source.indexOf('function creerFenetre()'));
+  const nombre = (nom) => {
+    // Premiere occurrence APRES creerFenetre(): celle de la fenetre
+    // principale. Celles de l'overlay viennent bien plus loin.
+    const i = bloc.indexOf(nom + ':');
+    assert.ok(i !== -1, nom + ' introuvable dans creerFenetre()');
+    const valeur = parseInt(bloc.slice(i + nom.length + 1).trim(), 10);
+    assert.ok(Number.isInteger(valeur), nom + ' n est pas un nombre');
+    return String(valeur);
+  };
+  assert.ok(cadre.includes('const LARGEUR = ' + nombre('width') + ';'), 'largeur du cadre perimee');
+  assert.ok(cadre.includes('const HAUTEUR = ' + nombre('height') + ';'), 'hauteur du cadre perimee');
 });

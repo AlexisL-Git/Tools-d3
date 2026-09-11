@@ -173,6 +173,58 @@ Deux choses a savoir, et elles ne sont pas des defauts a corriger:
 `.vscode/` entre dans le depot. Il n'y a qu'une machine de developpement, et le
 fichier decrit le projet, pas la personne.
 
+### 6. Le cadre — `outils/banc-cadre.html`
+
+*Ajoute le 2026-09-11.*
+
+**Le probleme.** Un onglet Simple Browser fait la largeur du panneau VS Code.
+`desktop/index.html` est calibree au pixel pour **1097x720** — les nombres
+sont mesures, pas estimes, voir le commentaire de `desktop/main.js:887`.
+Servie nue, elle arrivait etiree sur une mise en page qui n'existe sur l'ecran
+de personne: les colonnes trop espacees, la barre du bas collee au panneau.
+
+**La solution.** La racine `/` sert un cadre statique qui charge
+`/index.html` dans une **iframe de 1097x720**, centree sur un fond plus
+sombre que celui de l'application, avec un filet et une ombre pour qu'on voie
+ou la fenetre s'arrete. `/index.html` reste la page nue, sans cadre: c'est
+par la qu'on regarde la page seule quand on soupconne le cadre.
+
+**Pourquoi une iframe et pas du CSS sur la page.** La barre du bas
+d'`index.html` est en `position: fixed`, et `fixed` se cale sur la
+FENETRE, pas sur le bloc parent. Contraindre le `body` a 1097x720 laisserait
+cette barre collee au bas du panneau VS Code, **a cote** de l'application au
+lieu d'etre dedans. Une iframe, elle, *est* une fenetre: son viewport fait
+vraiment 1097x720, et tout ce qui en depend — position fixe, unites `vh`,
+requetes de media — se comporte comme dans la vraie fenetre d'OMNI.
+
+**L'ajustement.** Quand le panneau est plus petit que 1097x720, le cadre est
+reduit par `transform: scale()` — jamais agrandi au-dela de 1:1, agrandir une
+interface calibree au pixel ne montre pas ce qu'on verra a l'ecran, ca montre
+des pixels gros. La boite garde ses 1097x720 et l'origine est en haut a gauche,
+la translation etant calculee: avec une origine centree, la boite non
+transformee deborderait et VS Code poserait deux barres de defilement
+par-dessus. Un bouton discret en bas a droite affiche le taux et bascule entre
+« ajuste » et « 1:1 ».
+
+**Les deux nombres sont une recopie, et un test la relit.** Une recopie
+qu'aucun test ne surveille derive en silence: le cadre continuerait d'afficher
+1097x720 longtemps apres que la vraie fenetre a change de taille, et on
+reglerait une mise en page sur des mesures perimees. Le test relit
+`creerFenetre()` dans `desktop/main.js`.
+
+**Une fenetre Electron a ete essayee puis retiree** le meme jour. Elle donnait
+le rendu exact — meme options que `creerFenetre()`, un preload pour que la
+croix de la barre de titre fonctionne — mais elle vivait **hors** de VS Code,
+dans la barre des taches, ce qui n'est pas ce qu'on veut d'un banc. Deux
+mesures apprises la-bas restent vraies ici:
+
+- `webContents.loadURL()` **ne resout jamais** sur cette page: il resout au
+  `load`, et l'`EventSource` du rechargement automatique le retient
+  indefiniment. Meme cause que le `--virtual-time-budget` de Chrome headless
+  qui ne rend jamais la main sur `/index.html`.
+- `app.fenetreFermer()` ne resout jamais non plus, et c'est correct:
+  l'`invoke` part, la fenetre meurt, rien ne revient d'un renderer detruit.
+
 ## Ce qui n'est PAS fait
 
 - **Aucun etat reel.** Le banc ne parle pas a un OMNI qui tourne. Vouloir cela
@@ -191,8 +243,10 @@ fichier decrit le projet, pas la personne.
 ## Comment on saura que ca marche
 
 1. `node outils/interface-locale.js` imprime son adresse et ne sort pas.
-2. `http://localhost:8787` affiche le panneau complet: sept lignes, une par
-   etat, emblemes remplaces par les abreviations de classe.
+2. `http://localhost:8787` dans Simple Browser affiche l'application cadree
+   a 1097x720, centree, et NON etiree sur la largeur du panneau. Le
+   panneau est complet: sept lignes, une par etat, emblemes remplaces par
+   les abreviations de classe.
 3. Cocher « passe-tour » sur une ligne laisse la case cochee; cliquer le titre
    de la colonne bascule toutes les lignes et le losange change d'aspect.
 4. Cliquer une autre ligne en maitre deplace le marqueur de maitre.
@@ -203,3 +257,5 @@ fichier decrit le projet, pas la personne.
 7. La console du navigateur ne montre **aucun** « canal inconnu ».
 8. Fermer et rouvrir le dossier dans VS Code: la tache repart, l'onglet
    revient, la page charge.
+9. Retrecir le panneau du Simple Browser: l'application se reduit sans se
+   deformer, et le bouton en bas a droite affiche le taux.

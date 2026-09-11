@@ -25,6 +25,7 @@ function chargerFauxEtat() {
 
 const RACINE = path.join(__dirname, '..', 'desktop');
 const SHIM = path.join(__dirname, 'faux-app.js');
+const CADRE = path.join(__dirname, 'banc-cadre.html');
 const PORT_DEFAUT = 8787;
 
 const TYPES = {
@@ -135,7 +136,18 @@ function creerServeur() {
     // silent dans la tache VS Code laisse un Simple Browser blanc, sans un
     // mot) est pire qu'un banc qui rend une erreur visible.
     try {
-      if (chemin === '/' || chemin === '/index.html') {
+      // LA RACINE SERT LE CADRE, ET PAS LA PAGE. Le cadre charge /index.html
+      // dans une iframe de 1097x720: un onglet Simple Browser fait la largeur
+      // du panneau, et la page d'OMNI y arrivait etiree sur une mise en page
+      // qui n'existe sur l'ecran de personne. Le pourquoi du detour par une
+      // iframe est ecrit en tete de outils/banc-cadre.html.
+      //
+      // /index.html RESTE LA PAGE NUE, sans cadre: c'est la meme adresse
+      // qu'avant, et c'est par la qu'on regarde la page seule quand on
+      // soupconne le cadre.
+      if (chemin === '/') return servirFichier(res, CADRE);
+
+      if (chemin === '/index.html') {
         // chargerFauxEtat() (et fabriquerEtat()) sont appeles ICI, avant
         // fs.readFile, et non dans son callback: un require() qui leve a
         // l'interieur d'un callback fs n'est plus rattrapable par le try qui
