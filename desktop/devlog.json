@@ -1,5 +1,17 @@
 [
   {
+    "version": "0.3.8",
+    "le": "2026-09-11",
+    "notes": [
+      "La chasse a l archimonstre remarche. Depuis le patch 3.6.11.12 du jeu elle etait muette : la pierre d ame ne s equipait plus et le tableau restait vide, sans le moindre message. C est la meme cause que le 8 septembre, Dofus ayant de nouveau renomme des messages reseau.",
+      "Nouveau, dialogue : tes mules parlent chacune leur tour. Quand plusieurs personnages s adressaient au meme PNJ en meme temps, leurs reponses se marchaient dessus et l une d elles restait plantee devant sa fenetre. Elles font maintenant la queue.",
+      "Une ouverture muette est reconnue comme une boutique, plus comme une mule bloquee : tu ne verras plus passer de fausse alerte en ouvrant un etal.",
+      "Hotel de vente : tes mules ne suivent plus le maitre devant l etal. Elles restaient collees a lui et encombraient l ecran pour rien.",
+      "Echange : la pop-up de la mule se ferme toute seule a la fin de l echange, au lieu de rester ouverte derriere.",
+      "Entretien : de l outillage interne pour travailler l interface sans lancer le jeu. Rien de visible pour toi, et rien de ce qui est la ne part dans ton paquet."
+    ]
+  },
+  {
     "version": "0.3.7",
     "le": "2026-09-08",
     "notes": [
