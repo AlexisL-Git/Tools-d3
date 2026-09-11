@@ -38,6 +38,13 @@ cochent, le maitre change, le tableau des archimonstres se construit. Utile
 pour travailler la mise en page sans refabriquer le paquet ni ouvrir un seul
 client.
 
+L'onglet affiche l'application **cadree a 1097x720**, la taille exacte de la
+vraie fenetre, centree sur un fond sombre — et non etiree sur la largeur du
+panneau, ou la mise en page ne ressemble a rien de ce qu'on verra a l'ecran.
+Un panneau plus etroit la reduit sans la deformer; le bouton en bas a droite
+affiche le taux et bascule en 1:1. La page nue, sans cadre, reste sur
+`/index.html`.
+
 VS Code lance ce serveur tout seul a l'ouverture du dossier
 (`.vscode/tasks.json`); il demande **une fois** d'autoriser les taches
 automatiques du dossier. L'onglet, lui, s'ouvre a la main la premiere fois —
