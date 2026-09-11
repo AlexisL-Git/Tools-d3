@@ -14,10 +14,10 @@
 const { construireVue } = require('../src/comptes/vue');
 const { RYTHME_HDV_DEFAUT, GARDE_HDV_DEFAUT } = require('../src/comptes/favoris');
 const { NOMS: DROITS } = require('../src/droits/liste');
-const { estArchimonstre } = require('../src/pda-archi/archimonstres');
+const { collection, estArchimonstre } = require('../src/pda-archi/archimonstres');
 const hdvReprix = require('../src/hdv/reprix');
 const hdvVente = require('../src/hdv/vente');
-const { nomDe } = require('../src/hdv/objets');
+const { noterEcart } = require('../src/hdv/ecartes');
 
 // Six comptes: un par etat de vue.js, plus le client sans idCompte qui produit
 // le sixieme (« inconnu ») en se rangeant tout seul en fin de liste.
@@ -43,14 +43,45 @@ const CLIENTS = [
 
 const MAITRE = 101;
 
+// L'ORDRE DES DEUX COLLECTIONS, du plus faible au plus fort. C'est le tri de
+// src/pda-archi/tableau.js, recopie ici pour que « les 96 premiers » veuille
+// dire « les 96 premieres lignes du panneau » et pas un paquet au hasard.
+function idsParNiveau(quoi) {
+  return [...collection(quoi).entrees]
+    .sort((a, b) => (a.niveau - b.niveau) || (a.id - b.id))
+    .map((a) => a.id);
+}
+const ARCHI = idsParNiveau('archi');
+const BOSS = idsParNiveau('boss');
+
 // Les ames de chaque personnage. Un pid ABSENT de cette carte a un inventaire
 // NON LU: sa ligne affichera `—` et non `0`.
-// Les identifiants sont de vrais archimonstres de src/pda-archi/archimonstres.json.
+//
+// LES IDENTIFIANTS SORTENT DES VRAIES TABLES, jamais ecrits a la main. Le
+// tableau croise les ames avec archimonstres.json: un identifiant invente
+// n'appartient a aucune ligne, il tombe dans « hors tableau », et le panneau
+// parait vide alors que l'etat est plein.
+//
+// LES TROIS LOTS SE RECOUVRENT A PEINE, et c'est le point. Un banc ou tout le
+// monde possede la meme chose n'affiche qu'une seule couleur de case; ce
+// qu'on vient lire dans ce panneau, c'est « qui l'a, qui ne l'a pas ». Il
+// faut donc des trous, et des trous a des endroits differents.
 const AMES = new Map([
-  [101, new Set([2354, 2312, 2343])],
-  [102, new Set([2354])],
+  // Le chasseur avance: tout le bas de la table, une poignee de pieces
+  // tardives, et six ames de BOSS -- qui ne sont pas des archimonstres et
+  // nourrissent la colonne « hors tableau » de la vue Archimonstres.
+  [101, new Set([...ARCHI.slice(0, 96), ...ARCHI.slice(140, 152), ...BOSS.slice(0, 6)])],
+  // Un debut de collection en quinconce: des trous a tous les niveaux, ce qui
+  // remplit la vue par zone de « manquants » du premier au dernier ecran.
+  [102, new Set(ARCHI.filter((_, i) => i % 3 === 0).slice(0, 54))],
   // Inventaire lu, aucune ame: le zero legitime, a ne pas confondre avec `—`.
   [103, new Set()],
+  // Un milieu de table sans le bas: presque rien en commun avec 101, donc des
+  // lignes « un seul l'a » a foison.
+  [105, new Set(ARCHI.slice(60, 132))],
+  // 104 ET 106 RESTENT ABSENTS, deliberement: leur inventaire n'est pas lu et
+  // leur ligne affiche `—`. Au moins un des deux doit le rester, sinon la
+  // distinction que ce banc sert a verifier n'est plus a l'ecran.
 ]);
 
 const TOUCHES = { 1: 'F1', 2: 'F2', 3: 'F3' };
@@ -61,31 +92,70 @@ const TOUCHES = { 1: 'F1', 2: 'F2', 3: 'F3' };
 // sert a travailler. Fonction et non table statique: chaque appel de
 // fabriquerEtat() doit rendre des objets neufs, jamais une reference
 // partagee entre deux onglets.
+// UN TABLEAU D'ECARTES COMME noterEcart() EN FABRIQUE, et par le meme chemin:
+// c'est `noterEcart` qui pose le nom de l'objet, ici comme en production. Le
+// recopier a la main ferait du banc le seul endroit ou un nom peut etre juste
+// alors que src/hdv/objets.json a bouge.
+//
+// `tronque` reste a false: la troncature se declenche a
+// PLAFOND_ECARTES (200) lignes, et l'annoncer sous une liste de huit serait
+// un badge qui ment.
+function ecartes(quoi, lignes) {
+  const table = lignes.reduce(noterEcart, []);
+  return {
+    quoi,
+    lots: table.reduce((n, l) => n + l.lots, 0),
+    tronque: false,
+    lignes: table,
+  };
+}
+
 function hdvDe(pid) {
   switch (pid) {
     // Des lots connus, aucune passe en cours: l'entree « mettre a jour les
-    // prix (3 lots) » doit etre active mais pas tournante.
-    case 101: return { hdvLots: 3, hdvEnCours: false, hdvPiles: 0, hdvVenteEnCours: false, hdvEcartes: null };
+    // prix (3 lots) » doit etre active mais pas tournante. Et une mise en
+    // VENTE ratee derriere: c'est l'autre titre de la fenetre des ecartes
+    // (« Lots non mis en vente »), qu'aucune autre ligne ne montre.
+    case 101: return {
+      hdvLots: 3, hdvEnCours: false, hdvPiles: 0, hdvVenteEnCours: false,
+      hdvEcartes: ecartes('vente', [
+        { gid: 7200, taille: 1, lots: 2, motif: 'au-dessus-du-plafond', vise: 1500000, borne: 900000, moyenUnitaire: 1200000 },
+        { gid: 8000, taille: 10, lots: 8, motif: 'pile-fondue', vise: null, borne: null, moyenUnitaire: 340 },
+        { gid: 12000, taille: 100, lots: 3, motif: 'taille-hors-creneaux', vise: null, borne: null, moyenUnitaire: 15 },
+        // gid 344: ABSENT de src/hdv/objets.json. nomDe() rend null, et la
+        // fenetre retombe sur le numero -- le seul chemin qui affiche un gid
+        // nu, donc le seul qu'on ne verra jamais sans une ligne comme
+        // celle-ci.
+        { gid: 344, taille: 10, lots: 5, motif: 'marche-illisible', vise: null, borne: null, moyenUnitaire: null },
+        { gid: 1575, taille: 1, lots: 1, motif: 'deduction-trop-basse', vise: 300, borne: 4500, moyenUnitaire: 5200 },
+      ]),
+    };
     // Une passe de prix en cours: l'icone tourne, meme sans lot connu encore.
     case 102: return { hdvLots: 0, hdvEnCours: true, hdvPiles: 0, hdvVenteEnCours: false, hdvEcartes: null };
     // Des piles en attente de mise en vente.
     case 103: return { hdvLots: 0, hdvEnCours: false, hdvPiles: 4, hdvVenteEnCours: false, hdvEcartes: null };
     // Une mise en vente en cours.
     case 104: return { hdvLots: 0, hdvEnCours: false, hdvPiles: 0, hdvVenteEnCours: true, hdvEcartes: null };
-    // Des lots ecartes a la derniere passe: la forme est celle de
-    // src/hdv/ecartes.js (noterEcart), relue par desktop/index.html:1372
-    // (ouvrirEcartes). Le gid, le marche delirant et le plafond viennent de
-    // l'exemple ecrit en tete de src/hdv/ecartes.js.
+    // Des lots ecartes a la derniere passe de PRIX. La premiere ligne est
+    // l'exemple ecrit en tete de src/hdv/ecartes.js -- les six lots de poils
+    // partis a 7 000 002 kamas du 05/09. Les suivantes existent pour une
+    // seule raison: MOTIF_ECARTE (desktop/index.html:1345) compte treize
+    // motifs, et un motif qu'aucune ligne ne porte est un libelle que
+    // personne ne relit jamais. Les deux fenetres en couvrent douze.
     case 105: return {
       hdvLots: 0, hdvEnCours: false, hdvPiles: 0, hdvVenteEnCours: false,
-      hdvEcartes: {
-        quoi: 'prix',
-        lots: 6,
-        tronque: false,
-        lignes: [
-          { gid: 13731, taille: 10, lots: 6, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 1520, nom: nomDe(13731) },
-        ],
-      },
+      hdvEcartes: ecartes('prix', [
+        { gid: 13731, taille: 10, lots: 6, motif: 'trop-haut', vise: 7000001, borne: 7600, moyenUnitaire: 1520 },
+        { gid: 448, taille: 100, lots: 4, motif: 'trop-bas', vise: 12, borne: 190, moyenUnitaire: 38 },
+        // Ni moyen ni borne: les deux colonnes retombent sur `—`, et c'est la
+        // seule facon de verifier qu'elles ne montrent pas « 0 » a la place.
+        { gid: 311, taille: 1, lots: 9, motif: 'moyen-inconnu', vise: 4200, borne: null, moyenUnitaire: null },
+        { gid: 441, taille: 10, lots: 2, motif: 'aucun-voisin', vise: null, borne: null, moyenUnitaire: 615 },
+        { gid: 6900, taille: 100, lots: 11, motif: 'deja-au-minimum', vise: 1, borne: null, moyenUnitaire: 1 },
+        { gid: 1234, taille: 10, lots: 3, motif: 'marche-a-1-kama', vise: 1, borne: null, moyenUnitaire: 870 },
+        { gid: 439, taille: 1, lots: 5, motif: 'deduction-trop-haute', vise: 98000, borne: 24000, moyenUnitaire: 8000 },
+        { gid: 13000, taille: 100, lots: 7, motif: 'sans-reponse', vise: null, borne: null, moyenUnitaire: 2450 },
+      ]),
     };
     // Aucune activite HDV connue pour ce pid: le meme repli que « pas de
     // client », donc aussi la valeur pour toute ligne sans pid.
