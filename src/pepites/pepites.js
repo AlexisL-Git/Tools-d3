@@ -59,8 +59,20 @@ function creerPepites({
     // « aucun objet ne vaut le coup », alors que la verite est « je n'ai pas
     // encore vu les prix ». C'est au panneau de le dire.
     if (table === null) return null;
-    const lignes = classer({ prixMoyens: table.prixMoyens });
     const precedent = historique.dernier();
+    // UNE PASSE NE SE COMPARE PAS A ELLE-MEME. Le battement des douze heures
+    // et l'ivi sont independants (voir plus bas): sans cette garde, un
+    // battement qui tombe sans ivi neuve entretemps recalculerait la MEME
+    // table contre elle-meme -- tout ressortirait 'stable' a deltaCout 0, une
+    // verite fausse plutot que « rien de neuf a comparer » -- et ecrirait une
+    // entree identique dans un historique borne a 30, chassant la derniere
+    // comparaison utile apres quinze jours sans connexion. La conception le
+    // dit explicitement a propos du rattrapage: « Rattraper produirait deux
+    // passes identiques a la file, puisque la table de prix, elle, n'a pas
+    // change entretemps. » Meme defaut, meme correction que celle posee sur
+    // le handler IPC en ronde 1 -- ici sur l'autre declencheur.
+    if (precedent !== null && precedent.prixQuand === table.quand) return null;
+    const lignes = classer({ prixMoyens: table.prixMoyens });
     const passe = {
       quand: maintenant(),
       prixQuand: table.quand,

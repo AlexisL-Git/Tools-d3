@@ -73,9 +73,20 @@ async function tout() {
       `${RACINE}/items?$select[]=id&$select[]=recyclingNuggets`
       + `&$limit=${PAGE}&$skip=${out.length}`,
     );
-    if (total === null) total = j.total;
-    if (!j.data.length) break;
-    for (const it of j.data) out.push(it);
+    total = j.total;
+    // MEME GARDE QUE faire-objets.js, ET ELLE MANQUAIT ICI. Sans
+    // Array.isArray, une reponse dont `data` est absent (une page en erreur,
+    // une API qui change de forme) leve un TypeError sur `.length` au lieu de
+    // s'arreter proprement -- et sans la verification finale, une page vide
+    // en milieu de course sortirait de la boucle EN SILENCE et ecrirait un
+    // taux.json tronque, avec pour seul filet le test qui fige 4 049 entrees,
+    // qu'on serait tente de « mettre a jour » plutot que d'enqueter.
+    if (!Array.isArray(j.data) || j.data.length === 0) break;
+    out.push(...j.data);
+    if (out.length % 2000 < PAGE) console.log(`  ${out.length} / ${total}`);
+  }
+  if (total !== null && out.length !== total) {
+    throw new Error(`${out.length} objets recus pour ${total} annonces`);
   }
   return out;
 }
@@ -88,13 +99,30 @@ async function principal() {
     if (typeof t === 'number' && t > 0) objets[String(it.id)] = t;
   }
   const jeu = versionDuJeu();
-  const cible = path.join(__dirname, '..', 'src', 'pepites', 'taux.json');
-  fs.mkdirSync(path.dirname(cible), { recursive: true });
-  fs.writeFileSync(cible, JSON.stringify({ jeu, objets }), 'utf8');
+  ecrire(jeu, objets);
   console.log(`${items.length} objets parcourus, ${Object.keys(objets).length} recyclables`);
   console.log(jeu === null
     ? 'version du jeu introuvable: taux.json porte jeu=null'
     : `verifie contre le jeu ${jeu}`);
+}
+
+// UNE LIGNE PAR ENTREE, COMME faire-objets.js -- ET POUR LA MEME RAISON QU'IL
+// DONNE EN COMMENTAIRE: un objet JSON sur une seule ligne ne se relit pas du
+// tout. Le jour ou Ankama bouge 22 taux (mesure du 11/09, entre le client
+// live et la beta), c'est un diff de 22 lignes qu'on veut voir, pas un octet
+// perdu au milieu de 100 Ko. Trie par gid numerique pour que l'ordre ne
+// bouge pas d'une regeneration a l'autre.
+function ecrire(jeu, objets) {
+  const cible = path.join(__dirname, '..', 'src', 'pepites', 'taux.json');
+  fs.mkdirSync(path.dirname(cible), { recursive: true });
+  const lignes = Object.keys(objets)
+    .sort((a, b) => Number(a) - Number(b))
+    .map((gid) => `    ${JSON.stringify(gid)}: ${JSON.stringify(objets[gid])}`)
+    .join(',\n');
+  const corps = `{\n  "jeu": ${JSON.stringify(jeu)},\n  "objets": {\n${lignes}\n  }\n}\n`;
+  fs.writeFileSync(cible, corps, 'utf8');
+  const ko = Math.round(fs.statSync(cible).size / 1024);
+  console.log(`ecrit : ${cible} (${Object.keys(objets).length} objets, ${ko} Ko)`);
 }
 
 principal().catch((e) => { console.error(e); process.exit(1); });

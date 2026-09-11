@@ -109,14 +109,42 @@ test('une passe sans ivi ne produit rien', () => {
   assert.deepStrictEqual(historique.passes, []);
 });
 
-test('la minuterie declenche une passe toutes les douze heures', () => {
-  const { p, passes, minuteurs } = creer();
+test('la minuterie s arme sur douze heures', () => {
+  const { p, minuteurs } = creer();
   p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 12]]) });
   p.demarrer();
   assert.strictEqual(minuteurs.length, 1);
   assert.strictEqual(minuteurs[0].ms, PERIODE_MS);
+});
+
+// LE SCENARIO EXACT QUE LA CONCEPTION CONDAMNE: un battement qui tombe sans
+// ivi neuve entretemps recalculerait la MEME table contre elle-meme. `creer()`
+// pose `maintenant` a une constante: sans ivi entre les battements, la table
+// ne change jamais de prixQuand, donc aucun des trois ne doit rien ecrire.
+test('un battement sans ivi neuve n ecrit rien de plus', () => {
+  const { p, passes, minuteurs, historique } = creer();
+  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 12]]) });
+  p.demarrer();
   minuteurs[0].fn();
-  assert.strictEqual(passes.length, 2);
+  minuteurs[0].fn();
+  minuteurs[0].fn();
+  assert.strictEqual(passes.length, 1, 'une ivi, trois battements a vide: une seule passe');
+  assert.strictEqual(historique.passes.length, 1);
+});
+
+// LE CAS OU LE BATTEMENT A QUELQUE CHOSE A DIRE: une ivi arrive APRES
+// l'armement de la minuterie mais avant qu'elle ne sonne. onTrame() passe
+// deja cette ivi tout seul (c'est son travail) -- le battement qui suit n'a
+// donc lui non plus rien de neuf, et c'est la meme garde qui l'arrete.
+test('une ivi entre l armement et le battement n est pas repassee deux fois', () => {
+  const t = (() => { let n = 0; return () => { n += 1; return n; }; })();
+  const { p, passes, minuteurs } = creer({ maintenant: t });
+  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 12]]) });
+  p.demarrer();
+  p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 9]]) });
+  assert.strictEqual(passes.length, 2, 'onTrame a deja passe la seconde ivi');
+  minuteurs[0].fn();
+  assert.strictEqual(passes.length, 2, 'le battement n a plus rien a ajouter');
 });
 
 // LES DEUX DECLENCHEURS SONT INDEPENDANTS. Si une ivi rearmait la minuterie,
@@ -129,7 +157,12 @@ test('une ivi ne rearme pas la minuterie', () => {
 });
 
 test('la variation compare a la passe precedente', () => {
-  const { p, passes } = creer();
+  // Horloge qui avance: deux ivi au meme instant sont censees ne jamais
+  // arriver en production, et avec `maintenant` constant la garde de
+  // passer() contre l'auto-comparaison deduperait la seconde comme si rien
+  // n'avait change.
+  const t = (() => { let n = 0; return () => { n += 1; return n; }; })();
+  const { p, passes } = creer({ maintenant: t });
   p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 12]]) });
   p.onTrame({ pid: 7, dir: 'in', frame: trameIvi([[303, 6]]) });
   assert.strictEqual(passes[0].variation.lignes[0].etat, 'entree');

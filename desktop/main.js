@@ -1226,12 +1226,8 @@ app.whenReady().then(async () => {
       }
     },
   });
-  // LA CHASSE A L'ARCHIMONSTRE.
+  // LE CLASSEMENT DES PEPITES.
   //
-  // Elle ecoute EN PERMANENCE elle aussi, et meme eteinte: sans cela, allumer
-  // l'interrupteur devant un combat n'aurait aucun effet avant le prochain
-  // changement de carte, l'inventaire et la carte n'arrivant qu'a ce
-  // moment-la.
   // LE FICHIER VA DANS userData, a cote de favoris.json -- pas dans le depot:
   // c'est de l'etat d'utilisateur, il survit aux mises a jour de code.
   pepites = creerPepites({
@@ -1252,8 +1248,8 @@ app.whenReady().then(async () => {
       pepitesResultat = resultat;
       const { passe } = resultat;
       // `journal(0, ...)` ET PAS `journal(null, ...)`: zero est le pid de
-      // convention pour ce qui ne vient d'aucun client, pose par la mise a
-      // jour git (desktop/main.js:2252). `null` s'imprimerait tel quel entre
+      // convention pour ce qui ne vient d'aucun client, pose par signalerMajGit()
+      // plus bas dans ce fichier. `null` s'imprimerait tel quel entre
       // crochets.
       journal(0, `pepites : ${passe.lignes.length} lignes classees`
         // LE CHIFFRE QUI MANQUE A LA SPEC. Combien des 4 049 objets
@@ -1263,6 +1259,12 @@ app.whenReady().then(async () => {
     },
   });
   pepites.demarrer();
+  // LA CHASSE A L'ARCHIMONSTRE.
+  //
+  // Elle ecoute EN PERMANENCE elle aussi, et meme eteinte: sans cela, allumer
+  // l'interrupteur devant un combat n'aurait aucun effet avant le prochain
+  // changement de carte, l'inventaire et la carte n'arrivant qu'a ce
+  // moment-la.
   pdaArchi = creerPdaArchi({
     superviseur,
     actif: favoris.pdaArchi(),
@@ -1904,13 +1906,12 @@ ipcMain.handle('tableauArchi', (_e, quoi) => construireTableauArchi({
 // frais.
 ipcMain.handle('tableauPepites', () => {
   const etat = pepites === null ? null : pepites.etat();
-  if (etat === null) {
-    return {
-      lignes: [], sorties: [], quand: null, prixQuand: null, perso: null,
-      jeu: JEU_DES_TAUX,
-      raison: 'connecte un personnage une fois pour que je voie les prix',
-    };
-  }
+  const PAS_ENCORE = {
+    lignes: [], sorties: [], quand: null, prixQuand: null, perso: null,
+    jeu: JEU_DES_TAUX,
+    raison: 'connecte un personnage une fois pour que je voie les prix',
+  };
+  if (etat === null) return PAS_ENCORE;
   // OUVRIR LE PANNEAU N'EST PAS UNE PASSE. Une passe compare la table de prix
   // courante a la derniere passe enregistree; l'appeler ici comparerait la
   // table A ELLE-MEME des qu'aucune ivi n'est arrivee entre deux ouvertures,
@@ -1921,7 +1922,15 @@ ipcMain.handle('tableauPepites', () => {
   // dix entrees, et les quinze jours annonces tomberaient a la duree d'une
   // session. Le cache rempli par onPasse ne bouge que sur une vraie passe --
   // une ivi ou la minuterie des douze heures -- jamais sur un clic.
-  const r = pepitesResultat === null ? pepites.passer() : pepitesResultat;
+  //
+  // PAS DE REPLI SUR pepites.passer() ICI: etat() et passer() rendent tous
+  // deux `null` exactement dans le meme cas (table interne a null), et on
+  // vient de verifier que ce n'est pas le notre. Si le cache est malgre tout
+  // vide a ce point, appeler passer() reintroduirait le bug corrige plus
+  // haut plutot que de le reparer -- la reponse honnete est « pas encore de
+  // classement », pas un calcul suspect.
+  if (pepitesResultat === null) return PAS_ENCORE;
+  const r = pepitesResultat;
   const ligne = (dernieresLignes || []).find((l) => l.pid === etat.pid);
   // NOMMER ICI, PAS DANS LE MODULE: src/pepites/ ne connait que des gids, et
   // nomDe() vit deja a cote de la table HDV. Un gid sans nom rend `null`, et
@@ -2373,6 +2382,11 @@ app.on('window-all-closed', async () => {
   // Meme invariant pour la veille des droits: un reveil pendant le demontage
   // appellerait onChangement sur un superviseur deja en train de disparaitre.
   if (veille !== null) veille.arreter();
+  // Meme invariant encore pour la minuterie des pepites: sans cet arret, elle
+  // continuerait de sonner toutes les douze heures sur un process qui n'a
+  // plus de fenetre, jusqu'a ce que la fermeture forcee plus bas la tue avec
+  // tout le reste -- et pas avant.
+  if (pepites !== null) pepites.arreter();
 
   // LA FERMETURE EST BORNEE. `arreter()` decharge les scripts Frida et detache
   // les sessions: ce sont des allers-retours avec des process Dofus qui

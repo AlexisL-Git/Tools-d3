@@ -119,7 +119,7 @@ test('une table de prix absente rend un classement vide', () => {
   assert.deepStrictEqual(classer({ prixMoyens: new Map() }), []);
 });
 
-const { comparer, chercher } = require('../src/pepites/classement');
+const { comparer, chercher, LIMITE_RECHERCHE } = require('../src/pepites/classement');
 
 // --- comparer() -------------------------------------------------------
 
@@ -204,11 +204,39 @@ test('un objet recyclable sans prix sort avec un cout null', () => {
   assert.strictEqual(l.coutParPepite, null);
 });
 
+// INDICES FIXES, PAS DECOUVERTS. La version precedente cherchait `avecPrix`
+// et `sansPrix` par findIndex et ne comparait que si `sansPrix !== -1` --
+// donc passait par construction des que `avecPrix` valait -1 (rien trouve
+// avec prix), sans jamais avoir verifie l'ordre reel. 'bois' rend 20
+// resultats sur la table figee du depot (verifie a l'ecriture de ce test):
+// seul gid 303 porte un prix, et le tri le place en tete.
 test('les objets sans prix passent apres ceux qui en ont un', () => {
   const r = chercher({ texte: 'bois', prixMoyens: new Map([[303, 12]]) });
-  const avecPrix = r.findIndex((x) => x.coutParPepite !== null);
-  const sansPrix = r.findIndex((x) => x.coutParPepite === null);
-  if (sansPrix !== -1) assert.ok(avecPrix < sansPrix);
+  assert.strictEqual(r.length, LIMITE_RECHERCHE, `attendu ${LIMITE_RECHERCHE} resultats pour 'bois'`);
+  assert.strictEqual(r[0].gid, 303, 'le seul prix connu doit passer en tete');
+  assert.notStrictEqual(r[0].coutParPepite, null);
+  for (let i = 1; i < r.length; i += 1) {
+    assert.strictEqual(r[i].coutParPepite, null, `l objet a l index ${i} devrait etre sans prix`);
+  }
+});
+
+// LE PLAFOND DE LA RECHERCHE LIBRE, VERIFIE POUR DE VRAI: le test precedent
+// montre deja qu'il s'applique a 'bois', celui-ci le verifie en le comparant
+// a la constante exportee plutot que de recopier le chiffre 20 en dur.
+test('la recherche ne depasse jamais LIMITE_RECHERCHE', () => {
+  assert.strictEqual(LIMITE_RECHERCHE, 20);
+  const r = chercher({ texte: 'bois', prixMoyens: new Map() });
+  assert.ok(r.length <= LIMITE_RECHERCHE);
+});
+
+// LE SUSPECT DE chercher() N'EST PAS TESTE AILLEURS: classer() a sa propre
+// verification plus haut, mais chercher() pose `suspect` sur un chemin de
+// code different (elle part de TAUX, pas de prixMoyens) et pourrait diverger
+// sans qu'aucun test ne le remarque.
+test('la recherche marque suspect un prix a 10 kamas ou moins', () => {
+  const l = chercher({ texte: 'Bois de Frene', prixMoyens: new Map([[303, PRIX_SUSPECT]]) })
+    .find((x) => x.gid === 303);
+  assert.strictEqual(l.suspect, true);
 });
 
 test('un objet non recyclable ne sort jamais de la recherche', () => {

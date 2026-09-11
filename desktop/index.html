@@ -538,25 +538,21 @@
   }
   .arc-pied b { color: var(--texte); font-variant-numeric: tabular-nums; }
 
-  /* LE PANNEAU DES PEPITES. Memes declarations que .vue-archi, .arc-corps,
-     .arc-pied et .arc-cherche, RECOPIEES et non partagees: c'est le prix du
-     prefixe pep-, assume -- une regle commune ferait dependre cette mise en
-     page des retouches faites au panneau voisin. Voir test/pepites-panneau.test.js.
+  /* LE PANNEAU DES PEPITES. Memes declarations que .arc-corps, .arc-pied et
+     .arc-cherche, RECOPIEES et non partagees pour ces trois-la: c'est le
+     prix du prefixe pep-, assume -- une regle commune ferait dependre cette
+     mise en page des retouches faites au panneau voisin. Voir
+     test/pepites-panneau.test.js.
 
-     LE CONTENEUR SE STYLE PAR SON ID, PAS PAR SA CLASSE. La classe pep-vue
-     du balisage reste le marqueur que le test de panneau utilise pour le
-     reperer, mais son allow-list des classes pep- etrangeres ne la connait
-     pas -- exactement comme vue-archi echappe a la garde arc- en ne portant
-     pas ce prefixe. Une regle de classe la casserait; #vuePepites porte la
-     meme geometrie sans y toucher. */
-  #vuePepites {
-    position: absolute; inset: 38px 0 0 0; z-index: 20;
-    background: var(--fond); display: flex; flex-direction: column;
-  }
+     LE CONTENEUR, LUI, EST vue-archi -- PAS UNE CLASSE A RECOPIER. Cette
+     classe n'appartient pas au panneau archimonstres malgre son nom: c'est
+     le conteneur PARTAGE que #vueEcartes et #vueRythme utilisent deja. La
+     reutiliser ici est le geste idiomatique du fichier, pas une collision
+     avec un panneau voisin -- il n'y a rien a en recopier. */
   .pep-corps { flex: 1; overflow-y: auto; padding: 0 15px 14px; }
   /* .arc-cherche vit dans .arc-filtres, une rangee flex: sa seule
      margin-left: 12px suffit, le reste de l'espacement vient de la barre qui
-     la porte. .pep-cherche est enfant direct de #vuePepites, qui est en
+     la porte. .pep-cherche est enfant direct de .vue-archi, qui est en
      flex-direction: column -- sans align-self elle heriterait de
      align-items: stretch et s'etirerait sur toute la largeur du panneau.
      align-self: flex-start la remet a sa largeur de contenu, et les deux
@@ -1013,17 +1009,20 @@
   <div class="arc-pied" id="arcPied"></div>
 </div>
 
-<!-- LE TABLEAU DES PEPITES. Meme forme que le tableau des archimonstres: un
-     panneau dans la fenetre, ferme par Echap ou par la croix.
-     MEME FORME, CLASSES DISTINCTES: voir test/pepites-panneau.test.js. -->
-<div class="pep-vue" id="vuePepites" hidden>
+<!-- LE TABLEAU DES PEPITES. class="vue-archi" COMME #vueEcartes ET
+     #vueRythme juste au-dessus: c'est le conteneur PARTAGE de tous les
+     panneaux qui vivent dans la fenetre plutot que dans une modale, pas une
+     classe propre aux archimonstres. Le contenu, lui, garde ses classes
+     pep- propres: voir test/pepites-panneau.test.js. -->
+<div class="vue-archi" id="vuePepites" hidden>
   <div class="qdn-tete">
     <b>Pépites</b>
     <button id="pepFermer" title="Fermer (Échap)">✕</button>
   </div>
   <label class="pep-cherche">
     <input id="pepChercheTexte" type="search" placeholder="Chercher un objet…"
-           autocomplete="off" spellcheck="false">
+           autocomplete="off" spellcheck="false"
+           aria-label="Chercher un objet recyclable par son nom">
   </label>
   <div class="pep-corps" id="pepCorps"></div>
   <div class="pep-pied" id="pepPied"></div>
@@ -1546,6 +1545,10 @@
   };
 
   let pepTable = null;
+  // Le minuteur de la recherche, et le jeton qui perime une reponse arrivee
+  // trop tard: voir le commentaire de pepChamp.oninput plus bas.
+  let pepFrappe = null;
+  let pepSeq = 0;
 
   function fermerPepites() {
     document.getElementById('vuePepites').hidden = true;
@@ -1606,61 +1609,121 @@
     pied.textContent = 'Prix du ' + quand.toLocaleDateString('fr-FR')
       + ' à ' + quand.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
       + (pepTable.perso ? ', vus par ' + pepTable.perso : '')
-      + ' — taux du jeu ' + pepTable.jeu
+      // LE JEU PEUT VALOIR null: outils/faire-pepites.js l'ecrit ainsi quand
+      // l'installation du jeu est absente au moment de la mesure. « taux du
+      // jeu null » se lirait comme une version, pas comme une absence.
+      + (pepTable.jeu === null ? ' — version du jeu inconnue' : ' — taux du jeu ' + pepTable.jeu)
       + (pepTable.sorties.length ? ' — ' + pepTable.sorties.length + ' objet(s) sorti(s)' : '');
   }
 
+  // Le tableau de la recherche libre: forme distincte de celle du classement
+  // ci-dessus (pas de rang, pas de colonne de variation -- chercher() ne les
+  // fabrique pas), donc une fonction a part plutot qu'une branche de plus
+  // dans dessinerPepites().
+  function dessinerRecherche(r) {
+    const corps = document.getElementById('pepCorps');
+    if (r.length === 0) {
+      corps.innerHTML = '<div class="' + PEP.vide + '">Aucun objet recyclable de ce nom.</div>';
+      return;
+    }
+    corps.innerHTML = '<table class="pep-table"><thead><tr>'
+      + '<th>Objet</th><th>Pour 1 pépite</th><th>Prix moyen</th><th>Coût / pépite</th>'
+      + '</tr></thead><tbody>'
+      + r.map((l) => '<tr' + (l.suspect ? ' class="' + PEP.suspect + '"' : '') + '>'
+        + '<td>' + echapper(l.nom) + '</td>'
+        + '<td>' + parPepite(l.taux) + '</td>'
+        // PRIX INCONNU N'EST PAS PRIX ZERO. C'est la reponse que la spec
+        // demande: un objet recyclable dont personne ne connait le prix se
+        // dit, il ne se cache pas.
+        + '<td>' + (l.prixMoyen === null ? 'prix inconnu' : kamas(l.prixMoyen)) + '</td>'
+        + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
+        + '</tr>').join('')
+      + '</tbody></table>';
+  }
+
   async function ouvrirPepites() {
+    // LA RECHERCHE REPART A ZERO A CHAQUE OUVERTURE. Sans ca, chercher,
+    // fermer puis rouvrir laissait le mot tape dans le champ alors que le
+    // corps affichait deja le classement complet -- les deux moities du
+    // panneau en desaccord. bump pepSeq perime aussi toute reponse de
+    // recherche encore en vol d'une ouverture precedente: voir le
+    // commentaire de pepChamp.oninput plus bas.
+    const champ = document.getElementById('pepChercheTexte');
+    champ.value = '';
+    if (pepFrappe !== null) { clearTimeout(pepFrappe); pepFrappe = null; }
+    pepSeq += 1;
     // LE PANNEAU S'OUVRE MEME EN ECHEC, ET DIT POURQUOI -- meme filet que
     // ouvrirArchi, et pour la meme raison payee le 04/09: sans lui, une
     // exception laisse simplement le panneau ferme, et l'utilisateur voit un
-    // bouton qui « ne fait rien ».
+    // bouton qui « ne fait rien ». L'echec est encode dans `raison`, le meme
+    // champ que le cas « pas encore de prix »: dessinerPepites() n'a qu'un
+    // seul chemin a connaitre pour les deux, et une recherche tapee puis
+    // effacee ensuite retombe donc sur le MEME message au lieu d'un panneau
+    // blanc qui ecraserait l'erreur.
     try {
       pepTable = await window.app.tableauPepites();
-      dessinerPepites();
     } catch (e) {
-      pepTable = null;
-      document.getElementById('pepCorps').innerHTML = '<div class="' + PEP.vide + '">'
-        + 'Le tableau n’a pas pu être construit : '
-        + echapper(e && e.message ? e.message : String(e)) + '</div>';
-      document.getElementById('pepPied').textContent = '';
+      pepTable = {
+        lignes: [], sorties: [], quand: null, prixQuand: null, perso: null, jeu: null,
+        raison: 'Le tableau n’a pas pu être construit : '
+          + (e && e.message ? e.message : String(e)),
+      };
     }
+    dessinerPepites();
     document.getElementById('vuePepites').hidden = false;
   }
 
-  document.getElementById('pepFermer').addEventListener('click', fermerPepites);
+  document.getElementById('pepFermer').onclick = fermerPepites;
 
-  // La recherche remplace le classement tant qu'elle porte du texte, et le
-  // rend des qu'on efface: deux listes cote a cote se disputeraient l'ecran.
-  let pepFrappe = null;
-  document.getElementById('pepChercheTexte').addEventListener('input', (ev) => {
-    const texte = ev.target.value;
+  // `oninput`/`onkeydown` et non addEventListener, comme arcChamp juste
+  // au-dessus: le panneau s'execute aussi dans le DOM de facade des tests,
+  // qui sait rappeler une propriete mais pas rejouer une file d'ecouteurs.
+  const pepChamp = document.getElementById('pepChercheTexte');
+  pepChamp.oninput = () => {
+    const texte = pepChamp.value;
     if (pepFrappe !== null) clearTimeout(pepFrappe);
-    // UN APPEL PAR FRAPPE PARCOURRAIT 4 049 NOMS A CHAQUE LETTRE. Le delai est
-    // court: il ne fait qu'attendre la fin du mot.
-    pepFrappe = setTimeout(async () => {
-      if (texte.trim().length < 2) { dessinerPepites(); return; }
-      const r = await window.app.chercherPepite(texte);
-      const corps = document.getElementById('pepCorps');
-      if (r.length === 0) {
-        corps.innerHTML = '<div class="' + PEP.vide + '">Aucun objet recyclable de ce nom.</div>';
-        return;
-      }
-      corps.innerHTML = '<table class="pep-table"><thead><tr>'
-        + '<th>Objet</th><th>Pour 1 pépite</th><th>Prix moyen</th><th>Coût / pépite</th>'
-        + '</tr></thead><tbody>'
-        + r.map((l) => '<tr' + (l.suspect ? ' class="' + PEP.suspect + '"' : '') + '>'
-          + '<td>' + echapper(l.nom) + '</td>'
-          + '<td>' + parPepite(l.taux) + '</td>'
-          // PRIX INCONNU N'EST PAS PRIX ZERO. C'est la reponse que la spec
-          // demande: un objet recyclable dont personne ne connait le prix se
-          // dit, il ne se cache pas.
-          + '<td>' + (l.prixMoyen === null ? 'prix inconnu' : kamas(l.prixMoyen)) + '</td>'
-          + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
-          + '</tr>').join('')
-        + '</tbody></table>';
-    }, 150);
-  });
+    pepSeq += 1;
+    const seq = pepSeq;
+    // UN APPEL PAR FRAPPE PARCOURRAIT 4 049 NOMS A CHAQUE LETTRE. Le delai
+    // est court: il ne fait qu'attendre la fin du mot.
+    //
+    // LE JETON DE SEQUENCE, ET PAS SEULEMENT clearTimeout(). clearTimeout()
+    // annule le MINUTEUR tant qu'il n'a pas sonne, pas une promesse deja en
+    // vol: une reponse a une frappe plus ancienne peut revenir APRES celle
+    // d'une frappe plus recente (ou apres une fermeture-reouverture du
+    // panneau) et ecraser un classement plus a jour. `seq` porte le numero
+    // de CETTE frappe; si `pepSeq` a change quand la reponse arrive, une
+    // autre frappe -- ou une reouverture -- l'a emportee, et cette reponse
+    // est jetee sans toucher au DOM.
+    return new Promise((resolve) => {
+      pepFrappe = setTimeout(async () => {
+        if (texte.trim().length < 2) {
+          if (seq === pepSeq) dessinerPepites();
+          resolve();
+          return;
+        }
+        const r = await window.app.chercherPepite(texte);
+        if (seq === pepSeq) dessinerRecherche(r);
+        resolve();
+      }, 150);
+    });
+  };
+
+  // ECHAP VIDE AVANT DE FERMER, meme geste et meme raison que arcChamp: la
+  // touche ferme le panneau, et perdre un classement pour trois lettres
+  // effacees par erreur est brutal. test/pda-archi-panneau.test.js verrouille
+  // ce comportement sur l'autre panneau ("ECHAP VIDE AVANT DE FERMER"); les
+  // deux jumeaux n'ont pas de raison de diverger la-dessus.
+  pepChamp.onkeydown = (e) => {
+    if (e.key !== 'Escape' || pepChamp.value === '') return undefined;
+    e.stopPropagation();
+    pepChamp.value = '';
+    // `return`, contrairement a l'effacement clavier normal: oninput() est
+    // ici asynchrone (debat + appel reseau, la ou celui d'arcChamp est
+    // synchrone), et le rendre awaitable est ce qui permet a un test de
+    // verifier ce qui s'affiche APRES l'effacement plutot que pendant.
+    return pepChamp.oninput();
+  };
 
   // L'embleme de classe d'un personnage, repris du cache de la liste des
   // comptes -- rien n'est retelecharge. Sans embleme en cache, l'abreviation de
@@ -2220,9 +2283,11 @@
       fermerArchi();
       return;
     }
-    // Le panneau des pepites suit le meme ordre de garde que celui des
-    // archimonstres, juste apres lui: aucun des deux n'est jamais ouvert
-    // en meme temps que l'autre, mais la regle reste la meme pour les deux.
+    // Le panneau des pepites vient juste apres celui des archimonstres dans
+    // cet empilement de gardes -- rien n'empeche plusieurs panneaux d'etre
+    // ouverts a la fois, comme pour ecartes et rythme juste en dessous: un
+    // Echap ne ferme que le premier de la pile qui repond `return`, pas tous
+    // ceux qui seraient ouverts.
     if (e.key === 'Escape' && ecoute === null && !document.getElementById('vuePepites').hidden) {
       fermerPepites();
       return;
