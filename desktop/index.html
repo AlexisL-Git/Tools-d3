@@ -595,6 +595,7 @@
   .pep-descente { color: #e0796f; }
   .pep-stable { opacity: .35; }
   .pep-sortie { opacity: .5; }
+  .pep-marche { color: #6fcf82; font-size: 10px; margin-left: 6px; }
 
   /* LE RYTHME DES PASSES HDV. Meme forme que les trois panneaux precedents: un
      panneau DANS la fenetre, pas une fenetre modale. */
@@ -1542,6 +1543,7 @@
     descente: 'pep-descente',
     sortie: 'pep-sortie',
     doute: 'pep-doute',
+    marche: 'pep-marche',
   };
 
   let pepTable = null;
@@ -1584,6 +1586,18 @@
     return Math.ceil(1 / taux).toLocaleString('fr-FR');
   }
 
+  // LA COLONNE DIT D'OU VIENT LE CHIFFRE, et ce n'est pas decoratif. Deux
+  // lignes voisines peuvent venir de deux sources, et les laisser se
+  // ressembler ferait pire que le « pas clair » signale le 11/09: le mensonge
+  // porterait sur la NATURE du chiffre, pas sur sa mise en page.
+  function cellulePrix(l) {
+    if (l.prix === null || l.prix === undefined) return '—';
+    if (l.source !== 'marche') return kamas(l.prix);
+    const h = new Date(l.quand).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return kamas(l.prix) + ' <span class="' + PEP.marche + '" title="Prix relevé à l’hôtel de vente à '
+      + h + '">marché</span>';
+  }
+
   const PEP_ETATS = {
     entree: '<span class="' + PEP.entree + '" title="Entré dans le classement">▲ nouveau</span>',
     montee: '<span class="' + PEP.montee + '">▲</span>',
@@ -1605,7 +1619,7 @@
       + (l.suspect ? ' class="' + PEP.suspect + '"' : '') + '>'
       + '<td>' + (i + 1) + '</td>'
       + '<td>' + echapper(l.nom === null ? String(l.gid) : l.nom) + '</td>'
-      + '<td>' + kamas(l.prixMoyen) + '</td>'
+      + '<td>' + cellulePrix(l) + '</td>'
       + '<td>' + parPepite(l.taux) + '</td>'
       + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
       + '<td>' + (PEP_ETATS[l.etat] || '') + '</td>'
@@ -1649,7 +1663,7 @@
         // PRIX INCONNU N'EST PAS PRIX ZERO. C'est la reponse que la spec
         // demande: un objet recyclable dont personne ne connait le prix se
         // dit, il ne se cache pas.
-        + '<td>' + (l.prixMoyen === null ? 'prix inconnu' : kamas(l.prixMoyen)) + '</td>'
+        + '<td>' + (l.prix === null ? 'prix inconnu' : cellulePrix(l)) + '</td>'
         + '<td>' + parPepite(l.taux) + '</td>'
         + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
         + '</tr>').join('')

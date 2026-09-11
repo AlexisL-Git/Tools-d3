@@ -166,11 +166,16 @@ test('le tableau pepites est calcule par le vrai module', async () => {
   for (const l of [...table.lignes, ...table.sorties]) {
     assert.strictEqual(typeof l.nom, 'string', `nom manquant pour le gid ${l.gid}`);
   }
+  // LE MARCHE, AJOUTE A LA TACHE 2: le banc doit montrer au moins une ligne de
+  // chaque source, sans quoi la distinction qu'on vient d'ajouter ne se
+  // verrait jamais sur ce chemin -- voir outils/faux-etat.js, pepites().
+  assert.ok(table.lignes.some((l) => l.source === 'marche'), 'aucune ligne de marche');
+  assert.ok(table.lignes.some((l) => l.source === 'moyen'), 'aucune ligne de moyenne');
 });
 
 // La recherche libre. « frene », sans accent et en minuscules, doit retrouver
 // les objets recyclables dont le nom porte « Frene » -- et au moins l un
-// d eux doit rendre prixMoyen: null, le cas « prix inconnu » que le panneau
+// d eux doit rendre prix: null, le cas « prix inconnu » que le panneau
 // affiche autrement qu un zero.
 test('la recherche pepites ignore accents et casse, et montre un prix inconnu', async () => {
   const r = await fetch(`${base}/faux/chercher-pepites?texte=frene`);
@@ -182,8 +187,8 @@ test('la recherche pepites ignore accents et casse, et montre un prix inconnu', 
   // sansAccent() (src/pepites/classement.js), qui n est pas exportee.
   assert.ok(noms.includes(NOM_FRENE), `${NOM_FRENE} absent : ${JSON.stringify(noms)}`);
   assert.ok(noms.includes(NOM_SAC_FRENE), `${NOM_SAC_FRENE} absent : ${JSON.stringify(noms)}`);
-  assert.ok(resultats.some((l) => l.prixMoyen === null), 'aucun resultat a prix inconnu');
-  assert.ok(resultats.some((l) => l.prixMoyen !== null), 'aucun resultat avec un prix connu');
+  assert.ok(resultats.some((l) => l.prix === null), 'aucun resultat a prix inconnu');
+  assert.ok(resultats.some((l) => l.prix !== null), 'aucun resultat avec un prix connu');
 });
 
 // Meme repli que le handler d'OMNI: une valeur inconnue rend les

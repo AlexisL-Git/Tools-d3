@@ -103,18 +103,18 @@ function noeud() {
 const CLASSEMENT_FACTICE = {
   lignes: [
     {
-      gid: 312, nom: 'Fer', taux: 0.003, prixMoyen: 15, coutParPepite: 5000,
+      gid: 312, nom: 'Fer', taux: 0.003, prix: 15, source: 'moyen', quand: null, coutParPepite: 5000,
       suspect: false, etat: 'montee', deltaRang: 1, deltaCout: -200,
     },
     {
-      gid: 303, nom: 'Bois de Frêne', taux: 0.003, prixMoyen: 5, coutParPepite: 1666.67,
+      gid: 303, nom: 'Bois de Frêne', taux: 0.003, prix: 5, source: 'moyen', quand: null, coutParPepite: 1666.67,
       suspect: true, etat: 'stable', deltaRang: 0, deltaCout: 0,
     },
   ],
   sorties: [
     {
-      gid: 384, nom: 'Laine de Bouftou', taux: 0.0075, prixMoyen: 25000, coutParPepite: 3333333,
-      suspect: false, etat: 'sortie', deltaRang: null, deltaCout: null,
+      gid: 384, nom: 'Laine de Bouftou', taux: 0.0075, prix: 25000, source: 'moyen', quand: null,
+      coutParPepite: 3333333, suspect: false, etat: 'sortie', deltaRang: null, deltaCout: null,
     },
   ],
   quand: 1000000, prixQuand: 900000, perso: 'Kroufi', jeu: '3.6.11.15', raison: null,
@@ -261,7 +261,7 @@ test('une reponse perimee n ecrase pas un resultat plus recent', async () => {
       return new Promise((resolve) => { resterminer = resolve; });
     }
     return [{
-      gid: 2, nom: 'Frais', taux: 1, prixMoyen: 2, coutParPepite: 2, suspect: false,
+      gid: 2, nom: 'Frais', taux: 1, prix: 2, source: 'moyen', quand: null, coutParPepite: 2, suspect: false,
     }];
   };
   const { parId } = await ouvrirLePanneau({ recherche });
@@ -281,7 +281,7 @@ test('une reponse perimee n ecrase pas un resultat plus recent', async () => {
 
   // LA REPONSE PERIMEE ARRIVE MAINTENANT, APRES LA FRAICHE.
   resterminer([{
-    gid: 1, nom: 'Périmé', taux: 1, prixMoyen: 1, coutParPepite: 1, suspect: false,
+    gid: 1, nom: 'Périmé', taux: 1, prix: 1, source: 'moyen', quand: null, coutParPepite: 1, suspect: false,
   }]);
   await p1;
 
@@ -319,4 +319,30 @@ test('parPepite et kamas sur leurs cas limites', async () => {
   assert.strictEqual(contexte.__kamas(1234567), Math.round(1234567).toLocaleString('fr-FR'));
   // Arrondi, pas tronque: 1666.67 doit s afficher comme 1667.
   assert.strictEqual(contexte.__kamas(1666.67), Math.round(1666.67).toLocaleString('fr-FR'));
+});
+
+// LE MARQUEUR DE SOURCE NE SE DEVINE PAS AU HASARD DANS LE HTML: sans ce
+// test, une regression qui ferait dessiner deux sources identiques passerait
+// tous les autres tests du panneau, qui ne regardent jamais cette colonne.
+test('une ligne de marche et une ligne de moyenne ne se dessinent pas pareil', async () => {
+  const { contexte, parId } = await ouvrirLePanneau({
+    classement: {
+      ...CLASSEMENT_FACTICE,
+      lignes: [
+        {
+          gid: 303, nom: 'Bois de Frêne', taux: 0.003, prix: 4, source: 'marche', quand: 1757580000000,
+          coutParPepite: 1333, suspect: false, etat: 'stable', deltaRang: 0, deltaCout: 0,
+        },
+        {
+          gid: 13731, nom: 'Pierre Médicinale', taux: 0.0711, prix: 19, source: 'moyen', quand: null,
+          coutParPepite: 267, suspect: false, etat: 'stable', deltaRang: 0, deltaCout: 0,
+        },
+      ],
+    },
+  });
+  contexte.dessinerPepites();
+  const html = parId.get('pepCorps').innerHTML;
+  assert.ok(html.includes('pep-marche'), 'la ligne de marche doit porter son marqueur');
+  assert.strictEqual((html.match(/pep-marche/g) || []).length, 1,
+    'la ligne de moyenne ne doit pas le porter');
 });

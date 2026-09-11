@@ -28,25 +28,59 @@ const LIMITE = 50;
 // Medicinale, qui se negocie a 19 kamas l'unite. Il ne mesure rien.
 const PRIX_SUSPECT = 10;
 
-// `prixMoyens` est la Map rendue par lirePrixMoyens() de src/hdv/trames.js,
-// passee telle quelle: le classeur ne connait pas les trames, et c'est ce qui
-// le rend testable sans double.
-function classer({ prixMoyens, limite = LIMITE }) {
+// Le prix retenu pour un gid, et d'ou il vient. Rend null quand aucune des
+// deux sources ne donne de prix utilisable -- ce qui est le cas de la majorite
+// du catalogue.
+//
+// UN PRIX DE MARCHE A ZERO N'EST PAS UN PRIX. Le zero des quatre creneaux veut
+// dire « aucune offre a cette taille », jamais « gratuit »: la regle est celle
+// de src/hdv/prix.js, et la confondre ferait sortir l'objet en tete du
+// classement a cout nul.
+function prixEtSource(gid, prixMoyens, prixMarche) {
+  const reel = prixMarche === null || prixMarche === undefined ? undefined : prixMarche.get(gid);
+  if (reel !== null && reel !== undefined && typeof reel.prix === 'number' && reel.prix > 0) {
+    return { prix: reel.prix, source: 'marche', quand: reel.quand === undefined ? null : reel.quand };
+  }
+  const moyen = prixMoyens === null || prixMoyens === undefined ? undefined : prixMoyens.get(gid);
+  if (typeof moyen === 'number' && moyen > 0) return { prix: moyen, source: 'moyen', quand: null };
+  return null;
+}
+
+// `prixMoyens` est la Map rendue par lirePrixMoyens() de src/hdv/trames.js.
+// `prixMarche` est une Map gid -> { prix, quand }, remplie par marche.js quand
+// une passe a tourne devant un etal. Elle vaut null tant qu'aucune passe n'a eu
+// lieu, ce qui est l'etat au lancement.
+//
+// LE PRIX REEL PRIME, TOUJOURS. C'est le sens de la fonctionnalite, et la
+// colonne des prix annonce la source de chaque ligne: une moyenne qui
+// l'emporterait sur une mesure ferait mentir cette annonce.
+function classer({ prixMoyens, prixMarche = null, limite = LIMITE }) {
   const lignes = [];
-  if (prixMoyens === null || prixMoyens === undefined) return lignes;
-  for (const [gid, prixMoyen] of prixMoyens) {
+  const gids = new Set();
+  if (prixMoyens !== null && prixMoyens !== undefined) for (const g of prixMoyens.keys()) gids.add(g);
+  // LES GIDS DU MARCHE ENTRENT AUSSI, et pas seulement ceux d'ivi: environ
+  // 39 % des objets recyclables n'ont aucun prix moyen (mesure du 11/09).
+  // Pour ceux-la la passe de marche est la seule source, et les ignorer
+  // reviendrait a jeter ce qu'on vient d'aller chercher devant l'etal.
+  if (prixMarche !== null && prixMarche !== undefined) for (const g of prixMarche.keys()) gids.add(g);
+  for (const gid of gids) {
     const taux = tauxDe(gid);
     // tauxDe rend null pour « pas recyclable », qui est la majorite du
     // catalogue: 4 049 objets sur 21 776. Ce n'est pas une anomalie, on ne la
     // journalise pas.
     if (taux === null) continue;
-    if (typeof prixMoyen !== 'number' || !(prixMoyen > 0)) continue;
+    const ligne = prixEtSource(gid, prixMoyens, prixMarche);
+    if (ligne === null) continue;
     lignes.push({
       gid,
       taux,
-      prixMoyen,
-      coutParPepite: prixMoyen / taux,
-      suspect: prixMoyen <= PRIX_SUSPECT,
+      prix: ligne.prix,
+      source: ligne.source,
+      quand: ligne.quand,
+      coutParPepite: ligne.prix / taux,
+      // LE DOUTE NE PORTE QUE SUR LES MOYENNES. Un prix de marche a 3 kamas
+      // n'est pas douteux, il est vrai: c'est le prix auquel on peut acheter.
+      suspect: ligne.source === 'moyen' && ligne.prix <= PRIX_SUSPECT,
     });
   }
   // LES TROIS CRANS DU TRI, ET AUCUN N'EST DECORATIF.
@@ -114,7 +148,9 @@ function sansAccent(s) {
 // distingue de classer(). Un objet recyclable dont personne ne connait le prix
 // doit pouvoir se chercher: la reponse « prix inconnu » est une reponse, alors
 // que l'absence de ligne laisserait croire qu'il n'est pas recyclable.
-function chercher({ texte, prixMoyens, limite = LIMITE_RECHERCHE }) {
+function chercher({
+  texte, prixMoyens, prixMarche = null, limite = LIMITE_RECHERCHE,
+}) {
   const q = sansAccent(texte === null || texte === undefined ? '' : texte).trim();
   if (q.length < 2) return [];
   const out = [];
@@ -124,17 +160,16 @@ function chercher({ texte, prixMoyens, limite = LIMITE_RECHERCHE }) {
     const gid = Number(cle);
     const taux = tauxDe(gid);
     if (taux === null) continue;
-    const brut = prixMoyens === null || prixMoyens === undefined
-      ? undefined
-      : prixMoyens.get(gid);
-    const prixMoyen = typeof brut === 'number' && brut > 0 ? brut : null;
+    const p = prixEtSource(gid, prixMoyens, prixMarche);
     out.push({
       gid,
       nom,
       taux,
-      prixMoyen,
-      coutParPepite: prixMoyen === null ? null : prixMoyen / taux,
-      suspect: prixMoyen !== null && prixMoyen <= PRIX_SUSPECT,
+      prix: p === null ? null : p.prix,
+      source: p === null ? null : p.source,
+      quand: p === null ? null : p.quand,
+      coutParPepite: p === null ? null : p.prix / taux,
+      suspect: p !== null && p.source === 'moyen' && p.prix <= PRIX_SUSPECT,
     });
   }
   // LES SANS-PRIX EN DERNIER, et pas melanges: ils n'ont pas de cout, donc

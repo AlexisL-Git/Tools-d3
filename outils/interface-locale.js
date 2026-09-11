@@ -207,9 +207,14 @@ function creerServeur() {
       // module de production, jamais une reecriture -- qui font le tri et la
       // comparaison. Le banc reste fidele a ce que dessine desktop/main.js.
       if (chemin === '/faux/tableau-pepites') {
-        const { precedent, courant, perso, quand, prixQuand } = chargerFauxEtat().pepites();
+        const {
+          precedent, courant, marche, perso, quand, prixQuand,
+        } = chargerFauxEtat().pepites();
         const lignesPrecedent = classer({ prixMoyens: precedent });
-        const lignesCourant = classer({ prixMoyens: courant });
+        // LE MARCHE N'ENTRE QUE DANS LA PASSE COURANTE: c'est une donnee
+        // neuve de la tache 2, sans historique fabrique sur le banc -- la
+        // passe precedente reste fidele a ce qu'elle etait avant.
+        const lignesCourant = classer({ prixMoyens: courant, prixMarche: marche });
         const { lignes, sorties } = comparer(lignesPrecedent, lignesCourant);
         const table = {
           // NOMMER ICI, COMME desktop/main.js: classer()/comparer() ne
@@ -229,8 +234,10 @@ function creerServeur() {
       // `quoi` pour /faux/tableau-archi ci-dessus.
       if (chemin === '/faux/chercher-pepites') {
         const texte = new URL(req.url, 'http://127.0.0.1').searchParams.get('texte');
-        const { courant } = chargerFauxEtat().pepites();
-        const resultats = chercher({ texte: typeof texte === 'string' ? texte : '', prixMoyens: courant });
+        const { courant, marche } = chargerFauxEtat().pepites();
+        const resultats = chercher({
+          texte: typeof texte === 'string' ? texte : '', prixMoyens: courant, prixMarche: marche,
+        });
         return repondre(res, 200, TYPES['.json'], JSON.stringify(resultats));
       }
 

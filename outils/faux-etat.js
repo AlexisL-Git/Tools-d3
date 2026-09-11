@@ -214,6 +214,23 @@ function comptesArchi() {
 //                       et rendent donc « prix inconnu »)
 //   384 Laine de Bouftou  present seulement dans la passe precedente -- sortie
 //   447 Charbon          present seulement dans la passe courante -- entree
+//
+// LE MARCHE, AJOUTE A LA TACHE 2: au moins une ligne de chaque source, sans
+// quoi le banc ne montrerait jamais la distinction qu'on vient d'ajouter.
+//   442 Bronze            porte aussi un prix de marche: la meme ligne passe
+//                         de 'moyen' a 'marche' entre les deux tableaux, ET
+//                         RESTE UNE MONTEE -- le prix de marche est plus bas
+//                         que l'ancienne moyenne, jamais l'inverse.
+//   13731 Pierre Medicinale n'a AUCUN prix moyen ici: le marche est sa seule
+//                         source -- le cas mesure a 39 % du catalogue le
+//                         11/09, docs/superpowers/sdd de la tache. SON PRIX
+//                         EST VOLONTAIREMENT ELEVE (30000, hors de toute
+//                         mesure reelle): en dessous, la nouvelle ligne se
+//                         serait glissee devant les autres et aurait decale
+//                         tous leurs rangs d'un cran, effacant la montee de
+//                         Fer que le tableau ci-dessus promet.
+// 303 (Bois de Frene) reste seul a la moyenne, et donc seul suspect: le
+// marche n'est jamais suspect, la ligne perdrait ce role si on la touchait.
 function pepites() {
   return {
     precedent: new Map([
@@ -229,6 +246,10 @@ function pepites() {
       [444, 5000],
       [303, 5],
       [447, 4500],
+    ]),
+    marche: new Map([
+      [442, { prix: 350, quand: Date.now() - 3 * 60 * 1000 }],
+      [13731, { prix: 30000, quand: Date.now() - 3 * 60 * 1000 }],
     ]),
     // LE PERSONNAGE VU PAR LA DERNIERE ivi: le maitre, comme le reste de ce
     // fichier le traite deja pour tableauArchi.

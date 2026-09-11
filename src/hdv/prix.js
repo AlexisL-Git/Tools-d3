@@ -307,5 +307,5 @@ function deciderPose({ marche, nos, taille, moyenUnitaire, garde }) {
 }
 
 module.exports = {
-  decider, deciderPose, TAILLES, FACTEUR, GARDE_DEFAUT, MOTIFS_GARDE_FOU,
+  decider, deciderPose, voisinServi, TAILLES, FACTEUR, GARDE_DEFAUT, MOTIFS_GARDE_FOU,
 };

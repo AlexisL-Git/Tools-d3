@@ -17,7 +17,7 @@ test('le cout par pepite est le prix divise par le taux', () => {
   assert.strictEqual(l.length, 1);
   assert.strictEqual(l[0].gid, 303);
   assert.strictEqual(l[0].taux, FRENE);
-  assert.strictEqual(l[0].prixMoyen, 12);
+  assert.strictEqual(l[0].prix, 12);
   assert.strictEqual(l[0].coutParPepite, 12 / FRENE);
 });
 
@@ -124,7 +124,9 @@ const { comparer, chercher, LIMITE_RECHERCHE } = require('../src/pepites/classem
 // --- comparer() -------------------------------------------------------
 
 function ligne(gid, cout) {
-  return { gid, taux: 1, prixMoyen: cout, coutParPepite: cout, suspect: false };
+  return {
+    gid, taux: 1, prix: cout, source: 'moyen', quand: null, coutParPepite: cout, suspect: false,
+  };
 }
 
 test('un gid absent de la passe precedente est une entree', () => {
@@ -200,7 +202,7 @@ test('la recherche ignore les accents et la casse', () => {
 test('un objet recyclable sans prix sort avec un cout null', () => {
   const l = chercher({ texte: 'Bois de Frene', prixMoyens: new Map() })
     .find((x) => x.gid === 303);
-  assert.strictEqual(l.prixMoyen, null);
+  assert.strictEqual(l.prix, null);
   assert.strictEqual(l.coutParPepite, null);
 });
 
@@ -250,4 +252,84 @@ test('une recherche de moins de deux caracteres ne rend rien', () => {
   assert.deepStrictEqual(chercher({ texte: 'b', prixMoyens: new Map() }), []);
   assert.deepStrictEqual(chercher({ texte: '', prixMoyens: new Map() }), []);
   assert.deepStrictEqual(chercher({ texte: null, prixMoyens: new Map() }), []);
+});
+
+// --- classer()/chercher() a deux sources -------------------------------
+
+// LE PRIX REEL PRIME SUR LA MOYENNE, toujours: c'est le sens meme de la
+// fonctionnalite. Une moyenne qui gagnerait sur un prix mesure ferait mentir
+// la colonne qui annonce la source.
+test('un prix de marche remplace le prix moyen du meme objet', () => {
+  const l = classer({
+    prixMoyens: new Map([[303, 12]]),
+    prixMarche: new Map([[303, { prix: 4, quand: 1000 }]]),
+  });
+  assert.strictEqual(l[0].prix, 4);
+  assert.strictEqual(l[0].source, 'marche');
+  assert.strictEqual(l[0].quand, 1000);
+  assert.strictEqual(l[0].coutParPepite, 4 / 0.003000000026077032);
+});
+
+test('sans prix de marche, la ligne vient de la moyenne et le dit', () => {
+  const l = classer({ prixMoyens: new Map([[303, 12]]) });
+  assert.strictEqual(l[0].source, 'moyen');
+  assert.strictEqual(l[0].prix, 12);
+  assert.strictEqual(l[0].quand, null);
+});
+
+// UNE TABLE DE MARCHE VIDE NE CHANGE RIEN. C'est l'etat avant la premiere
+// passe, et c'est le cas le plus frequent.
+test('une table de marche vide rend exactement le classement d avant', () => {
+  const avant = classer({ prixMoyens: new Map([[303, 12], [13731, 19]]) });
+  const apres = classer({ prixMoyens: new Map([[303, 12], [13731, 19]]), prixMarche: new Map() });
+  assert.deepStrictEqual(apres, avant);
+});
+
+// UN PRIX DE MARCHE EXISTE SANS MOYENNE. Environ 39 % des objets recyclables
+// n'ont aucun prix dans ivi (mesure du 11/09): pour ceux-la, la passe de
+// marche est la SEULE source, et les ecarter reviendrait a perdre ce qu'on
+// vient d'aller chercher.
+test('un objet sans prix moyen entre au classement s il a un prix de marche', () => {
+  const l = classer({
+    prixMoyens: new Map(),
+    prixMarche: new Map([[303, { prix: 4, quand: 1000 }]]),
+  });
+  assert.strictEqual(l.length, 1);
+  assert.strictEqual(l[0].gid, 303);
+  assert.strictEqual(l[0].source, 'marche');
+});
+
+// LE DOUTE NE PORTE QUE SUR LES MOYENNES. Un prix de marche a 3 kamas n'est
+// pas douteux, il est vrai: c'est le prix auquel on peut acheter, maintenant.
+test('un prix de marche bas n est jamais marque suspect', () => {
+  const l = classer({
+    prixMoyens: new Map(),
+    prixMarche: new Map([[303, { prix: 2, quand: 1000 }]]),
+  });
+  assert.strictEqual(l[0].suspect, false);
+});
+
+test('un prix moyen bas reste marque suspect', () => {
+  const l = classer({ prixMoyens: new Map([[303, 2]]) });
+  assert.strictEqual(l[0].suspect, true);
+});
+
+test('un prix de marche nul ou negatif retombe sur la moyenne', () => {
+  const l = classer({
+    prixMoyens: new Map([[303, 12]]),
+    prixMarche: new Map([[303, { prix: 0, quand: 1000 }]]),
+  });
+  assert.strictEqual(l[0].source, 'moyen');
+  assert.strictEqual(l[0].prix, 12);
+});
+
+test('la recherche porte elle aussi la source', () => {
+  const r = chercher({
+    texte: 'Bois de Frene',
+    prixMoyens: new Map([[303, 12]]),
+    prixMarche: new Map([[303, { prix: 4, quand: 1000 }]]),
+  });
+  const l = r.find((x) => x.gid === 303);
+  assert.strictEqual(l.source, 'marche');
+  assert.strictEqual(l.prix, 4);
 });
