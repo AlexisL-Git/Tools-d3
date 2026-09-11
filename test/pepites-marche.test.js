@@ -146,6 +146,24 @@ test('un client qui disparait arrete la passe', () => {
   assert.strictEqual(fins.length, 1);
 });
 
+// LA PANNE QUE LA GARDE D'IDENTITE BLOQUE N'EST PAS UNE DISPARITION, c'est UN
+// PID RECYCLE (passeur.js:120): Windows reutilise les pid, et un client Dofus
+// relance pendant la passe reprend le meme numero sans jamais passer par
+// `retirer`. Une garde qui se contenterait de verifier que `comptes.get(pid)`
+// existe laisserait passer ce cas -- seule la comparaison d'IDENTITE de
+// l'etat (et non du pid) le distingue. `sup.poser(7)` cree un nouvel objet
+// d'etat a chaque appel: le reposer sur le meme pid simule exactement ca.
+test('un pid recycle par un autre client arrete la passe, pas juste une disparition', () => {
+  const { m, sup, prix, fins } = creer([303, 13731]);
+  sup.poser(7);
+  m.onTrame({ pid: 7, dir: 'in', frame: trameEtal() });
+  sup.poser(7);
+  m.onTrame({ pid: 7, dir: 'in', frame: frame(JZN_303_SERVI) });
+  assert.strictEqual(m.enCours(7), false);
+  assert.strictEqual(fins.length, 1);
+  assert.deepStrictEqual(prix, []);
+});
+
 // DEUX PASSES CONCURRENTES DOUBLERAIENT LE DEBIT D'EMISSIONS.
 test('une seconde ouverture pendant une passe ne demarre rien', () => {
   const { m, sup } = creer([303, 13731]);
