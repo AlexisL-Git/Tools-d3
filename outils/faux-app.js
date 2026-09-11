@@ -14,6 +14,21 @@
 // Le shim ne rejoue AUCUNE regle metier. Il ecrit le champ demande et reemet
 // l'etat: le banc sert le comportement de la page, pas la logique du produit.
 
+// TOUT LE FICHIER VIT DANS CETTE FONCTION, ET CE N'EST PAS DU STYLE.
+// faux-app.js et le <script> de desktop/index.html sont deux scripts
+// CLASSIQUES: ils partagent la meme portee lexicale de premier niveau. Les
+// deux recopient COLONNES (ici et index.html:2164) -- au premier niveau, la
+// seconde declaration jette « Identifier 'COLONNES' has already been
+// declared » et le script d'index.html n'est JAMAIS execute. La page affiche
+// alors son ossature, sans une seule ligne, et sans un mot ailleurs que dans
+// la console. La fonction rend la collision impossible, pour COLONNES comme
+// pour tout nom qu'on ajoutera ici plus tard.
+//
+// Le corps n'est pas indente: garder le diff lisible vaut mieux que deplacer
+// 180 lignes d'un cran. `module` reste visible ici -- Node passe le module
+// en parametre de son propre enrobage, toute fonction imbriquee y accede.
+(function () {
+
 // Recopie de src/comptes/colonnes.js (lecture seule, inaccessible ici: ce
 // fichier est charge par le navigateur, aucun require n'y survivrait).
 // desktop/index.html:2164-2170 fait deja la meme recopie pour la meme raison.
@@ -196,3 +211,5 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { creerFauxApp };
 }
+
+}());

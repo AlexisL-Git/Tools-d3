@@ -209,3 +209,44 @@ test('basculerVersCompte et boutonSouris ne se journalisent pas comme canal inco
     assert.ok(m.includes('sans effet sur le banc'), `message inattendu : ${m}`);
   }
 });
+
+// LE TEST QUI MANQUAIT LE 2026-09-11, ET CE QU'IL A COUTE.
+//
+// faux-app.js declarait `const COLONNES` au premier niveau. Le <script> de
+// desktop/index.html declare le meme nom, au premier niveau lui aussi. Deux
+// scripts CLASSIQUES partagent la portee lexicale du document: la seconde
+// declaration jette « Identifier 'COLONNES' has already been declared », le
+// script d'index.html n'est JAMAIS execute, et la page affiche son ossature
+// -- barre de titre, en-tetes de colonnes, barre du bas -- sans une seule
+// ligne de compte. Rien dans le terminal, rien a l'ecran, tout dans la
+// console du navigateur.
+//
+// Les 40 tests existants passaient tous: chacun charge faux-app.js OU le
+// serveur, jamais les deux scripts dans la meme portee. C'est exactement le
+// trou que celui-ci bouche.
+//
+// vm.Script COMPILE SANS EXECUTER, et c'est ce qui rend le test possible: la
+// redeclaration est une erreur PRECOCE, levee a la compilation. Executer
+// demanderait un DOM, une fenetre et un faux etat; verifier ne demande que de
+// concatener les deux sources comme le navigateur les empile.
+test('faux-app.js ne se dispute aucun nom global avec le script d index.html', () => {
+  const vm = require('node:vm');
+  const lire = (...bouts) => fs.readFileSync(path.join(__dirname, '..', ...bouts), 'utf8');
+
+  const shim = lire('outils', 'faux-app.js');
+  const page = lire('desktop', 'index.html');
+
+  const ouvre = page.indexOf('<script>');
+  const ferme = page.lastIndexOf('</script>');
+  assert.ok(ouvre !== -1 && ferme > ouvre, 'aucun <script> trouve dans index.html');
+  const script = page.slice(ouvre + '<script>'.length, ferme);
+  assert.ok(script.includes('const COLONNES'), 'le script d index.html a change de forme');
+
+  // L'ordre est celui de l'injection (outils/interface-locale.js): le shim
+  // est pose AVANT le premier <script> de la page.
+  assert.doesNotThrow(
+    () => new vm.Script([shim, ';', script].join(String.fromCharCode(10))),
+    (e) => e instanceof SyntaxError,
+    'collision de nom entre faux-app.js et le script de desktop/index.html',
+  );
+});
