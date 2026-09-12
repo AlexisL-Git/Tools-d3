@@ -52,6 +52,7 @@ function creerFauxApp(etatInitial, deps) {
   const abonnesEtat = [];
   const abonnesAmbiance = [];
   const abonnesAlerte = [];
+  const abonnesAvancement = [];
 
   const emettre = () => { for (const r of abonnesEtat) r(etat); };
   const ligneParId = (id) => etat.lignes.find((l) => l.id === id);
@@ -169,6 +170,18 @@ function creerFauxApp(etatInitial, deps) {
       const r = await chercher(`/faux/tableau-archi?quoi=${encodeURIComponent(quoi || 'archi')}`);
       return r.json();
     },
+    // MEME FORME QUE tableauArchi JUSTE AU-DESSUS: Node calcule (classer(),
+    // comparer(), chercher() de src/pepites/classement.js, appeles depuis
+    // outils/interface-locale.js), la page affiche.
+    tableauPepites: async () => {
+      const r = await chercher('/faux/tableau-pepites');
+      return r.json();
+    },
+    chercherPepite: async (texte) => {
+      const r = await chercher(`/faux/chercher-pepites?texte=${encodeURIComponent(texte || '')}`);
+      return r.json();
+    },
+    surPepitesAvancement: (cb) => { abonnesAvancement.push(cb); },
     devlog: async () => {
       const r = await chercher('/faux/devlog');
       return r.json();
@@ -183,6 +196,7 @@ function creerFauxApp(etatInitial, deps) {
     __inconnu: inconnu,
     __ambiance: () => { for (const r of abonnesAmbiance) r(); },
     __alerte: (a) => { for (const r of abonnesAlerte) r(a); },
+    __avancement: (a) => { for (const r of abonnesAvancement) r(a); },
   };
 
   return app;
@@ -199,6 +213,27 @@ if (typeof window !== 'undefined') {
     b.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9999;opacity:.5;font:11px sans-serif';
     b.onclick = () => window.app.__ambiance();
     document.body.appendChild(b);
+
+    // MEME MODELE QUE LE BOUTON D'AMBIANCE JUSTE AU-DESSUS: la passe de
+    // marche part toute seule en jeu, sur l'ouverture d'un etal. Le banc n'a
+    // pas d'etal, donc un bouton simule les emissions successives, pour voir
+    // le pied du panneau des pepites bouger sans lancer OMNI en vrai.
+    const bAvance = document.createElement('button');
+    bAvance.textContent = 'banc : avancement';
+    bAvance.style.cssText = 'position:fixed;left:8px;bottom:28px;z-index:9999;opacity:.5;font:11px sans-serif';
+    bAvance.onclick = () => {
+      const total = 5;
+      let fait = 0;
+      const pas = () => {
+        fait += 1;
+        window.app.__avancement({ pid: 0, fait, total });
+        if (fait < total) { setTimeout(pas, 400); return; }
+        // LE SIGNAL DE FIN EST total === 0, meme convention que main.js.
+        setTimeout(() => window.app.__avancement({ pid: 0, fait: 0, total: 0 }), 400);
+      };
+      pas();
+    };
+    document.body.appendChild(bAvance);
   });
   // Tu enregistres, l'onglet se recharge. Sans ca, le Simple Browser demande
   // un clic droit puis « Reload » a chaque essai -- exactement le frottement

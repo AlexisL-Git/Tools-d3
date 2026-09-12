@@ -37,6 +37,11 @@ contextBridge.exposeInMainWorld('app', {
 
   // Le tableau des archimonstres, construit a la demande cote main.js.
   tableauArchi: (quoi) => ipcRenderer.invoke('tableauArchi', quoi),
+  tableauPepites: () => ipcRenderer.invoke('tableauPepites'),
+  chercherPepite: (texte) => ipcRenderer.invoke('chercherPepite', texte),
+  // L'avancement de la passe de prix de marche, en reception seule: pid, fait
+  // et total. `total === 0` est le signal de fin -- voir onFin dans main.js.
+  surPepitesAvancement: (cb) => ipcRenderer.on('pepitesAvancement', (_e, a) => cb(a)),
   // Redemander l'inventaire de tous les clients, sans reconnexion.
   archiRelire: () => ipcRenderer.invoke('archiRelire'),
   surPdaArchiAlerte: (rappel) => ipcRenderer.on('pdaArchiAlerte', (_e, a) => rappel(a)),

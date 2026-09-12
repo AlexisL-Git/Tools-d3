@@ -538,6 +538,83 @@
   }
   .arc-pied b { color: var(--texte); font-variant-numeric: tabular-nums; }
 
+  /* LE PANNEAU DES PEPITES. Memes declarations que .arc-corps, .arc-pied et
+     .arc-cherche, RECOPIEES et non partagees pour ces trois-la: c'est le
+     prix du prefixe pep-, assume -- une regle commune ferait dependre cette
+     mise en page des retouches faites au panneau voisin. Voir
+     test/pepites-panneau.test.js.
+
+     LE CONTENEUR, LUI, EST vue-archi -- PAS UNE CLASSE A RECOPIER. Cette
+     classe n'appartient pas au panneau archimonstres malgre son nom: c'est
+     le conteneur PARTAGE que #vueEcartes et #vueRythme utilisent deja. La
+     reutiliser ici est le geste idiomatique du fichier, pas une collision
+     avec un panneau voisin -- il n'y a rien a en recopier. */
+  .pep-corps { flex: 1; overflow-y: auto; padding: 0 15px 14px; }
+  /* .arc-cherche vit dans .arc-filtres, une rangee flex: sa seule
+     margin-left: 12px suffit, le reste de l'espacement vient de la barre qui
+     la porte. .pep-cherche est enfant direct de .vue-archi, qui est en
+     flex-direction: column -- sans align-self elle heriterait de
+     align-items: stretch et s'etirerait sur toute la largeur du panneau.
+     align-self: flex-start la remet a sa largeur de contenu, et les deux
+     marges (au lieu d'une seule) et la marge verticale la posent comme le
+     ferait .arc-filtres (padding: 10px 15px 8px) pour .arc-cherche -- alignee
+     sur le padding: 0 15px de .pep-corps juste en dessous. */
+  .pep-cherche {
+    display: flex; align-items: center; gap: 6px; align-self: flex-start;
+    margin: 10px 15px 8px; padding: 3px 8px;
+    border: 1px solid var(--filet); border-radius: 7px; color: var(--attenue);
+  }
+  .pep-cherche:focus-within { border-color: var(--arme); color: var(--texte); }
+  /* LES SOUS-REGLES DU CHAMP, RECOPIEES AUSSI. Sans elles, l'input rend avec
+     son apparence native a l'interieur d'un label deja borde -- les « deux
+     cadres superposes » que la regle ci-dessus existe pour eviter -- et dans
+     une police differente du reste du panneau. */
+  .pep-cherche input {
+    width: 128px; padding: 1px 0; border: 0; background: transparent;
+    color: var(--texte); font: inherit; font-size: 11px;
+  }
+  .pep-cherche input:focus { outline: none; }
+  .pep-cherche input::placeholder { color: var(--attenue); }
+  .pep-pied {
+    padding: 9px 15px; border-top: 1px solid var(--filet);
+    font-size: 12px; color: var(--attenue);
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+  /* Dans la barre du bas, meme traitement que .avis-nav juste au-dessus:
+     la barre est en majuscules interlettrees, et un texte qui change sans
+     arret s'y lit mal -- en bas de casse il se lit, et il occupe un tiers
+     de moins.
+
+     LA LARGEUR EST BORNEE, ET CE PLAFOND N'EST PAS DECORATIF. La barre
+     est en flex-wrap: mesure sur le banc, il lui restait 154 px de marge
+     a 1097 px de fenetre, et un texte de 155 px renvoyait « Fermer les
+     clients » sur une deuxieme rangee -- la barre passait de 50 a 92 px
+     de haut. Plafonne, le pire cas se coupe au lieu de casser la barre.
+     Si une bascule s'ajoute un jour ici, c'est ce nombre qu'il faut
+     remesurer. */
+  .pep-avance {
+    font-size: 11px; opacity: .75;
+    text-transform: none; letter-spacing: 0; font-weight: 400;
+    max-width: 140px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pep-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .pep-table th { text-align: left; opacity: .6; font-weight: 500; padding: 4px 8px; }
+  .pep-table td { padding: 3px 8px; border-top: 1px solid rgba(255,255,255,.06); }
+  .pep-vide { padding: 12px; opacity: .7; }
+  /* LE DOUTE SE VOIT SANS SE CRIER: la ligne reste a sa place et reste lisible.
+     La griser franchement reviendrait a l'ecarter a moitie, ce que la spec
+     refuse -- un marqueur, jamais un filtre. */
+  .pep-suspect { opacity: .72; }
+  .pep-doute { color: #d9a441; }
+  .pep-entree { color: #6fcf82; }
+  .pep-montee { color: #6fcf82; }
+  .pep-descente { color: #e0796f; }
+  .pep-stable { opacity: .35; }
+  .pep-sortie { opacity: .5; }
+  .pep-marche { color: #6fcf82; font-size: 10px; margin-left: 6px; }
+
   /* LE RYTHME DES PASSES HDV. Meme forme que les trois panneaux precedents: un
      panneau DANS la fenetre, pas une fenetre modale. */
   .ry-corps { flex: 1; overflow-y: auto; padding: 15px 15px 20px; }
@@ -951,6 +1028,25 @@
   <div class="arc-pied" id="arcPied"></div>
 </div>
 
+<!-- LE TABLEAU DES PEPITES. class="vue-archi" COMME #vueEcartes ET
+     #vueRythme juste au-dessus: c'est le conteneur PARTAGE de tous les
+     panneaux qui vivent dans la fenetre plutot que dans une modale, pas une
+     classe propre aux archimonstres. Le contenu, lui, garde ses classes
+     pep- propres: voir test/pepites-panneau.test.js. -->
+<div class="vue-archi" id="vuePepites" hidden>
+  <div class="qdn-tete">
+    <b>Pépites</b>
+    <button id="pepFermer" title="Fermer (Échap)">✕</button>
+  </div>
+  <label class="pep-cherche">
+    <input id="pepChercheTexte" type="search" placeholder="Chercher un objet…"
+           autocomplete="off" spellcheck="false"
+           aria-label="Chercher un objet recyclable par son nom">
+  </label>
+  <div class="pep-corps" id="pepCorps"></div>
+  <div class="pep-pied" id="pepPied"></div>
+</div>
+
 <!-- CE QUI N'EST PAS PARTI A LA DERNIERE PASSE D'HOTEL DE VENTE.
      Meme forme que le panneau des archimonstres, et pour la meme raison: un
      tableau ne tient pas sur la ligne d'un compte, et une fenetre modale se
@@ -1045,6 +1141,12 @@
 <div class="barre-nav">
   <span class="avis-nav" id="avisNav"></span>
   <label class="champ-delai">Délai <input id="delai" type="number" min="0" step="0.1" value="0"> s</label>
+  <!-- L'AVANCEMENT DE LA PASSE DE MARCHE EST ICI, PAS DANS LE PANNEAU DES
+       PEPITES: la passe part toute seule a l'ouverture d'un etal, et un
+       texte pose dans le panneau ne se voit que panneau ouvert -- mesure a
+       la recette du 11/09, rectangle 0x0. Vide, il ne prend aucune place:
+       `hidden` le retire de la grille, la barre ne bouge pas au repos. -->
+  <span class="pep-avance" id="pepAvance" hidden></span>
   <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;color:var(--alerte)"></span>
   <!-- La chasse est ici, et pas dans la barre de titre: cette barre porte les
        bascules de FONCTION (overlay, fermeture des clients), la barre de titre
@@ -1055,6 +1157,15 @@
        rien dire seul, et le lire ailleurs ferait chercher ce qu'il règle. -->
   <button class="maitre-inter" id="interPdaRepli"><span class="temoin"></span><span>Monter en calibre</span></button>
   <button class="pose" id="brythme" title="le rythme des passes HDV et les garde-fous de prix, communs aux deux fonctions">Réglage HDV</button>
+  <!-- LE BOUTON PEPITES, dans la barre du bas a cote des autres bascules
+       GLOBALES -- pas sur une ligne de compte, sur le meme modele que
+       #brythme juste au-dessus: le panneau ne porte le compte d'aucun
+       personnage en particulier, tableauPepites() n'en demande pas. Le
+       poser sur une ligne aurait ajoute un 13e enfant a la grille figee de
+       .rang (douze colonnes, une par colonne de #entete) et decale toute la
+       ligne sur une rangee implicite -- exactement le genre de rupture que
+       rien, ni le navigateur ni les tests, ne signale seul. -->
+  <button class="pose" id="bpepites" title="le classement des objets par coût en kamas de la pépite">Pépites</button>
   <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
 </div>
@@ -1444,6 +1555,251 @@
     }
     document.getElementById('vueArchi').hidden = false;
   }
+
+  // LA TABLE DES CLASSES, DECLAREE EN UN SEUL ENDROIT -- c'est ce qui rend
+  // test/pepites-panneau.test.js possible, et c'est la lecon du 04/09.
+  const PEP = {
+    vide: 'pep-vide',
+    suspect: 'pep-suspect',
+    entree: 'pep-entree',
+    montee: 'pep-montee',
+    stable: 'pep-stable',
+    descente: 'pep-descente',
+    sortie: 'pep-sortie',
+    doute: 'pep-doute',
+    marche: 'pep-marche',
+    avance: 'pep-avance',
+  };
+
+  let pepTable = null;
+  // Le minuteur de la recherche, et le jeton qui perime une reponse arrivee
+  // trop tard: voir le commentaire de pepChamp.oninput plus bas.
+  let pepFrappe = null;
+  let pepSeq = 0;
+
+  function fermerPepites() {
+    document.getElementById('vuePepites').hidden = true;
+  }
+
+  // Un prix en kamas, groupe par milliers. Les couts par pepite montent vite:
+  // 4 000 kamas l'unite sur du Bois de Frene, et six chiffres n'ont rien
+  // d'exceptionnel.
+  function kamas(n) {
+    if (n === null || n === undefined) return '—';
+    return Math.round(n).toLocaleString('fr-FR');
+  }
+
+  // Le taux s'ecrit a l'unite, mais il descend a 0,0025: trois decimales le
+  // rendraient a zero. On montre plutot combien d'objets font une pepite,
+  // qui est le chiffre qu'on emporte au prisme.
+  //
+  // PAS D'UNITE COLLEE AU NOMBRE, et c'est la correction du 11/09, signalee en
+  // jeu: « il est vraiment pas clair ». Le « u » et le « /u » demandaient de
+  // deviner ce qu'on lisait, et deux colonnes voisines portaient toutes deux un
+  // prix. L'entete dit desormais l'unite, la cellule ne porte qu'un nombre, et
+  // les trois colonnes se lisent comme une multiplication de gauche a droite:
+  // prix de l'objet x nombre d'objets = cout d'une pepite.
+  //
+  // UN OBJET QUI REND PLUS D'UNE PEPITE EN DEMANDE UN SEUL. Le taux maximal
+  // mesure est 8 000 pepites l'unite: « 0,000125 objet » serait exact et
+  // illisible. La colonne plafonne donc a 1, qui est la reponse a la question
+  // posee -- combien j'en emporte -- et le cout de la pepite, lui, porte deja
+  // toute la finesse.
+  function parPepite(taux) {
+    if (!taux) return '—';
+    if (taux >= 1) return '1';
+    return Math.ceil(1 / taux).toLocaleString('fr-FR');
+  }
+
+  // LA COLONNE DIT D'OU VIENT LE CHIFFRE, et ce n'est pas decoratif. Deux
+  // lignes voisines peuvent venir de deux sources, et les laisser se
+  // ressembler ferait pire que le « pas clair » signale le 11/09: le mensonge
+  // porterait sur la NATURE du chiffre, pas sur sa mise en page.
+  function cellulePrix(l) {
+    if (l.prix === null || l.prix === undefined) return '—';
+    if (l.source !== 'marche') return kamas(l.prix);
+    const h = new Date(l.quand).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return kamas(l.prix) + ' <span class="' + PEP.marche + '" title="Prix relevé à l’hôtel de vente à '
+      + h + '">marché</span>';
+  }
+
+  const PEP_ETATS = {
+    entree: '<span class="' + PEP.entree + '" title="Entré dans le classement">▲ nouveau</span>',
+    montee: '<span class="' + PEP.montee + '">▲</span>',
+    stable: '<span class="' + PEP.stable + '">=</span>',
+    descente: '<span class="' + PEP.descente + '">▼</span>',
+    sortie: '<span class="' + PEP.sortie + '">sorti</span>',
+  };
+
+  function dessinerPepites() {
+    const corps = document.getElementById('pepCorps');
+    const pied = document.getElementById('pepPied');
+    if (pepTable === null) { corps.innerHTML = ''; pied.textContent = ''; return; }
+    if (pepTable.raison !== null) {
+      corps.innerHTML = '<div class="' + PEP.vide + '">' + echapper(pepTable.raison) + '</div>';
+      pied.textContent = '';
+      return;
+    }
+    const lignes = pepTable.lignes.map((l, i) => '<tr'
+      + (l.suspect ? ' class="' + PEP.suspect + '"' : '') + '>'
+      + '<td>' + (i + 1) + '</td>'
+      + '<td>' + echapper(l.nom === null ? String(l.gid) : l.nom) + '</td>'
+      + '<td>' + cellulePrix(l) + '</td>'
+      + '<td>' + parPepite(l.taux) + '</td>'
+      + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
+      + '<td>' + (PEP_ETATS[l.etat] || '') + '</td>'
+      // LE DOUTE SE DIT SUR LA LIGNE, pas dans une legende: une legende ne se
+      // lit qu'une fois, et le marqueur doit parler au moment ou on regarde.
+      + '<td>' + (l.suspect ? '<span title="Prix moyen très bas : l’objet est'
+        + ' peut-être introuvable en hôtel de vente" class="' + PEP.doute + '">prix douteux</span>' : '') + '</td>'
+      + '</tr>').join('');
+    corps.innerHTML = '<table class="pep-table"><thead><tr>'
+      + '<th>#</th><th>Objet</th><th>Prix item</th>'
+      + '<th>Nb d’item pour 1 pépite</th>'
+      + '<th>Coût / pépite</th><th></th><th></th>'
+      + '</tr></thead><tbody>' + lignes + '</tbody></table>';
+    const quand = new Date(pepTable.prixQuand);
+    pied.textContent = 'Prix du ' + quand.toLocaleDateString('fr-FR')
+      + ' à ' + quand.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      + (pepTable.perso ? ', vus par ' + pepTable.perso : '')
+      // LE JEU PEUT VALOIR null: outils/faire-pepites.js l'ecrit ainsi quand
+      // l'installation du jeu est absente au moment de la mesure. « taux du
+      // jeu null » se lirait comme une version, pas comme une absence.
+      + (pepTable.jeu === null ? ' — version du jeu inconnue' : ' — taux du jeu ' + pepTable.jeu)
+      + (pepTable.sorties.length ? ' — ' + pepTable.sorties.length + ' objet(s) sorti(s)' : '');
+  }
+
+  // Le tableau de la recherche libre: forme distincte de celle du classement
+  // ci-dessus (pas de rang, pas de colonne de variation -- chercher() ne les
+  // fabrique pas), donc une fonction a part plutot qu'une branche de plus
+  // dans dessinerPepites().
+  function dessinerRecherche(r) {
+    const corps = document.getElementById('pepCorps');
+    if (r.length === 0) {
+      corps.innerHTML = '<div class="' + PEP.vide + '">Aucun objet recyclable de ce nom.</div>';
+      return;
+    }
+    corps.innerHTML = '<table class="pep-table"><thead><tr>'
+      + '<th>Objet</th><th>Prix item</th><th>Nb d’item pour 1 pépite</th>'
+      + '<th>Coût / pépite</th>'
+      + '</tr></thead><tbody>'
+      + r.map((l) => '<tr' + (l.suspect ? ' class="' + PEP.suspect + '"' : '') + '>'
+        + '<td>' + echapper(l.nom) + '</td>'
+        // PRIX INCONNU N'EST PAS PRIX ZERO. C'est la reponse que la spec
+        // demande: un objet recyclable dont personne ne connait le prix se
+        // dit, il ne se cache pas.
+        + '<td>' + (l.prix === null ? 'prix inconnu' : cellulePrix(l)) + '</td>'
+        + '<td>' + parPepite(l.taux) + '</td>'
+        + '<td><b>' + kamas(l.coutParPepite) + '</b></td>'
+        + '</tr>').join('')
+      + '</tbody></table>';
+  }
+
+  async function ouvrirPepites() {
+    // LA RECHERCHE REPART A ZERO A CHAQUE OUVERTURE. Sans ca, chercher,
+    // fermer puis rouvrir laissait le mot tape dans le champ alors que le
+    // corps affichait deja le classement complet -- les deux moities du
+    // panneau en desaccord. bump pepSeq perime aussi toute reponse de
+    // recherche encore en vol d'une ouverture precedente: voir le
+    // commentaire de pepChamp.oninput plus bas.
+    const champ = document.getElementById('pepChercheTexte');
+    champ.value = '';
+    if (pepFrappe !== null) { clearTimeout(pepFrappe); pepFrappe = null; }
+    pepSeq += 1;
+    // LE PANNEAU S'OUVRE MEME EN ECHEC, ET DIT POURQUOI -- meme filet que
+    // ouvrirArchi, et pour la meme raison payee le 04/09: sans lui, une
+    // exception laisse simplement le panneau ferme, et l'utilisateur voit un
+    // bouton qui « ne fait rien ». L'echec est encode dans `raison`, le meme
+    // champ que le cas « pas encore de prix »: dessinerPepites() n'a qu'un
+    // seul chemin a connaitre pour les deux, et une recherche tapee puis
+    // effacee ensuite retombe donc sur le MEME message au lieu d'un panneau
+    // blanc qui ecraserait l'erreur.
+    try {
+      pepTable = await window.app.tableauPepites();
+    } catch (e) {
+      pepTable = {
+        lignes: [], sorties: [], quand: null, prixQuand: null, perso: null, jeu: null,
+        raison: 'Le tableau n’a pas pu être construit : '
+          + (e && e.message ? e.message : String(e)),
+      };
+    }
+    dessinerPepites();
+    document.getElementById('vuePepites').hidden = false;
+  }
+
+  document.getElementById('pepFermer').onclick = fermerPepites;
+
+  // L'AVANCEMENT S'AFFICHE MEME PANNEAU FERME, parce que la passe part
+  // toute seule: si elle ne se voyait que panneau ouvert, cinquante
+  // emissions partiraient sans que rien ne l'annonce. C'est pour ca que
+  // #pepAvance est pose dans .barre-nav et NON dans #vuePepites -- le
+  // ramener dans le panneau le rendrait invisible, et rien ici ne le
+  // dirait: son texte serait juste, son `hidden` a false, son rectangle
+  // a 0x0. test/pepites-panneau.test.js monte la garde sur ce point.
+  //
+  // LE TABLEAU NE SE RECHARGE QU'A LA FIN, et `total === 0` est le signal de
+  // fin que main.js envoie apres avoir reclasse. Recharger a chaque objet
+  // rejouerait le rendu cinquante fois par passe, pour un tableau dont seule
+  // la derniere version compte.
+  window.app.surPepitesAvancement(({ fait, total }) => {
+    const el = document.getElementById('pepAvance');
+    if (el === null) return;
+    el.textContent = total > 0 ? `prix du marché : ${fait} / ${total}` : '';
+    el.hidden = total === 0;
+    // Le tableau ne se recharge qu'a la FIN de la passe, quand main.js a
+    // reclasse: total === 0 est le signal de fin.
+    if (total === 0 && !document.getElementById('vuePepites').hidden) ouvrirPepites();
+  });
+
+  // `oninput`/`onkeydown` et non addEventListener, comme arcChamp juste
+  // au-dessus: le panneau s'execute aussi dans le DOM de facade des tests,
+  // qui sait rappeler une propriete mais pas rejouer une file d'ecouteurs.
+  const pepChamp = document.getElementById('pepChercheTexte');
+  pepChamp.oninput = () => {
+    const texte = pepChamp.value;
+    if (pepFrappe !== null) clearTimeout(pepFrappe);
+    pepSeq += 1;
+    const seq = pepSeq;
+    // UN APPEL PAR FRAPPE PARCOURRAIT 4 049 NOMS A CHAQUE LETTRE. Le delai
+    // est court: il ne fait qu'attendre la fin du mot.
+    //
+    // LE JETON DE SEQUENCE, ET PAS SEULEMENT clearTimeout(). clearTimeout()
+    // annule le MINUTEUR tant qu'il n'a pas sonne, pas une promesse deja en
+    // vol: une reponse a une frappe plus ancienne peut revenir APRES celle
+    // d'une frappe plus recente (ou apres une fermeture-reouverture du
+    // panneau) et ecraser un classement plus a jour. `seq` porte le numero
+    // de CETTE frappe; si `pepSeq` a change quand la reponse arrive, une
+    // autre frappe -- ou une reouverture -- l'a emportee, et cette reponse
+    // est jetee sans toucher au DOM.
+    return new Promise((resolve) => {
+      pepFrappe = setTimeout(async () => {
+        if (texte.trim().length < 2) {
+          if (seq === pepSeq) dessinerPepites();
+          resolve();
+          return;
+        }
+        const r = await window.app.chercherPepite(texte);
+        if (seq === pepSeq) dessinerRecherche(r);
+        resolve();
+      }, 150);
+    });
+  };
+
+  // ECHAP VIDE AVANT DE FERMER, meme geste et meme raison que arcChamp: la
+  // touche ferme le panneau, et perdre un classement pour trois lettres
+  // effacees par erreur est brutal. test/pda-archi-panneau.test.js verrouille
+  // ce comportement sur l'autre panneau ("ECHAP VIDE AVANT DE FERMER"); les
+  // deux jumeaux n'ont pas de raison de diverger la-dessus.
+  pepChamp.onkeydown = (e) => {
+    if (e.key !== 'Escape' || pepChamp.value === '') return undefined;
+    e.stopPropagation();
+    pepChamp.value = '';
+    // `return`, contrairement a l'effacement clavier normal: oninput() est
+    // ici asynchrone (debat + appel reseau, la ou celui d'arcChamp est
+    // synchrone), et le rendre awaitable est ce qui permet a un test de
+    // verifier ce qui s'affiche APRES l'effacement plutot que pendant.
+    return pepChamp.oninput();
+  };
 
   // L'embleme de classe d'un personnage, repris du cache de la liste des
   // comptes -- rien n'est retelecharge. Sans embleme en cache, l'abreviation de
@@ -1984,6 +2340,13 @@
   ryConstruire();
   gfConstruire();
 
+  // MEME BASCULE QUE brythme JUSTE AU-DESSUS: un clic ouvre ou ferme, sans
+  // jamais dependre d'une ligne de compte precise.
+  document.getElementById('bpepites').onclick = () => {
+    if (document.getElementById('vuePepites').hidden) ouvrirPepites();
+    else fermerPepites();
+  };
+
   let ecoute = null;
   window.addEventListener('keydown', (e) => {
     // Echap ferme le devlog — mais seulement si aucune saisie de touche n'est
@@ -1994,6 +2357,15 @@
     }
     if (e.key === 'Escape' && ecoute === null && !document.getElementById('vueArchi').hidden) {
       fermerArchi();
+      return;
+    }
+    // Le panneau des pepites vient juste apres celui des archimonstres dans
+    // cet empilement de gardes -- rien n'empeche plusieurs panneaux d'etre
+    // ouverts a la fois, comme pour ecartes et rythme juste en dessous: un
+    // Echap ne ferme que le premier de la pile qui repond `return`, pas tous
+    // ceux qui seraient ouverts.
+    if (e.key === 'Escape' && ecoute === null && !document.getElementById('vuePepites').hidden) {
+      fermerPepites();
       return;
     }
     // Le tableau des ecartes passe APRES celui des archimonstres, comme le

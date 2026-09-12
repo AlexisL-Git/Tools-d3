@@ -402,8 +402,13 @@ test('un kbt qui n arrive jamais n abandonne que son objet', async () => {
     ] });
   vente.onTrame({ pid: 42, dir: 'in', frame: evenement('isb', [pile(13731, 100, 1), pile(8437, 100, 2)]) });
   vente.lancer(42);
-  await new Promise((r) => setTimeout(r, 30));
-  const fin = rendus.find((r) => r.fini);
+  // Deux abandons de 5 ms: 10 ms suffisent machine libre, pas sous la suite
+  // entiere -- le meme piege que hdv-reprix.test.js. On guette la fin.
+  let fin;
+  for (let i = 0; i < 100 && !fin; i += 1) {
+    await new Promise((r) => setTimeout(r, 20));
+    fin = rendus.find((r) => r.fini);
+  }
   assert.ok(fin, 'la passe se termine');
   assert.strictEqual(fin.bilan.objetsAbandonnes, 2);
   assert.strictEqual(fin.raison, null, 'ce n est pas un arret, c est une fin normale');

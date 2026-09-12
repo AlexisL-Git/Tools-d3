@@ -456,8 +456,13 @@ test('un kbt qui n arrive jamais abandonne son gid, pas la passe', async () => {
   ]));
   dire(ivi([[13731, 32], [15169, 34]]));
   r.lancer(1);
-  await new Promise((res) => setTimeout(res, 60));
-  const fin = rendu.find((x) => x.fini);
+  // Deux abandons de 15 ms: 30 ms suffisent quand la machine est libre. Sous la
+  // suite entiere elle ne l'est pas — on guette la fin au lieu de la parier.
+  let fin;
+  for (let i = 0; i < 100 && !fin; i += 1) {
+    await new Promise((res) => setTimeout(res, 20));
+    fin = rendu.find((x) => x.fini);
+  }
   assert.ok(fin, 'la passe se termine d elle-meme');
   assert.strictEqual(fin.bilan.echecs, 2, 'les deux gid ont ete abandonnes');
   assert.strictEqual(fin.bilan.maj, 0);

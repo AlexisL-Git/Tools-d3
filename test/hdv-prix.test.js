@@ -551,3 +551,18 @@ test('deciderPose sans creneau ni prix moyen ne vise rien', () => {
   assert.strictEqual(d.vise, null);
   assert.strictEqual(d.borne, null);
 });
+
+// voisinServi EST EXPORTE POUR marche.js, qui doit deduire un prix unitaire
+// quand le creneau de taille 1 est vide. Dupliquer cette recherche ailleurs
+// dupliquerait une regle subtile -- « a distance egale, on prend le plus
+// petit » -- qui ne se devine pas en la relisant.
+test('voisinServi trouve le creneau servi le plus proche', () => {
+  const { voisinServi } = require('../src/hdv/prix');
+  // creneaux 1 / 10 / 100 / 1000
+  assert.strictEqual(voisinServi([0, 190, 1222, 18000], 0), 1);
+  assert.strictEqual(voisinServi([19, 0, 1222, 18000], 1), 0);
+  // A DISTANCE EGALE, LE PLUS PETIT: un creneau de petite taille est plus
+  // liquide, donc son prix unitaire est mieux etabli.
+  assert.strictEqual(voisinServi([19, 0, 1222, 0], 1), 0);
+  assert.strictEqual(voisinServi([0, 0, 0, 0], 0), -1);
+});

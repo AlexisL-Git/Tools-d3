@@ -188,6 +188,81 @@ function comptesArchi() {
   });
 }
 
+// LES PRIX FABRIQUES DES PEPITES. Deux passes, PRECEDENTE et COURANTE: sans
+// une deuxieme table, comparer() (src/pepites/classement.js) n'aurait rien a
+// comparer et toutes les lignes rendraient 'entree' -- la colonne de
+// variation resterait invisible sur ce banc, qui existe pour la montrer.
+//
+// SEULS LES PRIX SONT INVENTES ICI. Les gid sortent de vrais objets
+// recyclables de src/pepites/taux.json -- classer(), comparer() et chercher()
+// (appeles par outils/interface-locale.js, jamais ici) retrouvent taux et nom
+// aupres des vraies tables, exactement comme le ferait desktop/main.js avec
+// une vraie trame ivi. Un prix ne se lit nulle part dans ce depot: c'est
+// l'unique donnee qu'un banc doit inventer, faute d'un client Dofus reel pour
+// la fournir.
+//
+// CHAQUE GID JOUE UN ROLE PRECIS -- au moins un de chaque etat, et un prix
+// suspect (<= 10 kamas, seuil de src/pepites/classement.js):
+//   312 Fer            identique aux deux passes, mais son rang bouge quand
+//                       meme au gre des autres -- montee
+//   442 Bronze          moins cher que la passe precedente -- montee
+//   444 Etain           bien plus cher que la passe precedente -- descente
+//   303 Bois de Frene    identique aux deux passes ET <= 10 kamas -- stable,
+//                       suspect, et le meme gid que la recherche 'frene' sert
+//                       a demontrer (voir chercherPepite sur le banc: Sac de
+//                       Bois de Frene et Seve de Frene n'ont pas de prix ici,
+//                       et rendent donc « prix inconnu »)
+//   384 Laine de Bouftou  present seulement dans la passe precedente -- sortie
+//   447 Charbon          present seulement dans la passe courante -- entree
+//
+// LE MARCHE, AJOUTE A LA TACHE 2: au moins une ligne de chaque source, sans
+// quoi le banc ne montrerait jamais la distinction qu'on vient d'ajouter.
+//   442 Bronze            porte aussi un prix de marche: la meme ligne passe
+//                         de 'moyen' a 'marche' entre les deux tableaux, ET
+//                         RESTE UNE MONTEE -- le prix de marche est plus bas
+//                         que l'ancienne moyenne, jamais l'inverse.
+//   13731 Pierre Medicinale n'a AUCUN prix moyen ici: le marche est sa seule
+//                         source -- le cas mesure a 39 % du catalogue le
+//                         11/09, docs/superpowers/sdd de la tache. SON PRIX
+//                         EST VOLONTAIREMENT ELEVE (30000, hors de toute
+//                         mesure reelle): en dessous, la nouvelle ligne se
+//                         serait glissee devant les autres et aurait decale
+//                         tous leurs rangs d'un cran, effacant la montee de
+//                         Fer que le tableau ci-dessus promet.
+// 303 (Bois de Frene) reste seul a la moyenne, et donc seul suspect: le
+// marche n'est jamais suspect, la ligne perdrait ce role si on la touchait.
+function pepites() {
+  return {
+    precedent: new Map([
+      [312, 15],
+      [442, 900],
+      [444, 50],
+      [303, 5],
+      [384, 25000],
+    ]),
+    courant: new Map([
+      [312, 15],
+      [442, 400],
+      [444, 5000],
+      [303, 5],
+      [447, 4500],
+    ]),
+    marche: new Map([
+      [442, { prix: 350, quand: Date.now() - 3 * 60 * 1000 }],
+      [13731, { prix: 30000, quand: Date.now() - 3 * 60 * 1000 }],
+    ]),
+    // LE PERSONNAGE VU PAR LA DERNIERE ivi: le maitre, comme le reste de ce
+    // fichier le traite deja pour tableauArchi.
+    perso: CLIENTS.find((c) => c.pid === MAITRE).personnage,
+    quand: Date.now(),
+    // PLUS ANCIEN QUE `quand`, JAMAIS EGAL: prixQuand est l'horodatage de la
+    // derniere ivi, quand celui de la passe est celui d'ouverture du
+    // panneau -- confondre les deux masquerait un ecart que la vraie
+    // interface affiche.
+    prixQuand: Date.now() - 15 * 60 * 1000,
+  };
+}
+
 function fabriquerEtat() {
   const lignes = construireVue({
     comptes: COMPTES,
@@ -241,4 +316,4 @@ function fabriquerEtat() {
   };
 }
 
-module.exports = { fabriquerEtat, comptesArchi };
+module.exports = { fabriquerEtat, comptesArchi, pepites };
