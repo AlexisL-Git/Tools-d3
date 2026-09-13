@@ -208,3 +208,58 @@ test('une zone gardee garde ses sous-zones non faites', () => {
   assert.deepStrictEqual(vides, []);
   assert.ok(arb.every((z) => z.sousZones.length > 0), 'aucune zone sans sous-zone');
 });
+
+// --- Un inventaire pas encore lu n'efface rien ------------------------------
+//
+// LE BUG DU 11/09, ET C'EST LA MEME ERREUR QUE CELLE DU 05/09 PAR UNE AUTRE
+// PORTE. « Manquant a au moins un » ne regardait que les comptes LUS: les
+// autres etaient donc traites comme s'ils avaient tout. Quatre inventaires lus
+// suffisaient a effacer une zone pendant que les deux non lus n'y avaient
+// peut-etre rien pris, et le panneau annoncait « tout est pris » -- le silence
+// qui ressemble a une reponse.
+//
+// Un inventaire pas encore lu ne PROUVE rien. Il ne peut donc pas faire
+// disparaitre un endroit: une zone ne s'efface que quand TOUS les comptes,
+// sans exception, ont montre qu'ils l'avaient finie.
+test('un inventaire pas encore lu n efface aucune zone', () => {
+  const comptes = [
+    { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
+    { pid: 2, nom: 'Jamais lu', ames: null },
+  ];
+  const amakna = zoneDe(arbre({ comptes }), 'Amakna');
+  assert.strictEqual(amakna.manquants, 78);
+});
+
+test('un inventaire pas encore lu n efface aucune sous-zone', () => {
+  const comptes = [
+    { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
+    { pid: 2, nom: 'Jamais lu', ames: null },
+  ];
+  const cim = sousZoneDe(arbre({ comptes }), 'Amakna', 'Cimetière');
+  assert.ok(cim !== undefined, 'la sous-zone reste affichee');
+  assert.strictEqual(cim.restants.length, cim.manquants);
+});
+
+// MAIS IL NE S'INVITE PAS DANS `qui` POUR AUTANT, et les deux regles ne se
+// contredisent pas: on garde l'endroit parce qu'on ne sait pas, et on ne colle
+// pas un embleme qui affirmerait qu'il lui manque. La ligne porte alors un
+// nombre sans embleme -- exactement ce que rend deja un panneau ouvert avant
+// que le moindre client soit la.
+test('un inventaire pas encore lu garde la zone sans entrer dans qui', () => {
+  const comptes = [
+    { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
+    { pid: 2, nom: 'Jamais lu', ames: null },
+  ];
+  assert.deepStrictEqual(zoneDe(arbre({ comptes }), 'Amakna').qui, []);
+});
+
+// L'AUTRE MOITIE: lire l'inventaire manquant doit rendre la vue au calme. Sans
+// cette moitie, la correction se resumerait a « ne rien cacher jamais ».
+test('une fois tous les inventaires lus et complets, tout disparait encore', () => {
+  const comptes = [
+    { pid: 1, nom: 'Complet', ames: new Set(TOUS) },
+    { pid: 2, nom: 'Complet aussi', ames: new Set(TOUS) },
+    { pid: 3, nom: 'Complet encore', ames: new Set(TOUS) },
+  ];
+  assert.deepStrictEqual(arbre({ comptes }), []);
+});

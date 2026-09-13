@@ -64,13 +64,16 @@ const decroissant = (nomDe) => (a, b) => (b.manquants - a.manquants)
 // La colonne suivie garde tout son sens la ou elle en a un: le surlignage et
 // le filtre de la liste, cote panneau. Elle ne cache plus un endroit ou il
 // reste quelqu un a servir. Une zone ne disparait que quand TOUS les comptes
-// lus l ont finie.
+// l ont finie -- et un inventaire pas encore lu n a rien fini du tout.
 function parZones({ lignes, comptes, quoi = 'archi' }) {
   const { arbre: ARBRE, parId: PAR_ID } = arbreDe(quoi);
   const presents = new Map((lignes || []).map((l) => [l.id, l.presents]));
 
   // UN INVENTAIRE PAS ENCORE LU N EST PAS UN INVENTAIRE VIDE. On ne sait pas ce
-  // qu il manque a ce personnage, donc on ne le fait pas se deplacer.
+  // qu il manque a ce personnage, donc on ne le fait pas se deplacer: il n entre
+  // pas dans `qui`, et c est a ca que sert cette liste-la.
+  //
+  // MAIS IL N EFFACE RIEN NON PLUS: voir `manque` juste en dessous.
   const lus = (comptes || []).filter((c) => c.lu === true);
 
   const quiPour = (id) => {
@@ -78,15 +81,21 @@ function parZones({ lignes, comptes, quoi = 'archi' }) {
     return p === undefined ? [] : lus.filter((c) => !p.includes(c.pid)).map((c) => c.pid);
   };
 
-  const manque = (id) => {
-    const p = presents.get(id);
-    if (p === undefined) return false;
-    // AUCUN INVENTAIRE LU: on ne peut dire a personne ce qui lui manque, alors
-    // on montre ce qui existe. Un panneau ouvert avant que les clients soient
-    // la doit lister le monde, pas seize zeros.
-    if (lus.length === 0) return p.length === 0;
-    return lus.some((c) => !p.includes(c.pid));
-  };
+  // « MANQUANT » NE SE RECALCULE PAS ICI: on lit ce que construire() a pose sur
+  // chaque ligne. C est la correction du 11/09.
+  //
+  // Cette vue avait sa propre copie de la regle, et cette copie ne regardait que
+  // les comptes LUS -- les autres etaient donc traites comme s ils avaient tout.
+  // Quatre inventaires lus suffisaient a effacer une zone pendant que les deux
+  // non lus n y avaient peut-etre rien pris, et le panneau annoncait « tout est
+  // pris ». Encore un silence qui ressemble a une reponse.
+  //
+  // Une regle ecrite a deux endroits finit par dire deux choses. Elle vit
+  // maintenant dans src/pda-archi/tableau.js, et rien que la: un endroit ne
+  // disparait que quand TOUS les comptes, sans exception, ont MONTRE qu ils
+  // l avaient fini. Ne pas savoir, c est garder.
+  const manques = new Map((lignes || []).map((l) => [l.id, l.manque === true]));
+  const manque = (id) => manques.get(id) === true;
 
   // `qui` SE DEDUIT DE CE QUI MANQUE, il ne se calcule pas a cote: c est ce qui
   // interdit la ligne « 0 » portant des emblemes.

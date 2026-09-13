@@ -1899,19 +1899,31 @@
     }
   }
 
-  // LE FILTRE PORTE SUR LA COLONNE VISEE quand il y en a une, sur le groupe
-  // sinon. « Manquants » ne veut pas dire la meme chose pour un personnage et
-  // pour l'equipe, et c'est justement la question qu'on se pose en cliquant le
-  // bouton d'une ligne.
+  // LE FILTRE PORTE SUR LE GROUPE, JAMAIS SUR LA COLONNE SUIVIE, et c'est la
+  // correction du 11/09.
+  //
+  // Il se restreignait au personnage dont on avait clique le bouton. Or le
+  // panneau s'ouvre TOUJOURS par ce bouton -- il n'existe aucun autre chemin --
+  // donc « manquants » ne repondait jamais qu'a la question d'un seul: un boss
+  // capture sur le premier personnage quittait la liste alors que les trois
+  // autres ne l'avaient pas, exactement comme la vue par zone effacait ses
+  // zones. Meme erreur de sens, troisieme fois.
+  //
+  // `ligne.manque` VIENT DE src/pda-archi/tableau.js et n'est pas recalcule ici:
+  // une regle qu'on peut se tromper de sens merite un test, et une regle qui vit
+  // dans du HTML n'en a pas. Les deux vues lisent donc la meme.
+  //
+  // La colonne suivie garde ce pour quoi elle est faite: surligner sa colonne.
   function gardeLigne(ligne) {
     // LES DEUX SE CUMULENT, ils ne se remplacent pas: « manquants » plus un nom,
-    // c'est la question « celui-la, est-ce qu'il me manque ? ».
+    // c'est la question « celui-la, est-ce qu'il nous manque ? ».
     if (arcRecherche !== '' && !aPlat(ligne.nom).includes(arcRecherche)) return false;
     if (arcFiltre === 'tous') return true;
-    const a = arcVise === null
-      ? ligne.presents.length > 0
-      : ligne.presents.includes(arcVise);
-    return arcFiltre === 'possedes' ? a : !a;
+    // « Possedes » et « manquants » ne sont PAS complementaires, et c'est voulu:
+    // une ame que l'un a et l'autre pas est a la fois possedee par l'equipe et
+    // manquante a quelqu'un. Elle parait donc dans les deux, comme dans la vue
+    // par zone.
+    return arcFiltre === 'possedes' ? ligne.presents.length > 0 : ligne.manque === true;
   }
 
   function dessinerArchi() {

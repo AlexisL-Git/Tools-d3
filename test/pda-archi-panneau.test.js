@@ -138,10 +138,15 @@ function boutonsDeLaBarre() {
 // les noeuds pour qu'on puisse regarder ce qui s'y est ecrit.
 async function ouvrirLePanneau({
   vise = 101, vue = 'liste', echoue = false, complet = false, viseComplet = false,
+  boss = false,
 } = {}) {
   const appels = { table: 0, relire: 0, args: [] };
   const { ARCHIMONSTRES } = require('../src/pda-archi/archimonstres');
   const tout = new Set(ARCHIMONSTRES.map((a) => a.id));
+  // Founoroshi est un BOSS, pas un archimonstre: il ne parait que dans l'autre
+  // collection. C'est la piece qui manquait au banc pour rejouer le geste
+  // « onglet Boss, puis filtre Manquants ».
+  const FOUNOROSHI = 6249;
   // `viseComplet`: celui dont on clique le bouton a TOUT, l'autre n'a RIEN.
   // C'est la configuration du bug du 05/09, et elle ne ressemble a aucune des
   // deux autres.
@@ -152,12 +157,23 @@ async function ouvrirLePanneau({
     if (viseComplet) {
       return [{ pid: 101, nom: 'Un', ames: tout }, { pid: 102, nom: 'Deux', ames: new Set() }];
     }
+    // `boss`: le visé a capturé Founoroshi, l'autre ne l'a pas. C'est la
+    // configuration du bug du 11/09.
+    if (boss) {
+      return [
+        { pid: 101, nom: 'Un', ames: new Set([FOUNOROSHI]) },
+        { pid: 102, nom: 'Deux', ames: new Set() },
+      ];
+    }
     return [
       { pid: 101, nom: 'Un', ames: new Set([2272]) },
       { pid: 102, nom: 'Deux', ames: new Set() },
     ];
   };
-  const table = construire({ comptes: comptes() });
+  // LE FAUX SERVICE HONORE `quoi`, comme le vrai: sans ca, cliquer l'onglet
+  // « Boss » rendait la table des archimonstres et le banc ne pouvait pas
+  // distinguer les deux collections.
+  const table = (quoi) => construire({ comptes: comptes(), quoi });
   const parId = new Map();
   const boutons = boutonsDeLaBarre();
   const document = {
@@ -189,7 +205,7 @@ async function ouvrirLePanneau({
           appels.table += 1;
           appels.args.push(args);
           if (echoue) throw new Error('le service a refusé');
-          return table;
+          return table(args[0]);
         },
         archiRelire: async () => {
           appels.relire += 1;
@@ -367,17 +383,23 @@ test('la recherche ignore la casse et les accents', async () => {
 });
 
 // LES DEUX FILTRES SE CUMULENT, ils ne se remplacent pas: « manquants » plus un
-// nom, c est la question « celui-la, est-ce qu il me manque ? ». Ici 101
-// possede Pichakote: en manquants, la recherche ne doit rien rendre.
+// nom, c est la question « celui-la, est-ce qu il nous manque ? ».
+//
+// LE SCENARIO A CHANGE LE 11/09, PAS L INTENTION. Il reposait sur « 101 le
+// possede, donc il quitte ses manquants » -- l erreur de sens elle-meme. Ici
+// les deux comptes ont TOUT: Pichakote ne manque donc a personne, et c est le
+// groupe qui l efface des manquants, plus le personnage clique.
 test('la recherche se cumule avec le filtre plutot que de le remplacer', async () => {
-  const { parId, boutons } = await ouvrirLePanneau();
+  const { parId, boutons } = await ouvrirLePanneau({ complet: true });
   await chercher(parId, 'pichakoté');
-  await boutons.find((b) => b.dataset.filtre === 'manquants').clic();
-  assert.ok(!parId.get('arcCorps').innerHTML.includes('Pichakoté le Dégoutant'),
-    '101 le possede: il ne peut pas etre dans ses manquants');
   await boutons.find((b) => b.dataset.filtre === 'possedes').clic();
   assert.ok(parId.get('arcCorps').innerHTML.includes('Pichakoté le Dégoutant'),
-    'en possedes, il revient');
+    'en possedes, la recherche le trouve');
+  await boutons.find((b) => b.dataset.filtre === 'manquants').clic();
+  assert.ok(!parId.get('arcCorps').innerHTML.includes('Pichakoté le Dégoutant'),
+    'tout le monde l a: il ne peut pas etre dans les manquants');
+  assert.match(parId.get('arcCorps').innerHTML, /rien à afficher/,
+    'et le filtre ne rend pas non plus le reste de la table');
 });
 
 // Un nom qui ne correspond a rien doit le DIRE. Une table vide et une table
@@ -409,4 +431,49 @@ test('echap vide la recherche et ne ferme pas le panneau', async () => {
   await garde;
   assert.strictEqual(parId.get('arcChercheTexte').value, '');
   assert.ok(parId.get('arcCorps').innerHTML.includes('Arachitik'), 'la liste entiere revient');
+});
+
+// --- « Manquants » veut dire « manquant a au moins un » ---------------------
+//
+// LE BUG DU 11/09, ET C'EST ENCORE LA MEME ERREUR DE SENS. Le filtre
+// « manquants » se restreignait au personnage dont on avait clique le bouton:
+// un boss capture sur le premier personnage disparaissait de la liste alors que
+// les trois autres ne l'avaient pas. Or le panneau s'ouvre TOUJOURS par ce
+// bouton -- il n'existe aucun autre chemin -- donc le filtre ne repondait
+// jamais qu'a la question d'un seul.
+//
+// C'est le meme sens que la vue par zone, et desormais la meme regle: une ligne
+// reste tant qu'il reste quelqu'un a servir.
+test('en manquants, un boss pris par un seul reste dans la liste', async () => {
+  const { parId, boutons } = await ouvrirLePanneau({ vise: 101, boss: true });
+  await boutons.find((b) => b.dataset.quoi === 'boss').clic();
+  await boutons.find((b) => b.dataset.filtre === 'manquants').clic();
+  assert.ok(parId.get('arcCorps').innerHTML.includes('Founoroshi'),
+    '101 l a capture mais 102 ne l a pas: la ligne doit rester');
+});
+
+// L'AUTRE MOITIE: ce que TOUT LE MONDE a disparait bien des manquants. Sans
+// elle, la correction se resumerait a « ne rien filtrer jamais ».
+test('en manquants, ce que tout le monde a disparait', async () => {
+  const { parId, boutons } = await ouvrirLePanneau({ complet: true });
+  await boutons.find((b) => b.dataset.filtre === 'manquants').clic();
+  assert.match(parId.get('arcCorps').innerHTML, /rien à afficher/);
+});
+
+// Le filtre ne doit pas non plus dependre de QUI on a clique: deux ouvertures
+// sur deux personnages differents rendent la meme liste.
+test('en manquants, la liste ne depend pas du personnage clique', async () => {
+  const a = await ouvrirLePanneau({ vise: 101, boss: true });
+  await a.boutons.find((b) => b.dataset.quoi === 'boss').clic();
+  await a.boutons.find((b) => b.dataset.filtre === 'manquants').clic();
+  const b = await ouvrirLePanneau({ vise: 102, boss: true });
+  await b.boutons.find((x) => x.dataset.quoi === 'boss').clic();
+  await b.boutons.find((x) => x.dataset.filtre === 'manquants').clic();
+  // LE SURLIGNAGE, LUI, DEPEND BIEN DU VISE: c'est tout ce qui doit rester de
+  // la colonne suivie. On le neutralise pour ne comparer que les LIGNES.
+  const sansSurlignage = (h) => h.replace(/ ?arc-vise/g, '');
+  assert.strictEqual(
+    sansSurlignage(a.parId.get('arcCorps').innerHTML),
+    sansSurlignage(b.parId.get('arcCorps').innerHTML),
+  );
 });

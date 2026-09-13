@@ -52,12 +52,42 @@ function construire({ comptes, quoi = 'archi' }) {
   const { liste: LIGNES, parId, titre } = lignesDe(quoi);
   const estDeLaTable = (id) => parId.has(id);
 
-  const lignes = LIGNES.map((a) => ({
-    id: a.id,
-    nom: a.nom,
-    niveau: a.niveau,
-    presents: liste.filter((c) => c.ames instanceof Set && c.ames.has(a.id)).map((c) => c.pid),
-  }));
+  // « MANQUANT » VEUT DIRE « MANQUANT A AU MOINS UN », ET LA REGLE EST ICI.
+  //
+  // Elle a ete ecrite trois fois et trois fois de travers: dans la vue par zone
+  // le 05/09 (le personnage clique decidait du sens), dans cette meme vue le
+  // 11/09 (un inventaire pas encore lu comptait comme complet), et dans le
+  // filtre du panneau, ou elle vivait en HTML -- donc sans test -- et se
+  // restreignait elle aussi au personnage clique. Un boss capture sur le
+  // premier quittait la liste alors que les trois autres ne l avaient pas.
+  //
+  // Elle ne vit donc plus qu a UN endroit, que src/pda-archi/zones.js et le
+  // panneau consomment tous les deux. Deux vues qui repondent a la meme
+  // question ne peuvent plus se contredire.
+  //
+  // Un inventaire pas encore lu ne PROUVE rien: il ne peut pas faire disparaitre
+  // une ligne. Ne pas savoir, c est garder.
+  const manqueAQuelquUn = (presents) => {
+    // AUCUN COMPTE DU TOUT: on montre ce qui existe. Un panneau ouvert avant que
+    // les clients soient la doit lister le monde, pas une table vide.
+    if (liste.length === 0) return true;
+    return liste.some((c) => !(c.ames instanceof Set) || !presents.includes(c.pid));
+  };
+
+  const lignes = LIGNES.map((a) => {
+    const presents = liste
+      .filter((c) => c.ames instanceof Set && c.ames.has(a.id)).map((c) => c.pid);
+    return {
+      id: a.id,
+      nom: a.nom,
+      niveau: a.niveau,
+      presents,
+      // `presents` dit QUI l a; `manque` dit s il reste quelqu un a servir. Les
+      // deux ne se deduisent pas l un de l autre des qu un inventaire n est pas
+      // lu -- c est justement le piege du 11/09.
+      manque: manqueAQuelquUn(presents),
+    };
+  });
 
   const rendus = liste.map((c) => {
     if (!(c.ames instanceof Set)) {
