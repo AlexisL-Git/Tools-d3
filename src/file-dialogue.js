@@ -1,5 +1,6 @@
 'use strict';
 const { encodeRaw, WIRE } = require('./codec/rawProto');
+const { estSensible, DELAI_PLANCHER_MS } = require('./garde-combat');
 
 // Le dialogue rejoue, une etape a la fois et au rythme de la mule.
 //
@@ -69,6 +70,23 @@ const DELAI_ETAPE = { minMs: 150, maxMs: 600 };
 // fenetre se ferme: mieux vaut une mule qui n'a pas suivi qu'une mule bloquee.
 const DELAI_ATTENTE_MS = 3000;
 
+// LE REESSAI D'OUVERTURE. Mesure du 13/09 (journal-bug-0909.log, mule 9276,
+// zaapi -20004): la MEME trame `imp` est refusee a 115267 ms et acceptee a
+// 122324 ms, identique octet pour octet. Entre les deux, la mule a marche
+// (`jpt` a 119740 et 121356 ms). Le refus porte donc sur une POSITION, pas sur
+// le contenu de la trame — meme condition que celle qui a ecarte `jpp` et
+// `jrh` le 28/08.
+//
+// On renvoie le meme clic, et c'est le suivi de groupe DU JEU qui amene la
+// mule a portee. OMNI ne fabrique aucun deplacement: l'utilisateur a ecarte
+// cette piste le 03/09, et de nouveau le 13/09.
+//
+// SIX ESSAIS AU TOTAL, donc cinq reessais: 4 s, plus le delai humain du
+// premier envoi. Au-dela, une mule qui n'est pas arrivee est bloquee ailleurs,
+// et insister n'y changerait rien.
+const ESSAIS_OUVERTURE = 6;
+const DELAI_REESSAI_MS = 800;
+
 const URL_FERMETURE = 'type.ankama.com/kiy';
 
 // Constante: la fermeture ne recopie rien du dialogue en cours, comme
@@ -107,14 +125,25 @@ function creerFileDialogue({
     if (e === undefined) {
       e = {
         etapes: [], enVol: false, attend: null, minuteur: null,
-        question: null, ouvert: false,
+        minuteurEtape: null, question: null, ouvert: false, notre: false,
+        ouverture: null, essais: 0,
       };
       files.set(pid, e);
     }
     return e;
   };
 
-  const retard = () => delai.minMs + Math.floor(alea() * (delai.maxMs - delai.minMs + 1));
+  // LE PLANCHER DU GARDE-COMBAT, rendu a la file le 13/09. Le delai humain
+  // seul ne suffit pas: il se tire des 150 ms, et le serveur annonce le combat
+  // du maitre en 149 ms (journal-bug-0909.log, 832531 -> 832680). Sous le
+  // plancher, l'etape part avant que le garde ait pu l'annuler.
+  //
+  // Il ne s'applique qu'aux types que le garde surveille. Une fermeture
+  // (`kiy`) n'ouvre aucun combat, et la retarder ne protegerait de rien.
+  const retard = (type) => {
+    const humain = delai.minMs + Math.floor(alea() * (delai.maxMs - delai.minMs + 1));
+    return estSensible(type) ? Math.max(humain, DELAI_PLANCHER_MS) : humain;
+  };
 
   function leverAttente(e) {
     if (e.minuteur !== null) { annuler(e.minuteur); e.minuteur = null; }
@@ -123,9 +152,21 @@ function creerFileDialogue({
 
   // La SEULE fonction qui ferme. Toutes les sorties passent par elle: c'est ce
   // qui garantit qu'aucune mule ne reste avec une fenetre ouverte.
-  function fermer(pid, e) {
+  //
+  // ELLE NE FERME QUE CE QUE LA FILE A OUVERT. Defaut mesure le 13/09: quand
+  // l'utilisateur prend la main sur une mule et parle a un PNJ, la question
+  // arrivait ici comme une des notres et la file fermait 38 ms plus tard
+  // (journal-bug-0909.log, 309330 -> 309368). Un dialogue ouvert a la main
+  // n'appartient pas a la file.
+  //
+  // `force` est reserve a « ouvrir ferme d'abord »: la, il FAUT faire place
+  // nette, quelle que soit l'origine du dialogue qui traine, sans quoi le
+  // serveur refuse l'ouverture par un `imq {}` (mesure du 09/09).
+  function fermer(pid, e, force = false) {
     if (!e.ouvert) return;
+    if (!force && !e.notre) return;
     e.ouvert = false;
+    e.notre = false;
     e.question = null;
     const etat = superviseur.comptes.get(pid);
     if (!superviseur.arme || etat === null || etat === undefined || etat.exclu) return;
@@ -141,6 +182,8 @@ function creerFileDialogue({
     const type = e.attend === null ? null : e.attend.type;
     e.etapes.length = 0;
     leverAttente(e);
+    e.ouverture = null;
+    e.essais = 0;
     fermer(pid, e);
     onCompteRendu({ pid, ok: false, raison, type });
   }
@@ -181,13 +224,16 @@ function creerFileDialogue({
       return;
     }
     e.enVol = true;
-    planifier(() => emettre(pid, etape), retard());
+    // Retenu: sans lui, une etape en vol ne peut plus etre annulee, et c'est
+    // exactement ce que le garde-combat avait perdu.
+    e.minuteurEtape = planifier(() => emettre(pid, etape), retard(etape.type));
   }
 
-  function emettre(pid, etape) {
+  function emettre(pid, etape, estReessai = false) {
     const e = files.get(pid);
     if (e === undefined) return;
     e.enVol = false;
+    e.minuteurEtape = null;
     const etat = superviseur.comptes.get(pid);
     // Relu A L'ECHEANCE, pas a l'empilage: entre les deux, la case du compte a
     // pu se decocher, le client se fermer, et Windows reattribuer le pid a un
@@ -198,7 +244,15 @@ function creerFileDialogue({
     // `kja` etait renomme par un patch et que plus rien ne fermait, le `imq {}`
     // du 09/09 — le serveur qui refuse d'ouvrir parce qu'un dialogue traine —
     // deviendrait impossible.
-    if (etape.type === TYPE_OUVERTURE && e.ouvert) fermer(pid, e);
+    if (etape.type === TYPE_OUVERTURE && e.ouvert) fermer(pid, e, true);
+
+    // LE RANG DE L'ESSAI, remis a 1 pour une ouverture NEUVE seulement. Un
+    // reessai repasse par ici: sans `estReessai`, le compteur repartirait de 1
+    // a chaque tour et la mule insisterait sans fin.
+    if (etape.type === TYPE_OUVERTURE) {
+      e.ouverture = etape;
+      if (!estReessai) e.essais = 1;
+    }
 
     superviseur.emettre(pid, etape.brute);
 
@@ -208,12 +262,24 @@ function creerFileDialogue({
     // Le prix de l'inverse est nul — une fermeture chez une mule qui n'a rien
     // d'ouvert est ignoree par le serveur (mesure du 08/09, deux `kiy` de
     // suite a 230048 et 230049 ms).
+    // LA FILE EST CHEZ ELLE DES QU'ELLE A ECRIT. Une ouverture, evidemment,
+    // mais une REPONSE aussi: OMNI attache a des clients deja en jeu, ou une
+    // mule reintegree en plein dialogue, commence sa file par un `inh` sans
+    // ouverture avant lui. Sans cette ligne, la question suivante ne la ferait
+    // plus avancer et sa pile resterait bloquee jusqu'au delai de 3 s.
     if (etape.type === TYPE_OUVERTURE) e.ouvert = true;
+    if (etape.type !== TYPE_FERMETURE) e.notre = true;
 
     // Une fermeture n'appelle aucune reponse du serveur: armer une attente
     // derriere elle bloquerait la file 3 s a chaque dialogue termine.
     if (etape.type === TYPE_FERMETURE) {
       e.ouvert = false;
+      // ET LA FILE N'EST PLUS CHEZ ELLE. Sans cette ligne, `notre` survivait a
+      // toute fermeture rejouee: la file se croyait encore proprietaire, et le
+      // dialogue suivant — meme ouvert a la main par l'utilisateur — avancait
+      // jusqu'a « fin de file, le maitre a fini », donc se fermait tout seul
+      // (zaapi, mesure du 13/09, 122364 -> 122402 ms).
+      e.notre = false;
       e.question = null;
       avancer(pid);
       return;
@@ -223,6 +289,42 @@ function creerFileDialogue({
     // ete refusee.
     e.attend = { type: etape.type, question: e.question };
     e.minuteur = planifier(() => abandonner(pid, etape.type), DELAI_ATTENTE_MS);
+  }
+
+  // CE QUI N'EST PAS ENCORE PARTI NE PARTIRA PAS. Le pendant, pour la file, de
+  // superviseur.annulerRejeux(): le garde-combat appelle les deux quand le
+  // maitre entre en combat.
+  //
+  // LA FILE ENTIERE, PAS SEULEMENT L'ETAPE EN VOL. Retirer la seule etape en
+  // vol ne faisait que la REPOUSSER: les etapes encore empilees restaient, et
+  // la prochaine action du maitre relancait la file — donc la reponse de quete
+  // qui ouvre le combat, avec un tour de retard. Verifie en jeu de tete le
+  // 13/09 sur la file doublee (`imp` puis `inh`): l'`inh` repartait.
+  //
+  // ON N'EMET RIEN, comme le garde depuis le 02/09: une mule dont l'etape est
+  // annulee avant son envoi n'a jamais ouvert la fenetre. Celle qui l'avait
+  // deja ouverte sera fermee par l'ouverture suivante — c'est a ca que sert
+  // « ouvrir ferme d'abord » dans emettre().
+  function annulerEnVol(pidMaitre) {
+    let annules = 0;
+    for (const etat of superviseur.comptes.esclaves(pidMaitre)) {
+      const e = files.get(etat.pid);
+      if (e === undefined) continue;
+      if (e.enVol && e.minuteurEtape !== null) {
+        annuler(e.minuteurEtape);
+        e.minuteurEtape = null;
+        e.enVol = false;
+        annules += 1;
+      }
+      annules += e.etapes.length;
+      e.etapes.length = 0;
+      // CE QUI N'EST PAS PARTI NE PARTIRA PAS, le reessai compris: sans ces
+      // deux lignes, le minuteur annule laisserait une ouverture prete a
+      // repartir au refus suivant.
+      e.ouverture = null;
+      e.essais = 0;
+    }
+    return annules;
   }
 
   // Empile une action du maitre chez chaque esclave. `esclaves()` ecarte deja
@@ -257,6 +359,11 @@ function creerFileDialogue({
       const valeur = q === null ? null : q.value;
       const attente = e.attend;
       e.ouvert = true;
+      // PAS LA NOTRE: l'utilisateur a pris la main sur cette mule. On retient
+      // qu'une fenetre est ouverte -- « ouvrir ferme d'abord » en aura besoin
+      // -- et on ne fait rien d'autre. Ni avancer, ni fermer, ni compte rendu:
+      // ce dialogue ne nous regarde pas.
+      if (!e.notre) return;
       // LA MEME QUESTION QU'AVANT: la reponse a ete refusee. C'est le seul
       // signal de refus qui existe — le serveur ne renvoie aucune erreur que
       // nous sachions lire.
@@ -266,13 +373,36 @@ function creerFileDialogue({
         return;
       }
       e.question = valeur;
+      // La question est arrivee: plus rien a reessayer.
+      e.ouverture = null;
+      e.essais = 0;
       leverAttente(e);
       avancer(pid);
       return;
     }
 
     if (frame.type === TYPE_REFUS_OUVERTURE) {
-      echec(pid, 'la mule n a pas pu ouvrir le dialogue');
+      // ON RENVOIE LE MEME CLIC. Voir ESSAIS_OUVERTURE en tete: le refus porte
+      // sur la position de la mule, pas sur la trame.
+      //
+      // Le reessai repasse par emettre(), donc par « ouvrir ferme d'abord »:
+      // il couvre du meme coup l'AUTRE sens de `imq` — un dialogue qui traine,
+      // mesure le 09/09 — sans avoir a distinguer les deux causes, ce que
+      // `imq {}` ne permet pas: il est vide.
+      if (e.attend !== null && e.attend.type === TYPE_OUVERTURE
+          && e.ouverture !== null && e.essais < ESSAIS_OUVERTURE) {
+        const aRenvoyer = e.ouverture;
+        e.essais += 1;
+        leverAttente(e);
+        // OCCUPEE jusqu'a l'echeance: sans ca, avancer() tirerait l'etape
+        // suivante entre deux essais et la reponse partirait avant la question.
+        e.enVol = true;
+        e.minuteurEtape = planifier(
+          () => emettre(pid, aRenvoyer, true), DELAI_REESSAI_MS,
+        );
+        return;
+      }
+      echec(pid, `la mule n a pas pu ouvrir le dialogue (${e.essais} essai(s), trop loin ?)`);
       return;
     }
 
@@ -280,17 +410,19 @@ function creerFileDialogue({
       // Le serveur referme de lui-meme a la derniere reponse d'un arbre: il n'y
       // a plus rien a fermer, et un kiy de plus partirait dans le vide.
       e.ouvert = false;
+      e.notre = false;
       e.question = null;
       leverAttente(e);
       avancer(pid);
     }
   }
 
-  return { onTrame, pousser };
+  return { onTrame, pousser, annulerEnVol };
 }
 
 module.exports = {
   creerFileDialogue, DELAI_ETAPE, DELAI_ATTENTE_MS, TRAME_FERMETURE,
+  ESSAIS_OUVERTURE, DELAI_REESSAI_MS,
   TYPE_OUVERTURE, TYPE_REPONSE, TYPE_FERMETURE,
   TYPE_QUESTION, TYPE_REFUS_OUVERTURE, TYPE_FERME, CHAMP_QUESTION,
 };
