@@ -3,7 +3,7 @@
   "tasks": [
     {
       "label": "OMNI — interface locale",
-      "detail": "Sert le banc sur http://localhost:8787 — à ouvrir dans Simple Browser",
+      "detail": "Sert le banc sur http://localhost:8787",
       "type": "shell",
       "command": "node outils/interface-locale.js",
       "isBackground": true,
@@ -13,6 +13,30 @@
         "reveal": "silent",
         "showReuseMessage": false
       },
+      "problemMatcher": []
+    },
+    {
+      // L'ONGLET S'OUVRE TOUT SEUL. La conception du 10/09 disait qu'aucune
+      // tache ne pouvait appeler une commande de l'editeur, et c'etait vrai
+      // des tâches « shell »: elles lancent des processus. Le type
+      // « runCommands » (VS Code 1.83+, on est en 1.137) appelle les commandes
+      // de l'editeur, et « simpleBrowser.show » en est une.
+      //
+      // PAS DE dependsOn SUR LA TACHE DU SERVEUR: c'est une tache de fond, qui
+      // ne se termine jamais, et dependsOn l'attendrait indefiniment. Les deux
+      // partent donc en parallele a l'ouverture du dossier. node se met a
+      // ecouter en quelques centaines de millisecondes, la webview du Simple
+      // Browser met plus longtemps a naitre -- l'ordre se fait tout seul. Si
+      // l'onglet arrive quand meme trop tot, un clic droit puis « Reload » le
+      // rattrape.
+      "label": "OMNI — banc dans VS Code",
+      "detail": "Ouvre le banc dans un onglet Simple Browser",
+      "type": "runCommands",
+      "commands": [
+        { "command": "simpleBrowser.show", "args": ["http://localhost:8787"] }
+      ],
+      "runOptions": { "runOn": "folderOpen" },
+      "presentation": { "reveal": "never" },
       "problemMatcher": []
     }
   ]

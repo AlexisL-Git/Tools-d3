@@ -153,6 +153,14 @@ essai, et c'est exactement le frottement qu'on cherche a supprimer.
     "isBackground": true,
     "runOptions": { "runOn": "folderOpen" },
     "presentation": { "panel": "dedicated", "reveal": "silent" }
+  }, {
+    "label": "OMNI — banc dans VS Code",
+    "type": "runCommands",
+    "commands": [
+      { "command": "simpleBrowser.show", "args": ["http://localhost:8787"] }
+    ],
+    "runOptions": { "runOn": "folderOpen" },
+    "presentation": { "reveal": "never" }
   }]
 }
 ```
@@ -163,12 +171,20 @@ Deux choses a savoir, et elles ne sont pas des defauts a corriger:
   dossier (« Allow Automatic Tasks in Folder »). Tant qu'elle n'est pas
   accordee, rien ne demarre. C'est un garde-fou de VS Code, pas un reglage
   qu'on peut poser dans le depot.
-- **L'onglet Simple Browser s'ouvre a la main la premiere fois**
-  (`Ctrl+Shift+P`, puis « Simple Browser: Show », puis
-  `http://localhost:8787`). VS Code restaure ensuite cet onglet a chaque
-  reouverture du dossier. Aucune tache ne peut ouvrir cet onglet elle-meme:
-  les taches lancent des processus, elles n'appellent pas de commandes de
-  l'editeur.
+- **L'onglet Simple Browser s'ouvre tout seul**, par la seconde tache
+  ci-dessus. La premiere version de cette conception affirmait le contraire
+  — « aucune tache ne peut ouvrir cet onglet elle-meme: les taches lancent
+  des processus, elles n'appellent pas de commandes de l'editeur ». C'est
+  vrai des taches `shell`, et faux depuis VS Code 1.83: le type
+  `runCommands` appelle les commandes de l'editeur, et `simpleBrowser.show`
+  en est une. Corrige le 11/09, sur une machine en 1.137.
+
+  **Pas de `dependsOn` entre les deux taches.** Le serveur est une tache de
+  fond qui ne se termine jamais, et `dependsOn` l'attendrait sans fin. Les
+  deux partent donc en parallele: node se met a ecouter en quelques
+  centaines de millisecondes, la webview du Simple Browser met plus
+  longtemps a naitre, et l'ordre se fait de lui-meme. Si l'onglet arrive
+  quand meme trop tot, un clic droit puis « Reload » le rattrape.
 
 `.vscode/` entre dans le depot. Il n'y a qu'une machine de developpement, et le
 fichier decrit le projet, pas la personne.
