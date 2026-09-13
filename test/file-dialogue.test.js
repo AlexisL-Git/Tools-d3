@@ -134,7 +134,9 @@ test('la meme question deux fois: la mule ferme et on le dit', () => {
   );
 });
 
-test('imq: la mule n a pas pu ouvrir, on vide la file', () => {
+// SIX REFUS, PUIS L'ABANDON. Le compte rendu porte le nombre d'essais: un
+// abandon muet au premier refus est ce qui a fait perdre une soiree le 13/09.
+test('imq: apres six essais on vide la file, et on dit combien', () => {
   const sup = faux([2]);
   const h = horloge();
   const rendus = [];
@@ -143,11 +145,26 @@ test('imq: la mule n a pas pu ouvrir, on vide la file', () => {
   file.pousser({ pidMaitre: 1, ...etape('imp', 0x11) });
   file.pousser({ pidMaitre: 1, ...etape('inh', 0x22) });
   h.avancer(DELAI_PLANCHER_MS);
-  file.onTrame({ pid: 2, dir: 'in', frame: { kind: 'event', type: 'imq', payload: [] } });
+
+  for (let i = 0; i < ESSAIS_OUVERTURE; i += 1) {
+    file.onTrame({ pid: 2, dir: 'in', frame: refus() });
+    h.avancer(DELAI_REESSAI_MS);
+  }
   h.avancer(10000);
 
-  assert.deepStrictEqual(rendus.map((r) => r.raison), ['la mule n a pas pu ouvrir le dialogue']);
-  assert.strictEqual(sup.emis.filter((e) => e.octets[0] === 0x22).length, 0);
+  assert.strictEqual(
+    sup.emis.filter((e) => e.octets[0] === 0x11).length, ESSAIS_OUVERTURE,
+    'six clics en tout, pas un septieme',
+  );
+  assert.deepStrictEqual(
+    rendus.map((r) => r.raison),
+    ['la mule n a pas pu ouvrir le dialogue (6 essai(s), trop loin ?)'],
+    'un seul compte rendu, et il dit le nombre',
+  );
+  assert.strictEqual(
+    sup.emis.filter((e) => e.octets[0] === 0x22).length, 0,
+    'la reponse ne part pas: la file est videe',
+  );
 });
 
 // La demande de l'utilisateur, mot pour mot: « meme s'il y a un petit retard,
@@ -574,5 +591,73 @@ test('la question recue en cours de reessai arrete les reessais', () => {
   assert.strictEqual(
     sup.emis.filter((e) => e.octets[0] === 0x22).length, 1,
     'et la file a repris sa marche: la reponse est partie',
+  );
+});
+
+// LE GARDE-COMBAT ANNULE UN REESSAI EN ATTENTE. Le minuteur du reessai est
+// range dans `minuteurEtape`, celui que le garde annule deja: si ce n'etait
+// pas le cas, la mule rejouerait son clic APRES l'entree en combat du maitre.
+test('le garde annule un reessai en attente', () => {
+  const sup = faux([2]);
+  const h = horloge();
+  const file = creer(sup, h);
+
+  file.pousser({ pidMaitre: 1, ...etape('imp', 0x11) });
+  h.avancer(DELAI_PLANCHER_MS);
+  file.onTrame({ pid: 2, dir: 'in', frame: refus() });
+
+  const avant = sup.emis.filter((e) => e.octets[0] === 0x11).length;
+  assert.strictEqual(file.annulerEnVol(1), 1, 'le reessai compte pour une annulation');
+  h.avancer(10000);
+
+  assert.strictEqual(
+    sup.emis.filter((e) => e.octets[0] === 0x11).length, avant,
+    'le clic ne repart pas',
+  );
+});
+
+// UNE MULE DECOCHEE PENDANT LES REESSAIS N'EST PLUS FRAPPEE. La case est relue
+// A L'ECHEANCE, pas a l'empilage — meme garde que pour une etape ordinaire.
+test('une mule decochee pendant les reessais ne recoit plus rien', () => {
+  const sup = faux([2]);
+  const h = horloge();
+  const file = creer(sup, h);
+
+  file.pousser({ pidMaitre: 1, ...etape('imp', 0x11) });
+  h.avancer(DELAI_PLANCHER_MS);
+  file.onTrame({ pid: 2, dir: 'in', frame: refus() });
+
+  const avant = sup.emis.length;
+  sup.etats.get(2).exclu = true;
+  h.avancer(10000);
+
+  assert.strictEqual(sup.emis.length, avant, 'plus une seule ecriture');
+});
+
+// LE REESSAI REFAIT « OUVRIR FERME D'ABORD ». C'est ce qui lui fait couvrir
+// l'autre sens de `imq` — un dialogue qui traine (mesure du 09/09) — sans
+// avoir a distinguer les deux causes du refus.
+test('le reessai fait place nette avant de renvoyer le clic', () => {
+  const sup = faux([2]);
+  const h = horloge();
+  const file = creer(sup, h);
+
+  file.pousser({ pidMaitre: 1, ...etape('imp', 0x11) });
+  h.avancer(DELAI_PLANCHER_MS);
+  const base = fermetures(sup).length;
+
+  // Le serveur refuse: la file croit sa fenetre ouverte (demander vaut ouvrir).
+  file.onTrame({ pid: 2, dir: 'in', frame: refus() });
+  h.avancer(DELAI_REESSAI_MS);
+
+  assert.strictEqual(fermetures(sup).length, base + 1, 'une fermeture avant le second clic');
+  const premier = sup.emis.findIndex((e) => e.octets[0] === 0x11);
+  const dernier = sup.emis.map((e) => e.octets[0]).lastIndexOf(0x11);
+  const fermeture = sup.emis.findIndex(
+    (e) => e.octets.toString('hex') === TRAME_FERMETURE.toString('hex'),
+  );
+  assert.ok(
+    premier < fermeture && fermeture < dernier,
+    'la fermeture tombe ENTRE les deux clics',
   );
 });
