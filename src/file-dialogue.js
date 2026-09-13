@@ -112,7 +112,7 @@ const champ = (frame, no) => (frame.payload || []).find((f) => f.no === no) || n
 // alea, planifier, annuler, maintenant — injectes pour que la file se teste
 //                 sans dormir.
 function creerFileDialogue({
-  superviseur, onCompteRendu = () => {}, delai = DELAI_ETAPE,
+  superviseur, onCompteRendu = () => {}, onJournal = () => {}, delai = DELAI_ETAPE,
   alea = Math.random, planifier = setTimeout, annuler = clearTimeout,
   maintenant = () => Date.now(),
 }) {
@@ -254,7 +254,20 @@ function creerFileDialogue({
       if (!estReessai) e.essais = 1;
     }
 
-    superviseur.emettre(pid, etape.brute);
+    const rendu = superviseur.emettre(pid, etape.brute);
+
+    // LA LIGNE QUI MANQUAIT. La file ecrit par superviseur.emettre(), qui ne
+    // journalise pas — contrairement a rejouer(). Le 09/09 on lisait encore
+    // « rejeu imp ecrit (+358 ms) » dans le journal; le 13/09 plus rien pour
+    // imp, inh ni kiy, et ce trou a coute une soiree de diagnostic: on ne
+    // voyait pas si le clic partait. La capture ne les voit pas non plus — une
+    // trame injectee est ecrite sur la socket amont sans repasser par le
+    // reassembleur.
+    const rang = etape.type === TYPE_OUVERTURE
+      ? ` (essai ${e.essais}/${ESSAIS_OUVERTURE})` : '';
+    if (rendu !== null && rendu !== undefined && rendu.ok === false) {
+      onJournal(pid, `rejeu ${etape.type} refuse : ${rendu.raison}`);
+    } else onJournal(pid, `rejeu ${etape.type} ecrit${rang}`);
 
     // DEMANDER L'OUVERTURE VAUT OUVERTURE tant qu'on n'a pas la preuve du
     // contraire. Sans cette ligne, une mule qui ouvre et a qui le serveur ne

@@ -661,3 +661,33 @@ test('le reessai fait place nette avant de renvoyer le clic', () => {
     'la fermeture tombe ENTRE les deux clics',
   );
 });
+
+// LA LIGNE QUI MANQUAIT AU JOURNAL. Le 09/09, la spec de la file montrait
+// encore « 1059598 [8328] rejeu imp ecrit (+358 ms) ». Dans la session du
+// 13/09, AUCUN `rejeu` pour imp, inh ou kiy: la file emet par
+// superviseur.emettre(), qui ne journalise pas — contrairement a rejouer().
+// C'est ce trou qui a coute le diagnostic du zaapi.
+test('la file ecrit au journal ce qu elle rejoue, et le rang de l essai', () => {
+  const sup = faux([2]);
+  const h = horloge();
+  const lignes = [];
+  const file = creerFileDialogue({
+    superviseur: sup, alea: () => 0, planifier: h.planifier,
+    annuler: h.annuler, maintenant: h.maintenant,
+    onJournal: (pid, ligne) => lignes.push([pid, ligne]),
+  });
+
+  file.pousser({ pidMaitre: 1, ...etape('imp', 0x11) });
+  h.avancer(DELAI_PLANCHER_MS);
+  assert.deepStrictEqual(lignes, [[2, 'rejeu imp ecrit (essai 1/6)']]);
+
+  file.onTrame({ pid: 2, dir: 'in', frame: refus() });
+  h.avancer(DELAI_REESSAI_MS);
+  assert.deepStrictEqual(lignes[1], [2, 'rejeu imp ecrit (essai 2/6)']);
+
+  // Une reponse ne porte pas de rang: il n'y a rien a reessayer derriere elle.
+  file.onTrame({ pid: 2, dir: 'in', frame: question(47058) });
+  file.pousser({ pidMaitre: 1, ...etape('inh', 0x22) });
+  h.avancer(DELAI_PLANCHER_MS);
+  assert.deepStrictEqual(lignes.at(-1), [2, 'rejeu inh ecrit']);
+});
