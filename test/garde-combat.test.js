@@ -470,3 +470,26 @@ test('une exception dans onApprendre est journalisee, pas propagee', () => {
   });
   assert.ok(lignes.some((l) => l.includes('disque plein')), 'la panne est dite');
 });
+
+// LA FILE DE DIALOGUE FAIT PARTIE DE CE QUI S'ANNULE.
+//
+// Depuis le 09/09 le dialogue ne passe plus par superviseur.rejouer(): il
+// s'empile dans src/file-dialogue.js, que annulerRejeux() ne voit pas. Le
+// garde annulait donc zero rejeu sur le seul cas qui l'a fait naitre — la
+// reponse de quete qui ouvre un combat. Il doit annuler LES DEUX.
+test('le maitre entre en combat : la file de dialogue est annulee aussi', () => {
+  const sup = fauxSuperviseur();
+  sup.annulerRejeux = () => 0;
+  let pidDemande = null;
+  const appels = [];
+  const { g } = garde(sup, {
+    annulerDialogues: (pid) => { pidDemande = pid; return 3; },
+    onAnnulation: (n) => appels.push(n),
+  });
+
+  g(sortante('inh', { 1: 667 }));
+  g(entreeCombat());
+
+  assert.strictEqual(pidDemande, MAITRE, 'la file du maitre, pas une autre');
+  assert.deepStrictEqual(appels, [3]);
+});

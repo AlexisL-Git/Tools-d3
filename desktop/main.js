@@ -1470,6 +1470,9 @@ app.whenReady().then(async () => {
   // sur la ligne du compte, seul endroit ou l'utilisateur la verra.
   const fileDialogue = creerFileDialogue({
     superviseur,
+    // Chaque rejeu se date, comme ceux de superviseur.rejouer(). Sous
+    // OMNI_JOURNAL=complet seulement, comme tout ce que journal() ecrit.
+    onJournal: (pid, ligne) => journal(pid, ligne),
     onCompteRendu: ({ pid, raison }) => {
       journal(pid, `dialogue : ${raison}`);
       messages.set(pid, `dialogue : ${raison}`);
@@ -1507,6 +1510,11 @@ app.whenReady().then(async () => {
     }),
     creerGardeCombat({
       superviseur,
+      // LA FILE DE DIALOGUE S'ANNULE AVEC LE RESTE. Elle emet elle-meme, sans
+      // passer par superviseur.rejouer(): sans cette ligne, annulerRejeux()
+      // ne voit pas la reponse de quete qui ouvre un combat -- le cas meme
+      // pour lequel le garde existe. Defaut du 13/09.
+      annulerDialogues: (pidMaitre) => fileDialogue.annulerEnVol(pidMaitre),
       // La liste vit dans les reglages: le garde ne la connait pas, il
       // demande. Les reglages sont poses avant la fenetre, donc avant tout
       // client, mais la garde evite de dependre de cet ordre.

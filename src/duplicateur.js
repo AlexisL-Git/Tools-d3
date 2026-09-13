@@ -117,23 +117,24 @@ function creerDuplicateur({
       return;
     }
 
-    // LE DIALOGUE PASSE PAR SA FILE, pas par rejouer(). Une mule ne peut pas
-    // repondre a une question qu'elle n'a pas encore recue: mesure du 09/09,
-    // une reponse de quete rejouee chez une mule qui ne l'a pas laissait sa
-    // fenetre ouverte POUR TOUJOURS, et tous les PNJ suivants etaient refuses
-    // par un `imq {}`. Voir docs/superpowers/specs/2026-09-09-file-dialogue-design.md.
-    //
-    // APRES la garde des songes, jamais avant: dans un songe, le dialogue ne
-    // doit pas partir du tout, ni tout de suite ni plus tard.
-    if (fileDialogue !== null && estDialogue(frame.type)) {
-      fileDialogue.pousser({ pidMaitre: pid, type: frame.type, brute });
-      return;
-    }
-
     // UNE ACTION DEJA VUE LANCER UN COMBAT n'est ni retardee ni tentee. Le
     // refus se rend esclave par esclave: un compte qui ne rejoue pas
     // ressemble sinon a un compte inactif, le mode d'echec le plus couteux
     // du projet, celui qu'aucune trace ne relie a sa cause.
+    //
+    // AVANT LA FILE DE DIALOGUE, ET C'EST LE DEFAUT DU 13/09. Deux des trois
+    // types que le garde surveille — `imp` et `inh` — sont des types de
+    // dialogue: les laisser sortir vers la file en premier faisait sauter ce
+    // refus ET le plancher de 250 ms, pour eux seuls. Mesure,
+    // journal-bug-0909.log:
+    //
+    //   832531 ms [maitre] --> inh { 1=667 }   la reponse qui lance le combat
+    //   832680 ms [maitre] <-- kkr             +149 ms, son combat est annonce
+    //   833083 ms [mule]   <-- kkr             la mule a lance LE SIEN
+    //   833084 ms [mule]   garde combat : inh:667 retenue
+    //
+    // Le garde retenait l'action apres coup et l'aurait rejouee telle quelle a
+    // la fois suivante: plus rien ne lisait `estApprise` sur ce chemin.
     const cle = cleDe(frame.type, frame);
     if (cle !== null && estApprise(cle)) {
       const refuses = [...superviseur.comptes.esclaves(pid)].map((etat) => ({
@@ -142,6 +143,20 @@ function creerDuplicateur({
       }));
       if (refuses.length === 0) return;
       onCompteRendu({ pidMaitre: pid, type: frame.type, nom: connu.name, arme: superviseur.arme, rendu: refuses });
+      return;
+    }
+
+    // LE DIALOGUE PASSE PAR SA FILE, pas par rejouer(). Une mule ne peut pas
+    // repondre a une question qu'elle n'a pas encore recue: mesure du 09/09,
+    // une reponse de quete rejouee chez une mule qui ne l'a pas laissait sa
+    // fenetre ouverte POUR TOUJOURS, et tous les PNJ suivants etaient refuses
+    // par un `imq {}`. Voir docs/superpowers/specs/2026-09-09-file-dialogue-design.md.
+    //
+    // APRES la garde des songes et APRES le garde-combat, jamais avant: la
+    // file ne cadence que ce qui a le droit de partir. Le plancher de 250 ms,
+    // lui, vit dans la file — c'est elle qui emet.
+    if (fileDialogue !== null && estDialogue(frame.type)) {
+      fileDialogue.pousser({ pidMaitre: pid, type: frame.type, brute });
       return;
     }
 

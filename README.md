@@ -45,11 +45,12 @@ Un panneau plus etroit la reduit sans la deformer; le bouton en bas a droite
 affiche le taux et bascule en 1:1. La page nue, sans cadre, reste sur
 `/index.html`.
 
-VS Code lance ce serveur tout seul a l'ouverture du dossier
-(`.vscode/tasks.json`); il demande **une fois** d'autoriser les taches
-automatiques du dossier. L'onglet, lui, s'ouvre a la main la premiere fois —
-`Ctrl+Shift+P`, « Simple Browser: Show », `http://localhost:8787` — et VS Code
-le restaure ensuite a chaque reouverture.
+VS Code lance ce serveur tout seul a l'ouverture du dossier, et ouvre
+l'onglet Simple Browser dessus dans la foulee (`.vscode/tasks.json`, deux
+taches). Il demande **une fois** d'autoriser les taches automatiques du
+dossier: tant que ce n'est pas accorde, ni le serveur ni l'onglet ne
+partent. Pour ouvrir l'onglet sans rouvrir le dossier: `Ctrl+Shift+P`,
+« Tasks: Run Task », « OMNI — banc dans VS Code ».
 
 Ce banc ne rejoue aucune regle metier: cocher « passe-tour » y coche une case,
 rien de plus. Il ne part pas dans le paquet des amis (`outils/` n'est pas
