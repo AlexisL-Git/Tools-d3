@@ -136,9 +136,15 @@ function cleDe(type, frame) {
 // onJournal    — (pid, texte)
 // maintenant   — injecte pour que les deux fenetres se testent sans dormir,
 //   comme alea et planifier dans le superviseur
+// annulerDialogues — (pidMaitre) -> nombre d'etapes de dialogue retirees.
+//   La file de dialogue (src/file-dialogue.js) emet elle-meme, sans passer par
+//   superviseur.rejouer(): annulerRejeux() ne la voit pas. Depuis le 09/09 le
+//   garde annulait donc zero rejeu sur le cas meme qui l'a fait naitre, la
+//   reponse de quete qui ouvre un combat. Absente, elle vaut « aucune file ».
 function creerGardeCombat({
   superviseur, estApprise = () => false, onApprendre = () => {},
   onAnnulation = () => {}, onJournal = () => {}, maintenant = Date.now,
+  annulerDialogues = () => 0,
 }) {
   // La derniere action du maitre susceptible d'ouvrir un combat, datee, avec
   // le pid de qui l'a emise. Le pid sert a retrouver SON characterId quand la
@@ -218,7 +224,7 @@ function creerGardeCombat({
     if (frame.type !== TYPE_COMBATTANTS) return;
     if (combattantsDe(frame) === null) return;
 
-    const annules = superviseur.annulerRejeux();
+    const annules = superviseur.annulerRejeux() + annulerDialogues(pid);
     if (annules > 0) {
       onJournal(pid, `garde combat : ${annules} rejeu(x) annule(s)`);
       onAnnulation(annules);

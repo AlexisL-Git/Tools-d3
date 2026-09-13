@@ -177,6 +177,9 @@ async function main() {
     superviseur,
     estApprise,
     onApprendre,
+    // Meme raison que dans desktop/main.js : la file emet elle-meme, et
+    // annulerRejeux() ne la voit pas.
+    annulerDialogues: (pidMaitre) => fileDialogue.annulerEnVol(pidMaitre),
     onAnnulation: (n) => console.log(`  garde combat : ${n} rejeu(x) annulé(s)`),
     onJournal: (pid, texte) => console.log(`[${pid}] ${texte}`),
   });

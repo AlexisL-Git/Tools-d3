@@ -511,3 +511,51 @@ test('un clic sur un element interactif part avec un plancher de retard', () => 
   assert.strictEqual(s.appels.length, 1);
   assert.strictEqual(s.appels[0].retardPlancher, PLANCHER_HDV_MS);
 });
+
+// LE GARDE-COMBAT PASSE AVANT LA FILE, et c'est le defaut du 13/09.
+//
+// Depuis la file de dialogue (09/09), `imp` et `inh` sortaient du duplicateur
+// AVANT le garde: ni le refus d'une action retenue, ni le plancher de 250 ms
+// ne les voyaient plus. Or ce sont deux des trois types que le garde protege.
+// Mesure du 13/09, journal-bug-0909.log:
+//
+//   832531 ms [maitre] --> inh { 1=667 }   la reponse qui lance le combat
+//   832680 ms [maitre] <-- kkr             +149 ms, son combat est annonce
+//   833083 ms [mule]   <-- kkr             la mule a lance LE SIEN
+//   833084 ms [mule]   garde combat : inh:667 retenue
+//
+// Le garde a retenu l'action APRES coup, et l'aurait rejouee telle quelle a la
+// fois suivante: rien ne lisait plus `estApprise` sur le chemin du dialogue.
+test('une action retenue par le garde-combat n entre pas dans la file', () => {
+  const s = faux();
+  const pousses = [];
+  const comptesRendus = [];
+  const onTrame = creerDuplicateur({
+    superviseur: s,
+    estApprise: () => true,
+    fileDialogue: { pousser: (a) => pousses.push(a) },
+    onCompteRendu: (c) => comptesRendus.push(c),
+  });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'inh', payload: [{ no: 1, value: 667n }] } }));
+
+  assert.strictEqual(pousses.length, 0, 'une action qui lance un combat ne s empile pas');
+  assert.strictEqual(s.appels.length, 0);
+  assert.match(comptesRendus[0].rendu[0].raison, /combat/);
+});
+
+// Le dialogue ordinaire, lui, doit continuer d'entrer dans la file: le refus
+// tient a la cle apprise, pas au type.
+test('un dialogue non retenu entre toujours dans la file', () => {
+  const s = faux();
+  const pousses = [];
+  const onTrame = creerDuplicateur({
+    superviseur: s,
+    estApprise: () => false,
+    fileDialogue: { pousser: (a) => pousses.push(a) },
+  });
+
+  onTrame(trame({ frame: { kind: 'request', type: 'inh', payload: [{ no: 1, value: 667n }] } }));
+
+  assert.deepStrictEqual(pousses.map((p) => p.type), ['inh']);
+});
