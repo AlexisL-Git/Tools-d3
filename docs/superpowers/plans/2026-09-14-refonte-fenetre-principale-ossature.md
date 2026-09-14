@@ -512,15 +512,46 @@ et sans avertissement. `test/paquet-fichiers.test.js` est justement là pour
 le dire : le laisser échouer d'abord, puis corriger, est la bonne façon de
 vérifier qu'il veille.
 
-- [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
+- [ ] **Étape 5 : rendre le banc sensible aux nouveaux fichiers**
+
+`outils/interface-locale.js:107` ne surveille que `desktop/index.html` et
+`outils/faux-etat.js`, sous le commentaire « les deux fichiers qui changent
+pendant une séance de mise en page ». Cette phrase devient fausse à la
+seconde où le CSS part dans `skin/` : on modifierait `jetons.css` sans que
+la page se recharge — et le banc perd précisément son intérêt pour le
+chantier qui en a le plus besoin.
+
+Remplacer le watch d'`index.html` par un watch récursif du dossier servi :
+
+```js
+  // Tout ce qui change pendant une seance de mise en page, et non plus le
+  // seul index.html: la refonte repartit la page entre skin/*.css et
+  // vues/*.js, et surveiller un seul fichier laisserait le banc muet sur
+  // les deux tiers du travail. Un watch recursif couvre aussi les dossiers
+  // qui n existent pas encore.
+  for (const cible of [RACINE, path.join(__dirname, 'faux-etat.js')]) {
+    try {
+      const veilleur = cible === RACINE
+        ? fs.watch(cible, { recursive: true }, () => diffuseur.signaler())
+        : fs.watch(cible, () => diffuseur.signaler());
+      veilleur.unref();
+    } catch (e) {
+      console.warn(`[banc] surveillance impossible : ${cible}`);
+    }
+  }
+```
+
+- [ ] **Étape 6 : lancer les tests et vérifier qu'ils passent**
 
 ```
 npm test
 ```
 
-Attendu : tout vert, `skin-jetons` et `paquet-fichiers` compris.
+Attendu : tout vert, `skin-jetons` et `paquet-fichiers` compris. Les trois
+tests `interface-locale-*` doivent rester verts : le serveur change de
+surveillance, pas de contrat.
 
-- [ ] **Étape 6 : recette à l'œil**
+- [ ] **Étape 7 : recette à l'œil**
 
 ```
 npm run banc
@@ -530,7 +561,7 @@ L'application ne doit **pas** avoir changé d'aspect : les nouveaux jetons
 sont déclarés mais personne ne les emploie encore. Si quelque chose bouge,
 c'est qu'un jeton `--v0-` a été oublié à la tâche 1.
 
-- [ ] **Étape 7 : commit**
+- [ ] **Étape 8 : commit**
 
 ```
 git add desktop/skin/jetons.css desktop/index.html outils/faire-etape.js test/skin-jetons.test.js
