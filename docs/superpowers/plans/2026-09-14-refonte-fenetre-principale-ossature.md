@@ -1321,7 +1321,7 @@ vers le bas, et ne recouvrir aucune ligne. Vérifier dans les deux thèmes.
 - [ ] **Étape 5 : commit**
 
 ```
-git add desktop/skin/ecrans.css desktop/skin/briques.css desktop/index.html
+git add desktop/skin/ecrans.css desktop/index.html
 git commit -m "refonte(skin): les bandeaux poussent l ecran au lieu de le recouvrir"
 ```
 
