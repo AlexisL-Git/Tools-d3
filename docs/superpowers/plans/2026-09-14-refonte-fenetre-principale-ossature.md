@@ -586,18 +586,33 @@ git commit -m "refonte(skin): les jetons des deux themes, et le defaut suit Wind
 
 - [ ] **Étape 1 : recopier les briques depuis la maquette**
 
-Créer `desktop/skin/briques.css` à partir de `labo-omni/app.html:50-365`,
-en ne gardant **que** ce qui est commun à plusieurs écrans — la coquille, le
-rail, la barre du haut, les vues, les titres, les tuiles, les interrupteurs,
-les pastilles, les boutons, les jetons de classe, la règle des pictos.
+La maquette sectionne déjà sa propre feuille, et les bornes sont nettes.
+Créer `desktop/skin/briques.css` en reprenant **exactement ces quatre
+morceaux** de `labo-omni/app.html`, dans cet ordre :
 
-Trois retraits, et leur raison :
+| Lignes | Section | Ce que c'est |
+|---|---|---|
+| 51 | — | `*{box-sizing:border-box}`, le seul reset à garder |
+| 62-101 | `coquille` | `.fenetre`, `.rail`, `.corps`, `.haut`, `.fant`, `.fenetre-bt`, `.vue`, `.titre` |
+| 102-183 | `briques` | `.tuiles`, `.tuile`, `.inter`, `.pastille-etat`, `.cabochon`, `.jeton`, `.bt-*`, `.capsule`, `.marqueur` |
+| 329-364 | pictos | la règle `.a-picto` / `.sans-pic`, **commentaire compris** |
 
-1. `body`, `a.retour`, `.aide` et `--dehors*` : ce sont les **habits de la
-   page de labo**, pas de l'application. La fenêtre d'OMNI n'a pas de page
-   autour d'elle.
-2. Les règles `.armer` : le README le dit au §3, le bouton « OMNI est armé »
-   n'existe plus ; ses règles traînent dans la maquette, à ignorer.
+Et **ne pas reprendre** les lignes 184-328 : ce sont les sections `1. la
+flotte`, `4. archimonstres`, `5. raccourcis` et `6. reglages`, propres à un
+écran chacune. Elles entreront dans `ecrans.css` à l'étape de leur écran ;
+les amener maintenant chargerait la feuille de règles que rien ne porte
+encore, et on ne saurait plus, à chaque étape, ce qui reste à faire.
+
+Dans ce qu'on reprend, trois retraits, et leur raison :
+
+1. `body`, `a.retour`, `.aide` (lignes 52-60) et tout usage de `--dehors*` :
+   ce sont les **habits de la page de labo**, pas de l'application. La
+   fenêtre d'OMNI n'a pas de page autour d'elle. `jetons.css` ne déclare
+   d'ailleurs aucun `--dehors` — si l'un traîne, le test de la tâche 3 le
+   dira.
+2. La règle `.armer` (dans la section `coquille`) : le README le dit au §3,
+   le bouton « OMNI est armé » n'existe plus ; ses règles traînent dans la
+   maquette, à ignorer.
 3. `.fenetre { box-shadow }` et `border-radius: 22px` : la maquette dessine
    une fenêtre posée sur une page. En production, la fenêtre **est** la
    fenêtre.
