@@ -1180,8 +1180,18 @@ que le point d'accroche du banc reste le premier) :
 </script>
 ```
 
-Ajouter `<span id="motTheme">Système</span>` dans `#btTheme`, après les deux
-SVG, pour que le bouton dise l'état où il est.
+Le libellé du bouton de thème s'appelle **`motTheme`**, et il n'y en a
+qu'un. La maquette nomme le sien `libTheme` (`labo-omni/app.html:414`) :
+si la tâche 5 l'a recopié tel quel, le **renommer**, et surtout ne pas
+ajouter un second libellé à côté — le bouton en afficherait deux.
+
+Dans `#btTheme`, après les deux SVG :
+
+```html
+<span id="motTheme">Système</span>
+```
+
+Trois états, et non deux : « Système », « Sombre », « Clair ».
 
 Dans `outils/faire-etape.js`, la constante `DOSSIERS_DESKTOP` :
 
