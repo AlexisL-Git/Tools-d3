@@ -265,23 +265,36 @@ autorise l'embarquement. Vérifier la licence sur la fiche Google Fonts de
 chacune **avant** de copier, et non après.
 
 Google Fonts sert du `.woff2` quand l'agent utilisateur en annonce le
-support. Récupérer l'URL du fichier variable, puis le fichier :
+support, et il **découpe chaque police en sous-ensembles** : une réponse
+`css2` contient plusieurs `@font-face`, un par plage de caractères.
+
+**Prendre le premier est un piège.** Le premier est `latin-ext`, dont la
+plage `U+0100-02BA` **exclut U+0000-00FF** — c'est-à-dire tout l'ASCII et
+tous les accents français. Embarqué seul, il donnerait une police sans une
+lettre. Le bon est celui qui déclare `U+0000-00FF` : le sous-ensemble
+`latin`, qui couvre é è à ç ô û î ë ü, les guillemets « », l'apostrophe
+typographique et le tiret cadratin. On sélectionne donc par la plage, pas
+par le rang :
 
 ```sh
 AG='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36'
 
-curl -s -A "$AG" 'https://fonts.googleapis.com/css2?family=Outfit:wght@500..800' \
-  | grep -o 'https://[^)]*\.woff2' | head -1
-curl -s -A "$AG" 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..700' \
-  | grep -o 'https://[^)]*\.woff2' | head -1
+for F in 'Outfit:wght@500..800' 'Plus+Jakarta+Sans:wght@400..700'; do
+  curl -s -A "$AG" "https://fonts.googleapis.com/css2?family=$F" \
+    | grep -B4 'U+0000-00FF' | grep -o 'https://[^)]*\.woff2'
+done
 ```
 
-Puis, avec les deux URL obtenues :
+Vérifié le 14/09, la commande rend exactement une URL par police. Puis :
 
 ```sh
 curl -sL '<url-outfit>' -o desktop/polices/outfit.woff2
 curl -sL '<url-jakarta>' -o desktop/polices/plus-jakarta-sans.woff2
 ```
+
+Un seul sous-ensemble suffit : les deux familles déclarent une pile de
+repli (`"Segoe UI", system-ui, sans-serif`), et un glyphe absent retombe
+dessus au lieu de manquer.
 
 Si le poste n'a pas accès au réseau, les deux fichiers sont aussi dans
 `labo-omni/polices/` pour Karla — **mais pas ceux-là** : il faudra les
