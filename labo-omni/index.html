@@ -59,11 +59,11 @@ code{background:#12141E;padding:2px 6px;font-size:12.5px;color:#818AA6}
 <body>
 <main>
   <h1>OMNI — le chantier graphique</h1>
-  <p class="intro">Première passe : trois habillages, tous rejetés. Le diagnostic était juste — le problème n’était pas la couleur, c’est qu’<strong>OMNI n’avait pas d’identité</strong>. On repart de là.</p>
+  <p class="intro">Première passe : trois habillages, tous rejetés. Le diagnostic était juste — le problème n’était pas la couleur, c’est qu’<strong>OMNI n’avait pas d’identité</strong>. On est reparti de là : l’app est maquettée, la règle de couleur tient dans les deux thèmes. <strong>L’app est la référence</strong>, l’identité est validée telle qu’elle y est. <strong>Chantier ouvert : le HUD</strong>, la barre qu’on voit pendant qu’on joue.</p>
 
   <section>
-    <h2>La maquette de l app — six écrans cliquables</h2>
-    <p class="sous">Ma flotte · Courses · Hôtel de vente · Archimonstres · Raccourcis · Réglages, en thème clair ET sombre. Le rail et le bouton de thème marchent pour de vrai.</p>
+    <h2>La maquette de l app — cinq écrans cliquables</h2>
+    <p class="sous">Raccourcis · Courses · Hôtel de vente · Archimonstres · Réglages, en thème clair ET sombre. Le rail et le bouton de thème marchent pour de vrai. Ma flotte a disparu : Raccourcis est l’écran d’accueil, l’épée du Iop en tête du rail.</p>
     <div class="paire">
       <a class="gros" href="/app.html">
         <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
@@ -74,7 +74,7 @@ code{background:#12141E;padding:2px 6px;font-size:12.5px;color:#818AA6}
         </svg>
         <span>
           <h3>0 · L app complète</h3>
-          <p>Les cinq écrans à la vraie taille de fenêtre, avec la navigation qui marche, et <strong>les pictos du jeu</strong> servis par DofusDB : emblèmes de classe, icônes d objets, illustrations d archimonstres. L écran d accueil seul reste sur clair.html.</p>
+          <p>Les cinq écrans à la vraie taille de fenêtre, avec la navigation qui marche, et <strong>les pictos du jeu</strong> servis par DofusDB : emblèmes de classe, icônes d objets, illustrations d archimonstres. Le meneur porte un liseré jaune, un bloc noir = une chose à faire. Son ancêtre, l’écran d’accueil seul, reste sur clair.html.</p>
         </span>
         <span class="fleche">→</span>
       </a>
@@ -82,67 +82,55 @@ code{background:#12141E;padding:2px 6px;font-size:12.5px;color:#818AA6}
   </section>
 
   <section>
-    <h2>À regarder aussi — l icône</h2>
-    <p class="sous">Quatre barres qui dessinent un œil rien que par leur hauteur. Le dessin ne bouge plus ; c’est l’œil qui s’ouvre et se ferme selon ta flotte.</p>
+    <h2>Chantier ouvert — le HUD</h2>
+    <p class="sous">La barre flottante posée sur le jeu : la seule chose qu’OMNI montre <em>pendant</em> qu’on joue, et la refonte n’en a encore rien dessiné. Voici l’existant, celui de la prod, avec un faux état injecté pour qu’il s’affiche hors d’OMNI. On part de là.</p>
+    <div class="paire">
+      <a class="gros" href="/hud-prod.html">
+        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
+          <rect x="2" y="16" width="44" height="16" rx="4" fill="#12141E" stroke="#3E4B56"/>
+          <rect x="7" y="20" width="8" height="8" rx="2" fill="#10171b" stroke="#FF9F1C"/>
+          <rect x="17" y="20" width="8" height="8" rx="2" fill="#10171b" stroke="#3E4B56"/>
+          <rect x="27" y="20" width="8" height="8" rx="2" fill="#10171b" stroke="#3E4B56"/>
+          <circle cx="7" cy="20" r="2" fill="#2FD4C4"/><circle cx="17" cy="20" r="2" fill="#2FD4C4"/><circle cx="27" cy="20" r="2" fill="#F2545B"/>
+          <rect x="38" y="22" width="5" height="5" transform="rotate(45 40.5 24.5)" fill="#2FD4C4"/>
+        </svg>
+        <span>
+          <h3>H · Le HUD d’aujourd’hui</h3>
+          <p>Poignée, huit pictos de classe avec leur pastille (suit · attend · souci), l’anneau orange de qui commande, le cadre vert de la fenêtre devant toi, les touches, l’interrupteur RÉPL. à trois états, le passe-tour coupé meneur / mules. Les boutons font tourner les états. Ancienne palette, ancienne police : c’est ça qu’on refait.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2>Validé — l icône</h2>
+    <p class="sous">Quatre barres qui dessinent un œil rien que par leur hauteur, la première un peu plus bas, la dernière un peu plus haut. Validée le 14 septembre 2026, à cette taille-là, avec la pupille jaune. Le dessin ne bouge plus ; c’est l’œil qui s’ouvre et se ferme selon ta flotte.</p>
     <div class="paire">
       <a class="gros" href="/icone.html">
         <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
           <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt" stroke="#E8EAF2">
-            <line x1="7" y1="15.2" x2="7" y2="32.8"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2"/>
-            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2"/><line x1="41" y1="15.2" x2="41" y2="32.8"/>
+            <line x1="7" y1="18.2" x2="7" y2="35.8"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2"/><line x1="41" y1="12.2" x2="41" y2="29.8"/>
           </g>
         </svg>
         <span>
           <h3>1 · L icône d OMNI</h3>
-          <p>Le petit logo sur pastille claire que tu as repéré, fini : vraies tailles de 96 à 16 px, barre des tâches, bureau, barre de combat — et la couleur de la pupille à trancher.</p>
+          <p>Le petit logo sur pastille claire, fini et validé : vraies tailles de 96 à 16 px, barre des tâches, bureau, barre de combat. Pupille jaune, tranché.</p>
         </span>
         <span class="fleche">→</span>
       </a>
-    </div>
-  </section>
-
-  <section>
-    <h2>À refaire — les deux pages de l’ancienne palette</h2>
-    <p class="sous">Ces deux-là portent encore la couronne et les quatre couleurs qui t’ont saoulé. Ce qui reste bon dedans : les lettres, les briques et les quatre règles. Je les refais dès que tu m’auras dit combien de couleurs tu veux.</p>
-    <div class="paire">
-
-      <a class="gros" href="/identite.html">
-        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#E8EAF2" stroke-width="3.6" stroke-dasharray="9.35 4.0" transform="rotate(-106.1 24 24)"/>
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#7C5CFF" stroke-width="6" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
-        </svg>
-        <span>
-          <h3>2 · La planche d’identité</h3>
-          <p>Trois symboles au choix, la palette et le métier de chaque couleur, les deux polices, les briques de base et les quatre règles à tenir.</p>
-        </span>
-        <span class="fleche">→</span>
-      </a>
-
-      <a class="gros" href="/ecran.html">
-        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#FF8A3D" stroke-width="6" stroke-dasharray="9.35 97.46" transform="rotate(-106.1 24 24)"/>
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(-61.1 24 24)"/>
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(-16.1 24 24)"/>
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(28.9 24 24)"/>
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(73.9 24 24)"/>
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#4E5670" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(118.9 24 24)"/>
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#2FE0A8" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(163.9 24 24)"/>
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#262B3C" stroke-width="3.6" stroke-dasharray="9.35 97.46" transform="rotate(208.9 24 24)"/>
-        </svg>
-        <span>
-          <h3>3 · L’écran d’accueil monté avec</h3>
-          <p>La même flotte que la première passe, à la taille exacte de la vraie fenêtre. Le logo y sert de compteur : tu vois d’un coup d’œil qu’il te manque deux persos.</p>
-        </span>
-        <span class="fleche">→</span>
-      </a>
-
     </div>
   </section>
 
   <section>
     <h2>La passe rejetée — pour mémoire</h2>
-    <p class="sous">Gardées pour pouvoir dire « ça au moins c’était mieux » si jamais.</p>
-    <div class="vieux">
+    <p class="sous">Gardées pour pouvoir dire « ça au moins c’était mieux » si jamais. L’identité qui tient, c’est celle de l’app : jaune, noir, clair, Outfit et Plus Jakarta Sans. La planche ci-dessous porte l’ancienne palette.</p>
+    <div class="vieux" style="grid-template-columns:repeat(4,1fr)">
+      <a class="petit" href="/identite.html">
+        <span class="ech"><span style="background:#7C5CFF"></span><span style="background:#FF8A3D"></span><span style="background:#2FE0A8"></span><span style="background:#E8EAF2"></span></span>
+        <b>Planche d’identité, ancienne palette</b><small>Couronne et quatre couleurs. Ce qui en reste : les lettres, les briques et les quatre règles.</small>
+      </a>
       <a class="petit" href="/a-rangee.html">
         <span class="ech"><span style="background:#1B1614"></span><span style="background:#C6A15B"></span><span style="background:#79B79A"></span><span style="background:#EFE6D6"></span></span>
         <b>A · Rang de bataille</b><small>Cuir et laiton. Tu sais par la forme.</small>
