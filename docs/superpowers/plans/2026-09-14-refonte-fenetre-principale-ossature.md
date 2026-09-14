@@ -338,8 +338,10 @@ git commit -m "refonte(skin): Outfit et Plus Jakarta Sans embarquees, OMNI demar
 - Créer : `test/skin-jetons.test.js`
 
 **Interfaces :**
-- Produit : tous les jetons du §2 de `labo-omni/README.md`, plus `--olive`,
-  `--rail-icone`, `--dehors*`. Les familles `var(--ui)` (Plus Jakarta Sans)
+- Produit : tous les jetons du §2 de `labo-omni/README.md`, plus `--olive`
+  et `--rail-icone`. **Pas les `--dehors*`** : ce sont les couleurs de la
+  page qui entoure la maquette dans le labo, et l'application n'a pas de
+  page autour d'elle. Les familles `var(--ui)` (Plus Jakarta Sans)
   et `var(--titre)` (Outfit). Toute tâche ultérieure lit ces noms et n'en
   déclare aucun.
 
@@ -568,7 +570,7 @@ c'est qu'un jeton `--v0-` a été oublié à la tâche 1.
 - [ ] **Étape 8 : commit**
 
 ```
-git add desktop/skin/jetons.css desktop/index.html outils/faire-etape.js test/skin-jetons.test.js
+git add desktop/skin/jetons.css desktop/index.html outils/faire-etape.js outils/interface-locale.js test/skin-jetons.test.js
 git commit -m "refonte(skin): les jetons des deux themes, et le defaut suit Windows"
 ```
 
