@@ -812,12 +812,28 @@ Attendu : ÉCHEC, `data-vue` introuvable.
 
 - [ ] **Étape 3 : poser l'ossature**
 
-Remplacer le bloc qui va de la ligne `<div class="barre-titre">` à la
-seconde `<div class="avis" id="sansmaitre"></div>` incluse — repérer ces
-deux chaînes, pas des numéros de ligne — par la coquille ci-dessous. Le
-balisage du rail et de la barre du haut vient de `labo-omni/app.html:371-419`
-(ce fichier-là ne bouge pas, ses numéros tiennent), avec quatre changements
-de production :
+**Ce n'est pas un remplacement, c'est une restructuration du `<body>`
+entier.** Aujourd'hui il aligne sept blocs frères ; demain il en aligne
+deux. Le tableau dit où va chacun — repérer chaque bloc par sa chaîne
+d'ouverture, jamais par un numéro de ligne :
+
+| Bloc actuel (repère) | Devient |
+|---|---|
+| `<div class="barre-titre">` | **supprimé** — le rail et `.haut` le remplacent |
+| `<div class="avis" id="erreur">` et `id="sansmaitre"` | déplacés dans `.corps`, entre `.haut` et la première `.vue` |
+| `<div class="defile">` | déplacé **tel quel** dans `#v-raccourcis` |
+| `<div class="quoi-de-neuf" id="quoiDeNeuf">` | déplacé dans `.corps`, après les cinq `.vue` |
+| les quatre `<div class="vue-archi" id="…">` | idem, après les cinq `.vue` |
+| `<div class="barre-nav">` | **ne bouge pas**, reste dernier enfant du `body` |
+| `<script>` | ne bouge pas |
+
+Aucun de ces blocs n'est réécrit : ils sont **déplacés**, avec leurs
+attributs, leurs `id` et leurs commentaires. Le JavaScript les retrouve par
+`getElementById`, que le déplacement ne gêne pas.
+
+Le balisage neuf — le rail et la barre du haut — vient de
+`labo-omni/app.html:371-419` (ce fichier-là ne bouge pas, ses numéros
+tiennent), avec quatre changements de production :
 
 ```html
 <div class="fenetre">
