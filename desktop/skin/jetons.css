@@ -1,0 +1,87 @@
+/* ============================================================
+   LES JETONS DU NOUVEAU SKIN.
+   Valeurs recopiees de labo-omni/app.html, qui fait foi (§7 du
+   README du labo: en cas de doute, la maquette a raison).
+
+   `--encre` ne veut pas dire « noir »: il veut dire LE CONTRAIRE
+   DU FOND. En clair il est noir, en sombre il est creme. C est ce
+   seul basculement qui retourne toute l app, et c est pour ca que
+   la regle survit au changement de theme:
+
+     la carte qui TRANCHE avec le fond, c est celle qui te reclame.
+
+   Le jaune, lui, ne bouge pas: c est la marque.
+
+   `--encre` et `--alarme` ont la MEME valeur et PAS le meme metier:
+   l un ecrit, l autre inverse une surface. Ne pas les fusionner --
+   c est ce qui permet de compter les blocs inverses a l ecran, et
+   leur nombre est le nombre de choses a faire.
+   ============================================================ */
+
+/* Polices EMBARQUEES, jamais appelees en ligne: OMNI doit demarrer
+   sans reseau. Voir desktop/polices/LISEZMOI.md pour les licences.
+   Garde: test/skin-polices.test.js */
+@font-face {
+  font-family: 'Outfit';
+  src: url('../polices/outfit.woff2') format('woff2');
+  font-weight: 500 800; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('../polices/plus-jakarta-sans.woff2') format('woff2');
+  font-weight: 400 700; font-style: normal; font-display: swap;
+}
+
+/* ---- LE THEME CLAIR, et le socle des deux ---- */
+:root {
+  --fond: #E7EBE4; --carte: #F6F7F3; --carte-creuse: #EDEFE9;
+  --encre: #16181A; --encre-douce: #5C6360;
+  --alarme: #16181A; --sur-alarme: #F6F7F3;
+  --olive: #5C6644; --rail-icone: #7C837A;
+  --trait: #D8DCD3; --trait-fort: #B9BFB4;
+  --contre-doux: #A9AFA7; --contre-creux: #25282B; --contre-trait: #333739;
+  --acide: #E2F27C; --acide-sur-contre: #E2F27C;
+  --sur-acide: #16181A; --sur-acide-contre: #16181A;
+  --inter-off: #CDD3C7; --inter-bouton: #F6F7F3;
+  --rail: #16181A;
+  --ui: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --titre: "Outfit", "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
+/* ---- LE THEME SOMBRE, ecrit une fois, pose deux fois ----
+   Les memes declarations valent dans les deux blocs qui suivent. Les
+   ecrire en double est voulu: une variable CSS ne se factorise pas
+   entre un @media et un selecteur d attribut sans une troisieme
+   indirection qui coute plus cher a relire que la repetition. */
+
+/* 1. SUIVRE WINDOWS, tant que l ami n a rien choisi. Electron sert
+      prefers-color-scheme depuis le theme du systeme: pas un canal
+      IPC a ecrire, pas un reglage a ranger. Le `:not` laisse gagner
+      le choix explicite. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="clair"]) {
+    --fond: #14171A; --carte: #1D2124; --carte-creuse: #262B2F;
+    --encre: #EFF2EC; --encre-douce: #9AA298;
+    --alarme: #EFF2EC; --sur-alarme: #1D2124;
+    --trait: #2E3438; --trait-fort: #3B4348;
+    --contre-doux: #5E6660; --contre-creux: #DDE2D8; --contre-trait: #C6CDC0;
+    --acide: #E2F27C; --acide-sur-contre: #16181A;
+    --sur-acide: #16181A; --sur-acide-contre: #EFF2EC;
+    --inter-off: #3B4348; --inter-bouton: #8E958C;
+    --rail: #0B0D0F;
+  }
+}
+
+/* 2. LE CHOIX EXPLICITE, qui gagne dans les DEUX sens: sombre sur un
+      Windows clair autant que clair sur un Windows sombre. */
+:root[data-theme="sombre"] {
+  --fond: #14171A; --carte: #1D2124; --carte-creuse: #262B2F;
+  --encre: #EFF2EC; --encre-douce: #9AA298;
+  --alarme: #EFF2EC; --sur-alarme: #1D2124;
+  --trait: #2E3438; --trait-fort: #3B4348;
+  --contre-doux: #5E6660; --contre-creux: #DDE2D8; --contre-trait: #C6CDC0;
+  --acide: #E2F27C; --acide-sur-contre: #16181A;
+  --sur-acide: #16181A; --sur-acide-contre: #EFF2EC;
+  --inter-off: #3B4348; --inter-bouton: #8E958C;
+  --rail: #0B0D0F;
+}

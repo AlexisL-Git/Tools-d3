@@ -101,12 +101,16 @@ function creerDiffuseur(options) {
 
 function creerServeur() {
   const diffuseur = creerDiffuseur({ delaiMs: 100 });
-  // Les deux fichiers qui changent pendant une seance de mise en page. Le shim
-  // n'y est pas: le modifier demande de toute facon un rechargement complet du
-  // serveur, qui redemarre la tache et donc l'onglet.
-  for (const cible of [path.join(RACINE, 'index.html'), path.join(__dirname, 'faux-etat.js')]) {
+  // Tout ce qui change pendant une seance de mise en page, et non plus le
+  // seul index.html: la refonte repartit la page entre skin/*.css et
+  // vues/*.js, et surveiller un seul fichier laisserait le banc muet sur
+  // les deux tiers du travail. Un watch recursif couvre aussi les dossiers
+  // qui n existent pas encore.
+  for (const cible of [RACINE, path.join(__dirname, 'faux-etat.js')]) {
     try {
-      const veilleur = fs.watch(cible, () => diffuseur.signaler());
+      const veilleur = cible === RACINE
+        ? fs.watch(cible, { recursive: true }, () => diffuseur.signaler())
+        : fs.watch(cible, () => diffuseur.signaler());
       veilleur.unref();
     } catch (e) {
       console.warn(`[banc] surveillance impossible : ${cible}`);
