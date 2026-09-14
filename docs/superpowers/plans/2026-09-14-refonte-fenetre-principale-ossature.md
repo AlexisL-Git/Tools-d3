@@ -40,6 +40,10 @@ palettes cohabitent, la vieille sous un préfixe temporaire.
 - **PowerShell :** ne pas chaîner avec `&&`. Utiliser `;` ou `if ($?) { }`.
 - **Vérifier l'absence de données personnelles avant chaque commit** — le
   dépôt est partagé avec les amis.
+- **Les numéros de ligne de ce plan sont indicatifs.** Ils ont été relevés
+  avant la tâche 1, et chaque tâche décale ceux des suivantes. Retrouver
+  toujours un repère par **son contenu** — la chaîne citée à côté du
+  numéro — et jamais en allant droit à la ligne.
 
 ---
 
@@ -56,7 +60,7 @@ disparaîtront écran par écran ; le préfixe rend leur reste visible d'un coup
 d'œil, et un test dira quand il n'en reste plus.
 
 **Fichiers :**
-- Modifier : `desktop/index.html:52-84` (la déclaration) et tout le bloc
+- Modifier : le bloc `:root` de l ancienne palette et tout le bloc
   `<style>` (les usages)
 - Créer : `test/skin-palettes.test.js`
 
@@ -142,7 +146,7 @@ déclaration comme à l'usage. Ajouter au-dessus de la déclaration :
 ```
 
 Attention : ne pas toucher à `--commande` dans la règle `:focus-visible`
-(ligne 86) sans la renommer aussi — c'est le même jeton.
+(la règle `:focus-visible`) sans la renommer aussi — c'est le même jeton.
 
 - [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
@@ -501,7 +505,7 @@ Dans `desktop/index.html`, juste avant le `<style>` existant :
 <link rel="stylesheet" href="skin/jetons.css">
 ```
 
-Dans `outils/faire-etape.js`, ligne 31 :
+Dans `outils/faire-etape.js`, la constante `DOSSIERS_DESKTOP` :
 
 ```js
 const DOSSIERS_DESKTOP = ['polices', 'sons', 'skin'];
@@ -514,7 +518,7 @@ vérifier qu'il veille.
 
 - [ ] **Étape 5 : rendre le banc sensible aux nouveaux fichiers**
 
-`outils/interface-locale.js:107` ne surveille que `desktop/index.html` et
+`creerServeur()` dans `outils/interface-locale.js` ne surveille que `desktop/index.html` et
 `outils/faux-etat.js`, sous le commentaire « les deux fichiers qui changent
 pendant une séance de mise en page ». Cette phrase devient fausse à la
 seconde où le CSS part dans `skin/` : on modifierait `jetons.css` sans que
@@ -620,7 +624,7 @@ Dans ce qu'on reprend, trois retraits, et leur raison :
 Et une correction, qui n'est pas un retrait : **`.fenetre` ne garde pas ses
 1097 × 720 en dur.** La maquette les fixe parce qu'elle simule la fenêtre au
 milieu d'une page. En production, `body` est déjà une colonne flex de
-`100vh` (`index.html:78-83`) et la `.barre-nav` vient **sous** `.fenetre` :
+`100vh` (la règle `body {` du bloc `<style>`) et la `.barre-nav` vient **sous** `.fenetre` :
 une hauteur figée de 720 px plus la barre déborderait d'une fenêtre qui fait
 exactement 720 px, et le bas serait coupé.
 
@@ -686,7 +690,7 @@ la place au rail et à la barre du haut ; la liste actuelle (`.defile`) est
 l'ancienne feuille. Les panneaux modaux restent modaux jusqu'à leur étape.
 
 **Fichiers :**
-- Modifier : `desktop/index.html:883-1172` (le balisage)
+- Modifier : le balisage du `<body>`
 - Créer : `test/skin-ossature.test.js`
 
 **Interfaces :**
@@ -719,7 +723,7 @@ const VUES = ['raccourcis', 'courses', 'hotel', 'archi', 'reglages'];
 
 // LA PAGE PORTE DES data-vue QUI NE SONT PAS CEUX DU RAIL: le selecteur
 // segmente de l ecran Archimonstres en a deux, `liste` et `zones`
-// (index.html:997-998). Balayer la page entiere les ramasserait et ferait
+// (la paire `data-vue="liste"` / `data-vue="zones"`). Balayer la page entiere les ramasserait et ferait
 // echouer ce test sur du balisage juste. On se borne donc au bloc du rail.
 const blocRail = () => {
   const d = html.indexOf('<div class="rail"');
@@ -743,7 +747,7 @@ test('chaque bouton du rail a sa vue', () => {
 // comme l etait `.barre-titre`: sans no-drag sur ce qui s y clique, Windows
 // avale le clic comme un deplacement de fenetre et le bouton ne fait RIEN,
 // sans le moindre message. Le piege est ecrit en toutes lettres a
-// desktop/index.html:108 depuis qu il a coute une soiree.
+// tete de la regle .version-lien du bloc <style> depuis qu il a coute une soiree.
 test('tout ce qui se clique dans la barre du haut est no-drag', () => {
   const debut = html.indexOf('<div class="haut"');
   assert.notStrictEqual(debut, -1, 'la barre du haut est introuvable');
@@ -780,7 +784,7 @@ test('la page garde un point d accroche pour l injection du banc', () => {
   assert.ok(html.includes('<script'), 'plus un seul <script> dans la page');
 });
 
-// UN SIGNAL QUI S ETEINT SANS BRUIT. index.html:1335 bascule `retard` sur
+// UN SIGNAL QUI S ETEINT SANS BRUIT. le script bascule `retard` sur
 // #versionBouton quand le depot a avance, et la SEULE regle qui le dessine
 // est `.version-lien.retard`. Changer la classe du bouton pour `fant` seule
 // n aurait casse ni le clic, ni l affichage, ni un test: le bouton aurait
@@ -806,10 +810,12 @@ Attendu : ÉCHEC, `data-vue` introuvable.
 
 - [ ] **Étape 3 : poser l'ossature**
 
-Remplacer le bloc `desktop/index.html:883-895` (de `<div class="barre-titre">`
-à la fin des deux `.avis`) par la coquille de la maquette, et refermer après
-la `.barre-nav`. Le balisage du rail et de la barre du haut est celui de
-`labo-omni/app.html:371-419`, avec quatre changements de production :
+Remplacer le bloc qui va de la ligne `<div class="barre-titre">` à la
+seconde `<div class="avis" id="sansmaitre"></div>` incluse — repérer ces
+deux chaînes, pas des numéros de ligne — par la coquille ci-dessous. Le
+balisage du rail et de la barre du haut vient de `labo-omni/app.html:371-419`
+(ce fichier-là ne bouge pas, ses numéros tiennent), avec quatre changements
+de production :
 
 ```html
 <div class="fenetre">
@@ -848,7 +854,7 @@ la `.barre-nav`. Le balisage du rail et de la barre du haut est celui de
          clic. Garde: test/skin-ossature.test.js -->
     <div class="haut" style="-webkit-app-region: drag">
       <!-- `version-lien` EST GARDEE A COTE DE `fant`, ET CE N EST PAS UN
-           RESTE. index.html:1335 bascule la classe `retard` sur ce bouton
+           RESTE. le script bascule la classe `retard` sur ce bouton
            quand le depot a avance, et la seule regle qui la dessine est
            `.version-lien.retard` (l. 126). Retirer `version-lien` ferait
            disparaitre le signal: le bouton continuerait de s afficher, de
@@ -892,11 +898,11 @@ la `.barre-nav`. Le balisage du rail et de la barre du haut est celui de
 
 Les `…` sont les SVG et le contenu existants, recopiés sans changement :
 prendre les pictos du rail et du thème dans `labo-omni/app.html:383-418`, les
-deux boutons de fenêtre dans `desktop/index.html:887-890`.
+deux boutons de fenêtre sur les lignes `id="reduire"` et `id="fermer"` de la `.barre-titre` que tu remplaces.
 
 **Les cinq panneaux modaux doivent être recalés, et c'est le piège de cette
 tâche.** `#quoiDeNeuf` et les quatre `.vue-archi` sont
-`position: absolute; inset: 38px 0 0 0` (lignes 131 et 338) — et ces 38 px
+`position: absolute; inset: 38px 0 0 0` (les règles `.quoi-de-neuf {` et `.vue-archi {` du bloc `<style>`) — et ces 38 px
 sont **exactement la hauteur de la `.barre-titre`** que cette tâche
 supprime. Aucun ancêtre n'étant positionné, ils se calent aujourd'hui sur le
 bloc conteneur initial ; laissés tels quels, ils recouvriraient le rail et
@@ -921,7 +927,7 @@ enfant du `body` en colonne, jusqu'à la tâche 8 qui la rhabille.
 Un effet de bord, assumé et à ne pas prendre pour un bug à la recette :
 aujourd'hui les panneaux descendent jusqu'en bas de la fenêtre et **couvrent
 la barre du bas** ; bornés à `.corps`, ils la laisseront visible. C'est
-cohérent avec ce que dit `index.html:1735` — l'avancement de la passe de
+cohérent avec ce que dit le commentaire de `#pepAvance` dans la `.barre-nav` — l'avancement de la passe de
 marché est posé dans cette barre, et non dans le panneau, précisément pour
 rester lisible.
 
@@ -1155,7 +1161,7 @@ que le point d'accroche du banc reste le premier) :
 Ajouter `<span id="motTheme">Système</span>` dans `#btTheme`, après les deux
 SVG, pour que le bouton dise l'état où il est.
 
-Dans `outils/faire-etape.js`, ligne 31 :
+Dans `outils/faire-etape.js`, la constante `DOSSIERS_DESKTOP` :
 
 ```js
 const DOSSIERS_DESKTOP = ['polices', 'sons', 'skin', 'vues'];
@@ -1262,9 +1268,9 @@ Dans `desktop/index.html`, après le lien des briques :
 <link rel="stylesheet" href="skin/ecrans.css">
 ```
 
-Supprimer les quatre lignes `desktop/index.html:245-248` (`.avis`,
+Supprimer les quatre lignes les quatre règles `.avis`, `.avis:empty`, `#erreur`, `#sansmaitre` (`.avis`,
 `.avis:empty`, `#erreur`, `#sansmaitre`) de l'ancien bloc `<style>`. Retirer
-aussi `.avis` de la liste `flex: none` à la ligne 84.
+aussi `.avis` de la liste `flex: none` de la règle `.barre-titre, .bandeau, .avis { flex: none; }`.
 
 - [ ] **Étape 3 : lancer les tests et vérifier qu'ils passent**
 
@@ -1326,7 +1332,7 @@ barre : elle prend la **surface inversée**, `--alarme` / `--sur-alarme`, et
 elle est le seul bloc inversé de la barre au repos.
 
 Garder `-webkit-app-region: no-drag` sur `.maitre-inter` : le commentaire de
-`desktop/index.html:108` dit pourquoi, et la barre du bas n'est pas une zone
+le commentaire « LE `no-drag` N'EST PAS DECORATIF » du bloc `<style>` dit pourquoi, et la barre du bas n'est pas une zone
 de déplacement — mais la règle y a été posée par précaution et rien ne gagne
 à la retirer.
 
@@ -1408,7 +1414,7 @@ l'étape.
 - [ ] **Étape 4 : le paquet**
 
 Vérifier que `skin/` et `vues/` sont bien dans `DOSSIERS_DESKTOP`
-(`outils/faire-etape.js:31`) et que `desktop/polices/` contient les quatre
+(la constante `DOSSIERS_DESKTOP` d `outils/faire-etape.js`) et que `desktop/polices/` contient les quatre
 polices — Cal Sans et Karla, qui servent encore, plus Outfit et Plus Jakarta
 Sans.
 
