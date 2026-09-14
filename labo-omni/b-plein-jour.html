@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — B · Plein jour</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400;62..125,500;62..125,600;62..125,700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   B — PLEIN JOUR
+   Une plaque emaillee, pas un theme sombre. Une seule famille de
+   caracteres: l Archivo, dont on fait varier la LARGEUR. Le titre
+   est etale, le texte courant est normal. C est la largeur qui fait
+   la hierarchie, pas une deuxieme police.
+
+   L ecran REPOND en francais. La phrase du haut est le heros: elle
+   dit l etat de la flotte avant que tu aies lu une seule ligne.
+   ============================================================ */
+:root{
+  --email:#E3E7E2;      /* la plaque */
+  --email-creux:#D6DBD5;
+  --encre:#181C1A;
+  --encre-douce:#5C6560;
+  --trait:#B6BEB7;
+  --prusse:#27527F;     /* la structure, ce qui va bien */
+  --signal:#E0A526;     /* ce qui commande */
+  --rouge:#BC3B2C;      /* ce qui manque */
+  --ui:"Archivo","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:#8E948E;font-family:var(--ui);color:var(--encre);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:18px;padding:34px 20px;
+}
+a.retour{
+  position:fixed;top:18px;left:20px;color:#3A3F3B;text-decoration:none;
+  font-size:13px;border-bottom:1px solid #6E756F;padding-bottom:2px;
+}
+a.retour:hover{color:#111}
+.legende{max-width:1097px;color:#31352F;font-size:13.5px;line-height:1.55;margin:0}
+.legende b{font-weight:700}
+
+.fenetre{
+  width:1097px;height:720px;background:var(--email);overflow:hidden;
+  display:flex;flex-direction:column;border:1px solid #9AA29B;
+  box-shadow:0 30px 90px rgba(0,0,0,.45);
+}
+
+/* ---- barre de titre: une bande d encre en haut de la plaque ---- */
+.barre{
+  height:40px;flex:none;display:flex;align-items:center;gap:14px;
+  padding-left:18px;background:var(--encre);color:#E9EDE9;
+}
+.marque{font-size:19px;font-weight:700;font-stretch:118%;letter-spacing:.02em}
+.marque em{font-style:normal;color:var(--signal)}
+.maitre{
+  display:inline-flex;align-items:center;gap:8px;height:25px;padding:0 12px;
+  background:var(--signal);color:#231802;border:0;border-radius:13px;
+  font:600 12.5px/1 var(--ui);cursor:pointer;
+}
+.maitre .pastille{width:7px;height:7px;background:#231802;border-radius:50%}
+.version{margin-left:auto;color:#8D958E;font-size:12px}
+.bouts{display:flex;margin-left:14px}
+.bouts button{width:44px;height:40px;background:transparent;border:0;color:#8D958E;cursor:pointer}
+.bouts button:hover{background:rgba(255,255,255,.1);color:#fff}
+.bouts button.fermer:hover{background:var(--rouge);color:#fff}
+
+/* ---- le heros: la phrase ---- */
+.verdict{padding:30px 34px 26px;border-bottom:2px solid var(--encre)}
+.verdict h1{
+  margin:0;font-size:38px;line-height:1.06;font-weight:700;font-stretch:112%;
+  letter-spacing:-.012em;max-width:20ch;
+}
+.verdict p{
+  margin:14px 0 0;font-size:15px;line-height:1.5;color:var(--encre-douce);max-width:62ch;
+}
+.verdict .actions{display:flex;gap:10px;margin-top:18px}
+.verdict button{
+  border:1.5px solid var(--encre);background:transparent;color:var(--encre);
+  padding:8px 15px;border-radius:16px;font:600 13px/1 var(--ui);cursor:pointer;
+}
+.verdict button.plein{background:var(--encre);color:var(--email)}
+.verdict button:hover{background:var(--prusse);border-color:var(--prusse);color:#fff}
+
+/* ---- le tableau de service ---- */
+.service{flex:1;min-height:0;overflow:auto}
+.rang{
+  display:grid;grid-template-columns:8px 178px 104px 52px 132px 1fr 132px;
+  align-items:center;gap:0 16px;height:56px;padding-right:34px;
+  border-bottom:1px solid var(--trait);
+}
+.rang:hover{background:var(--email-creux)}
+.tranche{height:100%;background:var(--prusse)}
+.rang.attente .tranche{background:var(--signal)}
+.rang.absent .tranche{background:var(--rouge)}
+.rang.meneur .tranche{background:var(--signal)}
+
+.qui{padding-left:26px}
+.qui .nom{font-size:16px;font-weight:600;line-height:1.15}
+.qui .compte{font-size:12px;color:var(--encre-douce)}
+.classe{font-size:13.5px;color:var(--encre-douce)}
+.touche{
+  justify-self:start;border:1px solid var(--trait);border-radius:5px;
+  padding:4px 8px;font:600 11.5px/1 var(--ui);color:var(--encre-douce);background:#EDF0EC;
+}
+.fonctions{display:flex;gap:5px}
+.fonctions i{
+  width:20px;height:20px;border:1.5px solid var(--trait);border-radius:5px;
+  display:grid;place-items:center;font:600 9.5px/1 var(--ui);color:#96A09A;
+  font-style:normal;
+}
+.fonctions i.on{background:var(--prusse);border-color:var(--prusse);color:#fff}
+.quoi{font-size:13.5px;color:var(--encre-douce)}
+.quoi b{color:var(--encre);font-weight:600}
+.etat{justify-self:end;font-size:13.5px;font-weight:600;color:var(--prusse)}
+.rang.attente .etat{color:#9A6E0C}
+.rang.absent .etat{color:var(--rouge)}
+.rang.meneur .etat{color:#8A6407}
+.rang.absent .qui .nom,.rang.absent .classe{color:#8A928C}
+
+/* ---- pied ---- */
+.pied{
+  flex:none;height:44px;display:flex;align-items:center;gap:20px;
+  padding:0 34px;background:var(--encre);color:#A9B2AB;font-size:12.5px;
+}
+.pied b{color:#E9EDE9;font-weight:600}
+.pied .droite{margin-left:auto}
+</style></head>
+<body>
+<a class="retour" href="/">← les trois propositions</a>
+
+<div class="fenetre">
+  <div class="barre">
+    <span class="marque"><em>O</em>MNI</span>
+    <button class="maitre"><span class="pastille"></span>armé</button>
+    <span class="version">0.3.6</span>
+    <span class="bouts">
+      <button><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
+      <button class="fermer"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
+    </span>
+  </div>
+
+  <div class="verdict">
+    <h1>Six personnages en jeu, deux à rattraper.</h1>
+    <p>Kwakoun est resté à l’écran de sélection : il n’a pas encore choisi son personnage. Tacatak n’a pas de client ouvert du tout. Les six autres suivent Vahlkyr.</p>
+    <div class="actions">
+      <button class="plein">Réveiller Kwakoun</button>
+      <button>Lancer le client de Tacatak</button>
+    </div>
+  </div>
+
+  <div class="service">
+    <div class="rang meneur">
+      <span class="tranche"></span>
+      <span class="qui"><span class="nom">Vahlkyr</span><span class="compte">jibef-1</span></span>
+      <span class="classe">Iop</span>
+      <span class="touche">F1</span>
+      <span class="fonctions"><i class="on">R</i><i class="on">T</i><i class="on">G</i><i class="on">A</i><i>É</i></span>
+      <span class="quoi">c’est lui que les autres recopient</span>
+      <span class="etat">commande</span>
+    </div>
+    <div class="rang">
+      <span class="tranche"></span>
+      <span class="qui"><span class="nom">Noméa</span><span class="compte">jibef-2</span></span>
+      <span class="classe">Eniripsa</span>
+      <span class="touche">F2</span>
+      <span class="fonctions"><i class="on">R</i><i class="on">T</i><i class="on">G</i><i class="on">A</i><i>É</i></span>
+      <span class="quoi">Astrub, place du marché</span>
+      <span class="etat">en jeu</span>
+    </div>
+    <div class="rang">
+      <span class="tranche"></span>
+      <span class="qui"><span class="nom">Ptit-Bras</span><span class="compte">jibef-3</span></span>
+      <span class="classe">Sacrieur</span>
+      <span class="touche">F3</span>
+      <span class="fonctions"><i class="on">R</i><i class="on">T</i><i class="on">G</i><i>A</i><i>É</i></span>
+      <span class="quoi">Astrub, place du marché</span>
+      <span class="etat">en jeu</span>
+    </div>
+    <div class="rang">
+      <span class="tranche"></span>
+      <span class="qui"><span class="nom">Sombrelle</span><span class="compte">jibef-4</span></span>
+      <span class="classe">Sram</span>
+      <span class="touche">F4</span>
+      <span class="fonctions"><i class="on">R</i><i class="on">T</i><i class="on">G</i><i class="on">A</i><i class="on">É</i></span>
+      <span class="quoi"><b>met à jour les prix</b> — 412 objets sur 664</span>
+      <span class="etat">à l’hôtel</span>
+    </div>
+    <div class="rang">
+      <span class="tranche"></span>
+      <span class="qui"><span class="nom">Ourseline</span><span class="compte">jibef-5</span></span>
+      <span class="classe">Osamodas</span>
+      <span class="touche">F5</span>
+      <span class="fonctions"><i class="on">R</i><i class="on">T</i><i class="on">G</i><i class="on">A</i><i>É</i></span>
+      <span class="quoi">Astrub, place du marché</span>
+      <span class="etat">en jeu</span>
+    </div>
+    <div class="rang attente">
+      <span class="tranche"></span>
+      <span class="qui"><span class="nom">Kwakoun</span><span class="compte">jibef-6</span></span>
+      <span class="classe">Cra</span>
+      <span class="touche">F6</span>
+      <span class="fonctions"><i class="on">R</i><i class="on">T</i><i>G</i><i>A</i><i>É</i></span>
+      <span class="quoi">le client tourne, mais personne n’est entré en jeu</span>
+      <span class="etat">écran de perso</span>
+    </div>
+    <div class="rang">
+      <span class="tranche"></span>
+      <span class="qui"><span class="nom">Bricoline</span><span class="compte">jibef-7</span></span>
+      <span class="classe">Steamer</span>
+      <span class="touche">F7</span>
+      <span class="fonctions"><i class="on">R</i><i class="on">T</i><i class="on">G</i><i class="on">A</i><i class="on">É</i></span>
+      <span class="quoi"><b>course en pause</b> — sac plein, 14 lots sur 20</span>
+      <span class="etat">en jeu</span>
+    </div>
+    <div class="rang absent">
+      <span class="tranche"></span>
+      <span class="qui"><span class="nom">Tacatak</span><span class="compte">jibef-8</span></span>
+      <span class="classe">Zobal</span>
+      <span class="touche">F8</span>
+      <span class="fonctions"><i>R</i><i>T</i><i>G</i><i>A</i><i>É</i></span>
+      <span class="quoi">aucun client Dofus pour ce compte</span>
+      <span class="etat">pas lancé</span>
+    </div>
+  </div>
+
+  <div class="pied">
+    <span><b>178</b> archimonstres relevés</span>
+    <span><b>6</b> inventaires lus sur 8</span>
+    <span><b>3</b> lots invendus à l’hôtel</span>
+    <span class="droite">version 0.3.6 — rien de neuf</span>
+  </div>
+</div>
+
+<p class="legende"><b>B — Plein jour.</b> Une plaque émaillée plutôt qu’un thème sombre, et une seule police dont on étire la largeur pour faire la hiérarchie. Ici l’écran te <b>répond en français</b> : la phrase du haut est le héros, elle dit l’état de la flotte et nomme les deux problèmes, avec le geste pour les régler juste dessous. Le tableau ne fait que confirmer.</p>
+</body></html>

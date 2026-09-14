@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — le symbole</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,400;50..150,700;50..150,800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --nuit:#0A0B12;--plaque:#12141E;--plaque-haute:#191C29;
+  --filet:#262B3C;--filet-clair:#38405A;
+  --texte:#E8EAF2;--sourd:#818AA6;--tres-sourd:#4E5670;
+  --volt:#7C5CFF;--volt-sombre:#2A1F63;--braise:#FF8A3D;--jade:#2FE0A8;--rouge:#FF4D6D;
+  --ui:"Public Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Anybody","Public Sans",system-ui,sans-serif;
+  --coupe:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--nuit);color:var(--texte);font-family:var(--ui);line-height:1.55;padding:56px 28px 90px}
+main{max-width:1100px;margin:0 auto}
+a.retour{position:fixed;top:18px;left:20px;color:var(--tres-sourd);text-decoration:none;font-size:13px;border-bottom:1px solid var(--filet);padding-bottom:2px;z-index:5}
+a.retour:hover{color:var(--volt);border-bottom-color:var(--volt)}
+
+h1{font-family:var(--titre);font-weight:800;font-stretch:125%;font-size:40px;line-height:1.05;letter-spacing:-.02em;margin:0 0 14px}
+.chapo{color:var(--sourd);font-size:15.5px;max-width:72ch;margin:0 0 8px}
+.chapo strong{color:var(--texte);font-weight:600}
+h2{font-family:var(--titre);font-weight:700;font-stretch:118%;font-size:13px;letter-spacing:.02em;margin:0;color:var(--volt)}
+section{margin-top:54px;border-top:1px solid var(--filet);padding-top:18px}
+section > p{color:var(--sourd);font-size:14.5px;max-width:74ch;margin:8px 0 24px}
+section > p strong{color:var(--texte);font-weight:600}
+
+/* la marque en grand */
+.heros{display:flex;align-items:center;gap:46px;background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);padding:44px 46px}
+.heros .mot-grand{font-family:var(--titre);font-weight:800;font-stretch:130%;font-size:62px;letter-spacing:.01em;line-height:1}
+.heros .dit{margin-left:auto;max-width:34ch;color:var(--sourd);font-size:14px;line-height:1.6}
+.heros .dit b{color:var(--texte)}
+
+/* finitions */
+.finitions{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.fin{background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);padding:24px 22px 20px;text-align:center}
+.fin.mienne{border-color:var(--volt-sombre);background:#141327}
+.fin .scene{min-height:92px;display:grid;place-items:center}
+.fin b{display:block;font-family:var(--titre);font-weight:700;font-stretch:112%;font-size:15px;margin-top:16px}
+.fin small{display:block;color:var(--sourd);font-size:12.5px;margin-top:5px;line-height:1.45}
+.fin .marque-mienne{display:inline-block;background:var(--volt);color:#0A0713;font-weight:700;font-size:10px;padding:2px 8px;letter-spacing:.04em;margin-top:11px}
+
+/* vivant */
+.vivant{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.etat-logo{background:var(--plaque);border:1px solid var(--filet);clip-path:var(--coupe);padding:24px;text-align:center}
+.etat-logo .scene{min-height:88px;display:grid;place-items:center}
+.etat-logo b{display:block;font-family:var(--titre);font-weight:700;font-stretch:112%;font-size:14px;margin-top:14px}
+.etat-logo small{display:block;color:var(--sourd);font-size:12.5px;margin-top:4px;line-height:1.4}
+
+/* en situation */
+.situ{display:grid;grid-template-columns:1.45fr 1fr;gap:16px;align-items:start}
+.faux-barre{background:var(--plaque);border:1px solid var(--filet);height:44px;display:flex;align-items:center;gap:13px;padding-left:14px}
+.mot{font-family:var(--titre);font-weight:800;font-stretch:128%;font-size:17px;letter-spacing:.02em}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;background:var(--volt-sombre);color:#CBBBFF;font:700 11px/1 var(--ui);letter-spacing:.05em;clip-path:polygon(0 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%)}
+.badge i{width:6px;height:6px;background:var(--volt);border-radius:50%;box-shadow:0 0 7px var(--volt)}
+.legende-situ{color:var(--tres-sourd);font-size:12.5px;margin:9px 0 22px;line-height:1.5}
+.barre-combat{display:inline-flex;align-items:center;gap:13px;background:#0E1017;border:1px solid var(--filet-clair);padding:9px 15px;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+.barre-combat .txt{font:600 12.5px/1 var(--ui);color:var(--sourd)}
+.barre-combat .txt b{color:var(--texte)}
+.icones{display:flex;gap:20px;align-items:flex-end;background:var(--plaque);border:1px solid var(--filet);padding:24px;clip-path:var(--coupe)}
+.icone{text-align:center}
+.icone small{display:block;color:var(--tres-sourd);font-size:11px;margin-top:9px}
+.tuile-appli{width:58px;height:58px;background:linear-gradient(150deg,#1B1836,#0E1017);border:1px solid var(--filet-clair);display:grid;place-items:center;clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px))}
+.tuile-claire{width:58px;height:58px;background:#E8EAF2;display:grid;place-items:center;clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px))}
+
+.franc{margin-top:56px;background:var(--plaque-haute);border:1px solid var(--filet);clip-path:var(--coupe);padding:28px 30px}
+.franc b.tt{font-family:var(--titre);font-weight:700;font-stretch:118%;font-size:19px;display:block;margin-bottom:10px}
+.franc p{color:var(--sourd);font-size:14.5px;margin:0 0 12px;max-width:74ch}
+.franc ul{margin:0;padding-left:20px;color:var(--sourd);font-size:14.5px}
+.franc li{margin-bottom:8px}
+.franc li b{color:var(--texte);font-weight:600}
+</style></head>
+<body>
+<a class="retour" href="/">← retour</a>
+<main>
+
+<h1>Le symbole d’OMNI</h1>
+<p class="chapo">Quatre barres. Elles ne dessinent pas un œil avec un contour : elles <strong>sont</strong> l’œil, rien que par leur hauteur. On voit d’abord des barres, l’œil vient une demi-seconde après — c’est exactement ce qu’il fallait pour échapper au logo de surveillance.</p>
+<p class="chapo">Redessiné pour le grand format, pas agrandi depuis la vignette : les proportions, l’épaisseur et l’inclinaison ont été refaites pour ce format-là.</p>
+
+<!-- ============ LA MARQUE ============ -->
+<section>
+<h2>1 — La marque</h2>
+<div class="heros">
+  <svg width="132" height="132" viewBox="0 0 48 48" aria-label="Symbole OMNI">
+    <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt">
+      <line x1="7"    y1="15.2" x2="7"    y2="32.8" stroke="#E8EAF2"/>
+      <line x1="18.3" y1="6.8"  x2="18.3" y2="41.2" stroke="#E8EAF2"/>
+      <line x1="29.7" y1="6.8"  x2="29.7" y2="41.2" stroke="#FF8A3D"/>
+      <line x1="41"   y1="15.2" x2="41"   y2="32.8" stroke="#E8EAF2"/>
+    </g>
+  </svg>
+  <span class="mot-grand">OMNI</span>
+  <span class="dit">Quatre barres penchées, hautes au milieu, basses sur les bords. La troisième est orange : c’est la <b>pupille</b>, et c’est aussi la couleur de ce qui commande. Le symbole tient sans le mot, le mot tient sans le symbole.</span>
+</div>
+</section>
+
+<!-- ============ FINITIONS ============ -->
+<section>
+<h2>2 — Les finitions à trancher</h2>
+<p>Même symbole, quatre réglages. C’est le dernier arbitrage de dessin : ensuite on n’y revient plus.</p>
+<div class="finitions">
+
+  <div class="fin mienne">
+    <div class="scene">
+      <svg width="88" height="88" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt">
+          <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#E8EAF2"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#E8EAF2"/>
+          <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#FF8A3D"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#E8EAF2"/>
+        </g>
+      </svg>
+    </div>
+    <b>Penché, une pupille</b>
+    <small>Une seule barre orange, décalée à droite du centre : l’œil a l’air de regarder de côté. Le plus vivant.</small>
+    <span class="marque-mienne">ma préférée</span>
+  </div>
+
+  <div class="fin">
+    <div class="scene">
+      <svg width="88" height="88" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt">
+          <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#E8EAF2"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#FF8A3D"/>
+          <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#FF8A3D"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#E8EAF2"/>
+        </g>
+      </svg>
+    </div>
+    <b>Penché, deux pupilles</b>
+    <small>Les deux barres du milieu en orange. Plus symétrique, plus lourd, et l’orange prend beaucoup de place.</small>
+  </div>
+
+  <div class="fin">
+    <div class="scene">
+      <svg width="88" height="88" viewBox="0 0 48 48">
+        <g stroke-width="6" stroke-linecap="butt">
+          <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#E8EAF2"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#E8EAF2"/>
+          <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#FF8A3D"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#E8EAF2"/>
+        </g>
+      </svg>
+    </div>
+    <b>Droit</b>
+    <small>Sans l’inclinaison. Plus calme, plus sérieux, plus « instrument ». Mais ça perd le mouvement du relais.</small>
+  </div>
+
+  <div class="fin">
+    <div class="scene">
+      <svg width="88" height="88" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt">
+          <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#7C5CFF"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#7C5CFF"/>
+          <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#FF8A3D"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#7C5CFF"/>
+        </g>
+      </svg>
+    </div>
+    <b>Barres en violet</b>
+    <small>Le violet d’OMNI au lieu du blanc. Plus coloré, mais ça résiste moins bien sur fond clair et à petite taille.</small>
+  </div>
+
+</div>
+</section>
+
+<!-- ============ L OEIL VIVANT ============ -->
+<section>
+<h2>3 — L’œil s’ouvre et se ferme</h2>
+<p>Le dessin ne change jamais : ce sont les <strong>mêmes quatre barres</strong>, seulement plus ou moins hautes. L’œil s’ouvre en proportion de ta flotte. Tu n’auras pas le compte exact dans l’icône — ça, c’est le travail de la fenêtre — mais tu sauras <strong>s’il faut aller voir</strong>. C’est tout ce qu’on demande à une icône de barre des tâches.</p>
+<div class="vivant">
+
+  <div class="etat-logo">
+    <div class="scene">
+      <svg width="86" height="86" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt">
+          <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#2FE0A8"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#2FE0A8"/>
+          <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#FF8A3D"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#2FE0A8"/>
+        </g>
+      </svg>
+    </div>
+    <b>Tout le monde est là</b><small>l’œil est grand ouvert, en jade</small>
+  </div>
+
+  <div class="etat-logo">
+    <div class="scene">
+      <svg width="86" height="86" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt">
+          <line x1="7" y1="19" x2="7" y2="29" stroke="#2FE0A8"/><line x1="18.3" y1="14.2" x2="18.3" y2="33.8" stroke="#2FE0A8"/>
+          <line x1="29.7" y1="14.2" x2="29.7" y2="33.8" stroke="#FF8A3D"/><line x1="41" y1="19" x2="41" y2="29" stroke="#2FE0A8"/>
+        </g>
+      </svg>
+    </div>
+    <b>Il t’en manque</b><small>l’œil se plisse — va voir la fenêtre</small>
+  </div>
+
+  <div class="etat-logo">
+    <div class="scene">
+      <svg width="86" height="86" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt">
+          <line x1="7" y1="22.6" x2="7" y2="25.4" stroke="#FF4D6D"/><line x1="18.3" y1="21.4" x2="18.3" y2="26.6" stroke="#FF4D6D"/>
+          <line x1="29.7" y1="21.4" x2="29.7" y2="26.6" stroke="#FF4D6D"/><line x1="41" y1="22.6" x2="41" y2="25.4" stroke="#FF4D6D"/>
+        </g>
+      </svg>
+    </div>
+    <b>Plus personne</b><small>l’œil est fermé, une fente rouge</small>
+  </div>
+
+  <div class="etat-logo">
+    <div class="scene">
+      <svg width="86" height="86" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt">
+          <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#4E5670"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#4E5670"/>
+          <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#818AA6"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#4E5670"/>
+        </g>
+      </svg>
+    </div>
+    <b>Au repos</b><small>tes persos sont là, mais OMNI n’est pas armé</small>
+  </div>
+
+</div>
+</section>
+
+<!-- ============ EN SITUATION ============ -->
+<section>
+<h2>4 — Là où il vivra</h2>
+<p>Un logo ne se juge pas en grand sur fond noir. Voilà les vraies tailles, y compris sur fond clair et en une seule couleur — parce qu’un jour il faudra l’imprimer, le mettre en filigrane ou le passer en noir et blanc.</p>
+<div class="situ">
+  <div>
+    <div class="faux-barre">
+      <svg width="22" height="22" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="7.5" stroke-linecap="butt">
+          <line x1="7" y1="16" x2="7" y2="32" stroke="#2FE0A8"/><line x1="18.3" y1="7.5" x2="18.3" y2="40.5" stroke="#2FE0A8"/>
+          <line x1="29.7" y1="7.5" x2="29.7" y2="40.5" stroke="#FF8A3D"/><line x1="41" y1="16" x2="41" y2="32" stroke="#2FE0A8"/>
+        </g>
+      </svg>
+      <span class="mot">OMNI</span>
+      <span class="badge"><i></i>ARMÉ</span>
+    </div>
+    <p class="legende-situ">La barre de titre d’OMNI, à 22 px. Le symbole tient largement.</p>
+
+    <div class="barre-combat">
+      <svg width="20" height="20" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="7.5" stroke-linecap="butt">
+          <line x1="7" y1="19" x2="7" y2="29" stroke="#2FE0A8"/><line x1="18.3" y1="14.2" x2="18.3" y2="33.8" stroke="#2FE0A8"/>
+          <line x1="29.7" y1="14.2" x2="29.7" y2="33.8" stroke="#FF8A3D"/><line x1="41" y1="19" x2="41" y2="29" stroke="#2FE0A8"/>
+        </g>
+      </svg>
+      <span class="txt">RÉPL. <b>armé</b></span>
+      <span class="txt">TOUR <b>M</b></span>
+    </div>
+    <p class="legende-situ">La barre flottante en plein combat — ici l’œil est plissé : il te manque quelqu’un, et tu le vois sans quitter le jeu des yeux.</p>
+  </div>
+
+  <div class="icones">
+    <div class="icone">
+      <span class="tuile-appli">
+        <svg width="32" height="32" viewBox="0 0 48 48">
+          <g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4" stroke-linecap="butt">
+            <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#E8EAF2"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#E8EAF2"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#FF8A3D"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#E8EAF2"/>
+          </g>
+        </svg>
+      </span>
+      <small>bureau</small>
+    </div>
+    <div class="icone">
+      <span class="tuile-claire">
+        <svg width="32" height="32" viewBox="0 0 48 48">
+          <g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4" stroke-linecap="butt">
+            <line x1="7" y1="15.2" x2="7" y2="32.8" stroke="#0A0B12"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#0A0B12"/>
+            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#FF8A3D"/><line x1="41" y1="15.2" x2="41" y2="32.8" stroke="#0A0B12"/>
+          </g>
+        </svg>
+      </span>
+      <small>fond clair</small>
+    </div>
+    <div class="icone">
+      <svg width="16" height="16" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="8.4" stroke-linecap="butt">
+          <line x1="7" y1="16" x2="7" y2="32" stroke="#E8EAF2"/><line x1="18.3" y1="7" x2="18.3" y2="41" stroke="#E8EAF2"/>
+          <line x1="29.7" y1="7" x2="29.7" y2="41" stroke="#FF8A3D"/><line x1="41" y1="16" x2="41" y2="32" stroke="#E8EAF2"/>
+        </g>
+      </svg>
+      <small>16 px</small>
+    </div>
+    <div class="icone">
+      <svg width="32" height="32" viewBox="0 0 48 48">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4" stroke-linecap="butt" stroke="#E8EAF2">
+          <line x1="7" y1="15.2" x2="7" y2="32.8"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2"/>
+          <line x1="29.7" y1="6.8" x2="29.7" y2="41.2"/><line x1="41" y1="15.2" x2="41" y2="32.8"/>
+        </g>
+      </svg>
+      <small>une couleur</small>
+    </div>
+  </div>
+</div>
+</section>
+
+<div class="franc">
+  <b class="tt">Ce qu’on a gagné et ce qu’on a lâché</b>
+  <p>Passer de huit barres à quatre n’est pas qu’une histoire d’encombrement. Pour que tu saches ce que tu as tranché :</p>
+  <ul>
+    <li><b>Gagné : une marque stable.</b> Le dessin ne change plus. C’est la condition pour qu’on le reconnaisse — un logo dont la silhouette bouge sans arrêt n’est jamais mémorisé.</li>
+    <li><b>Gagné : ça tient à 16 px.</b> Huit barres à cette taille, c’était de la bouillie. Quatre, non — et du coup il n’y a plus besoin d’une version simplifiée à part, c’est le même dessin partout.</li>
+    <li><b>Lâché : le compte exact dans l’icône.</b> L’œil ne dit plus « il en manque deux », il dit « il en manque ». Le chiffre reste dans la fenêtre. Honnêtement, c’est le bon partage : une icône de 16 pixels n’a jamais réussi à faire lire un chiffre à qui que ce soit.</li>
+  </ul>
+</div>
+
+</main>
+</body></html>

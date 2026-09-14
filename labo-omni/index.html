@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>OMNI — le labo des maquettes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* La page d accueil du labo, dans l identite de l app: memes jetons,
+   memes polices, meme regle. Elle sert a DECOUVRIR les maquettes. */
+:root{
+  --fond:#E7EBE4;--carte:#F6F7F3;--carte-creuse:#EDEFE9;
+  --encre:#16181A;--encre-douce:#5C6360;
+  --alarme:#16181A;--sur-alarme:#F6F7F3;
+  --trait:#D8DCD3;--trait-fort:#B9BFB4;
+  --acide:#E2F27C;--sur-acide:#16181A;
+  --ui:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Outfit","Plus Jakarta Sans",system-ui,sans-serif;
+}
+:root[data-theme="sombre"]{
+  --fond:#14171A;--carte:#1D2124;--carte-creuse:#262B2F;
+  --encre:#EFF2EC;--encre-douce:#9AA298;
+  --alarme:#EFF2EC;--sur-alarme:#1D2124;
+  --trait:#2E3438;--trait-fort:#3B4348;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fond);color:var(--encre);font-family:var(--ui);line-height:1.55;padding:54px 28px 90px}
+main{max-width:980px;margin:0 auto}
+h1{font-family:var(--titre);font-weight:700;font-size:40px;line-height:1.04;letter-spacing:-.028em;margin:0 0 14px}
+h1 .marqueur{display:inline-block;background:var(--acide);color:var(--sur-acide);border-radius:999px;padding:0 16px;line-height:1.16}
+.chapo{color:var(--encre-douce);font-size:15.5px;max-width:70ch;margin:0 0 8px}
+.chapo b{color:var(--encre);font-weight:600}
+.fant{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 15px;border-radius:999px;border:1px solid var(--trait);color:var(--encre-douce);font:500 12.5px/1 var(--ui);background:transparent;cursor:pointer;text-decoration:none}
+.fant:hover{border-color:var(--encre);color:var(--encre)}
+.fant.noir{background:var(--encre);color:var(--carte);border-color:var(--encre)}
+.fant.noir:hover{color:var(--carte)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 0}
+section{margin-top:46px}
+h2{font-family:var(--titre);font-weight:700;font-size:22px;letter-spacing:-.02em;margin:0 0 6px}
+section > p{color:var(--encre-douce);font-size:14px;max-width:74ch;margin:0 0 20px}
+section > p b{color:var(--encre);font-weight:600}
+.cartes{display:grid;gap:14px}
+a.carte{display:flex;align-items:center;gap:26px;text-decoration:none;color:inherit;background:var(--carte);border-radius:20px;padding:24px 28px;border:1px solid transparent}
+a.carte:hover{border-color:var(--trait-fort)}
+a.carte .vis{width:72px;height:72px;flex:none;border-radius:16px;background:var(--carte-creuse);display:grid;place-items:center}
+a.carte h3{font-family:var(--titre);font-weight:700;font-size:21px;margin:0 0 5px;letter-spacing:-.015em}
+a.carte h3 small{display:inline-block;vertical-align:middle;margin-left:10px;background:var(--acide);color:var(--sur-acide);border-radius:999px;font:700 10.5px/1 var(--ui);letter-spacing:.06em;text-transform:uppercase;padding:5px 10px}
+a.carte p{margin:0;color:var(--encre-douce);font-size:14px;max-width:60ch}
+a.carte p b{color:var(--encre);font-weight:600}
+a.carte .fleche{margin-left:auto;font-size:22px;color:var(--encre-douce)}
+.regles{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.regle{background:var(--carte);border-radius:18px;padding:18px 20px}
+.regle b{display:block;font-family:var(--titre);font-weight:600;font-size:16px;margin-bottom:5px;letter-spacing:-.01em}
+.regle span{color:var(--encre-douce);font-size:13.5px}
+.regle.inv{background:var(--alarme);color:var(--sur-alarme)}
+.regle.inv span{color:var(--sur-alarme);opacity:.75}
+.regle.jaune{box-shadow:inset 4px 0 0 var(--acide)}
+.pal{display:flex;gap:6px;margin-top:14px}
+.pal i{flex:1;height:26px;border-radius:8px;border:1px solid var(--trait)}
+.archives{margin-top:50px;border-top:1px solid var(--trait);padding-top:16px;color:var(--encre-douce);font-size:13px;max-width:76ch}
+.archives a{color:var(--encre-douce)}
+code{background:var(--carte-creuse);padding:2px 6px;border-radius:6px;font-size:12.5px}
+@media (max-width:700px){.regles{grid-template-columns:1fr}a.carte{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Le labo <span class="marqueur">OMNI</span></h1>
+  <p class="chapo">Les maquettes du nouveau skin d’OMNI, en pages HTML autonomes. <b>Rien n’est branché sur la vraie application</b> : c’est du dessin, avec des noms inventés. Mais tout ce qui est affiché, OMNI le connaît déjà. Trois pages font référence, elles sont ci-dessous.</p>
+  <div class="actions">
+    <a class="fant noir" href="/README.md">Lire le README d’intégration</a>
+    <button class="fant" id="theme">Thème : <b id="theme-mot">clair</b></button>
+  </div>
+
+  <section>
+    <h2>Les trois maquettes de référence</h2>
+    <p>Toutes à la taille réelle. Ce qui est cliquable l’est pour de vrai : le rail, le thème, les onglets, les états de la barre.</p>
+    <div class="cartes">
+      <a class="carte" href="/app.html">
+        <span class="vis"><svg width="44" height="44" viewBox="0 0 48 48"><rect x="4" y="6" width="9" height="36" rx="3" fill="#16181A"/><rect x="16" y="6" width="28" height="9" rx="3" fill="#E2F27C"/><rect x="16" y="18" width="28" height="24" rx="3" fill="#B9BFB4" opacity=".5"/></svg></span>
+        <span>
+          <h3>L’application <small>référence</small></h3>
+          <p>La fenêtre principale, 1097 × 720, <b>cinq écrans</b> : Raccourcis (l’accueil), Courses, Hôtel de vente, Archimonstres, Réglages. Thème clair et sombre. Les pictos du jeu servis par DofusDB. Tout le système, jetons et briques, est dans son <code>&lt;style&gt;</code>.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+      <a class="carte" href="/hud.html">
+        <span class="vis"><svg width="48" height="48" viewBox="0 0 48 48"><rect x="2" y="15" width="44" height="18" rx="7" fill="#F6F7F3" stroke="#D8DCD3"/><rect x="7" y="19" width="10" height="10" rx="3" fill="#EDEFE9" stroke="#E2F27C" stroke-width="2"/><rect x="20" y="19" width="10" height="10" rx="3" fill="#EDEFE9"/><rect x="33" y="19" width="10" height="10" rx="3" fill="#16181A"/><rect x="8" y="31" width="8" height="2" rx="1" fill="#16181A"/></svg></span>
+        <span>
+          <h3>Le HUD <small>référence</small></h3>
+          <p>La barre flottante posée sur le jeu : où je suis, qui mène, qui décroche, le replicate on / off, le passe-tour du meneur et des mules. <b>Suit le thème de l’app</b>, horizontale ou verticale. La prod est affichée au-dessus pour comparer.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+      <a class="carte" href="/icone.html">
+        <span class="vis" style="background:#fff;clip-path:polygon(0 0,86% 0,100% 14%,100% 100%,14% 100%,0 86%)"><svg width="50" height="50" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4"><line x1="7" y1="18.2" x2="7" y2="35.8" stroke="#16181A"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#16181A"/><line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#C9DC5C"/><line x1="41" y1="12.2" x2="41" y2="29.8" stroke="#16181A"/></g></svg></span>
+        <span>
+          <h3>L’icône <small>validée</small></h3>
+          <p>Quatre barres qui dessinent un œil, la pupille jaune, sur une pastille claire à coin coupé. Aux vraies tailles de 128 à 16 px, et en situation : barre des tâches, bureau, coin de fenêtre.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2>L’identité, en quatre règles</h2>
+    <p>Le détail, jeton par jeton, est dans le README. Ce qu’il faut avoir en tête avant d’ouvrir une maquette :</p>
+    <div class="regles">
+      <div class="regle"><b>La forme avant la couleur</b><span>Plein, creux, pointillé, liseré, trait. OMNI se lit du coin de l’œil, et l’œil périphérique ne voit pas la teinte.</span></div>
+      <div class="regle jaune"><b>Le jaune : ce qui mène, ce qui tourne</b><span>Le meneur porte un liseré, pas un aplat. Une fonction armée est jaune. Rien d’autre ne l’est.</span></div>
+      <div class="regle inv"><b>Un bloc inversé = une chose à faire</b><span>Un perso qui décroche, une course à rattraper, un replicate coupé. Ils se comptent, et ils restent rares.</span></div>
+      <div class="regle"><b>Creux = éteint, plein = armé</b><span>Moitié = certains seulement. Pips, losanges, segments : toujours la même grammaire.</span></div>
+    </div>
+    <div class="pal" title="fond · carte · carte creuse · encre · jaune">
+      <i style="background:#E7EBE4"></i><i style="background:#F6F7F3"></i><i style="background:#EDEFE9"></i><i style="background:#16181A"></i><i style="background:#E2F27C"></i>
+      <i style="background:#14171A"></i><i style="background:#1D2124"></i><i style="background:#262B2F"></i><i style="background:#EFF2EC"></i>
+    </div>
+  </section>
+
+  <p class="archives">
+    <b>Archives.</b> Les étapes rejetées restent dans le dossier pour mémoire, avec une palette qui n’existe plus : <a href="/hud-prod.html">le HUD de prod</a> (pour comparer), <a href="/clair.html">l’ancêtre de l’app</a>, <a href="/identite.html">la planche d’ancienne palette</a>, <a href="/a-rangee.html">A</a> · <a href="/b-plein-jour.html">B</a> · <a href="/c-huit-couleurs.html">C</a>, <a href="/couleurs.html">couleurs</a>, <a href="/oeil.html">symbole</a>. Ne pas s’en servir.
+  </p>
+</main>
+<script>
+  document.getElementById('theme').addEventListener('click', function(){
+    var r = document.documentElement, s = r.getAttribute('data-theme') === 'sombre';
+    if (s) r.removeAttribute('data-theme'); else r.setAttribute('data-theme', 'sombre');
+    document.getElementById('theme-mot').textContent = s ? 'clair' : 'sombre';
+  });
+</script>
+</body>
+</html>

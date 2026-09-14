@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>OMNI — le HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   OMNI — le HUD refait dans la langue de l app.
+   Les jetons sont ceux d app.html, a l identique: si l app passe
+   en sombre, la barre passe en sombre. Au-dessus d un fond qui joue le jeu.
+   ============================================================ */
+:root{
+  --fond:#E7EBE4;--carte:#F6F7F3;--carte-creuse:#EDEFE9;
+  --encre:#16181A;--encre-douce:#5C6360;
+  --alarme:#16181A;--sur-alarme:#F6F7F3;
+  --trait:#D8DCD3;--trait-fort:#B9BFB4;
+  --contre-doux:#A9AFA7;--contre-creux:#25282B;--contre-trait:#333739;
+  --acide:#E2F27C;--acide-sur-contre:#E2F27C;--sur-acide:#16181A;--sur-acide-contre:#16181A;
+  --inter-off:#CDD3C7;--inter-bouton:#F6F7F3;
+  --ui:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Outfit","Plus Jakarta Sans",system-ui,sans-serif;
+  --ombre:0 10px 28px rgba(0,0,0,.35);
+}
+:root[data-theme="sombre"]{
+  --fond:#14171A;--carte:#1D2124;--carte-creuse:#262B2F;
+  --encre:#EFF2EC;--encre-douce:#9AA298;
+  --alarme:#EFF2EC;--sur-alarme:#1D2124;
+  --trait:#2E3438;--trait-fort:#3B4348;
+  --contre-doux:#5E6660;--contre-creux:#DDE2D8;--contre-trait:#C6CDC0;
+  --acide:#E2F27C;--acide-sur-contre:#16181A;--sur-acide:#16181A;--sur-acide-contre:#EFF2EC;
+  --inter-off:#3B4348;--inter-bouton:#8E958C;
+  --ombre:0 10px 28px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+/* Le fond ne suit PAS le theme: c est le jeu, il est ce qu il est. */
+body{
+  margin:0;min-height:100vh;font-family:var(--ui);color:#E4E8DF;
+  background:
+    radial-gradient(900px 500px at 20% 10%,rgba(120,140,80,.25),transparent 60%),
+    radial-gradient(700px 400px at 85% 90%,rgba(80,70,50,.35),transparent 60%),
+    linear-gradient(#2A3326,#1B2119 60%,#15190F);
+  padding:28px 28px 80px;user-select:none;
+}
+a.retour{position:fixed;top:18px;left:20px;color:#9AA298;text-decoration:none;font-size:13px;border-bottom:1px solid #3B4348;padding-bottom:2px;z-index:5}
+a.retour:hover{color:#EFF2EC}
+main{max-width:1180px;margin:0 auto}
+h1{font-family:var(--titre);font-weight:700;font-size:30px;letter-spacing:-.025em;line-height:1.05;margin:26px 0 8px}
+.chapo{color:#B7BEB1;font-size:14px;max-width:78ch;margin:0 0 22px;line-height:1.55}
+.chapo b{color:#EFF2EC;font-weight:600}
+.commandes{display:flex;gap:10px;align-items:center;margin-bottom:34px;flex-wrap:wrap}
+.commandes button{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 15px;border-radius:999px;border:1px solid #4A5248;color:#D5DACF;font:500 12.5px/1 var(--ui);background:rgba(0,0,0,.25);cursor:pointer}
+.commandes button:hover{border-color:#EFF2EC;color:#EFF2EC}
+.commandes .note{color:#8B9387;font-size:12.5px;margin-left:6px}
+section{margin-top:40px}
+section h2{font-family:var(--titre);font-weight:700;font-size:19px;letter-spacing:-.015em;margin:0 0 4px}
+section h2 small{font:600 11px/1 var(--ui);letter-spacing:.1em;text-transform:uppercase;color:#8B9387;margin-left:10px;vertical-align:middle}
+section > p{color:#B7BEB1;font-size:13.5px;max-width:80ch;margin:0 0 18px;line-height:1.55}
+section > p b{color:#EFF2EC;font-weight:600}
+.scene{display:flex;align-items:flex-start;gap:32px;flex-wrap:wrap}
+.scene iframe{border:0;width:760px;height:96px;background:transparent}
+
+/* ------------------------------------------------------------
+   LA BARRE — commun aux deux pistes
+   ------------------------------------------------------------ */
+.hud{
+  display:inline-flex;align-items:center;gap:8px;padding:8px 10px;
+  background:var(--carte);color:var(--encre);border:1px solid var(--trait);
+  border-radius:18px;box-shadow:var(--ombre);width:max-content;
+}
+.hud.vertical{flex-direction:column}
+.hud .poignee{width:5px;height:24px;border-radius:3px;flex:none;cursor:grab;background:repeating-linear-gradient(to bottom,var(--trait-fort) 0 2px,transparent 2px 4px)}
+.hud.vertical .poignee{width:24px;height:5px;background:repeating-linear-gradient(to right,var(--trait-fort) 0 2px,transparent 2px 4px)}
+.hud .sep{width:1px;height:26px;background:var(--trait);flex:none}
+.hud.vertical .sep{width:26px;height:1px}
+.hud .fin{display:flex;gap:4px;flex:none}
+.hud.vertical .fin{flex-direction:column}
+.hud .fin button{width:28px;height:28px;border-radius:50%;border:1px solid var(--trait);background:transparent;color:var(--encre-douce);font:500 13px/1 var(--ui);cursor:pointer;display:grid;place-items:center}
+.hud .fin button:hover{border-color:var(--encre);color:var(--encre)}
+
+/* ------------------------------------------------------------
+   PISTE A — traduction directe. Un picto = un jeton de l app.
+   ------------------------------------------------------------ */
+.p{
+  position:relative;width:36px;height:36px;border-radius:11px;flex:none;
+  background:var(--carte-creuse);display:grid;place-items:center;cursor:pointer;
+  font:700 10.5px/1 var(--ui);color:var(--encre-douce);letter-spacing:.02em;
+}
+.p img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:5px;pointer-events:none}
+.p.sans-pic img{display:none}
+.p:hover{box-shadow:inset 0 0 0 1.5px var(--trait-fort)}
+/* QUI MENE: le lisere jaune de la carte du meneur, en anneau. */
+.p.mene{box-shadow:inset 0 0 0 3px var(--acide)}
+.p.mene:hover{box-shadow:inset 0 0 0 3px var(--acide)}
+/* OU JE SUIS: une forme, pas une couleur. Le picto monte d un cran et
+   pose un trait dessous, comme la barre des taches. Cumulable avec le
+   lisere: le meneur peut etre celui devant lequel on est. */
+.p.ici{transform:translateY(-2px)}
+.p.ici::after{content:"";position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);width:16px;height:3px;border-radius:2px;background:var(--encre)}
+.hud.vertical .p.ici{transform:translateX(2px)}
+.hud.vertical .p.ici::after{left:auto;right:-7px;bottom:50%;transform:translateY(50%);width:3px;height:16px}
+/* QUI DECROCHE: le bloc inverse. Le seul de la barre = la seule chose a faire. */
+.p.souci{background:var(--alarme);color:var(--contre-doux)}
+.p.souci img{filter:saturate(.6)}
+/* EN ATTENTE: creux et pointille, comme un archimonstre pas encore trouve. */
+.p.attente{background:transparent;box-shadow:inset 0 0 0 1.5px var(--trait-fort);}
+.p.attente img{opacity:.45}
+.p.attente:hover{box-shadow:inset 0 0 0 1.5px var(--encre-douce)}
+/* SANS IDENTIFIANT: la, mais inerte. */
+.p.inerte{opacity:.4;cursor:default}
+.p .t{position:absolute;right:-5px;bottom:-5px;font:700 9px/13px var(--ui);padding:0 4px;border-radius:5px;background:var(--carte);color:var(--encre);border:1px solid var(--trait)}
+.p.mene .t{background:var(--acide);color:var(--sur-acide);border-color:var(--acide)}
+.p.souci .t{background:var(--contre-creux);color:var(--contre-doux);border-color:var(--contre-creux)}
+
+/* LES INTERRUPTEURS: une pilule, un losange, un mot. Plein / moitie / creux. */
+.sw{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px 0 10px;border-radius:999px;background:var(--carte-creuse);color:var(--encre-douce);font:700 10.5px/1 var(--ui);letter-spacing:.1em;cursor:pointer;flex:none;white-space:nowrap}
+.sw:hover{color:var(--encre)}
+.hud.vertical .sw .mot{display:none}
+.hud.vertical .sw{padding:0 9px}
+.lo{width:9px;height:9px;flex:none;transform:rotate(45deg);border-radius:2px;box-shadow:inset 0 0 0 1.5px var(--encre-douce);background:transparent}
+/* RÉPL. est ON ou OFF pour tout le monde: plein et jaune quand ca tourne. */
+.sw.on{background:var(--acide);color:var(--sur-acide)}
+.sw.on .lo{background:var(--sur-acide);box-shadow:none}
+/* COUPE: l etat a ne pas oublier. Il tranche avec le fond, comme la carte qui reclame. */
+.sw.off{background:var(--alarme);color:var(--sur-alarme)}
+.sw.off .lo{box-shadow:inset 0 0 0 1.5px var(--sur-alarme)}
+/* LE PASSE-TOUR, une pilule coupee en deux. */
+.sw.coupe{padding:0;gap:0;overflow:hidden}
+.hud.vertical .sw.coupe{flex-direction:column;height:auto}
+.sw.coupe .m{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px 0 10px;color:var(--encre-douce)}
+.sw.coupe .m:hover{color:var(--encre)}
+.sw.coupe .filet{width:1px;align-self:stretch;background:var(--trait)}
+.hud.vertical .sw.coupe .filet{width:auto;height:1px}
+.sw.coupe .m.arme{background:var(--acide);color:var(--sur-acide)}
+.sw.coupe .m.arme .lo{background:var(--sur-acide);box-shadow:none}
+.sw.coupe .m.mi{color:var(--encre)}
+.sw.coupe .m.mi .lo{box-shadow:inset 0 0 0 1.5px var(--encre);background:linear-gradient(135deg,var(--encre) 50%,transparent 50%)}
+.sw.coupe .m.inerte{opacity:.4;cursor:default}
+
+/* Legende sous chaque scene */
+.leg{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:22px;color:#9AA298;font-size:12px}
+.leg b{color:#D5DACF;font-weight:600}
+</style>
+</head>
+<body>
+<a class="retour" href="/">← le chantier</a>
+<main>
+  <h1>Le HUD, <span style="color:#E2F27C">dans la langue de l app</span></h1>
+  <p class="chapo">La barre posee sur le jeu, refaite dans la langue de l app. <b>Meme jetons, memes polices, memes regles</b> : la forme avant la couleur, le jaune pour ce qui mene et ce qui tourne, un bloc inverse = une chose a faire, creux = eteint, plein = arme. Le fond ne suit pas le theme, c est le jeu. La barre, si.</p>
+  <div class="commandes">
+    <button id="theme">Theme : <b id="theme-mot">clair</b></button>
+    <button id="sens">Sens : <b id="sens-mot">horizontal</b></button>
+    <span class="note">Les pictos, RÉPL. et le passe-tour se cliquent : les etats tournent. Vahlkyr mene, Tacatak decroche, Brindille attend, Steamy n a pas d identifiant.</span>
+  </div>
+
+  <section>
+    <h2>Aujourd hui <small>la prod, pour comparer</small></h2>
+    <div class="scene"><iframe src="/hud-prod.html?nu" title="HUD de prod"></iframe></div>
+  </section>
+
+  <section id="A">
+    <h2>La barre refaite <small>piste retenue, traduction directe</small></h2>
+    <p>Meme structure, memes gestes. <b>Qui mene</b> : l anneau jaune. <b>Ou je suis</b> : le picto monte et pose un trait, comme la barre des taches. <b>Qui decroche</b> : le seul bloc inverse. <b>En attente</b> : creux, pointille. Suit : rien, l etat normal ne crie pas.</p>
+    <div class="scene" id="sceneA"></div>
+    <div class="leg"><span><b>Clic</b> sur un picto : je passe dessus</span><span><b>Clic droit</b> : il mene</span><span><b>RÉPL.</b> on / off pour tout le monde, jaune quand ca tourne, inverse quand c est coupe</span><span><b>M · TOUR</b> le meneur seul, puis les mules. Le « M » est provisoire : il doit devenir un picto du jeu pris sur DofusDB beta</span></div>
+  </section>
+
+</main>
+
+<script>
+(function(){
+  'use strict';
+  var HOTE='https://api.beta.dofusdb.fr/img/breeds/symbol_';
+  var CL={IOP:8,ENI:7,SAC:11,SRA:4,OSA:2,CRA:9,STE:15,ZOB:14};
+  var P=[
+    {n:'Vahlkyr',c:'IOP',t:'F2',mene:true,ici:true,e:'suit',pips:[1,1,1,1,0]},
+    {n:'Sombrelle',c:'SRA',t:'F3',e:'suit',pips:[1,1,1,1,0]},
+    {n:'Tacatak',c:'SAC',t:'F4',e:'souci',pips:[1,0,1,1,0]},
+    {n:'Noméa',c:'ENI',t:'F5',e:'suit',pips:[1,1,1,1,0]},
+    {n:'Oskar',c:'OSA',e:'suit',pips:[1,1,1,1,0]},
+    {n:'Brindille',c:'CRA',e:'attente',pips:[0,0,0,0,0]},
+    {n:'Zéphyrine',c:'ZOB',e:'suit',pips:[1,1,1,1,0]},
+    {n:'Steamy',c:'STE',e:'inerte',pips:[0,0,0,0,0]},
+  ];
+  var etat={repl:'on',meneur:'inactif',mules:'tous',sens:'horizontal'};
+
+  function embleme(hote,c){
+    var img=document.createElement('img');img.alt='';
+    img.src=HOTE+CL[c]+'.png';
+    img.addEventListener('error',function(){img.remove();hote.classList.add('sans-pic');});
+    hote.appendChild(img);
+  }
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+
+  function picto(p){
+    var d=el('div','p '+p.e+(p.mene?' mene':'')+(p.ici?' ici':''),p.c);
+    d.title=p.n;
+    embleme(d,p.c);
+    if(p.t)d.appendChild(el('span','t',p.t));
+    if(p.e!=='inerte'){
+      d.addEventListener('click',function(){P.forEach(function(q){q.ici=false});p.ici=true;rendre();});
+      d.addEventListener('contextmenu',function(ev){ev.preventDefault();P.forEach(function(q){q.mene=false});p.mene=true;rendre();});
+    }
+    return d;
+  }
+  function losange(){return el('i','lo');}
+  function cycleRepl(){etat.repl=etat.repl==='on'?'off':'on';rendre();}
+  function cycleMeneur(){etat.meneur=etat.meneur==='actif'?'inactif':'actif';rendre();}
+  // Un clic sur TOUR aligne tout le monde: tout arme, ou tout coupe. L etat
+  // « certaines seulement » n est jamais produit d ici, il vient des cases
+  // perso par perso de l app; on le montre s il existe, on ne le fabrique pas.
+  function cycleMules(){etat.mules=etat.mules==='tous'?'aucun':'tous';rendre();}
+
+  function barreA(){
+    var b=el('div','hud'+(etat.sens==='vertical'?' vertical':''));
+    b.appendChild(el('div','poignee'));
+    P.forEach(function(p){b.appendChild(picto(p))});
+    b.appendChild(el('div','sep'));
+    var r=el('div','sw '+etat.repl);r.appendChild(losange());r.appendChild(el('span','mot','RÉPL.'));r.addEventListener('click',cycleRepl);b.appendChild(r);
+    b.appendChild(el('div','sep'));
+    var t=el('div','sw coupe');
+    var m=el('span','m'+(etat.meneur==='actif'?' arme':''));m.appendChild(losange());m.appendChild(el('span','mot','M'));m.addEventListener('click',cycleMeneur);
+    var u=el('span','m'+(etat.mules==='tous'?' arme':etat.mules==='partiel'?' mi':''));u.appendChild(losange());u.appendChild(el('span','mot','TOUR'));u.addEventListener('click',cycleMules);
+    t.appendChild(m);t.appendChild(el('span','filet'));t.appendChild(u);b.appendChild(t);
+    b.appendChild(el('div','sep'));
+    var f=el('div','fin');var s=el('button',null,'⇄');s.title='Basculer';s.addEventListener('click',basculerSens);f.appendChild(s);var x=el('button',null,'✕');x.title='Fermer';f.appendChild(x);b.appendChild(f);
+    return b;
+  }
+  function rendre(){
+    var a=document.getElementById('sceneA');a.textContent='';a.appendChild(barreA());
+  }
+  function basculerSens(){etat.sens=etat.sens==='vertical'?'horizontal':'vertical';document.getElementById('sens-mot').textContent=etat.sens;rendre();}
+  document.getElementById('sens').addEventListener('click',basculerSens);
+  document.getElementById('theme').addEventListener('click',function(){
+    var r=document.documentElement;var s=r.getAttribute('data-theme')==='sombre';
+    if(s)r.removeAttribute('data-theme');else r.setAttribute('data-theme','sombre');
+    document.getElementById('theme-mot').textContent=s?'clair':'sombre';
+  });
+  rendre();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>OMNI — C · Les huit couleurs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,500;12..96,75..100,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   C — LES HUIT COULEURS
+   Ici la couleur ne dit PAS l etat. Elle dit QUI. Chaque personnage
+   garde sa teinte partout dans l app -- dans la liste, dans les
+   courses, dans le tableau des archimonstres. On finit par les
+   reconnaitre comme on reconnait un maillot.
+
+   L etat se lit a la FORME: l arete de gauche est pleine quand le
+   personnage est en jeu, creuse sinon. Un personnage eteint perd sa
+   couleur -- c est le trou dans la ligne qu on repere.
+   ============================================================ */
+:root{
+  --nuit:#101215;
+  --tuile:#171A20;
+  --tuile-morte:#131519;
+  --filet:#252A33;
+  --texte:#E6E9ED;
+  --sourd:#848D9B;
+  --tres-sourd:#525A67;
+  --ui:"Public Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Bricolage Grotesque","Public Sans",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:#08090B;color:var(--texte);font-family:var(--ui);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:18px;padding:34px 20px;
+}
+a.retour{
+  position:fixed;top:18px;left:20px;color:#5B6472;text-decoration:none;
+  font-size:13px;border-bottom:1px solid #262C35;padding-bottom:2px;
+}
+a.retour:hover{color:var(--texte);border-bottom-color:#4CC3E8}
+.legende{max-width:1097px;color:#77808D;font-size:13.5px;line-height:1.55;margin:0}
+.legende b{color:var(--texte);font-weight:600}
+
+.fenetre{
+  width:1097px;height:720px;background:var(--nuit);overflow:hidden;
+  display:flex;flex-direction:column;border:1px solid #1E232B;
+  box-shadow:0 30px 90px rgba(0,0,0,.75);
+}
+
+/* ---- barre de titre ---- */
+.barre{
+  height:40px;flex:none;display:flex;align-items:center;gap:14px;
+  padding-left:18px;border-bottom:1px solid var(--filet);
+}
+.marque{font-family:var(--titre);font-weight:700;font-size:19px;letter-spacing:-.01em}
+.maitre{
+  display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 12px;
+  background:#22272F;color:var(--texte);border:1px solid #333A45;border-radius:12px;
+  font:600 12.5px/1 var(--ui);cursor:pointer;
+}
+.maitre .pastille{width:7px;height:7px;background:#5FE0B0;border-radius:50%;box-shadow:0 0 8px #5FE0B0}
+.version{margin-left:auto;color:var(--tres-sourd);font-size:12px}
+.bouts{display:flex;margin-left:14px}
+.bouts button{width:44px;height:40px;background:transparent;border:0;color:var(--tres-sourd);cursor:pointer}
+.bouts button:hover{background:rgba(255,255,255,.06);color:var(--texte)}
+.bouts button.fermer:hover{background:#E8546A;color:#fff}
+
+.corps{flex:1;min-height:0;display:grid;grid-template-columns:132px 1fr}
+
+/* ---- l appel: huit pastilles empilees, lisible meme du coin de l oeil ---- */
+.appel{border-right:1px solid var(--filet);padding:20px 0 18px;display:flex;flex-direction:column}
+.appel .ligne{display:flex;align-items:center;gap:11px;padding:0 18px;height:34px}
+.appel .puce{width:13px;height:13px;border-radius:4px;flex:none}
+.appel .ligne.eteint .puce{background:transparent!important;border:1.5px solid var(--tres-sourd)}
+.appel .qui{font-size:12.5px;color:var(--sourd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.appel .ligne.eteint .qui{color:var(--tres-sourd);text-decoration:line-through;text-decoration-color:#3A424E}
+.appel .bilan{
+  margin-top:auto;padding:16px 18px 0;border-top:1px solid var(--filet);
+  font-size:12.5px;color:var(--sourd);line-height:1.5;
+}
+.appel .bilan b{font-family:var(--titre);font-weight:700;font-size:15px;color:var(--texte);display:block}
+
+/* ---- le mur ---- */
+.mur{padding:20px;display:flex;flex-direction:column;gap:14px;min-height:0}
+.grille{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:12px;flex:1;min-height:0}
+
+.tuile{
+  position:relative;background:var(--tuile);border:1px solid var(--filet);
+  border-radius:10px;padding:15px 15px 13px;display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.arete{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c)}
+.tuile.eteint{background:var(--tuile-morte)}
+.tuile.eteint .arete{background:transparent;border-left:1.5px dashed var(--tres-sourd)}
+.tuile.attente .arete{background:linear-gradient(180deg,var(--c) 46%,transparent 46%)}
+
+.chef{display:flex;align-items:center;gap:11px}
+.initiale{
+  width:34px;height:34px;flex:none;border-radius:9px;background:var(--c);color:#0E1013;
+  display:grid;place-items:center;font:700 15px/1 var(--titre);
+}
+.tuile.eteint .initiale{background:transparent;border:1.5px solid var(--tres-sourd);color:var(--tres-sourd)}
+.tuile.attente .initiale{background:color-mix(in srgb,var(--c) 34%,transparent);color:var(--c)}
+.identite .nom{font-family:var(--titre);font-weight:700;font-size:16px;line-height:1.15;letter-spacing:-.005em}
+.identite .classe{font-size:12px;color:var(--sourd)}
+.tuile.eteint .identite .nom{color:var(--sourd)}
+.couronne{
+  margin-left:auto;font-size:10.5px;color:#0E1013;background:var(--c);
+  padding:3px 8px;border-radius:9px;font-weight:600;
+}
+
+.dit{
+  margin-top:13px;padding-top:12px;border-top:1px solid var(--filet);
+  font-size:13px;line-height:1.4;color:var(--texte);
+}
+.dit .fin{color:var(--sourd);font-size:12px;display:block;margin-top:3px}
+.tuile.eteint .dit{color:var(--sourd)}
+
+.pied-tuile{margin-top:auto;display:flex;align-items:center;gap:9px;padding-top:12px}
+.pips{display:flex;gap:4px}
+.pips i{width:8px;height:8px;border-radius:50%;border:1.4px solid #3A424E;background:transparent}
+.pips i.on{background:var(--c);border-color:var(--c)}
+.tuile.eteint .pips i.on{background:#39414D;border-color:#39414D}
+.touche{
+  margin-left:auto;border:1px solid var(--filet);border-radius:5px;padding:3px 7px;
+  font:600 10.5px/1 var(--ui);color:var(--sourd);
+}
+
+/* ---- bande basse ---- */
+.tourne{display:flex;gap:10px;flex:none}
+.carte-act{
+  flex:1;background:var(--tuile);border:1px solid var(--filet);border-radius:10px;
+  padding:11px 14px;display:flex;align-items:center;gap:11px;
+}
+.carte-act .puce{width:9px;height:9px;border-radius:3px;flex:none;background:var(--c)}
+.carte-act .txt{font-size:12.5px;color:var(--sourd);line-height:1.35}
+.carte-act .txt b{color:var(--texte);font-weight:600}
+.carte-act .barre-avance{
+  margin-left:auto;width:76px;height:5px;border-radius:3px;background:#242A33;flex:none;overflow:hidden;
+}
+.carte-act .barre-avance span{display:block;height:100%;background:var(--c);border-radius:3px}
+</style></head>
+<body>
+<a class="retour" href="/">← les trois propositions</a>
+
+<div class="fenetre">
+  <div class="barre">
+    <span class="marque">OMNI</span>
+    <button class="maitre"><span class="pastille"></span>armé</button>
+    <span class="version">0.3.6</span>
+    <span class="bouts">
+      <button><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
+      <button class="fermer"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
+    </span>
+  </div>
+
+  <div class="corps">
+
+    <div class="appel">
+      <div class="ligne"><span class="puce" style="background:#FF7A5C"></span><span class="qui">Vahlkyr</span></div>
+      <div class="ligne"><span class="puce" style="background:#FFC145"></span><span class="qui">Noméa</span></div>
+      <div class="ligne"><span class="puce" style="background:#B8E062"></span><span class="qui">Ptit-Bras</span></div>
+      <div class="ligne"><span class="puce" style="background:#4FD1A5"></span><span class="qui">Sombrelle</span></div>
+      <div class="ligne"><span class="puce" style="background:#4CC3E8"></span><span class="qui">Ourseline</span></div>
+      <div class="ligne eteint"><span class="puce" style="background:#7B9BFF"></span><span class="qui">Kwakoun</span></div>
+      <div class="ligne"><span class="puce" style="background:#C08BFF"></span><span class="qui">Bricoline</span></div>
+      <div class="ligne eteint"><span class="puce" style="background:#FF7BAC"></span><span class="qui">Tacatak</span></div>
+      <div class="bilan"><b>6 sur 8</b>en jeu, deux à rattraper</div>
+    </div>
+
+    <div class="mur">
+      <div class="grille">
+
+        <div class="tuile" style="--c:#FF7A5C">
+          <span class="arete"></span>
+          <div class="chef">
+            <span class="initiale">V</span>
+            <span class="identite"><span class="nom">Vahlkyr</span><span class="classe">Iop · jibef-1</span></span>
+            <span class="couronne">commande</span>
+          </div>
+          <div class="dit">Astrub, place du marché<span class="fin">les six autres le recopient</span></div>
+          <div class="pied-tuile"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="touche">F1</span></div>
+        </div>
+
+        <div class="tuile" style="--c:#FFC145">
+          <span class="arete"></span>
+          <div class="chef">
+            <span class="initiale">N</span>
+            <span class="identite"><span class="nom">Noméa</span><span class="classe">Eniripsa · jibef-2</span></span>
+          </div>
+          <div class="dit">Astrub, place du marché<span class="fin">suit Vahlkyr</span></div>
+          <div class="pied-tuile"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="touche">F2</span></div>
+        </div>
+
+        <div class="tuile" style="--c:#B8E062">
+          <span class="arete"></span>
+          <div class="chef">
+            <span class="initiale">P</span>
+            <span class="identite"><span class="nom">Ptit-Bras</span><span class="classe">Sacrieur · jibef-3</span></span>
+          </div>
+          <div class="dit">Astrub, place du marché<span class="fin">suit Vahlkyr</span></div>
+          <div class="pied-tuile"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="touche">F3</span></div>
+        </div>
+
+        <div class="tuile" style="--c:#4FD1A5">
+          <span class="arete"></span>
+          <div class="chef">
+            <span class="initiale">S</span>
+            <span class="identite"><span class="nom">Sombrelle</span><span class="classe">Sram · jibef-4</span></span>
+          </div>
+          <div class="dit">Met à jour les prix<span class="fin">412 objets sur 664 — 1 min 12</span></div>
+          <div class="pied-tuile"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="touche">F4</span></div>
+        </div>
+
+        <div class="tuile" style="--c:#4CC3E8">
+          <span class="arete"></span>
+          <div class="chef">
+            <span class="initiale">O</span>
+            <span class="identite"><span class="nom">Ourseline</span><span class="classe">Osamodas · jibef-5</span></span>
+          </div>
+          <div class="dit">Astrub, place du marché<span class="fin">suit Vahlkyr</span></div>
+          <div class="pied-tuile"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="touche">F5</span></div>
+        </div>
+
+        <div class="tuile attente" style="--c:#7B9BFF">
+          <span class="arete"></span>
+          <div class="chef">
+            <span class="initiale">K</span>
+            <span class="identite"><span class="nom">Kwakoun</span><span class="classe">Cra · jibef-6</span></span>
+          </div>
+          <div class="dit">Pas encore entré en jeu<span class="fin">le client est resté à l’écran de perso</span></div>
+          <div class="pied-tuile"><span class="pips"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="touche">F6</span></div>
+        </div>
+
+        <div class="tuile" style="--c:#C08BFF">
+          <span class="arete"></span>
+          <div class="chef">
+            <span class="initiale">B</span>
+            <span class="identite"><span class="nom">Bricoline</span><span class="classe">Steamer · jibef-7</span></span>
+          </div>
+          <div class="dit">Course en pause<span class="fin">sac plein — 14 lots sur 20</span></div>
+          <div class="pied-tuile"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="touche">F7</span></div>
+        </div>
+
+        <div class="tuile eteint" style="--c:#FF7BAC">
+          <span class="arete"></span>
+          <div class="chef">
+            <span class="initiale">T</span>
+            <span class="identite"><span class="nom">Tacatak</span><span class="classe">Zobal · jibef-8</span></span>
+          </div>
+          <div class="dit">Pas lancé<span class="fin">aucun client Dofus pour ce compte</span></div>
+          <div class="pied-tuile"><span class="pips"><i></i><i></i><i></i><i></i><i></i></span><span class="touche">F8</span></div>
+        </div>
+
+      </div>
+
+      <div class="tourne">
+        <div class="carte-act" style="--c:#4FD1A5">
+          <span class="puce"></span>
+          <span class="txt"><b>Sombrelle</b> relève les prix de l’hôtel</span>
+          <span class="barre-avance"><span style="width:62%"></span></span>
+        </div>
+        <div class="carte-act" style="--c:#C08BFF">
+          <span class="puce"></span>
+          <span class="txt"><b>Bricoline</b> attend que tu vides son sac</span>
+          <span class="barre-avance"><span style="width:70%"></span></span>
+        </div>
+        <div class="carte-act" style="--c:#525A67">
+          <span class="puce"></span>
+          <span class="txt"><b>178</b> archimonstres relevés sur 6 inventaires</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p class="legende"><b>C — Les huit couleurs.</b> La couleur ne dit pas l’état, elle dit <b>qui</b>. Chaque personnage garde sa teinte partout dans l’app, et tu finis par les reconnaître comme des maillots. L’état se lit à la forme : arête pleine tu es en jeu, arête pointillée tu ne l’es pas, et une tuile éteinte perd sa couleur — c’est le trou dans la ligne que ton œil attrape. La colonne de gauche est l’appel : huit pastilles, lisible même du coin de l’œil.</p>
+</body></html>
