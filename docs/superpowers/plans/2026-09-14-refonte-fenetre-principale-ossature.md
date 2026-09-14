@@ -586,9 +586,13 @@ git commit -m "refonte(skin): les jetons des deux themes, et le defaut suit Wind
 - Consomme : les jetons de `skin/jetons.css` (tâche 3).
 - Produit : les classes `.fenetre`, `.rail`, `.corps`, `.haut`, `.fant`,
   `.fenetre-bt`, `.vue`, `.vue.actif`, `.titre`, `.marqueur`, `.tuile`,
-  `.inter`, `.pastille-etat`, `.cabochon`, `.jeton`, `.bt-jaune`, `.bt-noir`,
-  `.bt-vide`, `.bt-mini`, `.a-picto`, `.sans-pic`. Les écrans des étapes
-  suivantes s'appuient dessus et n'en redéfinissent aucune.
+  `.pastille-etat`, `.jeton`, `.capsule`, `.bt-jaune`, `.bt-noir`,
+  `.bt-vide`, `.a-picto`, `.sans-pic`. Les écrans des étapes suivantes
+  s'appuient dessus et n'en redéfinissent aucune.
+- **Ne produit pas** `.inter`, `.cabochon`, `.bt-mini`, `.perso`, `.pips` :
+  la maquette les range dans ses sections d'écran, hors des plages
+  reprises ici. Chacune arrivera avec la tâche qui la porte — `.inter`
+  à la tâche 8, les autres à l'étape Raccourcis.
 
 - [ ] **Étape 1 : recopier les briques depuis la maquette**
 
@@ -1317,7 +1321,7 @@ vers le bas, et ne recouvrir aucune ligne. Vérifier dans les deux thèmes.
 - [ ] **Étape 5 : commit**
 
 ```
-git add desktop/skin/ecrans.css desktop/index.html
+git add desktop/skin/ecrans.css desktop/skin/briques.css desktop/index.html
 git commit -m "refonte(skin): les bandeaux poussent l ecran au lieu de le recouvrir"
 ```
 
@@ -1335,9 +1339,32 @@ maquette, pas une invitation à la supprimer.
 - Modifier : `desktop/index.html` (les anciennes règles `.barre-nav`)
 
 **Interfaces :**
-- Consomme : les jetons et `.inter`, `.fant` de `skin/briques.css`.
+- Consomme : les jetons de `skin/jetons.css` et `.fant` de `skin/briques.css`.
+- Produit : `.inter` dans `skin/briques.css` (voir l'étape 1).
 
-- [ ] **Étape 1 : rhabiller la barre**
+- [ ] **Étape 1 : apporter `.inter`, qui manque encore**
+
+La `.barre-nav` porte des interrupteurs, et `.inter` est une brique — le §2
+du README du labo la range dans sa table des briques. Mais la maquette, elle,
+la définit dans sa section « 5. raccourcis » (`labo-omni/app.html:300-303`),
+hors des plages que la tâche 4 a reprises : elle n'est donc pas dans
+`briques.css`. C'est un défaut de classement de la maquette, pas un désaccord
+de dessin.
+
+L'ajouter à `desktop/skin/briques.css`, recopiée telle quelle :
+
+```css
+/* CETTE BRIQUE VIENT DE LA SECTION « raccourcis » DE LA MAQUETTE, qui l y a
+   rangee parce que c est la qu elle s en sert d abord. Le §2 du README du
+   labo la compte pourtant parmi les briques, et la barre du bas l emploie
+   sans rien devoir a l ecran Raccourcis. Elle est donc ici. */
+.inter{width:34px;height:20px;border-radius:999px;background:var(--inter-off);position:relative;border:0;cursor:pointer;flex:none}
+.inter::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--inter-bouton);transition:left .12s}
+.inter.on{background:var(--encre)}
+.inter.on::after{left:16px;background:var(--acide-sur-contre)}
+```
+
+- [ ] **Étape 2 : rhabiller la barre**
 
 Ajouter à `desktop/skin/ecrans.css` les règles de `.barre-nav`,
 `.maitre-inter`, `.pose`, `.coupe` et `.champ-delai`, en traduisant les
@@ -1354,14 +1381,14 @@ le commentaire « LE `no-drag` N'EST PAS DECORATIF » du bloc `<style>` dit pour
 de déplacement — mais la règle y a été posée par précaution et rien ne gagne
 à la retirer.
 
-- [ ] **Étape 2 : retirer les anciennes règles**
+- [ ] **Étape 3 : retirer les anciennes règles**
 
 Supprimer du bloc `<style>` d'`index.html` les règles de `.barre-nav` (à
 partir de la ligne 267) et de ses enfants, une fois leur équivalent écrit
 dans `ecrans.css`. Laisser `.avis-nav` : il sert aussi dans les panneaux
 modaux, qui gardent l'ancienne feuille jusqu'à leur étape.
 
-- [ ] **Étape 3 : lancer les tests et vérifier qu'ils passent**
+- [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
 ```
 npm test
@@ -1371,7 +1398,7 @@ Attendu : tout vert. `pont-ipc` en particulier : les boutons de cette barre
 appellent `window.app.pdaArchiArmer`, `pdaArchiRepli` et la fermeture des
 clients.
 
-- [ ] **Étape 4 : recette en vraie fenêtre**
+- [ ] **Étape 5 : recette en vraie fenêtre**
 
 ```
 npm run app
@@ -1381,10 +1408,10 @@ Cliquer les quatre bascules de la barre du bas. Un interrupteur qui coche à
 l'écran sans rien déclencher est un canal perdu ; un interrupteur qui ne
 coche pas est un `no-drag` manquant.
 
-- [ ] **Étape 5 : commit**
+- [ ] **Étape 6 : commit**
 
 ```
-git add desktop/skin/ecrans.css desktop/index.html
+git add desktop/skin/ecrans.css desktop/skin/briques.css desktop/index.html
 git commit -m "refonte(skin): la barre du bas aux nouveaux jetons, fermer les clients tranche seul"
 ```
 
