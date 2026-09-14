@@ -602,6 +602,26 @@ Trois retraits, et leur raison :
    une fenêtre posée sur une page. En production, la fenêtre **est** la
    fenêtre.
 
+Et une correction, qui n'est pas un retrait : **`.fenetre` ne garde pas ses
+1097 × 720 en dur.** La maquette les fixe parce qu'elle simule la fenêtre au
+milieu d'une page. En production, `body` est déjà une colonne flex de
+`100vh` (`index.html:78-83`) et la `.barre-nav` vient **sous** `.fenetre` :
+une hauteur figée de 720 px plus la barre déborderait d'une fenêtre qui fait
+exactement 720 px, et le bas serait coupé.
+
+```css
+/* La maquette fige 1097x720 parce qu elle pose la fenetre au milieu d une
+   page. Ici la fenetre EST la fenetre: elle prend ce que le body lui
+   laisse, et la barre du bas prend le reste de la colonne. `min-height: 0`
+   n est pas decoratif -- sans lui, un enfant flex refuse de retrecir sous
+   sa taille de contenu et c est le defilement interne qui disparait. */
+.fenetre {
+  flex: 1; min-height: 0; width: 100%;
+  background: var(--fond); overflow: hidden;
+  display: flex; gap: 14px; padding: 14px;
+}
+```
+
 Reprendre en revanche telle quelle la règle des pictos
 (`labo-omni/app.html:331-351`), commentaire compris : c'est elle qui fait
 qu'un picto DofusDB absent rend la main au dessin OMNI.
