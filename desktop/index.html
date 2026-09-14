@@ -50,20 +50,27 @@
      commandement porte en plus un lisere, un cerclage et un
      degrade, et chaque anomalie est ecrite en toutes lettres.
      ============================================================ */
+  /* PREFIXE TEMPORAIRE, LE TEMPS DE LA REFONTE. La nouvelle palette
+     (skin/jetons.css) declare --fond et --ui elle aussi, avec des valeurs
+     opposees: --fond y vaut le papier clair, ici le presque-noir. Les deux
+     posees sur :root, la seconde gagne en silence et la page devient
+     illisible. Ces douze jetons s effacent ecran par ecran; quand il n en
+     reste plus un seul, le prefixe part avec eux.
+     Garde: test/skin-palettes.test.js */
   :root {
     color-scheme: dark;
-    --fond: #0F1418;
-    --releve: #171E24;
-    --filet: #2C3740;
-    --bord: #3E4B56;
-    --texte: #E8EEF2;
-    --attenue: #93A1AC;
-    --arme: #2FD4C4;
-    --arme-encre: #061C19;
-    --commande: #FF9F1C;
-    --commande-encre: #211504;
-    --alerte: #F2545B;
-    --ui: Karla, "Segoe UI", system-ui, sans-serif;
+    --v0-fond: #0F1418;
+    --v0-releve: #171E24;
+    --v0-filet: #2C3740;
+    --v0-bord: #3E4B56;
+    --v0-texte: #E8EEF2;
+    --v0-attenue: #93A1AC;
+    --v0-arme: #2FD4C4;
+    --v0-arme-encre: #061C19;
+    --v0-commande: #FF9F1C;
+    --v0-commande-encre: #211504;
+    --v0-alerte: #F2545B;
+    --v0-ui: Karla, "Segoe UI", system-ui, sans-serif;
   }
 
   * { box-sizing: border-box; }
@@ -76,14 +83,14 @@
      les bandeaux d'avertissement au-dessus. Une hauteur calculee a la main
      faisait couper le bas des qu'un avis apparaissait. */
   body {
-    margin: 0; background: var(--fond); color: var(--texte);
-    font-family: var(--ui); font-size: 14px; line-height: 1.45;
+    margin: 0; background: var(--v0-fond); color: var(--v0-texte);
+    font-family: var(--v0-ui); font-size: 14px; line-height: 1.45;
     user-select: none; overflow: hidden;
     height: 100vh; display: flex; flex-direction: column;
   }
   .barre-titre, .bandeau, .avis { flex: none; }
   button { font: inherit; cursor: pointer; }
-  :focus-visible { outline: 2px solid var(--commande); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--v0-commande); outline-offset: 2px; }
 
   /* ---------------- barre de titre ----------------
      La fenetre est sans cadre systeme: cette bande le remplace. Elle porte le
@@ -91,7 +98,7 @@
   .barre-titre {
     display: flex; align-items: center; gap: 10px;
     padding-left: 15px; height: 38px;
-    border-bottom: 1px solid var(--filet);
+    border-bottom: 1px solid var(--v0-filet);
     -webkit-app-region: drag;
   }
   .titre-nom {
@@ -99,10 +106,10 @@
     font-family: "Cal Sans", "Segoe UI", system-ui, sans-serif;
     font-weight: 400; font-size: 19px; line-height: 1; letter-spacing: .005em;
   }
-  .titre-nom .o { color: var(--commande); }
+  .titre-nom .o { color: var(--v0-commande); }
   .titre-etat {
     font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase;
-    color: var(--attenue); font-weight: 600;
+    color: var(--v0-attenue); font-weight: 600;
   }
 
   /* LE `no-drag` N'EST PAS DECORATIF. `.barre-titre` est `-webkit-app-region:
@@ -114,72 +121,72 @@
     background: transparent; border: 0; padding: 0;
     font: inherit; color: inherit; letter-spacing: inherit;
     text-transform: inherit; cursor: pointer;
-    border-bottom: 1px dotted var(--bord);
+    border-bottom: 1px dotted var(--v0-bord);
   }
-  .version-lien:hover { color: var(--texte); border-bottom-color: var(--arme); }
+  .version-lien:hover { color: var(--v0-texte); border-bottom-color: var(--v0-arme); }
 
   /* LE SEUL SIGNAL DANS LA BARRE quand le depot a avance: le numero passe au
      cyan, comme tout ce qui est arme dans ce panneau. Pas de texte, pas de
      bouton: la barre porte deja le nom, l'interrupteur, la version et l'etat,
      et une ligne de plus n'y etait plus lisible. Le detail est dans le panneau
      que ce meme numero ouvre. */
-  .version-lien.retard { color: var(--arme); border-bottom-color: var(--arme); }
+  .version-lien.retard { color: var(--v0-arme); border-bottom-color: var(--v0-arme); }
 
   /* Un panneau DANS la fenetre, pas une fenetre modale: le depot s'y refuse
      deja (confirmation en place pour la fermeture d'un client). */
   .quoi-de-neuf {
     position: absolute; inset: 38px 0 0 0; z-index: 20;
-    background: var(--fond); display: flex; flex-direction: column;
+    background: var(--v0-fond); display: flex; flex-direction: column;
   }
   .qdn-tete {
     display: flex; align-items: center; gap: 10px;
-    padding: 12px 12px 12px 15px; border-bottom: 1px solid var(--filet);
+    padding: 12px 12px 12px 15px; border-bottom: 1px solid var(--v0-filet);
   }
   .qdn-tete b { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
   .qdn-tete button {
     margin-left: auto; width: 30px; height: 30px;
-    background: transparent; border: 0; color: var(--attenue);
+    background: transparent; border: 0; color: var(--v0-attenue);
     font-size: 15px; cursor: pointer;
   }
-  .qdn-tete button:hover { color: var(--texte); }
+  .qdn-tete button:hover { color: var(--v0-texte); }
   /* Le bloc de mise a jour, en tete du panneau et au-dessus des notes: c'est
      la seule chose du panneau sur laquelle on peut AGIR, elle passe devant ce
      qui ne fait que se lire. */
   .qdn-maj {
     margin: 12px 15px 4px; padding: 11px 13px;
-    border: 1px solid var(--filet); border-radius: 6px;
+    border: 1px solid var(--v0-filet); border-radius: 6px;
     display: flex; align-items: center; gap: 12px;
   }
-  .qdn-maj.retard { border-color: var(--arme); background: rgba(47,212,196,.08); }
+  .qdn-maj.retard { border-color: var(--v0-arme); background: rgba(47,212,196,.08); }
   .qdn-maj .texte { flex: 1; min-width: 0; }
   .qdn-maj .quoi { display: block; font-weight: 600; }
-  .qdn-maj.retard .quoi { color: var(--arme); }
+  .qdn-maj.retard .quoi { color: var(--v0-arme); }
   .qdn-maj .refs {
-    display: block; color: var(--attenue); font-size: 12px;
+    display: block; color: var(--v0-attenue); font-size: 12px;
     font-variant-numeric: tabular-nums;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .qdn-corps { overflow-y: auto; padding: 6px 15px 18px; }
-  .qdn-version { padding: 12px 0; border-bottom: 1px solid var(--filet); }
+  .qdn-version { padding: 12px 0; border-bottom: 1px solid var(--v0-filet); }
   .qdn-version:last-child { border-bottom: 0; }
   .qdn-titre { display: flex; align-items: baseline; gap: 8px; }
   .qdn-titre b { font-size: 14px; }
-  .qdn-titre .date { font-size: 11px; color: var(--attenue); }
+  .qdn-titre .date { font-size: 11px; color: var(--v0-attenue); }
   .qdn-titre .ici {
     font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--arme-encre); background: var(--arme);
+    color: var(--v0-arme-encre); background: var(--v0-arme);
     padding: 2px 6px; border-radius: 999px; font-weight: 700;
   }
   .qdn-version ul { margin: 7px 0 0; padding-left: 18px; }
-  .qdn-version li { font-size: 13px; line-height: 1.5; margin-bottom: 3px; color: var(--texte); }
-  .qdn-vide { padding: 30px 0; text-align: center; color: var(--attenue); font-size: 13.5px; }
+  .qdn-version li { font-size: 13px; line-height: 1.5; margin-bottom: 3px; color: var(--v0-texte); }
+  .qdn-vide { padding: 30px 0; text-align: center; color: var(--v0-attenue); font-size: 13.5px; }
   .fenetre-boutons { margin-left: auto; display: flex; -webkit-app-region: no-drag; }
   .fenetre-boutons button {
     width: 44px; height: 38px; display: grid; place-items: center;
-    background: transparent; border: 0; color: var(--attenue);
+    background: transparent; border: 0; color: var(--v0-attenue);
   }
-  .fenetre-boutons button:hover { background: rgba(255,255,255,.07); color: var(--texte); }
-  .fenetre-boutons button.fermer:hover { background: var(--alerte); color: #fff; }
+  .fenetre-boutons button:hover { background: rgba(255,255,255,.07); color: var(--v0-texte); }
+  .fenetre-boutons button.fermer:hover { background: var(--v0-alerte); color: #fff; }
   .fenetre-boutons svg { width: 11px; height: 11px; }
 
   /* ---------------- l interrupteur unique ----------------
@@ -190,40 +197,40 @@
   .maitre-inter {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 5px 12px 5px 10px; border-radius: 999px;
-    border: 1px solid var(--bord); background: var(--fond); color: var(--attenue);
+    border: 1px solid var(--v0-bord); background: var(--v0-fond); color: var(--v0-attenue);
     font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
     -webkit-app-region: no-drag;
   }
   .maitre-inter .temoin {
     width: 9px; height: 9px; flex: none; transform: rotate(45deg); border-radius: 5px;
-    border: 1.5px solid var(--bord); background: transparent;
+    border: 1.5px solid var(--v0-bord); background: transparent;
   }
-  .maitre-inter.on { color: var(--arme); border-color: var(--arme); }
+  .maitre-inter.on { color: var(--v0-arme); border-color: var(--v0-arme); }
   .maitre-inter.on .temoin {
-    background: var(--arme); border-color: var(--arme);
+    background: var(--v0-arme); border-color: var(--v0-arme);
     box-shadow: 0 0 8px rgba(47,212,196,.65);
   }
-  .maitre-inter:hover { color: var(--texte); border-color: var(--attenue); }
-  .maitre-inter.on:hover { color: var(--arme); filter: brightness(1.15); }
+  .maitre-inter:hover { color: var(--v0-texte); border-color: var(--v0-attenue); }
+  .maitre-inter.on:hover { color: var(--v0-arme); filter: brightness(1.15); }
 
 
   .champ-delai {
     display: inline-flex; align-items: center; gap: 7px;
     font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--attenue); font-weight: 700;
+    color: var(--v0-attenue); font-weight: 700;
   }
   .champ-delai input {
     width: 52px; padding: 4px 6px; font: inherit; font-size: 13px;
-    background: var(--fond); color: var(--texte);
-    border: 1px solid var(--bord); border-radius: 8px;
+    background: var(--v0-fond); color: var(--v0-texte);
+    border: 1px solid var(--v0-bord); border-radius: 8px;
     font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0;
   }
   .coupe {
     padding: 6px 13px; border-radius: 999px;
-    border: 1px solid var(--alerte); background: transparent; color: var(--alerte);
+    border: 1px solid var(--v0-alerte); background: transparent; color: var(--v0-alerte);
     font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
   }
-  .coupe.confirme { background: var(--alerte); color: #1F0B0C; }
+  .coupe.confirme { background: var(--v0-alerte); color: #1F0B0C; }
 
   /* Le bouton de l'overlay. Il n'est PAS `.coupe`: cette classe est rouge, et
      le rouge dit « anomalie » partout ailleurs dans le panneau. Ouvrir une
@@ -231,44 +238,44 @@
      tout ce qui est arme. */
   .pose {
     padding: 6px 13px; border-radius: 999px;
-    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
+    border: 1px solid var(--v0-bord); background: transparent; color: var(--v0-attenue);
     font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
   }
-  .pose:hover:not(:disabled) { border-color: var(--attenue); color: var(--texte); }
-  .pose.ouvert { border-color: var(--arme); color: var(--arme); }
+  .pose:hover:not(:disabled) { border-color: var(--v0-attenue); color: var(--v0-texte); }
+  .pose.ouvert { border-color: var(--v0-arme); color: var(--v0-arme); }
   /* Sans cette regle le bouton reste visuellement actif une fois `disabled`
      pose par surEtat(): la regle generale `button { cursor: pointer; }` et
      les couleurs d'auteur ecrasent le style par defaut du navigateur. Meme
      traitement que .hdv:disabled plus bas. */
   .pose:disabled { opacity: .3; cursor: not-allowed; }
 
-  .avis { padding: 9px 15px; font-size: 13px; border-bottom: 1px solid var(--filet); }
+  .avis { padding: 9px 15px; font-size: 13px; border-bottom: 1px solid var(--v0-filet); }
   .avis:empty { display: none; }
-  #erreur { background: rgba(242,84,91,.14); color: var(--alerte); }
-  #sansmaitre { background: rgba(255,159,28,.10); color: var(--commande); }
+  #erreur { background: rgba(242,84,91,.14); color: var(--v0-alerte); }
+  #sansmaitre { background: rgba(255,159,28,.10); color: var(--v0-commande); }
 
   /* Un raccourci se lit comme une touche de clavier: inscription creusee et
      relief. */
   .cabochon {
     display: block; width: 100%; padding: 5px 6px; border-radius: 8px;
-    border: 1px solid var(--bord); background: var(--releve); color: var(--texte);
+    border: 1px solid var(--v0-bord); background: var(--v0-releve); color: var(--v0-texte);
     font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-align: center;
     box-shadow: inset 0 -2px 0 rgba(0,0,0,.45); white-space: nowrap;
   }
-  .cabochon:hover { border-color: var(--commande); color: var(--commande); }
-  .cabochon.sans-touche { color: var(--filet); border-style: dashed; box-shadow: none; background: transparent; }
-  .cabochon.ecoute { border-color: var(--commande); color: var(--commande); border-style: solid; background: rgba(255,159,28,.12); }
+  .cabochon:hover { border-color: var(--v0-commande); color: var(--v0-commande); }
+  .cabochon.sans-touche { color: var(--v0-filet); border-style: dashed; box-shadow: none; background: transparent; }
+  .cabochon.ecoute { border-color: var(--v0-commande); color: var(--v0-commande); border-style: solid; background: rgba(255,159,28,.12); }
   /* Signale deux situations differentes, pas une seule: une touche NUE est
      CONFISQUEE a Dofus tant qu'OMNI tourne, alors qu'un clic molette est
      seulement PARTAGE avec lui (Dofus le recoit aussi). Signalee, pas
      interdite — c'est l'utilisateur qui sait ce qu'il utilise en combat. */
-  .cabochon.risque { border-color: var(--alerte); color: var(--alerte); }
+  .cabochon.risque { border-color: var(--v0-alerte); color: var(--v0-alerte); }
 
   .barre-nav {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 9px 15px; border-top: 1px solid var(--filet); background: var(--releve);
+    padding: 9px 15px; border-top: 1px solid var(--v0-filet); background: var(--v0-releve);
     font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--attenue); font-weight: 700;
+    color: var(--v0-attenue); font-weight: 700;
   }
   /* La cellule Touche: le cabochon prend la place, la corbeille se glisse a
      cote et ne parait que si une touche est assignee. */
@@ -277,7 +284,7 @@
   .oter {
     flex: none; width: 22px; height: 26px; padding: 0;
     display: grid; place-items: center;
-    background: transparent; border: 0; color: var(--filet);
+    background: transparent; border: 0; color: var(--v0-filet);
     border-radius: 6px;
   }
   /* Fermer CE client. Deux clics, comme le bouton qui les ferme tous: la
@@ -285,13 +292,13 @@
      clic de travers couterait une session — potentiellement en plein combat. */
   .fermer-un {
     width: 100%; height: 30px; padding: 0; display: grid; place-items: center;
-    background: transparent; border: 0; color: var(--filet); border-radius: 8px;
+    background: transparent; border: 0; color: var(--v0-filet); border-radius: 8px;
   }
-  .fermer-un:hover { color: var(--alerte); background: rgba(242,84,91,.12); }
+  .fermer-un:hover { color: var(--v0-alerte); background: rgba(242,84,91,.12); }
   .fermer-un:disabled { opacity: .25; cursor: not-allowed; }
   .fermer-un.confirme {
-    color: var(--alerte); background: rgba(242,84,91,.2);
-    box-shadow: inset 0 0 0 1px var(--alerte);
+    color: var(--v0-alerte); background: rgba(242,84,91,.2);
+    box-shadow: inset 0 0 0 1px var(--v0-alerte);
   }
   .fermer-un svg { width: 13px; height: 13px; }
 
@@ -299,26 +306,26 @@
      surgit en passant la souris se declenche pendant qu'on vise autre chose. */
   .hdv {
     width: 100%; height: 30px; padding: 0; border-radius: 8px;
-    background: transparent; border: 1px solid var(--filet); color: var(--attenue);
+    background: transparent; border: 1px solid var(--v0-filet); color: var(--v0-attenue);
     font-size: 10.5px; letter-spacing: .06em; font-weight: 700;
   }
-  .hdv:hover:not(:disabled) { color: var(--texte); border-color: var(--accent); }
+  .hdv:hover:not(:disabled) { color: var(--v0-texte); border-color: var(--accent); }
   .hdv:disabled { opacity: .3; cursor: not-allowed; }
   .hdv.tourne { color: var(--accent); border-color: var(--accent); }
   .menu-hdv {
     position: absolute; right: 46px; top: 34px; z-index: 5;
-    background: var(--fond); border: 1px solid var(--filet); border-radius: 10px;
+    background: var(--v0-fond); border: 1px solid var(--v0-filet); border-radius: 10px;
     padding: 4px; min-width: 210px; box-shadow: 0 8px 22px rgba(0,0,0,.45);
   }
   .menu-hdv button {
     display: block; width: 100%; text-align: left; padding: 7px 10px;
-    background: transparent; border: 0; border-radius: 7px; color: var(--texte);
+    background: transparent; border: 0; border-radius: 7px; color: var(--v0-texte);
     font-size: 12px;
   }
   .menu-hdv button:hover { background: rgba(255,255,255,.06); }
   /* Une entree inerte reste VISIBLE. La cacher ferait croire qu'elle n'est pas
      prevue; grisee, elle dit qu'elle existe et pourquoi elle n'agit pas. */
-  .menu-hdv button.inerte { color: var(--attenue); }
+  .menu-hdv button.inerte { color: var(--v0-attenue); }
 
   /* ---------------- les archimonstres ---------------- */
   /* Le bouton de la ligne porte le COMPTE de ce personnage. Un tiret, et pas un
@@ -326,17 +333,17 @@
      connexion, donc un client lance avant OMNI n'en enverra jamais. */
   .archi {
     width: 100%; height: 30px; padding: 0; border-radius: 8px;
-    background: transparent; border: 1px solid var(--filet); color: var(--attenue);
+    background: transparent; border: 1px solid var(--v0-filet); color: var(--v0-attenue);
     font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
   }
-  .archi:hover:not(:disabled) { color: var(--texte); border-color: var(--accent); }
+  .archi:hover:not(:disabled) { color: var(--v0-texte); border-color: var(--accent); }
   .archi:disabled { opacity: .3; cursor: not-allowed; }
-  .archi.pleine { color: var(--texte); }
+  .archi.pleine { color: var(--v0-texte); }
 
   /* Meme forme que « Quoi de neuf »: un panneau DANS la fenetre. */
   .vue-archi {
     position: absolute; inset: 38px 0 0 0; z-index: 20;
-    background: var(--fond); display: flex; flex-direction: column;
+    background: var(--v0-fond); display: flex; flex-direction: column;
   }
   .arc-corps { flex: 1; overflow-y: auto; padding: 0 15px 14px; }
   /* `separate` ET PAS `collapse`, pour l'en-tete collant: avec les bordures
@@ -344,10 +351,10 @@
      page pendant que l'en-tete descend -- le filet se detache de sa ligne. */
   .arc-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
   .arc-table th {
-    position: sticky; top: 0; z-index: 3; background: var(--fond);
-    padding: 9px 6px; border-bottom: 1px solid var(--filet);
+    position: sticky; top: 0; z-index: 3; background: var(--v0-fond);
+    padding: 9px 6px; border-bottom: 1px solid var(--v0-filet);
     font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
-    color: var(--attenue); font-weight: 700; text-align: center;
+    color: var(--v0-attenue); font-weight: 700; text-align: center;
   }
   .arc-table th.arc-gauche { text-align: left; }
   /* `display` EXPLICITE, et ce n'est pas superflu. Le 04/09, les cellules
@@ -358,19 +365,19 @@
      tableau insensible a la prochaine collision, quelle qu'elle soit. */
   .arc-table td { display: table-cell; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
   .arc-table th { display: table-cell; }
-  .arc-table td.arc-niv { text-align: right; color: var(--attenue); font-variant-numeric: tabular-nums; }
-  .arc-table td.arc-case { text-align: center; color: var(--attenue); }
-  .arc-table td.arc-case.arc-a { color: var(--arme); }
+  .arc-table td.arc-niv { text-align: right; color: var(--v0-attenue); font-variant-numeric: tabular-nums; }
+  .arc-table td.arc-case { text-align: center; color: var(--v0-attenue); }
+  .arc-table td.arc-case.arc-a { color: var(--v0-arme); }
   /* La colonne du personnage dont on a clique le bouton. Le tableau montre
      tout le monde; ce n'est qu'un reperage, jamais un filtre cache.
      LE VOILE SE POSE EN PLUS DU FOND, JAMAIS A LA PLACE. Cette regle vient
      apres celle de l'en-tete: ecrite `background: rgba(...)`, elle REMPLACAIT
-     `var(--fond)`, l'en-tete collant devenait translucide, et les coches lui
+     `var(--v0-fond)`, l'en-tete collant devenait translucide, et les coches lui
      passaient au travers pendant le defilement. Signale par Jibef le 04/09. */
   .arc-table th.arc-vise, .arc-table td.arc-vise {
-    background: linear-gradient(rgba(255,255,255,.05), rgba(255,255,255,.05)), var(--fond);
+    background: linear-gradient(rgba(255,255,255,.05), rgba(255,255,255,.05)), var(--v0-fond);
   }
-  .arc-table tr.arc-aucun td { color: var(--attenue); }
+  .arc-table tr.arc-aucun td { color: var(--v0-attenue); }
   /* LA BARRE DE L'EN-TETE PORTE TROIS AXES, ET ILS ONT TROIS FORMES.
      Elle a longtemps ete sept boutons rigoureusement identiques sur une ligne,
      separes par deux espaces vides: rien ne disait que « Boss » et
@@ -387,7 +394,7 @@
     display: inline-flex; align-items: center; gap: 7px;
     padding: 5px 10px 6px; background: transparent;
     border: 0; border-bottom: 2px solid transparent; border-radius: 0;
-    color: var(--attenue); font-size: 12.5px;
+    color: var(--v0-attenue); font-size: 12.5px;
   }
   .arc-onglets button svg { width: 16px; height: 16px; flex: none; }
   /* TROIS SIGNAUX POUR L'ETAT, JAMAIS LA COULEUR SEULE: le trait sous
@@ -395,8 +402,8 @@
      FORME plus bas, et pour la meme raison -- huit a dix pour cent des hommes
      sont daltoniens. */
   .arc-onglets button:not(.on) svg { filter: grayscale(1); opacity: .45; }
-  .arc-onglets button:hover { color: var(--texte); }
-  .arc-onglets button.on { color: var(--texte); border-bottom-color: var(--arme); font-weight: 700; }
+  .arc-onglets button:hover { color: var(--v0-texte); }
+  .arc-onglets button.on { color: var(--v0-texte); border-bottom-color: var(--v0-arme); font-weight: 700; }
 
   /* 2 et 3. LE CONTROLE SEGMENTE. Des boutons COLLES se lisent comme un seul
      objet -- « un choix parmi N » -- la ou des boutons separes se lisent comme
@@ -408,21 +415,21 @@
      soit -- voir plus bas, c'est la clef de tout ce bloc. */
   .arc-segmente {
     position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
-    border: 1px solid var(--filet); border-radius: 7px; margin-left: 25px; --n: 2;
+    border: 1px solid var(--v0-filet); border-radius: 7px; margin-left: 25px; --n: 2;
   }
   /* Le filet qui separe les groupes est porte par le groupe LUI-MEME: il
      disparait donc avec lui, ce qu'un <span> pose a cote ne ferait pas.
      Absolu, et non pose dans le flux: en grille il deviendrait une colonne. */
   .arc-segmente::before {
     content: ''; position: absolute; left: -13px; top: 50%; transform: translateY(-50%);
-    width: 1px; height: 18px; background: var(--filet);
+    width: 1px; height: 18px; background: var(--v0-filet);
   }
   .arc-segmente button {
     position: relative; z-index: 1;
     padding: 5px 12px; border: 0; border-radius: 6px; background: transparent;
-    color: var(--attenue); font-size: 11.5px; text-align: center;
+    color: var(--v0-attenue); font-size: 11.5px; text-align: center;
   }
-  .arc-segmente button:hover { color: var(--texte); }
+  .arc-segmente button:hover { color: var(--v0-texte); }
 
   /* LA PASTILLE SE PLACE SANS QU'ON MESURE RIEN, et c'est delibere. La lire au
      `offsetLeft` du segment actif aurait demande du JS, or le panneau
@@ -432,7 +439,7 @@
      invisible au harnais et increvable. */
   .arc-pastille {
     position: absolute; inset: 0 auto 0 0; width: calc(100% / var(--n));
-    background: var(--arme); border-radius: 6px;
+    background: var(--v0-arme); border-radius: 6px;
     transition: transform .18s ease;
   }
   .arc-segmente:has(> button:nth-of-type(2).on) .arc-pastille { transform: translateX(100%); }
@@ -443,9 +450,9 @@
 
   /* 2. COMMENT -- la pastille pleine. Le contraste le plus fort de la ligne
      apres les onglets: c'est le deuxieme choix le plus utile du panneau.
-     `--arme` et `--arme-encre`, et pas `--accent` qui n'est defini nulle part
+     `--v0-arme` et `--v0-arme-encre`, et pas `--accent` qui n'est defini nulle part
      -- les regles de ce fichier qui l'invoquent sont mortes depuis toujours. */
-  .arc-segmente button.on { color: var(--arme-encre); font-weight: 700; }
+  .arc-segmente button.on { color: var(--v0-arme-encre); font-weight: 700; }
 
   /* 3. FILTRE -- meme forme, pastille discrete. Il reste subordonne aux deux
      autres, et il disparait de toute facon en vue par zone. Ces regles
@@ -453,7 +460,7 @@
      derniere qui gagne. */
   .arc-discret { --n: 3; }
   .arc-discret button { font-size: 11px; padding: 4px 10px; }
-  .arc-discret button.on { color: var(--texte); font-weight: 700; }
+  .arc-discret button.on { color: var(--v0-texte); font-weight: 700; }
   .arc-discret .arc-pastille { background: rgba(255,255,255,.10); }
 
   /* Les filtres n'ont aucun effet sur la vue par zone: ils disparaissent d'un
@@ -467,18 +474,18 @@
   .arc-cherche {
     display: flex; align-items: center; gap: 6px;
     margin-left: 12px; padding: 3px 8px;
-    border: 1px solid var(--filet); border-radius: 7px; color: var(--attenue);
+    border: 1px solid var(--v0-filet); border-radius: 7px; color: var(--v0-attenue);
   }
   /* Le champ ne porte aucun contour a lui: c'est la bordure du label qui
      s'allume, sinon deux cadres se superposeraient au focus. */
-  .arc-cherche:focus-within { border-color: var(--arme); color: var(--texte); }
+  .arc-cherche:focus-within { border-color: var(--v0-arme); color: var(--v0-texte); }
   .arc-cherche svg { width: 13px; height: 13px; flex: none; }
   .arc-cherche input {
     width: 128px; padding: 1px 0; border: 0; background: transparent;
-    color: var(--texte); font: inherit; font-size: 11px;
+    color: var(--v0-texte); font: inherit; font-size: 11px;
   }
   .arc-cherche input:focus { outline: none; }
-  .arc-cherche input::placeholder { color: var(--attenue); }
+  .arc-cherche input::placeholder { color: var(--v0-attenue); }
   .arc-cherche[hidden] { display: none; }
   /* La vue par zone. Toutes ses classes sont prefixees `arc-`, comme celles du
      tableau, et pour la meme raison: voir le commentaire de la table ARC. */
@@ -486,25 +493,25 @@
     display: flex; align-items: center; gap: 10px;
     width: 100%; text-align: left; background: transparent; border: 0;
     padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,.04);
-    color: var(--texte); font-size: 13px;
+    color: var(--v0-texte); font-size: 13px;
   }
   .arc-zone:hover { background: rgba(255,255,255,.04); }
-  .arc-sz { padding-left: 30px; font-size: 12.5px; color: var(--attenue); cursor: default; }
-  .arc-fleche { width: 12px; color: var(--attenue); font-size: 10px; }
+  .arc-sz { padding-left: 30px; font-size: 12.5px; color: var(--v0-attenue); cursor: default; }
+  .arc-fleche { width: 12px; color: var(--v0-attenue); font-size: 10px; }
   .arc-nom { flex: 1; min-width: 0; }
   /* Le nombre est ce sur quoi on trie: il se lit en colonne, chiffres alignes. */
   .arc-nb {
     min-width: 34px; text-align: right; font-variant-numeric: tabular-nums;
-    font-weight: 700; color: var(--texte);
+    font-weight: 700; color: var(--v0-texte);
   }
-  .arc-nb.arc-zero { color: var(--attenue); font-weight: 400; }
+  .arc-nb.arc-zero { color: var(--v0-attenue); font-weight: 400; }
   /* Qui a encore quelque chose a y prendre. Deux personnages de la meme classe
      portent le meme embleme: le survol donne le nom, c'est ce qui les separe. */
   .arc-qui { display: flex; gap: 4px; min-width: 96px; justify-content: flex-end; }
   .arc-qui img { width: 18px; height: 18px; border-radius: 4px; }
   .arc-qui .arc-abrev {
-    font-size: 9.5px; font-weight: 700; color: var(--attenue);
-    border: 1px solid var(--filet); border-radius: 4px; padding: 1px 3px;
+    font-size: 9.5px; font-weight: 700; color: var(--v0-attenue);
+    border: 1px solid var(--v0-filet); border-radius: 4px; padding: 1px 3px;
   }
 
   /* Le bouton rond de l'en-tete: redemander les inventaires. Rond parce qu'il
@@ -512,10 +519,10 @@
   .arc-relire {
     margin-left: auto; width: 30px; height: 30px; padding: 0;
     display: grid; place-items: center;
-    background: transparent; border: 1px solid var(--filet); border-radius: 50%;
-    color: var(--attenue);
+    background: transparent; border: 1px solid var(--v0-filet); border-radius: 50%;
+    color: var(--v0-attenue);
   }
-  .arc-relire:hover:not(:disabled) { color: var(--texte); border-color: var(--accent); }
+  .arc-relire:hover:not(:disabled) { color: var(--v0-texte); border-color: var(--accent); }
   .arc-relire:disabled { opacity: .4; cursor: progress; }
   .arc-relire svg { width: 15px; height: 15px; }
   /* La croix garde sa place a droite: c'est le bouton rond qui pousse. */
@@ -525,18 +532,18 @@
   .arc-archi {
     display: flex; align-items: center; gap: 10px;
     padding: 5px 6px 5px 56px; border-bottom: 1px solid rgba(255,255,255,.03);
-    font-size: 12px; color: var(--attenue);
+    font-size: 12px; color: var(--v0-attenue);
   }
   .arc-niveau {
     min-width: 30px; text-align: right; font-variant-numeric: tabular-nums;
   }
 
   .arc-pied {
-    padding: 9px 15px; border-top: 1px solid var(--filet);
-    font-size: 12px; color: var(--attenue);
+    padding: 9px 15px; border-top: 1px solid var(--v0-filet);
+    font-size: 12px; color: var(--v0-attenue);
     display: flex; gap: 16px; flex-wrap: wrap;
   }
-  .arc-pied b { color: var(--texte); font-variant-numeric: tabular-nums; }
+  .arc-pied b { color: var(--v0-texte); font-variant-numeric: tabular-nums; }
 
   /* LE PANNEAU DES PEPITES. Memes declarations que .arc-corps, .arc-pied et
      .arc-cherche, RECOPIEES et non partagees pour ces trois-la: c'est le
@@ -562,22 +569,22 @@
   .pep-cherche {
     display: flex; align-items: center; gap: 6px; align-self: flex-start;
     margin: 10px 15px 8px; padding: 3px 8px;
-    border: 1px solid var(--filet); border-radius: 7px; color: var(--attenue);
+    border: 1px solid var(--v0-filet); border-radius: 7px; color: var(--v0-attenue);
   }
-  .pep-cherche:focus-within { border-color: var(--arme); color: var(--texte); }
+  .pep-cherche:focus-within { border-color: var(--v0-arme); color: var(--v0-texte); }
   /* LES SOUS-REGLES DU CHAMP, RECOPIEES AUSSI. Sans elles, l'input rend avec
      son apparence native a l'interieur d'un label deja borde -- les « deux
      cadres superposes » que la regle ci-dessus existe pour eviter -- et dans
      une police differente du reste du panneau. */
   .pep-cherche input {
     width: 128px; padding: 1px 0; border: 0; background: transparent;
-    color: var(--texte); font: inherit; font-size: 11px;
+    color: var(--v0-texte); font: inherit; font-size: 11px;
   }
   .pep-cherche input:focus { outline: none; }
-  .pep-cherche input::placeholder { color: var(--attenue); }
+  .pep-cherche input::placeholder { color: var(--v0-attenue); }
   .pep-pied {
-    padding: 9px 15px; border-top: 1px solid var(--filet);
-    font-size: 12px; color: var(--attenue);
+    padding: 9px 15px; border-top: 1px solid var(--v0-filet);
+    font-size: 12px; color: var(--v0-attenue);
     display: flex; gap: 16px; flex-wrap: wrap;
   }
   /* Dans la barre du bas, meme traitement que .avis-nav juste au-dessus:
@@ -620,18 +627,18 @@
   .ry-corps { flex: 1; overflow-y: auto; padding: 15px 15px 20px; }
   .ry-intro {
     margin: 0 0 15px; max-width: 66ch;
-    font-size: 12.5px; line-height: 1.6; color: var(--attenue);
+    font-size: 12.5px; line-height: 1.6; color: var(--v0-attenue);
   }
-  .ry-intro b { color: var(--texte); font-weight: 700; }
+  .ry-intro b { color: var(--v0-texte); font-weight: 700; }
   .ry-profils { display: flex; gap: 8px; margin-bottom: 15px; }
   .ry-profils button {
     padding: 7px 16px; border-radius: 999px;
-    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
+    border: 1px solid var(--v0-bord); background: transparent; color: var(--v0-attenue);
     font: inherit; font-size: 11.5px; font-weight: 700;
     letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
   }
-  .ry-profils button:hover { color: var(--texte); border-color: var(--attenue); }
-  .ry-profils button.on { color: var(--arme); border-color: var(--arme); }
+  .ry-profils button:hover { color: var(--v0-texte); border-color: var(--v0-attenue); }
+  .ry-profils button.on { color: var(--v0-arme); border-color: var(--v0-arme); }
 
   /* LA CADENCE RESULTANTE, EN CLAIR ET RECALCULEE A CHAQUE MOUVEMENT.
      Tout le raisonnement des deux modules est ecrit en cadence mesuree, pas en
@@ -639,41 +646,41 @@
      c'est cette abstraction qui avait laisse partir la premiere version a 2,5
      lots par seconde, jusqu'a se faire signaler en jeu. */
   .ry-cadence {
-    padding: 12px 14px; border: 1px solid var(--filet); border-radius: 6px;
-    background: var(--releve); font-size: 12.5px; line-height: 1.75;
+    padding: 12px 14px; border: 1px solid var(--v0-filet); border-radius: 6px;
+    background: var(--v0-releve); font-size: 12.5px; line-height: 1.75;
   }
-  .ry-cadence b { color: var(--texte); font-variant-numeric: tabular-nums; }
-  .ry-cadence div { color: var(--attenue); }
+  .ry-cadence b { color: var(--v0-texte); font-variant-numeric: tabular-nums; }
+  .ry-cadence div { color: var(--v0-attenue); }
   /* LE SEUIL SIGNALE EN JEU. Rouge, comme tout ce qui dit « anomalie » dans ce
      panneau: ce n'est pas une preference de gout, c'est une cadence dont on
      sait qu'elle s'est fait remarquer. */
   .ry-cadence .alerte {
     margin-top: 8px; padding: 8px 10px; border-radius: 5px;
-    border: 1px solid var(--alerte); color: var(--alerte);
+    border: 1px solid var(--v0-alerte); color: var(--v0-alerte);
     font-size: 11.5px; line-height: 1.5;
   }
   .ry-cadence .note {
-    margin-top: 6px; font-size: 11.5px; line-height: 1.5; color: var(--attenue); opacity: .8;
+    margin-top: 6px; font-size: 11.5px; line-height: 1.5; color: var(--v0-attenue); opacity: .8;
   }
 
   .ry-fin { margin-top: 18px; }
   .ry-fin summary {
     cursor: pointer; font-size: 11.5px; font-weight: 700;
-    letter-spacing: .08em; text-transform: uppercase; color: var(--attenue);
+    letter-spacing: .08em; text-transform: uppercase; color: var(--v0-attenue);
   }
-  .ry-fin summary:hover { color: var(--texte); }
+  .ry-fin summary:hover { color: var(--v0-texte); }
   .ry-reglage {
     display: grid; grid-template-columns: 168px 1fr 58px; align-items: center;
     gap: 6px 13px; margin-top: 15px; font-size: 12.5px;
   }
-  .ry-reglage > span { color: var(--attenue); }
-  .ry-reglage input[type=range] { width: 100%; accent-color: var(--arme); }
+  .ry-reglage > span { color: var(--v0-attenue); }
+  .ry-reglage input[type=range] { width: 100%; accent-color: var(--v0-arme); }
   .ry-reglage output {
-    font-variant-numeric: tabular-nums; color: var(--texte); text-align: right;
+    font-variant-numeric: tabular-nums; color: var(--v0-texte); text-align: right;
   }
   .ry-detail {
     grid-column: 2 / -1;
-    font-size: 11.5px; line-height: 1.5; color: var(--attenue);
+    font-size: 11.5px; line-height: 1.5; color: var(--v0-attenue);
     font-variant-numeric: tabular-nums;
   }
   /* L'EXPIRATION N'EST PAS UN CURSEUR, et sa forme le dit: c'est une valeur
@@ -681,13 +688,13 @@
   .ry-absolu {
     display: grid; grid-template-columns: 168px auto 1fr; align-items: center;
     gap: 6px 13px; margin-top: 20px; padding-top: 16px;
-    border-top: 1px solid var(--filet); font-size: 12.5px;
+    border-top: 1px solid var(--v0-filet); font-size: 12.5px;
   }
-  .ry-absolu > span { color: var(--attenue); }
+  .ry-absolu > span { color: var(--v0-attenue); }
   .ry-absolu input {
     width: 78px; padding: 4px 6px; font: inherit; font-size: 13px;
-    background: var(--fond); color: var(--texte);
-    border: 1px solid var(--bord); border-radius: 8px;
+    background: var(--v0-fond); color: var(--v0-texte);
+    border: 1px solid var(--v0-bord); border-radius: 8px;
     font-variant-numeric: tabular-nums;
   }
   .ry-absolu .ry-detail { grid-column: 1 / -1; max-width: 66ch; }
@@ -697,38 +704,38 @@
      un curseur. */
   .ry-titre {
     margin: 0 0 12px; font-size: 11.5px; font-weight: 700;
-    letter-spacing: .08em; text-transform: uppercase; color: var(--texte);
+    letter-spacing: .08em; text-transform: uppercase; color: var(--v0-texte);
   }
   .ry-titre + .ry-intro { margin-top: -4px; }
-  .ry-section + .ry-section { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--filet); }
+  .ry-section + .ry-section { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--v0-filet); }
 
   /* LES RACCOURCIS DU PLAFOND, memes pilules que les profils de rythme en plus
      petit: ce sont les deux valeurs qu'on cite quand on en parle. */
   .gf-rapides { display: flex; align-items: center; gap: 7px; }
   .gf-rapides button {
     padding: 3px 11px; border-radius: 999px;
-    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
+    border: 1px solid var(--v0-bord); background: transparent; color: var(--v0-attenue);
     font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
   }
-  .gf-rapides button:hover { color: var(--texte); border-color: var(--attenue); }
-  .gf-rapides button.on { color: var(--arme); border-color: var(--arme); }
+  .gf-rapides button:hover { color: var(--v0-texte); border-color: var(--v0-attenue); }
+  .gf-rapides button.on { color: var(--v0-arme); border-color: var(--v0-arme); }
 
   /* LE TABLEAU DES ECARTES emprunte .arc-table: meme grille, meme en-tete
      collant, meme lecture. Il n'ajoute que ce qui lui est propre -- des
      nombres alignes a droite, et le motif en clair. */
   .eca-nb { text-align: right; font-variant-numeric: tabular-nums; }
-  .eca-borne { text-align: right; font-variant-numeric: tabular-nums; color: var(--alerte); }
-  .eca-motif { color: var(--attenue); }
+  .eca-borne { text-align: right; font-variant-numeric: tabular-nums; color: var(--v0-alerte); }
+  .eca-motif { color: var(--v0-attenue); }
   /* LE GID NU EST UN REPLI, et il le montre: un objet que la table ne nomme pas
      est un objet ajoute au jeu depuis sa fabrication. */
-  .eca-gid { color: var(--attenue); font-variant-numeric: tabular-nums; }
+  .eca-gid { color: var(--v0-attenue); font-variant-numeric: tabular-nums; }
   /* La ligne de compte rendu devient cliquable quand il y a quelque chose a
      ouvrir, et le dit: un texte qui reagit au clic sans le montrer ne sera
      jamais clique. */
   .motif.cliquable { cursor: pointer; text-decoration: underline dotted; }
-  .motif.cliquable:hover { color: var(--texte); }
+  .motif.cliquable:hover { color: var(--v0-texte); }
 
-  .oter:hover { color: var(--alerte); background: rgba(242,84,91,.12); }
+  .oter:hover { color: var(--v0-alerte); background: rgba(242,84,91,.12); }
   .oter svg { width: 12px; height: 12px; }
 
   .paire { display: inline-flex; align-items: center; gap: 7px; }
@@ -736,7 +743,7 @@
      secondes: passe ce delai il ne decrit plus rien. */
   .avis-nav {
     text-transform: none; letter-spacing: 0; font-weight: 400;
-    font-size: 12.5px; color: var(--alerte);
+    font-size: 12.5px; color: var(--v0-alerte);
   }
   .avis-nav:empty { display: none; }
 
@@ -749,10 +756,10 @@
   }
   .entete {
     padding-top: 10px; padding-bottom: 10px;
-    border-bottom: 1px solid var(--filet);
+    border-bottom: 1px solid var(--v0-filet);
     font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
-    color: var(--attenue); font-weight: 700;
-    position: sticky; top: 0; background: var(--fond); z-index: 1;
+    color: var(--v0-attenue); font-weight: 700;
+    position: sticky; top: 0; background: var(--v0-fond); z-index: 1;
   }
   .entete .c { text-align: center; }
   /* Le titre de colonne est une ACTION GROUPEE: il coche ou decoche la fonction
@@ -764,29 +771,29 @@
     color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit;
     border-radius: 6px;
   }
-  .tete-colonne:hover { background: rgba(255,255,255,.06); color: var(--texte); }
+  .tete-colonne:hover { background: rgba(255,255,255,.06); color: var(--v0-texte); }
   .tete-colonne:disabled { opacity: .3; cursor: not-allowed; }
   .jauge {
     width: 8px; height: 8px; flex: none; transform: rotate(45deg); border-radius: 4px;
-    border: 1.5px solid var(--bord); background: transparent;
+    border: 1.5px solid var(--v0-bord); background: transparent;
   }
-  .jauge.tous { background: var(--arme); border-color: var(--arme); }
+  .jauge.tous { background: var(--v0-arme); border-color: var(--v0-arme); }
   /* A moitie: la diagonale du losange une fois redresse, donc une moitie
      franche et lisible meme a 8 px. */
   .jauge.partiel {
-    border-color: var(--arme);
-    background: linear-gradient(to right, var(--arme) 50%, transparent 50%);
+    border-color: var(--v0-arme);
+    background: linear-gradient(to right, var(--v0-arme) 50%, transparent 50%);
   }
   .rang {
     padding-top: 11px; padding-bottom: 11px;
-    border-bottom: 1px solid var(--filet); position: relative;
+    border-bottom: 1px solid var(--v0-filet); position: relative;
   }
   .rang.hors-ligne { opacity: .4; }
   /* Le rang qui commande porte un lisere d'or: on marque sans repeindre. */
   .rang.commande { background: linear-gradient(90deg, rgba(255,159,28,.09), transparent 55%); }
   .rang.commande::before {
     content: ""; position: absolute; left: 0; top: 5px; bottom: 5px; width: 3px;
-    border-radius: 0 3px 3px 0; background: var(--commande);
+    border-radius: 0 3px 3px 0; background: var(--v0-commande);
   }
 
   /* La plaque en losange accueillera l'embleme de classe. En attendant elle
@@ -795,33 +802,33 @@
   .plaque {
     width: 30px; height: 30px; margin: 0 auto;
     display: grid; place-items: center;
-    background: var(--releve); border: 1px solid var(--bord);
+    background: var(--v0-releve); border: 1px solid var(--v0-bord);
     transform: rotate(45deg); border-radius: 10px;
   }
   .plaque > * {
     transform: rotate(-45deg); font-size: 10px; font-weight: 700;
-    letter-spacing: .02em; color: var(--attenue);
+    letter-spacing: .02em; color: var(--v0-attenue);
   }
   .plaque img { width: 22px; height: 22px; object-fit: contain; display: block; }
   .rang.hors-ligne .plaque img { filter: grayscale(1); }
-  .rang.commande .plaque { border-color: var(--commande); box-shadow: 0 0 10px rgba(255,159,28,.28); }
-  .rang.alerte .plaque { border-color: var(--alerte); }
+  .rang.commande .plaque { border-color: var(--v0-commande); box-shadow: 0 0 10px rgba(255,159,28,.28); }
+  .rang.alerte .plaque { border-color: var(--v0-alerte); }
 
   .identite {
     display: contents;
   }
   .zone-clic { cursor: pointer; }
-  .zone-clic:hover .nom { color: var(--commande); }
-  .zone-clic:hover .plaque { border-color: var(--commande); }
+  .zone-clic:hover .nom { color: var(--v0-commande); }
+  .zone-clic:hover .plaque { border-color: var(--v0-commande); }
   .nom {
     font-weight: 700; font-size: 14.5px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .sous-nom {
-    font-size: 12px; color: var(--attenue);
+    font-size: 12px; color: var(--v0-attenue);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .sous-nom.absent { color: var(--filet); font-style: italic; }
+  .sous-nom.absent { color: var(--v0-filet); font-style: italic; }
 
   /* LA CIBLE EST LA CELLULE ENTIERE, le losange n est qu un dessin dedans.
      Un element tourne a 45 degres n est sensible que sur la moitie de sa
@@ -834,24 +841,24 @@
   }
   .case .los {
     width: 17px; height: 17px; transform: rotate(45deg); border-radius: 6px;
-    border: 1.5px solid var(--bord); background: transparent;
+    border: 1.5px solid var(--v0-bord); background: transparent;
     transition: background .1s, border-color .1s;
   }
-  .case.on .los { background: var(--arme); border-color: var(--arme); }
+  .case.on .los { background: var(--v0-arme); border-color: var(--v0-arme); }
   .case:disabled { opacity: .25; cursor: not-allowed; }
-  .case:not(:disabled):hover .los { border-color: var(--attenue); }
+  .case:not(:disabled):hover .los { border-color: var(--v0-attenue); }
   .case:not(:disabled):hover { background: rgba(255,255,255,.05); border-radius: 8px; }
 
   .bouton-commande {
     width: 100%; min-height: 28px; padding: 6px 9px; border-radius: 999px;
-    border: 1px solid var(--bord); background: transparent; color: var(--attenue);
+    border: 1px solid var(--v0-bord); background: transparent; color: var(--v0-attenue);
     font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
     white-space: nowrap;
   }
-  .bouton-commande:hover { border-color: var(--commande); color: var(--commande); }
+  .bouton-commande:hover { border-color: var(--v0-commande); color: var(--v0-commande); }
   .bouton-commande.on {
-    background: var(--commande); border-color: var(--commande);
-    color: var(--commande-encre);
+    background: var(--v0-commande); border-color: var(--v0-commande);
+    color: var(--v0-commande-encre);
   }
   .verdict {
     display: inline-flex; align-items: center; gap: 7px; justify-content: center;
@@ -859,15 +866,15 @@
     text-transform: uppercase; white-space: nowrap;
   }
   .verdict .los { width: 11px; height: 11px; flex: none; transform: rotate(45deg); border-radius: 4px; }
-  .verdict.alerte { color: var(--alerte); }
-  .verdict.alerte .los { background: var(--alerte); }
-  .verdict.attente { color: var(--attenue); }
-  .verdict.attente .los { border: 1.5px solid var(--attenue); }
-  .verdict.calme { color: var(--filet); }
-  .verdict.calme .los { border: 1.5px solid var(--filet); }
+  .verdict.alerte { color: var(--v0-alerte); }
+  .verdict.alerte .los { background: var(--v0-alerte); }
+  .verdict.attente { color: var(--v0-attenue); }
+  .verdict.attente .los { border: 1.5px solid var(--v0-attenue); }
+  .verdict.calme { color: var(--v0-filet); }
+  .verdict.calme .los { border: 1.5px solid var(--v0-filet); }
 
   .motif {
-    grid-column: 2 / -1; font-size: 12px; color: var(--alerte);
+    grid-column: 2 / -1; font-size: 12px; color: var(--v0-alerte);
     margin-top: -2px; padding-bottom: 2px;
   }
 
@@ -877,8 +884,8 @@
      44 px gagnait, le bouton passait de 27 a 110 px de haut, et le rang
      entier a 133 px au lieu de 60. Une classe aussi generique finit
      toujours par en attraper une autre. */
-  .liste-vide { padding: 44px 20px; text-align: center; color: var(--attenue); font-size: 13.5px; }
-  .liste-vide b { display: block; color: var(--texte); font-size: 15px; margin-bottom: 6px; font-weight: 700; }
+  .liste-vide { padding: 44px 20px; text-align: center; color: var(--v0-attenue); font-size: 13.5px; }
+  .liste-vide b { display: block; color: var(--v0-texte); font-size: 15px; margin-bottom: 6px; font-weight: 700; }
 </style>
 
 <div class="barre-titre">
@@ -1147,7 +1154,7 @@
        la recette du 11/09, rectangle 0x0. Vide, il ne prend aucune place:
        `hidden` le retire de la grille, la barre ne bouge pas au repos. -->
   <span class="pep-avance" id="pepAvance" hidden></span>
-  <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;color:var(--alerte)"></span>
+  <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;color:var(--v0-alerte)"></span>
   <!-- La chasse est ici, et pas dans la barre de titre: cette barre porte les
        bascules de FONCTION (overlay, fermeture des clients), la barre de titre
        porte l'etat d'OMNI lui-meme. Emplacement choisi par Jibef le 03/09 sur

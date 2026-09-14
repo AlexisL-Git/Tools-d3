@@ -87,7 +87,7 @@ test('tout fond pose sur l en-tete du tableau reste opaque', () => {
   for (const [, selecteur, corps] of regles) {
     if (!selecteur.includes('.arc-table th')) continue;
     for (const [, valeur] of corps.matchAll(/background(?:-color)?\s*:\s*([^;]+)/g)) {
-      if (!valeur.includes('var(--fond)')) fautives.push(selecteur.trim() + ' -> ' + valeur.trim());
+      if (!valeur.includes('var(--v0-fond)')) fautives.push(selecteur.trim() + ' -> ' + valeur.trim());
     }
   }
   assert.deepStrictEqual(fautives, []);
