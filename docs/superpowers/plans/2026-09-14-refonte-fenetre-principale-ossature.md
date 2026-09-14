@@ -638,8 +638,20 @@ const html = fs.readFileSync(INDEX, 'utf8');
 
 const VUES = ['raccourcis', 'courses', 'hotel', 'archi', 'reglages'];
 
+// LA PAGE PORTE DES data-vue QUI NE SONT PAS CEUX DU RAIL: le selecteur
+// segmente de l ecran Archimonstres en a deux, `liste` et `zones`
+// (index.html:997-998). Balayer la page entiere les ramasserait et ferait
+// echouer ce test sur du balisage juste. On se borne donc au bloc du rail.
+const blocRail = () => {
+  const d = html.indexOf('<div class="rail"');
+  assert.notStrictEqual(d, -1, 'le rail est introuvable');
+  const f = html.indexOf('<div class="corps"', d);
+  assert.notStrictEqual(f, -1, 'le corps ne suit plus le rail');
+  return html.slice(d, f);
+};
+
 test('les cinq boutons du rail sont la, dans l ordre de la maquette', () => {
-  const trouves = [...html.matchAll(/data-vue="([a-z]+)"/g)].map((m) => m[1]);
+  const trouves = [...blocRail().matchAll(/data-vue="([a-z]+)"/g)].map((m) => m[1]);
   assert.deepStrictEqual(trouves, VUES);
 });
 
@@ -803,9 +815,36 @@ Les `…` sont les SVG et le contenu existants, recopiés sans changement :
 prendre les pictos du rail et du thème dans `labo-omni/app.html:383-418`, les
 deux boutons de fenêtre dans `desktop/index.html:887-890`.
 
-Les cinq panneaux modaux (`#vueArchi`, `#vuePepites`, `#vueEcartes`,
-`#vueRythme`, `#quoiDeNeuf`) et la `.barre-nav` **ne bougent pas** : ils
-restent après `.fenetre`, en `position: fixed`, jusqu'à leur étape.
+**Les cinq panneaux modaux doivent être recalés, et c'est le piège de cette
+tâche.** `#quoiDeNeuf` et les quatre `.vue-archi` sont
+`position: absolute; inset: 38px 0 0 0` (lignes 131 et 338) — et ces 38 px
+sont **exactement la hauteur de la `.barre-titre`** que cette tâche
+supprime. Aucun ancêtre n'étant positionné, ils se calent aujourd'hui sur le
+bloc conteneur initial ; laissés tels quels, ils recouvriraient le rail et
+une partie de la barre du haut.
+
+Les déplacer **dans `.corps`**, après les cinq `.vue`, et corriger les deux
+règles :
+
+```css
+  /* Les panneaux se calaient sous la `.barre-titre` par un inset de 38px --
+     sa hauteur exacte. La barre n existe plus: ils se calent desormais sur
+     `.corps`, qui est positionne pour eux, et couvrent l aire des ecrans
+     sans mordre sur le rail ni sur la barre du haut. Ils finiront chacun en
+     `.vue`; ce recalage les met deja a leur place. */
+  .corps { position: relative; }
+  .quoi-de-neuf, .vue-archi { position: absolute; inset: 0; z-index: 20; }
+```
+
+La `.barre-nav` **ne bouge pas** : elle reste après `.fenetre`, en dernier
+enfant du `body` en colonne, jusqu'à la tâche 8 qui la rhabille.
+
+Un effet de bord, assumé et à ne pas prendre pour un bug à la recette :
+aujourd'hui les panneaux descendent jusqu'en bas de la fenêtre et **couvrent
+la barre du bas** ; bornés à `.corps`, ils la laisseront visible. C'est
+cohérent avec ce que dit `index.html:1735` — l'avancement de la passe de
+marché est posé dans cette barre, et non dans le panneau, précisément pour
+rester lisible.
 
 - [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
@@ -874,12 +913,20 @@ const rail = fs.readFileSync(path.join(RACINE, 'desktop', 'vues', 'rail.js'), 'u
 const html = fs.readFileSync(path.join(RACINE, 'desktop', 'index.html'), 'utf8');
 const etape = fs.readFileSync(path.join(RACINE, 'outils', 'faire-etape.js'), 'utf8');
 
+// DEUX FAITS VERIFIES SEPAREMENT, et non par une seule regex. Le module est
+// charge par un <script type="module"> EN LIGNE qui fait l import: le chemin
+// n est donc pas dans la balise ouvrante, et une regex qui l y chercherait
+// echouerait sur du code juste.
 test('le rail est charge comme module', () => {
   assert.ok(
-    /<script\s+type="module"[^>]*vues\/rail\.js/.test(html),
+    html.includes('<script type="module">'),
     'rail.js doit etre charge en type="module" : en script classique, ses '
     + 'declarations de premier niveau entreraient en collision avec celles '
-    + 'de faux-app.js sur le banc',
+    + 'de faux-app.js sur le banc -- le piege raconte en tete de ce fichier-la',
+  );
+  assert.ok(
+    html.includes('vues/rail.js'),
+    'la page ne charge jamais vues/rail.js : le rail ne commutera pas',
   );
 });
 
