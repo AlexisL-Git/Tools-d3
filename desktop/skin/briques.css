@@ -1,0 +1,180 @@
+/* ============================================================
+   LES BRIQUES DE LA MAQUETTE.
+   Recopiees de labo-omni/app.html (coquille, briques, pictos), qui
+   fait foi (le README du labo: en cas de doute, la maquette a
+   raison). Aucune section d ecran ici -- .flotte, .archi, .raccourcis,
+   .reglages entrent dans ecrans.css a l etape de leur ecran.
+
+   Trois retraits par rapport a la maquette:
+   1. body, a.retour, .aide et tout --dehors*: ce sont les habits de
+      la page de labo, pas de l application.
+   2. .armer: le bouton "OMNI est arme" n existe plus (README §3).
+   3. .fenetre ne garde pas ses 1097x720 en dur, ni son ombre, ni son
+      arrondi de page: en production la fenetre EST la fenetre.
+   ============================================================ */
+
+*{box-sizing:border-box}
+
+/* ============ coquille ============ */
+
+/* La maquette fige 1097x720 parce qu elle pose la fenetre au milieu d une
+   page. Ici la fenetre EST la fenetre: elle prend ce que le body lui
+   laisse, et la barre du bas prend le reste de la colonne. `min-height: 0`
+   n est pas decoratif -- sans lui, un enfant flex refuse de retrecir sous
+   sa taille de contenu et c est le defilement interne qui disparait. */
+.fenetre {
+  flex: 1; min-height: 0; width: 100%;
+  background: var(--fond); overflow: hidden;
+  display: flex; gap: 14px; padding: 14px;
+}
+/* Le rail reste la colonne la plus sombre dans les DEUX themes: en clair il
+   tranche sur le papier, en sombre il s enfonce sous le fond. */
+.rail{width:62px;flex:none;background:var(--rail);border-radius:20px;display:flex;flex-direction:column;align-items:center;padding:13px 0 12px;gap:5px}
+.rail .logo{margin-bottom:12px}
+.rail .marque line{stroke:#F6F7F3}
+.rail .marque line.pupille{stroke:var(--acide)}
+.rail button{width:40px;height:40px;border:0;background:transparent;border-radius:11px;display:grid;place-items:center;color:var(--rail-icone);cursor:pointer}
+.rail button:hover{background:rgba(255,255,255,.09);color:#E7EBE4}
+.rail button.actif{background:var(--acide);color:var(--sur-acide)}
+.rail .pousse{margin-top:auto}
+.rail .moi{width:36px;height:36px;border-radius:12px;background:linear-gradient(150deg,#5B6E4A,#2C3826);margin-top:8px;flex:none}
+
+.corps{flex:1;min-width:0;display:flex;flex-direction:column;gap:13px}
+.haut{display:flex;align-items:center;gap:10px;height:36px;flex:none}
+.fant{display:inline-flex;align-items:center;height:36px;padding:0 15px;border-radius:999px;border:1px solid var(--trait);color:var(--encre-douce);font:500 12.5px/1 var(--ui);background:transparent;cursor:pointer}
+.fant:hover{border-color:var(--encre);color:var(--encre)}
+.fant.theme{gap:8px}
+.fant.theme svg{flex:none}
+.i-lune{display:none}
+:root[data-theme="sombre"] .i-lune{display:block}
+:root[data-theme="sombre"] .i-soleil{display:none}
+.fenetre-bt{margin-left:auto;display:flex;gap:6px}
+.fenetre-bt button{width:34px;height:34px;border-radius:50%;border:1px solid var(--trait-fort);background:transparent;color:var(--encre-douce);display:grid;place-items:center;cursor:pointer}
+.fenetre-bt button:hover{background:var(--encre);border-color:var(--encre);color:var(--carte)}
+
+.vue{display:none;flex:1;min-height:0;flex-direction:column;gap:13px}
+.vue.actif{display:flex}
+.titre{flex:none}
+.titre h1{font-family:var(--titre);font-weight:700;font-size:28px;line-height:1.04;letter-spacing:-.028em;margin:0}
+.titre h1 .marqueur{display:inline-block;background:var(--acide);color:var(--sur-acide);border-radius:999px;padding:0 15px;line-height:1.18}
+.titre h1 .marqueur.sourd{background:transparent;color:var(--encre-douce);box-shadow:inset 0 0 0 1px var(--trait-fort);padding:0 14px}
+.titre p{margin:8px 0 0;color:var(--encre-douce);font-size:13.5px;max-width:86ch;line-height:1.5}
+
+/* ============ briques ============ */
+.tuiles{display:grid;gap:12px;flex:none}
+.tuile{background:var(--carte);border-radius:22px;padding:15px 18px 14px;display:flex;flex-direction:column}
+.tuile.acide{background:var(--acide);color:var(--sur-acide)}
+.tuile.noire{background:var(--alarme);color:var(--sur-alarme)}
+.tuile .tete{display:flex;align-items:center;gap:10px}
+.tuile .rond{width:29px;height:29px;border-radius:50%;background:var(--carte-creuse);display:grid;place-items:center;flex:none}
+.tuile.acide .rond{background:rgba(22,24,26,.13)}
+.tuile.noire .rond{background:var(--contre-creux)}
+.tuile .quoi{font:600 13px/1 var(--ui)}
+.tuile .plus{margin-left:auto;color:var(--encre-douce);font-size:16px;line-height:1}
+.tuile.noire .plus{color:var(--contre-doux)}
+.tuile .grand{font-family:var(--titre);font-weight:700;font-size:26px;line-height:1;letter-spacing:-.03em;margin-top:11px}
+.tuile .grand small{font-family:var(--ui);font-size:12.5px;font-weight:500;color:var(--encre-douce);letter-spacing:0}
+.tuile.acide .grand small{color:var(--olive)}
+.tuile.noire .grand small{color:var(--contre-doux)}
+.tuile .segments{display:flex;gap:4px;margin-top:auto;padding-top:12px}
+.tuile .segments i{flex:1;height:17px;border-radius:999px;background:var(--encre)}
+.tuile .segments i.vide{background:transparent;border:1px dashed var(--trait-fort)}
+.tuile.acide .segments i.vide{border-color:rgba(22,24,26,.3)}
+.tuile.noire .segments i{background:var(--acide-sur-contre)}
+.tuile.noire .segments i.vide{background:transparent;border:1px dashed var(--contre-trait)}
+.tuile .txt{font-size:12.5px;line-height:1.45;color:var(--encre-douce);margin-top:9px}
+.tuile.noire .txt{color:var(--contre-doux)}
+.tuile .bt-clair{margin-top:auto;align-self:flex-start;background:var(--carte);color:var(--encre);border:0;border-radius:999px;height:32px;padding:0 15px;font:600 12.5px/1 var(--ui);cursor:pointer}
+/* Le bloc pleine largeur porte la seule action de son ecran: sa cible est
+   plus grosse que celle d une tuile de chiffre. */
+.tuile.reprise{flex-direction:row;align-items:center;gap:18px;padding:14px 18px}
+.tuile.reprise .tete{flex:none}
+.tuile.reprise .txt{margin-top:0;flex:1}
+.tuile.reprise .bt-clair{margin-top:0;height:40px;padding:0 20px;font-size:13px}
+.tuile.noire .bt-clair{background:var(--acide-sur-contre);color:var(--sur-acide-contre)}
+
+/* TOUT CE QUI EST POSE SUR DU JAUNE reste sombre dans les deux themes:
+   le jaune ne bouge pas, donc ce qu on ecrit dessus ne bouge pas non plus. */
+.tuile.acide .segments i,
+.pastille-etat.pleine i{background:var(--sur-acide)}
+
+.bt-jaune{background:var(--acide);color:var(--sur-acide);border:0;border-radius:999px;height:32px;padding:0 15px;font:700 12.5px/1 var(--ui);cursor:pointer}
+.bt-noir{background:var(--encre);color:var(--carte);border:0;border-radius:999px;height:32px;padding:0 15px;font:600 12.5px/1 var(--ui);cursor:pointer}
+.bt-vide{background:transparent;color:var(--encre);border:1px solid var(--trait-fort);border-radius:999px;height:32px;padding:0 14px;font:600 12.5px/1 var(--ui);cursor:pointer}
+.bt-vide:hover{border-color:var(--encre);color:var(--encre)}
+
+.filtres{display:flex;gap:7px;align-items:center;flex:none;flex-wrap:wrap}
+.grp{display:flex;gap:5px;background:var(--carte);border-radius:999px;padding:4px}
+.grp button{height:30px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--encre-douce);font:500 12.5px/1 var(--ui);cursor:pointer}
+.grp button.on{background:var(--carte-creuse);color:var(--encre);font-weight:600}
+/* Dans les petites cartes de reglage, la place manque: le groupe passe a
+   la ligne plutot que de deborder, et garde ses capsules. */
+.regle .grp{flex-wrap:wrap;row-gap:4px}
+.regle .grp button{height:27px;padding:0 11px;font-size:12px}
+.cherche{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--carte);border-radius:999px;height:38px;padding:0 16px;color:var(--encre-douce);font-size:12.5px}
+
+.panneau{background:var(--carte);border-radius:22px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.panneau .entete,.panneau .ligne{display:grid;align-items:center;gap:14px;padding:0 20px}
+.panneau .entete>*,.panneau .ligne>*{min-width:0}
+.panneau .entete{height:40px;flex:none;color:var(--encre-douce);font:600 11.5px/1 var(--ui);border-bottom:1px solid var(--trait)}
+.panneau .liste{flex:1;min-height:0;overflow:auto}
+.panneau .ligne{height:60px;border-bottom:1px solid var(--carte-creuse);font-size:13.5px}
+.panneau .ligne:last-child{border-bottom:0}
+.panneau .ligne:hover{background:var(--carte-creuse)}
+.panneau .ligne b{font-weight:600}
+.panneau .ligne .doux{color:var(--encre-douce);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d{text-align:right}
+/* Un chiffre qui se rafraichit ne doit pas changer de largeur, sinon la
+   colonne bouge -- et un mouvement est ce qui attire l oeil en peripherie. */
+.d,.tuile .grand,.pas b,.exemple b,.archi .aq,.perso .compte,.perso .dit{font-variant-numeric:tabular-nums}
+
+.jeton{width:32px;height:32px;border-radius:11px;background:var(--carte-creuse);flex:none;display:grid;place-items:center;font:700 11.5px/1 var(--ui);color:var(--encre-douce);letter-spacing:.02em}
+.perso-mini{display:flex;align-items:center;gap:10px;min-width:0}
+.perso-mini .n{font-family:var(--titre);font-weight:600;font-size:15px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.capsule{width:88px;height:17px;border-radius:999px;background:var(--carte-creuse);position:relative;overflow:hidden;flex:none}
+.capsule span{position:absolute;inset:0 auto 0 0;background:var(--encre);border-radius:999px}
+.capsule em{position:absolute;top:50%;transform:translate(-50%,-50%);width:7px;height:7px;border-radius:50%;background:var(--acide)}
+
+.pastille-etat{display:inline-flex;align-items:center;gap:7px;border-radius:999px;background:var(--carte-creuse);padding:6px 12px;font:600 12px/1 var(--ui)}
+.pastille-etat i{width:7px;height:7px;border-radius:50%;background:var(--encre)}
+.pastille-etat.creux{background:var(--alarme);color:var(--sur-alarme)}
+.pastille-etat.creux i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--sur-alarme)}
+.pastille-etat.pleine{background:var(--acide);color:var(--sur-acide)}
+
+/* ============================================================
+   LES PICTOS DU JEU. Les images viennent de DofusDB
+   (api.beta.dofusdb.fr), un PNG transparent par identifiant, en CORS
+   ouvert. Rien n est embarque dans le depot: c est exactement ce
+   que fait deja src/comptes/emblemes.js pour les emblemes de
+   classe, et pour la meme raison -- on ne redistribue pas l art
+   d Ankama, chaque machine se fait son cache.
+
+   LE DESSIN OMNI NE PART PAS. Il reste sous chaque picto. Si une
+   image ne charge pas, `sans-pic` le remet en place: un picto
+   absent est un defaut d agrement, pas une panne.
+   ============================================================ */
+
+/* -- le rail -- */
+.rail .pic{width:22px;height:22px;object-fit:contain}
+.rail button.a-picto>svg{display:none}
+.rail button.a-picto.sans-pic>svg{display:block}
+
+/* -- le jeton de classe, sur les cartes de perso -- */
+.jeton{position:relative}
+.jeton .pic{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:2px}
+.jeton.a-picto>.sigle{visibility:hidden}
+.jeton.a-picto.sans-pic>.sigle{visibility:visible}
+
+/* -- l objet, sur les lignes de courses -- */
+.ligne>span.objet{display:flex;align-items:center;gap:10px}
+.ligne .pic.obj{width:26px;height:26px;object-fit:contain;flex:none}
+.objet .txt{min-width:0}
+
+/* -- la bete, sur la grille d archimonstres --
+   En filigrane au coin, pas en vignette: la grille se lit toujours par les
+   NOMS, l illustration ne fait que confirmer. Un archi manquant garde sa
+   bete, en gris et effacee: on voit ce qu on n a pas. */
+.archi{position:relative;overflow:hidden;padding-right:44px}
+.archi .pic.bete{position:absolute;right:-4px;bottom:-6px;width:44px;height:44px;object-fit:contain;pointer-events:none}
+.archi.manquant .pic.bete{filter:grayscale(1);opacity:.34}
