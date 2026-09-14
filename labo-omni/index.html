@@ -1,80 +1,103 @@
 <!doctype html>
-<html lang="fr"><head>
+<html lang="fr">
+<head>
 <meta charset="utf-8">
-<title>OMNI — le chantier graphique</title>
+<title>OMNI — le labo des maquettes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,700;50..150,800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* La page d accueil du labo, dans l identite de l app: memes jetons,
+   memes polices, meme regle. Elle sert a DECOUVRIR les maquettes. */
+:root{
+  --fond:#E7EBE4;--carte:#F6F7F3;--carte-creuse:#EDEFE9;
+  --encre:#16181A;--encre-douce:#5C6360;
+  --alarme:#16181A;--sur-alarme:#F6F7F3;
+  --trait:#D8DCD3;--trait-fort:#B9BFB4;
+  --acide:#E2F27C;--sur-acide:#16181A;
+  --ui:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;
+  --titre:"Outfit","Plus Jakarta Sans",system-ui,sans-serif;
+}
+:root[data-theme="sombre"]{
+  --fond:#14171A;--carte:#1D2124;--carte-creuse:#262B2F;
+  --encre:#EFF2EC;--encre-douce:#9AA298;
+  --alarme:#EFF2EC;--sur-alarme:#1D2124;
+  --trait:#2E3438;--trait-fort:#3B4348;
+}
 *{box-sizing:border-box}
-body{
-  margin:0;background:#0A0B12;color:#E8EAF2;
-  font-family:"Public Sans","Segoe UI",system-ui,sans-serif;
-  padding:56px 28px 90px;line-height:1.55;
-}
-main{max-width:1000px;margin:0 auto}
-h1{
-  font-family:"Anybody","Public Sans",system-ui,sans-serif;
-  font-weight:800;font-stretch:126%;font-size:36px;line-height:1.05;
-  letter-spacing:-.02em;margin:0 0 14px;
-}
-.intro{color:#818AA6;font-size:15.5px;max-width:70ch;margin:0 0 6px}
-.intro strong{color:#E8EAF2;font-weight:600}
-
-h2{
-  font-family:"Anybody","Public Sans",system-ui,sans-serif;
-  font-weight:700;font-stretch:118%;font-size:13px;color:#7C5CFF;margin:0;
-}
-section{margin-top:44px;border-top:1px solid #262B3C;padding-top:18px}
-section > p.sous{color:#818AA6;font-size:14.5px;max-width:72ch;margin:8px 0 22px}
-
-a.gros{
-  display:flex;align-items:center;gap:26px;text-decoration:none;color:inherit;
-  background:#12141E;border:1px solid #262B3C;padding:26px 28px;
-  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
-}
-a.gros:hover{background:#191C29;border-color:#38405A}
-a.gros h3{
-  font-family:"Anybody","Public Sans",system-ui,sans-serif;
-  font-weight:700;font-stretch:118%;font-size:21px;margin:0 0 6px;letter-spacing:-.01em;
-}
-a.gros p{margin:0;color:#818AA6;font-size:14px;max-width:60ch}
-a.gros .fleche{margin-left:auto;color:#7C5CFF;font-size:22px}
-.paire{display:grid;gap:14px}
-
-.vieux{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;opacity:.55}
-.vieux:hover{opacity:1}
-a.petit{
-  display:block;text-decoration:none;color:inherit;background:#0E1017;
-  border:1px solid #1E2230;padding:16px 18px;
-}
-a.petit:hover{border-color:#38405A}
-a.petit .ech{height:44px;display:flex;border:1px solid #1E2230;margin-bottom:13px}
-a.petit .ech span{flex:1}
-a.petit b{display:block;font-size:14px;font-weight:600;margin-bottom:3px}
-a.petit small{color:#4E5670;font-size:12.5px;line-height:1.45;display:block}
-footer{margin-top:50px;color:#4E5670;font-size:13px;max-width:74ch;line-height:1.6}
-code{background:#12141E;padding:2px 6px;font-size:12.5px;color:#818AA6}
-</style></head>
+body{margin:0;background:var(--fond);color:var(--encre);font-family:var(--ui);line-height:1.55;padding:54px 28px 90px}
+main{max-width:980px;margin:0 auto}
+h1{font-family:var(--titre);font-weight:700;font-size:40px;line-height:1.04;letter-spacing:-.028em;margin:0 0 14px}
+h1 .marqueur{display:inline-block;background:var(--acide);color:var(--sur-acide);border-radius:999px;padding:0 16px;line-height:1.16}
+.chapo{color:var(--encre-douce);font-size:15.5px;max-width:70ch;margin:0 0 8px}
+.chapo b{color:var(--encre);font-weight:600}
+.fant{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 15px;border-radius:999px;border:1px solid var(--trait);color:var(--encre-douce);font:500 12.5px/1 var(--ui);background:transparent;cursor:pointer;text-decoration:none}
+.fant:hover{border-color:var(--encre);color:var(--encre)}
+.fant.noir{background:var(--encre);color:var(--carte);border-color:var(--encre)}
+.fant.noir:hover{color:var(--carte)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 0}
+section{margin-top:46px}
+h2{font-family:var(--titre);font-weight:700;font-size:22px;letter-spacing:-.02em;margin:0 0 6px}
+section > p{color:var(--encre-douce);font-size:14px;max-width:74ch;margin:0 0 20px}
+section > p b{color:var(--encre);font-weight:600}
+.cartes{display:grid;gap:14px}
+a.carte{display:flex;align-items:center;gap:26px;text-decoration:none;color:inherit;background:var(--carte);border-radius:20px;padding:24px 28px;border:1px solid transparent}
+a.carte:hover{border-color:var(--trait-fort)}
+a.carte .vis{width:72px;height:72px;flex:none;border-radius:16px;background:var(--carte-creuse);display:grid;place-items:center}
+a.carte h3{font-family:var(--titre);font-weight:700;font-size:21px;margin:0 0 5px;letter-spacing:-.015em}
+a.carte h3 small{display:inline-block;vertical-align:middle;margin-left:10px;background:var(--acide);color:var(--sur-acide);border-radius:999px;font:700 10.5px/1 var(--ui);letter-spacing:.06em;text-transform:uppercase;padding:5px 10px}
+a.carte p{margin:0;color:var(--encre-douce);font-size:14px;max-width:60ch}
+a.carte p b{color:var(--encre);font-weight:600}
+a.carte .fleche{margin-left:auto;font-size:22px;color:var(--encre-douce)}
+.regles{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.regle{background:var(--carte);border-radius:18px;padding:18px 20px}
+.regle b{display:block;font-family:var(--titre);font-weight:600;font-size:16px;margin-bottom:5px;letter-spacing:-.01em}
+.regle span{color:var(--encre-douce);font-size:13.5px}
+.regle.inv{background:var(--alarme);color:var(--sur-alarme)}
+.regle.inv span{color:var(--sur-alarme);opacity:.75}
+.regle.jaune{box-shadow:inset 4px 0 0 var(--acide)}
+.pal{display:flex;gap:6px;margin-top:14px}
+.pal i{flex:1;height:26px;border-radius:8px;border:1px solid var(--trait)}
+.archives{margin-top:50px;border-top:1px solid var(--trait);padding-top:16px;color:var(--encre-douce);font-size:13px;max-width:76ch}
+.archives a{color:var(--encre-douce)}
+code{background:var(--carte-creuse);padding:2px 6px;border-radius:6px;font-size:12.5px}
+@media (max-width:700px){.regles{grid-template-columns:1fr}a.carte{flex-wrap:wrap}}
+</style>
+</head>
 <body>
 <main>
-  <h1>OMNI — le chantier graphique</h1>
-  <p class="intro">Première passe : trois habillages, tous rejetés. Le diagnostic était juste — le problème n’était pas la couleur, c’est qu’<strong>OMNI n’avait pas d’identité</strong>. On est reparti de là : l’app est maquettée, la règle de couleur tient dans les deux thèmes. <strong>L’app est la référence</strong>, l’identité est validée telle qu’elle y est. <strong>Chantier ouvert : le HUD</strong>, la barre qu’on voit pendant qu’on joue.</p>
+  <h1>Le labo <span class="marqueur">OMNI</span></h1>
+  <p class="chapo">Les maquettes du nouveau skin d’OMNI, en pages HTML autonomes. <b>Rien n’est branché sur la vraie application</b> : c’est du dessin, avec des noms inventés. Mais tout ce qui est affiché, OMNI le connaît déjà. Trois pages font référence, elles sont ci-dessous.</p>
+  <div class="actions">
+    <a class="fant noir" href="/README.md">Lire le README d’intégration</a>
+    <button class="fant" id="theme">Thème : <b id="theme-mot">clair</b></button>
+  </div>
 
   <section>
-    <h2>La maquette de l app — cinq écrans cliquables</h2>
-    <p class="sous">Raccourcis · Courses · Hôtel de vente · Archimonstres · Réglages, en thème clair ET sombre. Le rail et le bouton de thème marchent pour de vrai. Ma flotte a disparu : Raccourcis est l’écran d’accueil, l’épée du Iop en tête du rail.</p>
-    <div class="paire">
-      <a class="gros" href="/app.html">
-        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
-          <rect x="2" y="10" width="10" height="28" fill="#8A9099"/>
-          <rect x="14" y="10" width="10" height="28" fill="#A98B5B"/>
-          <rect x="26" y="10" width="10" height="28" fill="#7E96AE"/>
-          <rect x="38" y="10" width="8" height="28" fill="#E9EAEC"/>
-        </svg>
+    <h2>Les trois maquettes de référence</h2>
+    <p>Toutes à la taille réelle. Ce qui est cliquable l’est pour de vrai : le rail, le thème, les onglets, les états de la barre.</p>
+    <div class="cartes">
+      <a class="carte" href="/app.html">
+        <span class="vis"><svg width="44" height="44" viewBox="0 0 48 48"><rect x="4" y="6" width="9" height="36" rx="3" fill="#16181A"/><rect x="16" y="6" width="28" height="9" rx="3" fill="#E2F27C"/><rect x="16" y="18" width="28" height="24" rx="3" fill="#B9BFB4" opacity=".5"/></svg></span>
         <span>
-          <h3>0 · L app complète</h3>
-          <p>Les cinq écrans à la vraie taille de fenêtre, avec la navigation qui marche, et <strong>les pictos du jeu</strong> servis par DofusDB : emblèmes de classe, icônes d objets, illustrations d archimonstres. Le meneur porte un liseré jaune, un bloc noir = une chose à faire. Son ancêtre, l’écran d’accueil seul, reste sur clair.html.</p>
+          <h3>L’application <small>référence</small></h3>
+          <p>La fenêtre principale, 1097 × 720, <b>cinq écrans</b> : Raccourcis (l’accueil), Courses, Hôtel de vente, Archimonstres, Réglages. Thème clair et sombre. Les pictos du jeu servis par DofusDB. Tout le système, jetons et briques, est dans son <code>&lt;style&gt;</code>.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+      <a class="carte" href="/hud.html">
+        <span class="vis"><svg width="48" height="48" viewBox="0 0 48 48"><rect x="2" y="15" width="44" height="18" rx="7" fill="#F6F7F3" stroke="#D8DCD3"/><rect x="7" y="19" width="10" height="10" rx="3" fill="#EDEFE9" stroke="#E2F27C" stroke-width="2"/><rect x="20" y="19" width="10" height="10" rx="3" fill="#EDEFE9"/><rect x="33" y="19" width="10" height="10" rx="3" fill="#16181A"/><rect x="8" y="31" width="8" height="2" rx="1" fill="#16181A"/></svg></span>
+        <span>
+          <h3>Le HUD <small>référence</small></h3>
+          <p>La barre flottante posée sur le jeu : où je suis, qui mène, qui décroche, le replicate on / off, le passe-tour du meneur et des mules. <b>Suit le thème de l’app</b>, horizontale ou verticale. La prod est affichée au-dessus pour comparer.</p>
+        </span>
+        <span class="fleche">→</span>
+      </a>
+      <a class="carte" href="/icone.html">
+        <span class="vis" style="background:#fff;clip-path:polygon(0 0,86% 0,100% 14%,100% 100%,14% 100%,0 86%)"><svg width="50" height="50" viewBox="0 0 48 48"><g transform="translate(4.66,0) skewX(-11)" stroke-width="6.4"><line x1="7" y1="18.2" x2="7" y2="35.8" stroke="#16181A"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2" stroke="#16181A"/><line x1="29.7" y1="6.8" x2="29.7" y2="41.2" stroke="#C9DC5C"/><line x1="41" y1="12.2" x2="41" y2="29.8" stroke="#16181A"/></g></svg></span>
+        <span>
+          <h3>L’icône <small>validée</small></h3>
+          <p>Quatre barres qui dessinent un œil, la pupille jaune, sur une pastille claire à coin coupé. Aux vraies tailles de 128 à 16 px, et en situation : barre des tâches, bureau, coin de fenêtre.</p>
         </span>
         <span class="fleche">→</span>
       </a>
@@ -82,70 +105,30 @@ code{background:#12141E;padding:2px 6px;font-size:12.5px;color:#818AA6}
   </section>
 
   <section>
-    <h2>Chantier ouvert — le HUD</h2>
-    <p class="sous">La barre flottante posée sur le jeu : la seule chose qu’OMNI montre <em>pendant</em> qu’on joue, et la refonte n’en a encore rien dessiné. Voici l’existant, celui de la prod, avec un faux état injecté pour qu’il s’affiche hors d’OMNI. On part de là.</p>
-    <div class="paire">
-      <a class="gros" href="/hud-prod.html">
-        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
-          <rect x="2" y="16" width="44" height="16" rx="4" fill="#12141E" stroke="#3E4B56"/>
-          <rect x="7" y="20" width="8" height="8" rx="2" fill="#10171b" stroke="#FF9F1C"/>
-          <rect x="17" y="20" width="8" height="8" rx="2" fill="#10171b" stroke="#3E4B56"/>
-          <rect x="27" y="20" width="8" height="8" rx="2" fill="#10171b" stroke="#3E4B56"/>
-          <circle cx="7" cy="20" r="2" fill="#2FD4C4"/><circle cx="17" cy="20" r="2" fill="#2FD4C4"/><circle cx="27" cy="20" r="2" fill="#F2545B"/>
-          <rect x="38" y="22" width="5" height="5" transform="rotate(45 40.5 24.5)" fill="#2FD4C4"/>
-        </svg>
-        <span>
-          <h3>H · Le HUD d’aujourd’hui</h3>
-          <p>Poignée, huit pictos de classe avec leur pastille (suit · attend · souci), l’anneau orange de qui commande, le cadre vert de la fenêtre devant toi, les touches, l’interrupteur RÉPL. à trois états, le passe-tour coupé meneur / mules. Les boutons font tourner les états. Ancienne palette, ancienne police : c’est ça qu’on refait.</p>
-        </span>
-        <span class="fleche">→</span>
-      </a>
+    <h2>L’identité, en quatre règles</h2>
+    <p>Le détail, jeton par jeton, est dans le README. Ce qu’il faut avoir en tête avant d’ouvrir une maquette :</p>
+    <div class="regles">
+      <div class="regle"><b>La forme avant la couleur</b><span>Plein, creux, pointillé, liseré, trait. OMNI se lit du coin de l’œil, et l’œil périphérique ne voit pas la teinte.</span></div>
+      <div class="regle jaune"><b>Le jaune : ce qui mène, ce qui tourne</b><span>Le meneur porte un liseré, pas un aplat. Une fonction armée est jaune. Rien d’autre ne l’est.</span></div>
+      <div class="regle inv"><b>Un bloc inversé = une chose à faire</b><span>Un perso qui décroche, une course à rattraper, un replicate coupé. Ils se comptent, et ils restent rares.</span></div>
+      <div class="regle"><b>Creux = éteint, plein = armé</b><span>Moitié = certains seulement. Pips, losanges, segments : toujours la même grammaire.</span></div>
+    </div>
+    <div class="pal" title="fond · carte · carte creuse · encre · jaune">
+      <i style="background:#E7EBE4"></i><i style="background:#F6F7F3"></i><i style="background:#EDEFE9"></i><i style="background:#16181A"></i><i style="background:#E2F27C"></i>
+      <i style="background:#14171A"></i><i style="background:#1D2124"></i><i style="background:#262B2F"></i><i style="background:#EFF2EC"></i>
     </div>
   </section>
 
-  <section>
-    <h2>Validé — l icône</h2>
-    <p class="sous">Quatre barres qui dessinent un œil rien que par leur hauteur, la première un peu plus bas, la dernière un peu plus haut. Validée le 14 septembre 2026, à cette taille-là, avec la pupille jaune. Le dessin ne bouge plus ; c’est l’œil qui s’ouvre et se ferme selon ta flotte.</p>
-    <div class="paire">
-      <a class="gros" href="/icone.html">
-        <svg width="72" height="72" viewBox="0 0 48 48" style="flex:none">
-          <g transform="translate(4.66,0) skewX(-11)" stroke-width="6" stroke-linecap="butt" stroke="#E8EAF2">
-            <line x1="7" y1="18.2" x2="7" y2="35.8"/><line x1="18.3" y1="6.8" x2="18.3" y2="41.2"/>
-            <line x1="29.7" y1="6.8" x2="29.7" y2="41.2"/><line x1="41" y1="12.2" x2="41" y2="29.8"/>
-          </g>
-        </svg>
-        <span>
-          <h3>1 · L icône d OMNI</h3>
-          <p>Le petit logo sur pastille claire, fini et validé : vraies tailles de 96 à 16 px, barre des tâches, bureau, barre de combat. Pupille jaune, tranché.</p>
-        </span>
-        <span class="fleche">→</span>
-      </a>
-    </div>
-  </section>
-
-  <section>
-    <h2>La passe rejetée — pour mémoire</h2>
-    <p class="sous">Gardées pour pouvoir dire « ça au moins c’était mieux » si jamais. L’identité qui tient, c’est celle de l’app : jaune, noir, clair, Outfit et Plus Jakarta Sans. La planche ci-dessous porte l’ancienne palette.</p>
-    <div class="vieux" style="grid-template-columns:repeat(4,1fr)">
-      <a class="petit" href="/identite.html">
-        <span class="ech"><span style="background:#7C5CFF"></span><span style="background:#FF8A3D"></span><span style="background:#2FE0A8"></span><span style="background:#E8EAF2"></span></span>
-        <b>Planche d’identité, ancienne palette</b><small>Couronne et quatre couleurs. Ce qui en reste : les lettres, les briques et les quatre règles.</small>
-      </a>
-      <a class="petit" href="/a-rangee.html">
-        <span class="ech"><span style="background:#1B1614"></span><span style="background:#C6A15B"></span><span style="background:#79B79A"></span><span style="background:#EFE6D6"></span></span>
-        <b>A · Rang de bataille</b><small>Cuir et laiton. Tu sais par la forme.</small>
-      </a>
-      <a class="petit" href="/b-plein-jour.html">
-        <span class="ech"><span style="background:#E3E7E2"></span><span style="background:#27527F"></span><span style="background:#E0A526"></span><span style="background:#181C1A"></span></span>
-        <b>B · Plein jour</b><small>Plaque émaillée, en clair. Tu sais par les mots.</small>
-      </a>
-      <a class="petit" href="/c-huit-couleurs.html">
-        <span class="ech"><span style="background:#101215"></span><span style="background:#FF7A5C"></span><span style="background:#4FD1A5"></span><span style="background:#7B9BFF"></span></span>
-        <b>C · Les huit couleurs</b><small>Une couleur par perso. Tu sais par reconnaissance.</small>
-      </a>
-    </div>
-  </section>
-
-  <footer>Toutes les maquettes sont à la taille exacte de la vraie fenêtre d’OMNI : <code>1097 × 720</code>. Rien n’est branché sur le vrai OMNI, c’est du dessin — mais les informations affichées sont celles qu’OMNI connaît déjà. Les noms de personnages sont inventés : donne-moi les vrais et je les remets.</footer>
+  <p class="archives">
+    <b>Archives.</b> Les étapes rejetées restent dans le dossier pour mémoire, avec une palette qui n’existe plus : <a href="/hud-prod.html">le HUD de prod</a> (pour comparer), <a href="/clair.html">l’ancêtre de l’app</a>, <a href="/identite.html">la planche d’ancienne palette</a>, <a href="/a-rangee.html">A</a> · <a href="/b-plein-jour.html">B</a> · <a href="/c-huit-couleurs.html">C</a>, <a href="/couleurs.html">couleurs</a>, <a href="/oeil.html">symbole</a>. Ne pas s’en servir.
+  </p>
 </main>
-</body></html>
+<script>
+  document.getElementById('theme').addEventListener('click', function(){
+    var r = document.documentElement, s = r.getAttribute('data-theme') === 'sombre';
+    if (s) r.removeAttribute('data-theme'); else r.setAttribute('data-theme', 'sombre');
+    document.getElementById('theme-mot').textContent = s ? 'clair' : 'sombre';
+  });
+</script>
+</body>
+</html>

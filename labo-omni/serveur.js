@@ -19,6 +19,7 @@ const TYPES = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.md': 'text/plain; charset=utf-8',
 };
 
 http.createServer((req, res) => {

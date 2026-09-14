@@ -328,7 +328,7 @@ a.retour:hover{color:var(--dehors-fort)}
 
 /* ============================================================
    LES PICTOS DU JEU. Les images viennent de DofusDB
-   (api.dofusdb.fr), un PNG transparent par identifiant, en CORS
+   (api.beta.dofusdb.fr), un PNG transparent par identifiant, en CORS
    ouvert. Rien n est embarque dans le depot: c est exactement ce
    que fait deja src/comptes/emblemes.js pour les emblemes de
    classe, et pour la meme raison -- on ne redistribue pas l art
@@ -905,7 +905,7 @@ document.querySelectorAll('.grp').forEach(function(g){
    sont le seul endroit ou un identifiant DofusDB est ecrit.
    ============================================================ */
 (function(){
-  var HOTE = 'https://api.dofusdb.fr/img';
+  var HOTE = 'https://api.beta.dofusdb.fr/img';
 
   // Le rail. Les quatre entrees metier prennent un picto du jeu. Reglages
   // reste volontairement generique: aucun objet d Ankama ne le dit.

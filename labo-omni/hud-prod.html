@@ -243,6 +243,7 @@ body{padding:40px !important}
     basculerTourGroupe:function(q){if(q==='meneur')etat.tour.meneur=etat.tour.meneur==='actif'?'inactif':'actif';else etat.tour.mules=etat.tour.mules==='tous'?'aucun':etat.tour.mules==='aucun'?'partiel':'tous';cb(etat)},
     basculerSens:function(){etat.sens=etat.sens==='vertical'?'horizontal':'vertical';cb(etat)}};
   document.addEventListener('DOMContentLoaded',function(){
+    if(/nu/.test(location.search)){document.body.style.padding='8px';document.documentElement.style.background='transparent';document.body.style.background='transparent';return;}
     var l=document.createElement('div');l.className='legende';
     l.innerHTML='<b>Simulateur du HUD de prod</b> (desktop/overlay.html, faux etat injecte). Vahlkyr mene et tu es dessus, Tacatak en souci (rouge), Brindille en attente (gris), Steamy sans identifiant (inerte). Les boutons RÉPL., M / TOUR et ⇄ sont cliquables pour faire tourner les etats.';
     document.body.appendChild(l);
