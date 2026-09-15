@@ -3,6 +3,28 @@
    par etape; il ne porte pour l instant que les bandeaux.
    ============================================================ */
 
+/* LE FOND DE #v-raccourcis .defile NE VIT PAS ICI. Il lui faut les jetons
+   fond et texte prefixes v0- -- voir desktop/index.html, juste a cote de la
+   regle .defile existante -- parce que ces jetons n existent que dans
+   l ancienne feuille (le <style> de tete de index.html), jamais dans
+   skin/jetons.css.
+   Un skin/*.css qui les invoquerait romprait la garde de
+   test/skin-jetons.test.js (« tout jeton employe dans skin/ est declare
+   dans jetons.css ») et le principe deja tenu plus bas par .barre-nav:
+   ecrans.css TRADUIT les --v0-* en jetons neufs, il ne les reprend jamais
+   tels quels. */
+
+/* LE BOUTON VERSION, DANS .haut (nouveaux jetons), PORTE ENCORE LA REGLE
+   .version-lien DE L ANCIENNE FEUILLE (color: inherit, qui remonte jusqu a
+   body -> --v0-texte). Meme specificite qu une classe seule (.fant), donc
+   c est l ordre du document qui tranche entre les deux -- et .version-lien,
+   ecrite dans le <style> de tete, vient apres .fant. Le composé .haut
+   .version-lien a une specificite plus haute (deux classes) et gagne quel
+   que soit cet ordre: le bouton retrouve la couleur que .fant lui voulait
+   deja. Part avec .version-lien elle-meme. */
+.haut .version-lien { color: var(--encre-douce); }
+.haut .version-lien:hover { color: var(--encre); }
+
 /* LES BANDEAUX POUSSENT, ILS NE RECOUVRENT PAS.
    Regle arretee au §6 du labo, qui ne les dessine pas. Un bandeau
    pose en surcouche cacherait une ligne de personnage -- et la

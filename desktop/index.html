@@ -690,6 +690,18 @@
   .avis-nav:empty { display: none; }
 
   /* ---------------- la liste ---------------- */
+  /* CETTE LISTE PORTE ENCORE SON PROPRE FOND, COMME LES CINQ PANNEAUX
+     MODAUX CI-DESSUS (.quoi-de-neuf, .vue-archi...) ET POUR LA MEME RAISON:
+     .fenetre, dans le nouveau skin, peint desormais son jeton fond
+     par-dessus body -- pale en theme clair -- alors que cette feuille reste
+     une palette SOMBRE (voir le prefixe v0- en tete de fichier). Sans son
+     propre fond prefixe ci-dessous, le texte herite de body (jeton texte
+     prefixe, quasi blanc) devient quasi invisible sur le papier clair du
+     nouveau jeton fond. .defile a ete deplacee telle quelle depuis
+     l ancienne page et n avait jamais eu besoin de peindre son fond -- celui
+     de body suffisait tant que body etait toujours sombre. Part avec l etape
+     Raccourcis, en meme temps que le reste du prefixe v0-. */
+  #v-raccourcis .defile { background: var(--v0-fond); color: var(--v0-texte); border-radius: 22px; }
   .defile { flex: 1; min-height: 0; overflow-y: auto; }
   .entete, .rang {
     display: grid; align-items: center;
