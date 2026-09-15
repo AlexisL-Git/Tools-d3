@@ -204,83 +204,7 @@
 
   /* Un raccourci se lit comme une touche de clavier: inscription creusee et
      relief. */
-  .cabochon {
-    display: block; width: 100%; padding: 5px 6px; border-radius: 8px;
-    border: 1px solid var(--v0-bord); background: var(--v0-releve); color: var(--v0-texte);
-    font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-align: center;
-    box-shadow: inset 0 -2px 0 rgba(0,0,0,.45); white-space: nowrap;
-  }
-  .cabochon:hover { border-color: var(--v0-commande); color: var(--v0-commande); }
-  .cabochon.sans-touche { color: var(--v0-filet); border-style: dashed; box-shadow: none; background: transparent; }
-  .cabochon.ecoute { border-color: var(--v0-commande); color: var(--v0-commande); border-style: solid; background: rgba(255,159,28,.12); }
-  /* Signale deux situations differentes, pas une seule: une touche NUE est
-     CONFISQUEE a Dofus tant qu'OMNI tourne, alors qu'un clic molette est
-     seulement PARTAGE avec lui (Dofus le recoit aussi). Signalee, pas
-     interdite — c'est l'utilisateur qui sait ce qu'il utilise en combat. */
-  .cabochon.risque { border-color: var(--v0-alerte); color: var(--v0-alerte); }
-
-  /* La cellule Touche: le cabochon prend la place, la corbeille se glisse a
-     cote et ne parait que si une touche est assignee. */
-  .cellule-touche { display: flex; align-items: center; gap: 4px; }
-  .cellule-touche .cabochon { flex: 1; min-width: 0; }
-  .oter {
-    flex: none; width: 22px; height: 26px; padding: 0;
-    display: grid; place-items: center;
-    background: transparent; border: 0; color: var(--v0-filet);
-    border-radius: 6px;
-  }
-  /* Fermer CE client. Deux clics, comme le bouton qui les ferme tous: la
-     colonne est etroite, la souris passe dessus en visant la commande, et un
-     clic de travers couterait une session — potentiellement en plein combat. */
-  .fermer-un {
-    width: 100%; height: 30px; padding: 0; display: grid; place-items: center;
-    background: transparent; border: 0; color: var(--v0-filet); border-radius: 8px;
-  }
-  .fermer-un:hover { color: var(--v0-alerte); background: rgba(242,84,91,.12); }
-  .fermer-un:disabled { opacity: .25; cursor: not-allowed; }
-  .fermer-un.confirme {
-    color: var(--v0-alerte); background: rgba(242,84,91,.2);
-    box-shadow: inset 0 0 0 1px var(--v0-alerte);
-  }
-  .fermer-un svg { width: 13px; height: 13px; }
-
-  /* Le menu HDV de la ligne. Il s'ouvre AU CLIC, pas au survol: un menu qui
-     surgit en passant la souris se declenche pendant qu'on vise autre chose. */
-  .hdv {
-    width: 100%; height: 30px; padding: 0; border-radius: 8px;
-    background: transparent; border: 1px solid var(--v0-filet); color: var(--v0-attenue);
-    font-size: 10.5px; letter-spacing: .06em; font-weight: 700;
-  }
-  .hdv:hover:not(:disabled) { color: var(--v0-texte); border-color: var(--accent); }
-  .hdv:disabled { opacity: .3; cursor: not-allowed; }
-  .hdv.tourne { color: var(--accent); border-color: var(--accent); }
-  .menu-hdv {
-    position: absolute; right: 46px; top: 34px; z-index: 5;
-    background: var(--v0-fond); border: 1px solid var(--v0-filet); border-radius: 10px;
-    padding: 4px; min-width: 210px; box-shadow: 0 8px 22px rgba(0,0,0,.45);
-  }
-  .menu-hdv button {
-    display: block; width: 100%; text-align: left; padding: 7px 10px;
-    background: transparent; border: 0; border-radius: 7px; color: var(--v0-texte);
-    font-size: 12px;
-  }
-  .menu-hdv button:hover { background: rgba(255,255,255,.06); }
-  /* Une entree inerte reste VISIBLE. La cacher ferait croire qu'elle n'est pas
-     prevue; grisee, elle dit qu'elle existe et pourquoi elle n'agit pas. */
-  .menu-hdv button.inerte { color: var(--v0-attenue); }
-
   /* ---------------- les archimonstres ---------------- */
-  /* Le bouton de la ligne porte le COMPTE de ce personnage. Un tiret, et pas un
-     zero, tant que son inventaire n'a pas ete lu: `ivx` n'arrive qu'a la
-     connexion, donc un client lance avant OMNI n'en enverra jamais. */
-  .archi {
-    width: 100%; height: 30px; padding: 0; border-radius: 8px;
-    background: transparent; border: 1px solid var(--v0-filet); color: var(--v0-attenue);
-    font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
-  }
-  .archi:hover:not(:disabled) { color: var(--v0-texte); border-color: var(--accent); }
-  .archi:disabled { opacity: .3; cursor: not-allowed; }
-  .archi.pleine { color: var(--v0-texte); }
 
   /* Meme forme que « Quoi de neuf »: un panneau DANS la fenetre. */
   .vue-archi {
@@ -674,12 +598,6 @@
   /* La ligne de compte rendu devient cliquable quand il y a quelque chose a
      ouvrir, et le dit: un texte qui reagit au clic sans le montrer ne sera
      jamais clique. */
-  .motif.cliquable { cursor: pointer; text-decoration: underline dotted; }
-  .motif.cliquable:hover { color: var(--v0-texte); }
-
-  .oter:hover { color: var(--v0-alerte); background: rgba(242,84,91,.12); }
-  .oter svg { width: 12px; height: 12px; }
-
   .paire { display: inline-flex; align-items: center; gap: 7px; }
   /* Le refus de la derniere bascule. Il s efface seul au bout de dix
      secondes: passe ce delai il ne decrit plus rien. */
@@ -689,157 +607,6 @@
   }
   .avis-nav:empty { display: none; }
 
-  /* ---------------- la liste ---------------- */
-  /* CETTE LISTE PORTE ENCORE SON PROPRE FOND, COMME LES CINQ PANNEAUX
-     MODAUX CI-DESSUS (.quoi-de-neuf, .vue-archi...) ET POUR LA MEME RAISON:
-     .fenetre, dans le nouveau skin, peint desormais son jeton fond
-     par-dessus body -- pale en theme clair -- alors que cette feuille reste
-     une palette SOMBRE (voir le prefixe v0- en tete de fichier). Sans son
-     propre fond prefixe ci-dessous, le texte herite de body (jeton texte
-     prefixe, quasi blanc) devient quasi invisible sur le papier clair du
-     nouveau jeton fond. .defile a ete deplacee telle quelle depuis
-     l ancienne page et n avait jamais eu besoin de peindre son fond -- celui
-     de body suffisait tant que body etait toujours sombre. Part avec l etape
-     Raccourcis, en meme temps que le reste du prefixe v0-. */
-  #v-raccourcis .defile { background: var(--v0-fond); color: var(--v0-texte); border-radius: 22px; }
-  .defile { flex: 1; min-height: 0; overflow-y: auto; }
-  .entete, .rang {
-    display: grid; align-items: center;
-    grid-template-columns: 50px minmax(150px, 1.6fr) 92px repeat(5, 58px) 122px 44px 52px 38px;
-    gap: 9px; padding: 0 15px;
-  }
-  .entete {
-    padding-top: 10px; padding-bottom: 10px;
-    border-bottom: 1px solid var(--v0-filet);
-    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
-    color: var(--v0-attenue); font-weight: 700;
-    position: sticky; top: 0; background: var(--v0-fond); z-index: 1;
-  }
-  .entete .c { text-align: center; }
-  /* Le titre de colonne est une ACTION GROUPEE: il coche ou decoche la fonction
-     pour tout le monde. Le losange dit ou en est la colonne — plein, creux, ou
-     a moitie quand seuls certains comptes l ont. */
-  .tete-colonne {
-    display: inline-flex; align-items: center; gap: 5px; justify-content: center;
-    width: 100%; padding: 7px 2px; border: 0; background: transparent;
-    color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit;
-    border-radius: 6px;
-  }
-  .tete-colonne:hover { background: rgba(255,255,255,.06); color: var(--v0-texte); }
-  .tete-colonne:disabled { opacity: .3; cursor: not-allowed; }
-  .jauge {
-    width: 8px; height: 8px; flex: none; transform: rotate(45deg); border-radius: 4px;
-    border: 1.5px solid var(--v0-bord); background: transparent;
-  }
-  .jauge.tous { background: var(--v0-arme); border-color: var(--v0-arme); }
-  /* A moitie: la diagonale du losange une fois redresse, donc une moitie
-     franche et lisible meme a 8 px. */
-  .jauge.partiel {
-    border-color: var(--v0-arme);
-    background: linear-gradient(to right, var(--v0-arme) 50%, transparent 50%);
-  }
-  .rang {
-    padding-top: 11px; padding-bottom: 11px;
-    border-bottom: 1px solid var(--v0-filet); position: relative;
-  }
-  .rang.hors-ligne { opacity: .4; }
-  /* Le rang qui commande porte un lisere d'or: on marque sans repeindre. */
-  .rang.commande { background: linear-gradient(90deg, rgba(255,159,28,.09), transparent 55%); }
-  .rang.commande::before {
-    content: ""; position: absolute; left: 0; top: 5px; bottom: 5px; width: 3px;
-    border-radius: 0 3px 3px 0; background: var(--v0-commande);
-  }
-
-  /* La plaque en losange accueillera l'embleme de classe. En attendant elle
-     porte l'abreviation, pour que l'information ne soit pas perdue avec la
-     colonne « Classe » qui la doublait. */
-  .plaque {
-    width: 30px; height: 30px; margin: 0 auto;
-    display: grid; place-items: center;
-    background: var(--v0-releve); border: 1px solid var(--v0-bord);
-    transform: rotate(45deg); border-radius: 10px;
-  }
-  .plaque > * {
-    transform: rotate(-45deg); font-size: 10px; font-weight: 700;
-    letter-spacing: .02em; color: var(--v0-attenue);
-  }
-  .plaque img { width: 22px; height: 22px; object-fit: contain; display: block; }
-  .rang.hors-ligne .plaque img { filter: grayscale(1); }
-  .rang.commande .plaque { border-color: var(--v0-commande); box-shadow: 0 0 10px rgba(255,159,28,.28); }
-  .rang.alerte .plaque { border-color: var(--v0-alerte); }
-
-  .identite {
-    display: contents;
-  }
-  .zone-clic { cursor: pointer; }
-  .zone-clic:hover .nom { color: var(--v0-commande); }
-  .zone-clic:hover .plaque { border-color: var(--v0-commande); }
-  .nom {
-    font-weight: 700; font-size: 14.5px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .sous-nom {
-    font-size: 12px; color: var(--v0-attenue);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .sous-nom.absent { color: var(--v0-filet); font-style: italic; }
-
-  /* LA CIBLE EST LA CELLULE ENTIERE, le losange n est qu un dessin dedans.
-     Un element tourne a 45 degres n est sensible que sur la moitie de sa
-     boite: viser un coin ne declenche rien, et c est exactement ce qui faisait
-     rater des clics. Le bouton fait donc 58 x 30, le losange 17. */
-  .case {
-    display: grid; place-items: center;
-    width: 100%; height: 30px; padding: 0;
-    background: transparent; border: 0;
-  }
-  .case .los {
-    width: 17px; height: 17px; transform: rotate(45deg); border-radius: 6px;
-    border: 1.5px solid var(--v0-bord); background: transparent;
-    transition: background .1s, border-color .1s;
-  }
-  .case.on .los { background: var(--v0-arme); border-color: var(--v0-arme); }
-  .case:disabled { opacity: .25; cursor: not-allowed; }
-  .case:not(:disabled):hover .los { border-color: var(--v0-attenue); }
-  .case:not(:disabled):hover { background: rgba(255,255,255,.05); border-radius: 8px; }
-
-  .bouton-commande {
-    width: 100%; min-height: 28px; padding: 6px 9px; border-radius: 999px;
-    border: 1px solid var(--v0-bord); background: transparent; color: var(--v0-attenue);
-    font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
-    white-space: nowrap;
-  }
-  .bouton-commande:hover { border-color: var(--v0-commande); color: var(--v0-commande); }
-  .bouton-commande.on {
-    background: var(--v0-commande); border-color: var(--v0-commande);
-    color: var(--v0-commande-encre);
-  }
-  .verdict {
-    display: inline-flex; align-items: center; gap: 7px; justify-content: center;
-    width: 100%; font-size: 11px; font-weight: 700; letter-spacing: .05em;
-    text-transform: uppercase; white-space: nowrap;
-  }
-  .verdict .los { width: 11px; height: 11px; flex: none; transform: rotate(45deg); border-radius: 4px; }
-  .verdict.alerte { color: var(--v0-alerte); }
-  .verdict.alerte .los { background: var(--v0-alerte); }
-  .verdict.attente { color: var(--v0-attenue); }
-  .verdict.attente .los { border: 1.5px solid var(--v0-attenue); }
-  .verdict.calme { color: var(--v0-filet); }
-  .verdict.calme .los { border: 1.5px solid var(--v0-filet); }
-
-  .motif {
-    grid-column: 2 / -1; font-size: 12px; color: var(--v0-alerte);
-    margin-top: -2px; padding-bottom: 2px;
-  }
-
-  /* Zero client detecte donnait une page blanche sous l'en-tete.
-     LE NOM EST PREFIXE A DESSEIN. Cette regle s'appelait `.vide`, et le
-     bouton de touche non assignee portait la meme classe: son padding de
-     44 px gagnait, le bouton passait de 27 a 110 px de haut, et le rang
-     entier a 133 px au lieu de 60. Une classe aussi generique finit
-     toujours par en attraper une autre. */
-  .liste-vide { padding: 44px 20px; text-align: center; color: var(--v0-attenue); font-size: 13.5px; }
-  .liste-vide b { display: block; color: var(--v0-texte); font-size: 15px; margin-bottom: 6px; font-weight: 700; }
 </style>
 
 <div class="fenetre">
@@ -1188,7 +955,7 @@
        la recette du 11/09, rectangle 0x0. Vide, il ne prend aucune place:
        `hidden` le retire de la grille, la barre ne bouge pas au repos. -->
   <span class="pep-avance" id="pepAvance" hidden></span>
-  <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;color:var(--v0-alerte)"></span>
+  <span class="paire" id="avertTouches" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400"></span>
   <!-- La chasse est ici, et pas dans la barre de titre: cette barre porte les
        bascules de FONCTION (overlay, fermeture des clients), la barre de titre
        porte l'etat d'OMNI lui-meme. Emplacement choisi par Jibef le 03/09 sur

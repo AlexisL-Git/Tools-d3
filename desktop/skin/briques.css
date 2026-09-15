@@ -193,3 +193,40 @@
 .pic-jeu{position:relative;overflow:hidden;padding-right:44px}
 .pic-jeu .pic.bete{position:absolute;right:-4px;bottom:-6px;width:44px;height:44px;object-fit:contain;pointer-events:none}
 .pic-jeu.manquant .pic.bete{filter:grayscale(1);opacity:.34}
+
+/* ============================================================
+   AJOUTS DE L ETAPE RACCOURCIS. Generiques : reutilisables par
+   Courses/Hotel plus tard, donc ici et pas dans ecrans.css.
+   ============================================================ */
+
+/* Centrage des en-tetes de colonne et des interrupteurs, copie de
+   labo-omni/app.html (lignes 307-308) : la maquette les traite comme des
+   briques bien qu elles vivent dans la section Raccourcis du fichier. */
+.panneau .entete .c { text-align: center; }
+.panneau .ligne .inter { justify-self: center; }
+/* position: relative -- necessaire au menu HDV de la ligne (ecrans.css),
+   positionne en absolute par rapport a sa .ligne. */
+.panneau .ligne { position: relative; }
+
+/* Un compte deconnecte s efface, il ne disparait pas: on garde la trace de
+   la place qu il occupe dans la flotte. */
+.ligne.hors-ligne { opacity: .45; }
+
+/* Les trois etats du cabochon de touche, sous la regle "forme avant
+   couleur": pointille = rien d assigne, plein jaune = en cours de saisie
+   (etat actif, ephemere), surface inversee = signale un risque (touche deja
+   prise ailleurs, ou confisquee a Dofus). */
+.cabochon.sans-touche { background: transparent; border: 1px dashed var(--trait-fort); color: var(--encre-douce); }
+.cabochon.ecoute { background: var(--acide); color: var(--sur-acide); }
+.cabochon.risque { background: var(--alarme); color: var(--sur-alarme); }
+
+/* La troisieme etiquette d etat, entre "pleine" (jaune, ca tourne) et
+   "creux" (surface inversee, ca reclame): un contour pointille pour ce qui
+   attend sans rien reclamer encore. */
+.pastille-etat.attente { background: transparent; color: var(--encre-douce); box-shadow: inset 0 0 0 1.5px var(--trait-fort); }
+
+/* Le bouton "Designer"/"Commande" de Raccourcis est le meme element dans
+   les deux etats (il reste cliquable meme quand il commande, pour rendre la
+   main) -- seul son habillage bascule vers la pastille pleine de la
+   maquette. */
+.bt-vide.pleine { background: var(--acide); border-color: var(--acide); color: var(--sur-acide); }

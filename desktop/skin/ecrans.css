@@ -137,3 +137,123 @@
   font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
 }
 .coupe.confirme { background: var(--acide); color: var(--sur-acide); }
+
+/* ============================================================
+   RACCOURCIS. Le panneau/entete/liste/ligne generiques sont dans
+   briques.css (recopies de la maquette) ; ici, tout ce qui est propre a
+   CET ecran : sa grille a onze colonnes, et les briques qui n existaient
+   pas dans la maquette parce qu elle ne dessine pas le menu HDV, le
+   bouton Archi ni la fermeture d un client (deux ecarts assumes du plan
+   d ossature du 14/09 : HDV et Archi restent, la maquette les laisse
+   tomber). */
+
+#v-raccourcis .entete,
+#v-raccourcis .ligne {
+  grid-template-columns: 1.7fr 84px repeat(5, 56px) 116px 50px 54px 34px;
+}
+
+/* La cellule Touche: le cabochon prend la place, la corbeille se glisse a
+   cote et ne parait que si une touche est assignee. */
+.cellule-touche { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.cellule-touche .cabochon { flex: 1; min-width: 0; }
+.oter {
+  flex: none; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px;
+  display: grid; place-items: center; background: transparent; color: var(--encre-douce); cursor: pointer;
+}
+.oter:hover { color: var(--encre); background: var(--carte-creuse); }
+.oter svg { width: 12px; height: 12px; }
+
+/* Le titre de colonne est une ACTION GROUPEE: il coche ou decoche la
+   fonction pour tout le monde. Le losange dit ou en est la colonne --
+   plein, creux, ou a moitie quand seuls certains comptes l ont. */
+.tete-colonne {
+  display: inline-flex; align-items: center; gap: 5px; justify-content: center;
+  width: 100%; padding: 7px 2px; border: 0; background: transparent;
+  color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit;
+  border-radius: 6px; cursor: pointer;
+}
+.tete-colonne:hover { background: var(--carte-creuse); color: var(--encre); }
+.tete-colonne:disabled { opacity: .3; cursor: not-allowed; }
+.jauge {
+  width: 8px; height: 8px; flex: none; transform: rotate(45deg); border-radius: 4px;
+  border: 1.5px solid var(--trait-fort); background: transparent;
+}
+.jauge.tous { background: var(--acide); border-color: var(--acide); }
+.jauge.partiel {
+  border-color: var(--acide);
+  background: linear-gradient(to right, var(--acide) 50%, transparent 50%);
+}
+
+/* Le meneur se signale par une forme, pas par un aplat (README du labo,
+   §2, regle 2): un lisere de 3px, et le jeton de classe qui passe en
+   jaune -- exactement la regle deja tenue par .perso.mene dans
+   briques.css, transposee a .ligne. */
+.ligne.commande::before {
+  content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--acide);
+}
+.ligne.commande .jeton { background: var(--acide); color: var(--sur-acide); }
+
+/* Le jeton de classe affiche soit l embleme du jeu (une <img>, deja
+   resolue par le processus principal via src/comptes/emblemes.js), soit
+   l abreviation textuelle que dansLeJeton() pose directement -- pas la
+   mecanique .pic/.sans-pic de la maquette, qui suppose un chargement
+   depuis le navigateur : ici l embleme arrive deja pret par IPC. */
+.jeton img { width: 22px; height: 22px; object-fit: contain; border-radius: inherit; }
+.ligne.hors-ligne .jeton img { filter: grayscale(1); }
+
+.perso-mini.clic { cursor: pointer; }
+.perso-mini.clic:hover .n { text-decoration: underline; }
+
+/* Le menu HDV de la ligne. Il s'ouvre AU CLIC, pas au survol: un menu qui
+   surgit en passant la souris se declenche pendant qu'on vise autre chose. */
+.hdv, .archi { color: var(--encre-douce); }
+.hdv:hover:not(:disabled), .archi:hover:not(:disabled) { color: var(--encre); border-color: var(--encre-douce); }
+.hdv:disabled, .archi:disabled { opacity: .3; cursor: not-allowed; }
+/* Le jaune pour ce qui tourne (README §2, regle 2): une mise a jour ou une
+   mise en vente en cours. */
+.hdv.tourne { background: var(--acide); border-color: var(--acide); color: var(--sur-acide); }
+.archi.pleine { color: var(--encre); border-color: var(--trait-fort); }
+
+.menu-hdv {
+  position: absolute; right: 20px; top: 100%; margin-top: 6px; z-index: 2;
+  min-width: 220px; background: var(--carte); border: 1px solid var(--trait);
+  border-radius: 12px; padding: 6px; box-shadow: 0 10px 28px rgba(0,0,0,.22);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.menu-hdv button {
+  text-align: left; padding: 9px 10px; background: transparent; border: 0;
+  border-radius: 7px; color: var(--encre); font: 500 12.5px/1.3 var(--ui); cursor: pointer;
+}
+.menu-hdv button:hover { background: var(--carte-creuse); }
+/* Une entree inerte reste VISIBLE. La cacher ferait croire qu'elle n'est
+   pas prevue; grisee, elle dit qu'elle existe et pourquoi elle n'agit pas. */
+.menu-hdv button.inerte { color: var(--encre-douce); cursor: default; }
+
+/* Fermer CE client. Deux clics, comme le bouton qui les ferme tous (barre
+   du bas) -- meme grammaire que .coupe/.coupe.confirme : arme puis jaune
+   au lieu d agir tout de suite. */
+.fermer-un {
+  width: 30px; height: 30px; flex: none; padding: 0; border: 0; border-radius: 8px;
+  display: grid; place-items: center; background: transparent; color: var(--encre-douce); cursor: pointer;
+}
+.fermer-un svg { width: 13px; height: 13px; }
+.fermer-un:hover { color: var(--encre); background: var(--carte-creuse); }
+.fermer-un:disabled { opacity: .25; cursor: not-allowed; }
+.fermer-un.confirme { background: var(--acide); color: var(--sur-acide); }
+
+/* Le compte rendu des lots ecartes, sous le nom -- indente sous le jeton
+   pour rester lisible sans repeter la ligne. */
+.motif {
+  grid-column: 1 / -1; padding: 0 0 10px 42px; font-size: 12px; color: var(--encre-douce);
+}
+.motif.cliquable { cursor: pointer; text-decoration: underline dotted; }
+.motif.cliquable:hover { color: var(--encre); }
+
+.liste-vide { padding: 44px 20px; text-align: center; color: var(--encre-douce); font-size: 13.5px; }
+.liste-vide b { display: block; color: var(--encre); font-size: 15px; margin-bottom: 6px; font-weight: 700; }
+
+/* L avertissement de touches en double vit dans la barre du bas, deja aux
+   nouveaux jetons -- lui seul avait garde son ancienne couleur en style
+   inline (voir desktop/index.html, #avertTouches). */
+#avertTouches { color: var(--alarme); }
