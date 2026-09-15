@@ -28,3 +28,90 @@
    L erreur porte un lisere jaune a gauche; l absence de meneur,
    rien. Deux blocs inverses au meme moment restent lisibles. */
 #erreur { box-shadow: inset 4px 0 0 var(--acide-sur-contre); }
+
+/* ============================================================
+   LA BARRE DU BAS. Bascules GLOBALES (Overlay, Equiper PdA, Monter en
+   calibre, Fermer les clients) et le delai de la passe HDV -- pas un
+   ecran: elle reste hors des .vue et survit au changement d ecran. La
+   maquette ne la dessine nulle part (elle ne prevoit pas de barre
+   persistante sous le rail), donc rien ici n est recopie d une
+   section -- tout est traduit depuis l ancienne feuille (--v0-*).
+
+   Mapping tenu par la tache: --v0-releve -> --carte, --v0-filet ->
+   --trait, --v0-texte -> --encre, --v0-attenue -> --encre-douce,
+   --v0-arme -> --acide. Deux jetons ne sont pas dans cette liste et
+   sont deduits du meme vocabulaire: --v0-bord (bordure de commande,
+   plus marquee qu un simple filet) devient --trait-fort, deja tenu
+   par ce role sur .bt-vide et .fenetre-bt; --v0-fond, employe ici
+   comme un fond EN RETRAIT de celui de la barre (barre en --carte,
+   pastille plus sombre), devient --carte-creuse, deja tenu par ce
+   role sur .jeton, .grp et .capsule. */
+.barre-nav {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 9px 15px; border-top: 1px solid var(--trait); background: var(--carte);
+  font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--encre-douce); font-weight: 700;
+}
+
+.champ-delai {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--encre-douce); font-weight: 700;
+}
+.champ-delai input {
+  width: 52px; padding: 4px 6px; font: inherit; font-size: 13px;
+  background: var(--carte-creuse); color: var(--encre);
+  border: 1px solid var(--trait-fort); border-radius: 8px;
+  font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0;
+}
+
+/* L interrupteur maitre: SUSPEND une fonction sans rien effacer. Ce
+   n est pas la brique .inter -- .inter coche un reglage pose par
+   l ami, .maitre-inter arme une fonction globale de la barre -- donc
+   il garde son propre dessin (pastille + temoin losange), seule sa
+   couleur change ici. */
+.maitre-inter {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px 5px 10px; border-radius: 999px;
+  border: 1px solid var(--trait-fort); background: var(--carte-creuse); color: var(--encre-douce);
+  font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  -webkit-app-region: no-drag;
+}
+.maitre-inter .temoin {
+  width: 9px; height: 9px; flex: none; transform: rotate(45deg); border-radius: 5px;
+  border: 1.5px solid var(--trait-fort); background: transparent;
+}
+.maitre-inter.on { color: var(--acide); border-color: var(--acide); }
+.maitre-inter.on .temoin {
+  background: var(--acide); border-color: var(--acide);
+  box-shadow: 0 0 8px rgba(226,242,124,.65);
+}
+.maitre-inter:hover { color: var(--encre); border-color: var(--encre-douce); }
+.maitre-inter.on:hover { color: var(--acide); filter: brightness(1.15); }
+
+/* Le bouton de l overlay et les autres bascules non destructrices de la
+   barre (Reglage HDV, Pepites): un contour, pas une surface -- meme
+   famille que .bt-vide. */
+.pose {
+  padding: 6px 13px; border-radius: 999px;
+  border: 1px solid var(--trait-fort); background: transparent; color: var(--encre-douce);
+  font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+}
+.pose:hover:not(:disabled) { border-color: var(--encre-douce); color: var(--encre); }
+.pose.ouvert { border-color: var(--acide); color: var(--acide); }
+.pose:disabled { opacity: .3; cursor: not-allowed; }
+
+/* .coupe (« Fermer les clients ») est la SEULE action destructrice de
+   la barre: elle prend la surface inversee tout de suite, pas
+   seulement une fois armee -- c est elle qui doit se voir en
+   peripherie avant meme le clic, et elle reste le seul bloc inverse de
+   la barre au repos. Une fois armee (.confirme, « Confirmer ? »), elle
+   bascule sur --acide: le meme accent que tout ce qui est arme
+   ailleurs (.maitre-inter.on, .rail button.actif), ici pour dire
+   « sur le point d agir », plus fort que la simple inversion. */
+.coupe {
+  padding: 6px 13px; border-radius: 999px;
+  border: 0; background: var(--alarme); color: var(--sur-alarme);
+  font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+}
+.coupe.confirme { background: var(--acide); color: var(--sur-acide); }

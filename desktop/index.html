@@ -202,66 +202,6 @@
   .fenetre-boutons button.fermer:hover { background: var(--v0-alerte); color: #fff; }
   .fenetre-boutons svg { width: 11px; height: 11px; }
 
-  /* ---------------- l interrupteur unique ----------------
-     Il a remplace cinq interrupteurs generaux, un par fonction. Ce modele
-     avait deux niveaux que rien ne reliait a l ecran, et une case cochee sous
-     un general eteint ne faisait rien sans que ca se voie.
-     Celui-ci SUSPEND tout sans rien effacer. */
-  .maitre-inter {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 5px 12px 5px 10px; border-radius: 999px;
-    border: 1px solid var(--v0-bord); background: var(--v0-fond); color: var(--v0-attenue);
-    font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-    -webkit-app-region: no-drag;
-  }
-  .maitre-inter .temoin {
-    width: 9px; height: 9px; flex: none; transform: rotate(45deg); border-radius: 5px;
-    border: 1.5px solid var(--v0-bord); background: transparent;
-  }
-  .maitre-inter.on { color: var(--v0-arme); border-color: var(--v0-arme); }
-  .maitre-inter.on .temoin {
-    background: var(--v0-arme); border-color: var(--v0-arme);
-    box-shadow: 0 0 8px rgba(47,212,196,.65);
-  }
-  .maitre-inter:hover { color: var(--v0-texte); border-color: var(--v0-attenue); }
-  .maitre-inter.on:hover { color: var(--v0-arme); filter: brightness(1.15); }
-
-
-  .champ-delai {
-    display: inline-flex; align-items: center; gap: 7px;
-    font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--v0-attenue); font-weight: 700;
-  }
-  .champ-delai input {
-    width: 52px; padding: 4px 6px; font: inherit; font-size: 13px;
-    background: var(--v0-fond); color: var(--v0-texte);
-    border: 1px solid var(--v0-bord); border-radius: 8px;
-    font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0;
-  }
-  .coupe {
-    padding: 6px 13px; border-radius: 999px;
-    border: 1px solid var(--v0-alerte); background: transparent; color: var(--v0-alerte);
-    font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-  }
-  .coupe.confirme { background: var(--v0-alerte); color: #1F0B0C; }
-
-  /* Le bouton de l'overlay. Il n'est PAS `.coupe`: cette classe est rouge, et
-     le rouge dit « anomalie » partout ailleurs dans le panneau. Ouvrir une
-     fenetre ne detruit rien. Il passe au cyan quand elle est ouverte, comme
-     tout ce qui est arme. */
-  .pose {
-    padding: 6px 13px; border-radius: 999px;
-    border: 1px solid var(--v0-bord); background: transparent; color: var(--v0-attenue);
-    font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-  }
-  .pose:hover:not(:disabled) { border-color: var(--v0-attenue); color: var(--v0-texte); }
-  .pose.ouvert { border-color: var(--v0-arme); color: var(--v0-arme); }
-  /* Sans cette regle le bouton reste visuellement actif une fois `disabled`
-     pose par surEtat(): la regle generale `button { cursor: pointer; }` et
-     les couleurs d'auteur ecrasent le style par defaut du navigateur. Meme
-     traitement que .hdv:disabled plus bas. */
-  .pose:disabled { opacity: .3; cursor: not-allowed; }
-
   /* Un raccourci se lit comme une touche de clavier: inscription creusee et
      relief. */
   .cabochon {
@@ -279,12 +219,6 @@
      interdite — c'est l'utilisateur qui sait ce qu'il utilise en combat. */
   .cabochon.risque { border-color: var(--v0-alerte); color: var(--v0-alerte); }
 
-  .barre-nav {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 9px 15px; border-top: 1px solid var(--v0-filet); background: var(--v0-releve);
-    font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--v0-attenue); font-weight: 700;
-  }
   /* La cellule Touche: le cabochon prend la place, la corbeille se glisse a
      cote et ne parait que si une touche est assignee. */
   .cellule-touche { display: flex; align-items: center; gap: 4px; }

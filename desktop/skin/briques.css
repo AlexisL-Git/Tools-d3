@@ -142,6 +142,15 @@
 .pastille-etat.creux i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--sur-alarme)}
 .pastille-etat.pleine{background:var(--acide);color:var(--sur-acide)}
 
+/* CETTE BRIQUE VIENT DE LA SECTION « raccourcis » DE LA MAQUETTE, qui l y a
+   rangee parce que c est la qu elle s en sert d abord. Le §2 du README du
+   labo la compte pourtant parmi les briques, et la barre du bas l emploie
+   sans rien devoir a l ecran Raccourcis. Elle est donc ici. */
+.inter{width:34px;height:20px;border-radius:999px;background:var(--inter-off);position:relative;border:0;cursor:pointer;flex:none}
+.inter::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--inter-bouton);transition:left .12s}
+.inter.on{background:var(--encre)}
+.inter.on::after{left:16px;background:var(--acide-sur-contre)}
+
 /* ============================================================
    LES PICTOS DU JEU. Les images viennent de DofusDB
    (api.beta.dofusdb.fr), un PNG transparent par identifiant, en CORS
