@@ -9,3 +9,5 @@ desktop/etape-paquet/
 
 # archives de code: elles vivent en base, televersees par le panneau
 serveur-maj/paquets/
+
+.worktrees/
