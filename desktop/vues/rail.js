@@ -21,6 +21,16 @@ const CYCLE = [null, 'sombre', 'clair'];
 
 const MOT = { null: 'Système', sombre: 'Sombre', clair: 'Clair' };
 
+// L ETAT REELLEMENT APPLIQUE, PAS CE QUE localStorage VEUT BIEN RENDRE.
+// Le clic sur #btTheme calculait jusqu ici son prochain etat en relisant
+// localStorage -- or lireTheme() rend null des que le stockage leve ou est
+// bloque (fenetre privee, donnees de site effacees). Chaque clic recalculait
+// alors indexOf(null) === 0 et reposait 'sombre' encore et encore: le bouton
+// se bloquait sur un seul etat au lieu de tourner. themeApplique suit ce que
+// poserTheme() a REELLEMENT pose a l ecran, que l ecriture ait reussi ou non,
+// et c est de la que le clic part.
+let themeApplique = null;
+
 function lireTheme() {
   // localStorage peut lever ou revenir vide -- fenetre privee, donnees de
   // site effacees. Un theme oubliable ne vaut pas une page blanche.
@@ -41,6 +51,11 @@ function poserTheme(valeur) {
 
   const mot = document.getElementById('motTheme');
   if (mot !== null) mot.textContent = MOT[String(valeur)];
+
+  // Suivi INCONDITIONNEL, avant le try: l ecran porte deja `valeur`, que
+  // l ecriture ci-dessous reussisse ou non -- c est cet etat-la que le
+  // prochain clic doit lire, pas celui du stockage.
+  themeApplique = valeur;
 
   try {
     if (valeur === null) localStorage.removeItem(CLE_THEME);
@@ -75,7 +90,7 @@ export function monterRail() {
   const bt = document.getElementById('btTheme');
   if (bt !== null) {
     bt.addEventListener('click', () => {
-      const i = CYCLE.indexOf(lireTheme());
+      const i = CYCLE.indexOf(themeApplique);
       poserTheme(CYCLE[(i + 1) % CYCLE.length]);
     });
   }
