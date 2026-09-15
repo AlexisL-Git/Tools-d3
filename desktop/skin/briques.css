@@ -212,6 +212,15 @@
    la place qu il occupe dans la flotte. */
 .ligne.hors-ligne { opacity: .45; }
 
+/* Base: un raccourci se lit comme une touche de clavier, en pilule. Les
+   etats (sans-touche/ecoute/risque) juste en dessous la modifient. */
+.cabochon {
+  display: block; width: 100%; padding: 8px 12px; border: 0; border-radius: 999px;
+  background: var(--carte-creuse); color: var(--encre);
+  font: 700 11.5px/1 var(--ui); text-align: center; cursor: pointer;
+}
+.cabochon:disabled { opacity: .4; cursor: not-allowed; }
+
 /* Les trois etats du cabochon de touche, sous la regle "forme avant
    couleur": pointille = rien d assigne, plein jaune = en cours de saisie
    (etat actif, ephemere), surface inversee = signale un risque (touche deja
