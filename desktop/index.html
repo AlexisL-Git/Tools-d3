@@ -2632,23 +2632,22 @@
     r.ligne = l;
 
     const alerte = l.etat === 'non-intercepte' || l.etat === 'erreur';
-    r.el.className = 'rang'
+    r.el.className = 'ligne'
       + (l.etat === 'hors-ligne' ? ' hors-ligne' : '')
       + (alerte ? ' alerte' : '')
       + (l.estMaitre ? ' commande' : '');
 
     const pilotable = l.id !== null && l.pilotable;
-    r.portrait.className = pilotable ? 'zone-clic' : '';
-    r.portrait.innerHTML = '<span class="plaque" title="'
-      + (l.classe || 'classe inconnue, personnage pas encore en jeu')
-      + '">' + dansLaPlaque(l) + '</span>';
+    r.persoMini.classList.toggle('clic', pilotable);
+    r.jeton.innerHTML = dansLeJeton(l);
+    r.jeton.title = l.classe || 'classe inconnue, personnage pas encore en jeu';
 
     const principal = l.personnage || l.nickname;
     const second = l.personnage ? l.nickname : 'pas encore en jeu';
-    r.nom.className = pilotable ? 'zone-clic' : '';
-    r.nom.innerHTML = '<div class="nom">' + principal + '</div>'
-      + '<div class="sous-nom' + (l.personnage ? '' : ' absent') + '">' + second + '</div>';
-    r.nom.title = (l.personnage ? l.personnage + ' · ' + l.nickname : l.nickname)
+    r.n.textContent = principal;
+    r.doux.textContent = second;
+    r.doux.classList.toggle('absent', !l.personnage);
+    r.persoMini.title = (l.personnage ? l.personnage + ' · ' + l.nickname : l.nickname)
       + (pilotable ? ' (cliquer pour passer sur cette fenêtre)' : '');
 
     // Le cabochon ne se reecrit pas pendant une saisie de touche, sinon le
@@ -2682,7 +2681,7 @@
     if (l.eligibleMaitre) {
       r.boutonCommande.hidden = false;
       r.verdict.hidden = true;
-      r.boutonCommande.classList.toggle('on', l.estMaitre);
+      r.boutonCommande.classList.toggle('pleine', l.estMaitre);
       r.boutonCommande.textContent = l.estMaitre ? 'Commande' : 'Désigner';
       r.boutonCommande.title = l.estMaitre
         ? 'ce compte commande — cliquer pour ne plus avoir de meneur'
@@ -2690,8 +2689,13 @@
     } else {
       r.boutonCommande.hidden = true;
       r.verdict.hidden = false;
-      r.verdict.className = 'verdict ' + (FORME[l.etat] || 'calme');
-      r.verdict.innerHTML = '<span class="los"></span>' + (LIBELLE[l.etat] || l.etat);
+      // Deux etiquettes seulement, sous la regle "forme avant couleur":
+      // "attente" (ca patiente, rien a faire) reste neutre ; tout le reste
+      // (hors-ligne, non-intercepte, erreur) est un bloc inverse -- c'est
+      // exactement ce que montre la maquette pour "Pas entré"/"Pas lancé".
+      const forme = FORME[l.etat] || 'calme';
+      r.verdict.className = 'pastille-etat' + (forme === 'attente' ? ' attente' : ' creux');
+      r.verdict.textContent = LIBELLE[l.etat] || l.etat;
     }
 
     // Un compte hors ligne n a pas de fenetre a fermer: le bouton serait la
