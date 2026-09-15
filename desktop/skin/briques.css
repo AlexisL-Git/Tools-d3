@@ -123,6 +123,7 @@
 .panneau .ligne:hover{background:var(--carte-creuse)}
 .panneau .ligne b{font-weight:600}
 .panneau .ligne .doux{color:var(--encre-douce);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panneau .ligne .doux.absent { color: var(--encre-douce); font-style: italic; opacity: .8; }
 .d{text-align:right}
 /* Un chiffre qui se rafraichit ne doit pas changer de largeur, sinon la
    colonne bouge -- et un mouvement est ce qui attire l oeil en peripherie. */
@@ -218,7 +219,9 @@
   display: block; width: 100%; padding: 8px 12px; border: 0; border-radius: 999px;
   background: var(--carte-creuse); color: var(--encre);
   font: 700 11.5px/1 var(--ui); text-align: center; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.cabochon:hover { background: var(--carte-creuse); filter: brightness(0.96); }
 .cabochon:disabled { opacity: .4; cursor: not-allowed; }
 
 /* Les trois etats du cabochon de touche, sous la regle "forme avant
@@ -227,6 +230,10 @@
    prise ailleurs, ou confisquee a Dofus). */
 .cabochon.sans-touche { background: transparent; border: 1px dashed var(--trait-fort); color: var(--encre-douce); }
 .cabochon.ecoute { background: var(--acide); color: var(--sur-acide); }
+/* Signale deux situations differentes, pas une seule: une touche NUE est
+   CONFISQUEE a Dofus tant qu'OMNI tourne, alors qu'un clic molette est
+   seulement PARTAGE avec lui (Dofus le recoit aussi). Signalee, pas
+   interdite — c'est l'utilisateur qui sait ce qu'il utilise en combat. */
 .cabochon.risque { background: var(--alarme); color: var(--sur-alarme); }
 
 /* La troisieme etiquette d etat, entre "pleine" (jaune, ca tourne) et

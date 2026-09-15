@@ -149,7 +149,7 @@
 
 #v-raccourcis .entete,
 #v-raccourcis .ligne {
-  grid-template-columns: 1.7fr 84px repeat(5, 56px) 116px 50px 54px 34px;
+  grid-template-columns: 1.7fr 84px repeat(5, 56px) 116px 58px 54px 34px;
 }
 
 /* La cellule Touche: le cabochon prend la place, la corbeille se glisse a
@@ -179,6 +179,8 @@
   border: 1.5px solid var(--trait-fort); background: transparent;
 }
 .jauge.tous { background: var(--acide); border-color: var(--acide); }
+/* A moitie: la diagonale du losange une fois redresse, donc une moitie
+   franche et lisible meme a 8 px. */
 .jauge.partiel {
   border-color: var(--acide);
   background: linear-gradient(to right, var(--acide) 50%, transparent 50%);
@@ -189,10 +191,11 @@
    jaune -- exactement la regle deja tenue par .perso.mene dans
    briques.css, transposee a .ligne. */
 .ligne.commande::before {
-  content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+  content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px;
   border-radius: 0 3px 3px 0; background: var(--acide);
 }
 .ligne.commande .jeton { background: var(--acide); color: var(--sur-acide); }
+#v-raccourcis .ligne.alerte .jeton { box-shadow: inset 0 0 0 2px var(--alarme); }
 
 /* Le jeton de classe affiche soit l embleme du jeu (une <img>, deja
    resolue par le processus principal via src/comptes/emblemes.js), soit
@@ -207,13 +210,13 @@
 
 /* Le menu HDV de la ligne. Il s'ouvre AU CLIC, pas au survol: un menu qui
    surgit en passant la souris se declenche pendant qu'on vise autre chose. */
-.hdv, .archi { color: var(--encre-douce); }
-.hdv:hover:not(:disabled), .archi:hover:not(:disabled) { color: var(--encre); border-color: var(--encre-douce); }
-.hdv:disabled, .archi:disabled { opacity: .3; cursor: not-allowed; }
+#v-raccourcis .hdv, #v-raccourcis .archi { color: var(--encre-douce); }
+#v-raccourcis .hdv:hover:not(:disabled), #v-raccourcis .archi:hover:not(:disabled) { color: var(--encre); border-color: var(--encre-douce); }
+#v-raccourcis .hdv:disabled, #v-raccourcis .archi:disabled { opacity: .3; cursor: not-allowed; }
 /* Le jaune pour ce qui tourne (README §2, regle 2): une mise a jour ou une
    mise en vente en cours. */
-.hdv.tourne { background: var(--acide); border-color: var(--acide); color: var(--sur-acide); }
-.archi.pleine { color: var(--encre); border-color: var(--trait-fort); }
+#v-raccourcis .hdv.tourne { background: var(--acide); border-color: var(--acide); color: var(--sur-acide); }
+#v-raccourcis .archi.pleine { color: var(--encre); border-color: var(--trait-fort); }
 
 .menu-hdv {
   position: absolute; right: 20px; top: 100%; margin-top: 6px; z-index: 2;
@@ -233,6 +236,9 @@
 /* Fermer CE client. Deux clics, comme le bouton qui les ferme tous (barre
    du bas) -- meme grammaire que .coupe/.coupe.confirme : arme puis jaune
    au lieu d agir tout de suite. */
+/* Fermer CE client. Deux clics, comme le bouton qui les ferme tous: la
+   colonne est etroite, la souris passe dessus en visant la commande, et un
+   clic de travers couterait une session — potentiellement en plein combat. */
 .fermer-un {
   width: 30px; height: 30px; flex: none; padding: 0; border: 0; border-radius: 8px;
   display: grid; place-items: center; background: transparent; color: var(--encre-douce); cursor: pointer;
@@ -247,9 +253,18 @@
 .motif {
   grid-column: 1 / -1; padding: 0 0 10px 42px; font-size: 12px; color: var(--encre-douce);
 }
+/* La ligne de compte rendu devient cliquable quand il y a quelque chose a
+   ouvrir, et le dit: un texte qui reagit au clic sans le montrer ne sera
+   jamais clique. */
 .motif.cliquable { cursor: pointer; text-decoration: underline dotted; }
 .motif.cliquable:hover { color: var(--encre); }
 
+/* Zero client detecte donnait une page blanche sous l'en-tete.
+   LE NOM EST PREFIXE A DESSEIN. Cette regle s'appelait `.vide`, et le
+   bouton de touche non assignee portait la meme classe: son padding de
+   44 px gagnait, le bouton passait de 27 a 110 px de haut, et le rang
+   entier a 133 px au lieu de 60. Une classe aussi generique finit
+   toujours par en attraper une autre. */
 .liste-vide { padding: 44px 20px; text-align: center; color: var(--encre-douce); font-size: 13.5px; }
 .liste-vide b { display: block; color: var(--encre); font-size: 15px; margin-bottom: 6px; font-weight: 700; }
 

@@ -966,7 +966,7 @@
        #brythme juste au-dessus: le panneau ne porte le compte d'aucun
        personnage en particulier, tableauPepites() n'en demande pas. Le
        poser sur une ligne aurait ajoute un 13e enfant a la grille figee de
-       .rang (douze colonnes, une par colonne de #entete) et decale toute la
+       .ligne (onze colonnes, une par colonne de #entete) et decale toute la
        ligne sur une rangee implicite -- exactement le genre de rupture que
        rien, ni le navigateur ni les tests, ne signale seul. -->
   <button class="pose" id="bpepites" title="le classement des objets par coût en kamas de la pépite">Pépites</button>
@@ -2558,6 +2558,9 @@
       for (const m of document.querySelectorAll('.menu-hdv')) m.hidden = true;
       r.menuHdv.hidden = etaitOuvert;
     });
+    // Sans lots connus il n'y a rien a mettre a jour, et sans le droit rien
+    // a demander: l'entree est inerte dans les deux cas, et le clic ne doit
+    // pas partir quand meme. La vraie garde reste celle de main.js.
     r.majPrix.addEventListener('click', () => {
       const l = r.ligne;
       r.menuHdv.hidden = true;
@@ -2566,6 +2569,9 @@
       if (!l.hdvEnCours && !l.hdvLots) return;
       window.app.majPrixHdv(l.pid);
     });
+    // Sans stock connu il n'y a rien a vendre, et sans le droit rien a
+    // demander: l'entree est inerte dans les deux cas, et le clic ne doit
+    // pas partir quand meme. La vraie garde reste celle de main.js.
     r.vente.addEventListener('click', () => {
       const l = r.ligne;
       r.menuHdv.hidden = true;
