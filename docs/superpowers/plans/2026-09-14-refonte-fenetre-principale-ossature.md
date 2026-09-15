@@ -935,12 +935,15 @@ règles :
 
 ```css
   /* Les panneaux se calaient sous la `.barre-titre` par un inset de 38px --
-     sa hauteur exacte. La barre n existe plus: ils se calent desormais sur
-     `.corps`, qui est positionne pour eux, et couvrent l aire des ecrans
-     sans mordre sur le rail ni sur la barre du haut. Ils finiront chacun en
-     `.vue`; ce recalage les met deja a leur place. */
+     sa hauteur exacte. La barre n existe plus, mais `.haut` est le PREMIER
+     enfant de `.corps` (36px, plus le gap de 13px entre enfants de .corps:
+     desktop/skin/briques.css): un `inset: 0` couvrirait donc `.haut` lui
+     meme, pas seulement le rail. Les panneaux se calent desormais a 49px du
+     haut de `.corps` -- juste sous la barre -- et couvrent l aire des
+     ecrans sans mordre sur le rail ni sur la barre du haut. Ils finiront
+     chacun en `.vue`; ce recalage les met deja a leur place. */
   .corps { position: relative; }
-  .quoi-de-neuf, .vue-archi { position: absolute; inset: 0; z-index: 20; }
+  .quoi-de-neuf, .vue-archi { position: absolute; inset: 49px 0 0 0; z-index: 20; }
 ```
 
 La `.barre-nav` **ne bouge pas** : elle reste après `.fenetre`, en dernier
