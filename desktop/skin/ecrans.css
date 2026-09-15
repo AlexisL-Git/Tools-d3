@@ -1,0 +1,30 @@
+/* ============================================================
+   CE QUI EST PROPRE A CHAQUE ECRAN. Le fichier se remplit etape
+   par etape; il ne porte pour l instant que les bandeaux.
+   ============================================================ */
+
+/* LES BANDEAUX POUSSENT, ILS NE RECOUVRENT PAS.
+   Regle arretee au §6 du labo, qui ne les dessine pas. Un bandeau
+   pose en surcouche cacherait une ligne de personnage -- et la
+   ligne cachee serait justement celle dont il parle.
+
+   UN BLOC INVERSE = UNE CHOSE A FAIRE, et les deux bandeaux en
+   sont. `:empty` les retire de la grille: au repos ils ne prennent
+   pas un pixel, et l ecran ne bouge pas. */
+.avis {
+  flex: none;
+  background: var(--alarme);
+  color: var(--sur-alarme);
+  border-radius: 14px;
+  padding: 10px 16px;
+  font: 500 13px/1.45 var(--ui);
+}
+.avis:empty { display: none; }
+
+/* LES DEUX BANDEAUX NE SE DISTINGUENT PAS PAR LA COULEUR.
+   Regle 1 du labo: un etat se lit par une FORME avant de se lire
+   par une teinte -- OMNI est regarde du coin de l oeil, sur un
+   second ecran, et la vision peripherique ne voit pas la teinte.
+   L erreur porte un lisere jaune a gauche; l absence de meneur,
+   rien. Deux blocs inverses au meme moment restent lisibles. */
+#erreur { box-shadow: inset 4px 0 0 var(--acide-sur-contre); }

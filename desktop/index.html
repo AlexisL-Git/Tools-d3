@@ -3,6 +3,7 @@
 <title>OMNI</title>
 <link rel="stylesheet" href="skin/jetons.css">
 <link rel="stylesheet" href="skin/briques.css">
+<link rel="stylesheet" href="skin/ecrans.css">
 <style>
   /* Polices EMBARQUEES, jamais appelees en ligne: OMNI doit demarrer sans
      reseau. Voir desktop/polices/LISEZMOI.md pour les licences. */
@@ -90,7 +91,7 @@
     user-select: none; overflow: hidden;
     height: 100vh; display: flex; flex-direction: column;
   }
-  .barre-titre, .bandeau, .avis { flex: none; }
+  .barre-titre, .bandeau { flex: none; }
   button { font: inherit; cursor: pointer; }
   :focus-visible { outline: 2px solid var(--v0-commande); outline-offset: 2px; }
 
@@ -260,11 +261,6 @@
      les couleurs d'auteur ecrasent le style par defaut du navigateur. Meme
      traitement que .hdv:disabled plus bas. */
   .pose:disabled { opacity: .3; cursor: not-allowed; }
-
-  .avis { padding: 9px 15px; font-size: 13px; border-bottom: 1px solid var(--v0-filet); }
-  .avis:empty { display: none; }
-  #erreur { background: rgba(242,84,91,.14); color: var(--v0-alerte); }
-  #sansmaitre { background: rgba(255,159,28,.10); color: var(--v0-commande); }
 
   /* Un raccourci se lit comme une touche de clavier: inscription creusee et
      relief. */
