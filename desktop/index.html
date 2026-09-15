@@ -685,29 +685,30 @@
     <div class="avis" id="sansmaitre"></div>
 
     <div class="vue actif" id="v-raccourcis">
-      <!-- La liste d aujourd hui, deplacee telle quelle. Elle garde
-           l ancienne feuille jusqu a l etape 1 du chantier. -->
-      <div class="defile">
-  <div class="entete" id="entete">
-    <div></div>
-    <div>Personnage / compte</div>
-    <div class="c">Touche</div>
-    <div class="c"><button class="tete-colonne" data-colonne="repl"><span class="jauge"></span>Répl.</button></div>
-    <div class="c"><button class="tete-colonne" data-colonne="tour"><span class="jauge"></span>Tour</button></div>
-    <div class="c"><button class="tete-colonne" data-colonne="groupe"><span class="jauge"></span>Groupe</button></div>
-    <div class="c"><button class="tete-colonne" data-colonne="anim"><span class="jauge"></span>Anim</button></div>
-    <div class="c"><button class="tete-colonne" data-colonne="echange"><span class="jauge"></span>Éch.</button></div>
-    <div class="c">Commande</div>
-    <div class="c">HDV</div>
-    <div class="c">Archi</div>
-    <div></div>
-  </div>
-  <div id="liste"></div>
-  <div class="liste-vide" id="listeVide" hidden>
-    <b>Aucun client Dofus détecté</b>
-    Lance tes clients maintenant : OMNI doit tourner AVANT eux pour pouvoir les suivre.
-  </div>
-</div>
+      <div class="titre">
+        <h1>Tes huit touches, <span class="marqueur sourd">et ce que chacun suit</span></h1>
+        <p>Une touche par personnage pour passer sur sa fenêtre. Les cinq interrupteurs disent ce que chacun recopie du meneur — clique sur un titre de colonne pour l'armer partout d'un coup.</p>
+      </div>
+      <div class="panneau">
+        <div class="entete" id="entete">
+          <span>Personnage</span>
+          <span>Touche</span>
+          <span class="c"><button class="tete-colonne" data-colonne="repl"><span class="jauge"></span>Répl.</button></span>
+          <span class="c"><button class="tete-colonne" data-colonne="tour"><span class="jauge"></span>Tour</button></span>
+          <span class="c"><button class="tete-colonne" data-colonne="groupe"><span class="jauge"></span>Groupe</button></span>
+          <span class="c"><button class="tete-colonne" data-colonne="anim"><span class="jauge"></span>Anim</button></span>
+          <span class="c"><button class="tete-colonne" data-colonne="echange"><span class="jauge"></span>Éch.</button></span>
+          <span class="d">Commande</span>
+          <span class="c">HDV</span>
+          <span class="c">Archi</span>
+          <span></span>
+        </div>
+        <div class="liste" id="liste"></div>
+        <div class="liste-vide" id="listeVide" hidden>
+          <b>Aucun client Dofus détecté</b>
+          Lance tes clients maintenant : OMNI doit tourner AVANT eux pour pouvoir les suivre.
+        </div>
+      </div>
     </div>
 
     <div class="vue" id="v-courses"></div>
