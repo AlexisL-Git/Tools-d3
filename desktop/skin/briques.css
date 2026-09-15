@@ -182,8 +182,14 @@
 
 /* -- la bete, sur la grille d archimonstres --
    En filigrane au coin, pas en vignette: la grille se lit toujours par les
-   NOMS, l illustration ne fait que confirmer. Un archi manquant garde sa
-   bete, en gris et effacee: on voit ce qu on n a pas. */
-.archi{position:relative;overflow:hidden;padding-right:44px}
-.archi .pic.bete{position:absolute;right:-4px;bottom:-6px;width:44px;height:44px;object-fit:contain;pointer-events:none}
-.archi.manquant .pic.bete{filter:grayscale(1);opacity:.34}
+   NOMS, l illustration ne fait que confirmer. Un manquant garde sa bete, en
+   gris et effacee: on voit ce qu on n a pas.
+   NOMMEE .pic-jeu ET NON .archi: dans desktop/index.html, le script pose deja
+   `r.archi.className = 'archi'` sur un bouton par ligne de la liste des
+   personnages, sans rapport avec cette brique. Un nom bare aurait collisionne
+   -- inoffensif aujourd hui par le seul hasard de l ordre du document, plus
+   du tout une fois qu une etape Archimonstres viendra poser cette brique sur
+   un vrai element. */
+.pic-jeu{position:relative;overflow:hidden;padding-right:44px}
+.pic-jeu .pic.bete{position:absolute;right:-4px;bottom:-6px;width:44px;height:44px;object-fit:contain;pointer-events:none}
+.pic-jeu.manquant .pic.bete{filter:grayscale(1);opacity:.34}
