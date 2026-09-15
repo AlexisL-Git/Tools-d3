@@ -134,10 +134,17 @@
      que ce meme numero ouvre. */
   .version-lien.retard { color: var(--v0-arme); border-bottom-color: var(--v0-arme); }
 
+  /* Les panneaux se calaient sous la `.barre-titre` par un inset de 38px --
+     sa hauteur exacte. La barre n existe plus: ils se calent desormais sur
+     `.corps`, qui est positionne pour eux, et couvrent l aire des ecrans
+     sans mordre sur le rail ni sur la barre du haut. Ils finiront chacun en
+     `.vue`; ce recalage les met deja a leur place. */
+  .corps { position: relative; }
+
   /* Un panneau DANS la fenetre, pas une fenetre modale: le depot s'y refuse
      deja (confirmation en place pour la fermeture d'un client). */
   .quoi-de-neuf {
-    position: absolute; inset: 38px 0 0 0; z-index: 20;
+    position: absolute; inset: 0; z-index: 20;
     background: var(--v0-fond); display: flex; flex-direction: column;
   }
   .qdn-tete {
@@ -344,7 +351,7 @@
 
   /* Meme forme que « Quoi de neuf »: un panneau DANS la fenetre. */
   .vue-archi {
-    position: absolute; inset: 38px 0 0 0; z-index: 20;
+    position: absolute; inset: 0; z-index: 20;
     background: var(--v0-fond); display: flex; flex-direction: column;
   }
   .arc-corps { flex: 1; overflow-y: auto; padding: 0 15px 14px; }
@@ -890,19 +897,90 @@
   .liste-vide b { display: block; color: var(--v0-texte); font-size: 15px; margin-bottom: 6px; font-weight: 700; }
 </style>
 
-<div class="barre-titre">
-  <span class="titre-nom"><span class="o">O</span>MNI</span>
-  <span class="titre-etat"><button class="version-lien" id="versionBouton" title="Voir ce qui a changé"></button><span id="titreEtat"></span></span>
-  <span class="fenetre-boutons">
-    <button id="reduire" title="Réduire"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
-    <button id="fermer" class="fermer" title="Fermer"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
-  </span>
-</div>
+<div class="fenetre">
 
-<div class="avis" id="erreur"></div>
-<div class="avis" id="sansmaitre"></div>
+  <!-- ================= RAIL ================= -->
+  <div class="rail">
+    <span class="logo">
+      <svg width="32" height="32" viewBox="0 0 48 48" aria-label="OMNI">
+        <g transform="translate(4.66,0) skewX(-11)" stroke-width="8.4"
+           stroke-linecap="round" class="marque">
+          <line x1="6.5" y1="18.5" x2="6.5" y2="29.5"/>
+          <line x1="18.2" y1="10.5" x2="18.2" y2="37.5"/>
+          <line x1="29.8" y1="10.5" x2="29.8" y2="37.5" class="pupille"/>
+          <line x1="41.5" y1="18.5" x2="41.5" y2="29.5"/>
+        </g>
+      </svg>
+    </span>
+    <!-- Les pictos du rail restent des dessins OMNI: le README du labo le
+         dit au §2, le dessin maison ne reste que la ou aucun picto du jeu
+         ne dit la chose -- Raccourcis, Reglages, l icone de l app. -->
+    <button class="actif" data-vue="raccourcis" title="Raccourcis">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2.2"/><rect x="14" y="3" width="7" height="7" rx="2.2"/><rect x="3" y="14" width="7" height="7" rx="2.2"/><rect x="14" y="14" width="7" height="7" rx="2.2"/></svg>
+    </button>
+    <!-- COURSES N A PAS DE FONCTION DERRIERE. La maquette le dit elle-meme:
+         son ecran Reglages marque le droit « courses » a non, avec la phrase
+         « Les courses en hotel de vente arriveront dans une prochaine
+         version ». Le bouton est la, desarme, pour que la place existe. -->
+    <button data-vue="courses" title="Courses — prochaine version" disabled>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h2l2.2 10.5h9.3L20 8H7"/><circle cx="10" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg>
+    </button>
+    <button data-vue="hotel" title="Hôtel de vente">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20v-7M12 20V9M18 20v-4"/></svg>
+    </button>
+    <button data-vue="archi" title="Archimonstres">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1.2 2.4-3.1 3.5-4.2 5.3a5.6 5.6 0 1 0 8.4 0C14.1 6.5 13.2 5.4 12 3Z"/></svg>
+    </button>
+    <button class="pousse" data-vue="reglages" title="Réglages">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+    </button>
+    <span class="moi"></span>
+  </div>
 
-<div class="defile">
+  <!-- ================= CORPS ================= -->
+  <div class="corps">
+
+    <!-- `.haut` REMPLACE `.barre-titre` COMME ZONE DE DEPLACEMENT: la
+         fenetre est sans cadre systeme, il faut bien une bande a saisir.
+         Chaque chose qui s y clique porte no-drag, sinon Windows avale le
+         clic. Garde: test/skin-ossature.test.js -->
+    <div class="haut" style="-webkit-app-region: drag">
+      <!-- `version-lien` EST GARDEE A COTE DE `fant`, ET CE N EST PAS UN
+           RESTE. le script bascule la classe `retard` sur ce bouton
+           quand le depot a avance, et la seule regle qui la dessine est
+           `.version-lien.retard`. Retirer `version-lien` ferait
+           disparaitre le signal: le bouton continuerait de s afficher, de
+           s ouvrir, et ne dirait simplement plus jamais qu il y a du
+           retard.
+           Garde: test/skin-ossature.test.js -->
+      <button class="fant version-lien" id="versionBouton"
+              style="-webkit-app-region: no-drag"
+              title="Voir ce qui a changé"></button>
+      <span class="fant" id="titreEtat"></span>
+      <button class="fant theme" id="btTheme" style="-webkit-app-region: no-drag"
+              title="Changer de thème">
+        <svg class="i-soleil" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
+        <svg class="i-lune" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+        <span id="libTheme">Sombre</span>
+      </button>
+      <span class="fenetre-bt">
+        <button id="reduire" style="-webkit-app-region: no-drag" title="Réduire"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
+        <button id="fermer" class="fermer" style="-webkit-app-region: no-drag"
+                title="Fermer"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
+      </span>
+    </div>
+
+    <!-- LES BANDEAUX POUSSENT, ILS NE RECOUVRENT PAS. Regle du §6 du README
+         du labo, qui ne les dessine pas: une surface inversee posee entre la
+         barre du haut et l ecran, qui repousse l ecran vers le bas et ne
+         cache jamais une donnee. -->
+    <div class="avis" id="erreur"></div>
+    <div class="avis" id="sansmaitre"></div>
+
+    <div class="vue actif" id="v-raccourcis">
+      <!-- La liste d aujourd hui, deplacee telle quelle. Elle garde
+           l ancienne feuille jusqu a l etape 1 du chantier. -->
+      <div class="defile">
   <div class="entete" id="entete">
     <div></div>
     <div>Personnage / compte</div>
@@ -923,6 +1001,12 @@
     Lance tes clients maintenant : OMNI doit tourner AVANT eux pour pouvoir les suivre.
   </div>
 </div>
+    </div>
+
+    <div class="vue" id="v-courses"></div>
+    <div class="vue" id="v-hotel"></div>
+    <div class="vue" id="v-archi"></div>
+    <div class="vue" id="v-reglages"></div>
 
 <div class="quoi-de-neuf" id="quoiDeNeuf" hidden>
   <div class="qdn-tete">
@@ -1144,6 +1228,9 @@
       </div>
     </details>
     </section>
+  </div>
+</div>
+
   </div>
 </div>
 
