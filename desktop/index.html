@@ -135,16 +135,19 @@
   .version-lien.retard { color: var(--v0-arme); border-bottom-color: var(--v0-arme); }
 
   /* Les panneaux se calaient sous la `.barre-titre` par un inset de 38px --
-     sa hauteur exacte. La barre n existe plus: ils se calent desormais sur
-     `.corps`, qui est positionne pour eux, et couvrent l aire des ecrans
-     sans mordre sur le rail ni sur la barre du haut. Ils finiront chacun en
-     `.vue`; ce recalage les met deja a leur place. */
+     sa hauteur exacte. La barre n existe plus, mais `.haut` est le PREMIER
+     enfant de `.corps` (36px, plus le gap de 13px entre enfants de .corps:
+     desktop/skin/briques.css): un `inset: 0` couvrirait donc `.haut` lui
+     meme, pas seulement le rail. Les panneaux se calent desormais a 49px du
+     haut de `.corps` -- juste sous la barre -- et couvrent l aire des
+     ecrans sans mordre sur le rail ni sur la barre du haut. Ils finiront
+     chacun en `.vue`; ce recalage les met deja a leur place. */
   .corps { position: relative; }
 
   /* Un panneau DANS la fenetre, pas une fenetre modale: le depot s'y refuse
      deja (confirmation en place pour la fermeture d'un client). */
   .quoi-de-neuf {
-    position: absolute; inset: 0; z-index: 20;
+    position: absolute; inset: 49px 0 0 0; z-index: 20;
     background: var(--v0-fond); display: flex; flex-direction: column;
   }
   .qdn-tete {
@@ -351,7 +354,7 @@
 
   /* Meme forme que « Quoi de neuf »: un panneau DANS la fenetre. */
   .vue-archi {
-    position: absolute; inset: 0; z-index: 20;
+    position: absolute; inset: 49px 0 0 0; z-index: 20;
     background: var(--v0-fond); display: flex; flex-direction: column;
   }
   .arc-corps { flex: 1; overflow-y: auto; padding: 0 15px 14px; }
@@ -964,9 +967,9 @@
         <span id="libTheme">Sombre</span>
       </button>
       <span class="fenetre-bt">
-        <button id="reduire" style="-webkit-app-region: no-drag" title="Réduire"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
+        <button id="reduire" style="-webkit-app-region: no-drag" title="Réduire"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
         <button id="fermer" class="fermer" style="-webkit-app-region: no-drag"
-                title="Fermer"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
+                title="Fermer"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/></svg></button>
       </span>
     </div>
 
