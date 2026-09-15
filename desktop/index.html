@@ -964,7 +964,7 @@
               title="Changer de thème">
         <svg class="i-soleil" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
         <svg class="i-lune" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
-        <span id="libTheme">Sombre</span>
+        <span id="motTheme">Système</span>
       </button>
       <span class="fenetre-bt">
         <button id="reduire" style="-webkit-app-region: no-drag" title="Réduire"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 6h8"/></svg></button>
@@ -3183,4 +3183,9 @@
       precedent = r.el;
     }
   });
+</script>
+
+<script type="module">
+  import { monterRail } from './vues/rail.js';
+  monterRail();
 </script>

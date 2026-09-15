@@ -236,8 +236,12 @@ test('faux-app.js ne se dispute aucun nom global avec le script d index.html', (
   const shim = lire('outils', 'faux-app.js');
   const page = lire('desktop', 'index.html');
 
+  // La fermeture la PLUS PROCHE de l ouverture, pas la derniere du fichier:
+  // depuis la tache 6, un second <script type="module"> suit le script
+  // classique (desktop/vues/rail.js) et porte sa propre balise fermante.
+  // lastIndexOf() engloutirait les deux scripts et fausserait la lecture.
   const ouvre = page.indexOf('<script>');
-  const ferme = page.lastIndexOf('</script>');
+  const ferme = page.indexOf('</script>', ouvre);
   assert.ok(ouvre !== -1 && ferme > ouvre, 'aucun <script> trouve dans index.html');
   const script = page.slice(ouvre + '<script>'.length, ferme);
   assert.ok(script.includes('const COLONNES'), 'le script d index.html a change de forme');

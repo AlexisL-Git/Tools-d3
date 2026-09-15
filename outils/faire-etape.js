@@ -28,7 +28,7 @@ const FICHIERS_DESKTOP = ['main.js', 'preload.js', 'index.html', 'devlog.js', 'd
 // partait chez les amis SANS SES POLICES: elles sont embarquees dans le depot
 // justement pour qu OMNI demarre sans reseau, et l interface retombait sur la
 // police systeme apres une mise a jour.
-const DOSSIERS_DESKTOP = ['polices', 'sons', 'skin'];
+const DOSSIERS_DESKTOP = ['polices', 'sons', 'skin', 'vues'];
 
 function copier() {
   // GARDE: une suppression recursive TRAVERSE une jonction Windows et efface
