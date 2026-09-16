@@ -121,7 +121,7 @@
 .panneau .ligne b{font-weight:600}
 .panneau .ligne .doux{color:var(--encre-douce);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .panneau .ligne .doux.absent { color: var(--encre-douce); font-style: italic; opacity: .8; }
-.d{text-align:right}
+.d{text-align:center}
 /* Un chiffre qui se rafraichit ne doit pas changer de largeur, sinon la
    colonne bouge -- et un mouvement est ce qui attire l oeil en peripherie. */
 .d,.tuile .grand,.pas b,.exemple b,.archi .aq,.perso .compte,.perso .dit{font-variant-numeric:tabular-nums}
@@ -134,7 +134,7 @@
 .capsule span{position:absolute;inset:0 auto 0 0;background:var(--encre);border-radius:999px}
 .capsule em{position:absolute;top:50%;transform:translate(-50%,-50%);width:7px;height:7px;border-radius:50%;background:var(--acide)}
 
-.pastille-etat{display:inline-flex;align-items:center;gap:7px;border-radius:999px;background:var(--carte-creuse);padding:6px 12px;font:600 12px/1 var(--ui)}
+.pastille-etat{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:999px;background:var(--carte-creuse);padding:6px 12px;font:600 12px/1 var(--ui)}
 .pastille-etat i{width:7px;height:7px;border-radius:50%;background:var(--encre)}
 .pastille-etat.creux{background:var(--alarme);color:var(--sur-alarme)}
 .pastille-etat.creux i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--sur-alarme)}
