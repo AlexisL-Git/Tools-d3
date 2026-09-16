@@ -78,7 +78,6 @@ contextBridge.exposeInMainWorld('app', {
   // client Dofus remontent par son agent, sans passer par ici.
   boutonSouris: (clic) => ipcRenderer.invoke('boutonSouris', clic),
 
-  reglerDelai: (secondes) => ipcRenderer.invoke('reglerDelai', secondes),
   // Le rythme des passes HDV. Partiel: le champ qui vient de bouger, pas les cinq.
   reglerHdvRythme: (partiel) => ipcRenderer.invoke('reglerHdvRythme', partiel),
   // Les garde-fous de prix HDV: facteur d'ecart et plafond. Partiel de meme.

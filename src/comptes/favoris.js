@@ -78,10 +78,9 @@ class Favoris {
   constructor(chemin) {
     this.chemin = chemin;
     this._ids = new Set();
-    // Comptes dont le passe-tour est actif, et delai global en secondes.
-    // Comme les favoris: que des identifiants numeriques et un nombre.
+    // Comptes dont le passe-tour est actif. Comme les favoris: que des
+    // identifiants numeriques.
     this._passeTour = new Set();
-    this._delai = 0;
     // Comptes qui acceptent seuls les invitations de groupe. Meme nature que
     // les deux listes precedentes: que des identifiants numeriques.
     this._invitation = new Set();
@@ -168,7 +167,10 @@ class Favoris {
       if (Array.isArray(json.echange)) {
         this._echange = new Set(json.echange.filter((n) => Number.isInteger(n)));
       }
-      if (typeof json.delai === 'number' && json.delai >= 0) this._delai = json.delai;
+      // `delai` A DISPARU LE 16/09: le passe-tour tire desormais son propre
+      // delai au hasard (voir src/passeur.js), il n'y a plus rien a regler.
+      // Meme discipline que `actif`: la cle reste inerte dans un vieux
+      // fichier jusqu'a la prochaine ecriture, qui ne la reproduira pas.
       if (Number.isInteger(json.maitre)) this._maitre = json.maitre;
       // Une touche n'est retenue que si son compte est un entier et sa valeur
       // une chaine: le fichier ne porte que ce dont on connait la forme.
@@ -248,7 +250,6 @@ class Favoris {
       this._invitation = new Set();
       this._noAnim = new Set();
       this._echange = new Set();
-      this._delai = 0;
       this._maitre = null;
       this._touches = new Map();
       this._ordre = [];
@@ -284,16 +285,6 @@ class Favoris {
   marquerPasseTour(id, actif) {
     if (actif) this._passeTour.add(id);
     else this._passeTour.delete(id);
-    this._ecrire();
-  }
-
-  delai() {
-    return this._delai;
-  }
-
-  reglerDelai(secondes) {
-    const v = Number(secondes);
-    this._delai = Number.isFinite(v) && v >= 0 ? v : 0;
     this._ecrire();
   }
 
@@ -512,7 +503,6 @@ class Favoris {
     try {
       fs.mkdirSync(path.dirname(this.chemin), { recursive: true });
       const contenu = {
-        delai: this._delai,
         favoris: this.tous(),
         passeTour: this.tousPasseTour(),
         invitation: this.tousInvitation(),

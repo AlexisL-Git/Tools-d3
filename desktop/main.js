@@ -381,7 +381,9 @@ let minuteurVue = null;
 // cochee agit, sans condition au-dessus d'elle. C'est aussi ce qui supprime le
 // mode d'echec que ce fichier documentait: plus aucun reglage ne peut etre
 // rendu muet par un autre.
-const reglagesPasseTour = { actif: true, delaiMs: 0 };
+// PAS DE delaiMs ICI: sans lui, src/passeur.js tire a chaque trame son propre
+// delai entre 80 et 140 ms plutot que d'utiliser une valeur fixe reglable.
+const reglagesPasseTour = { actif: true };
 const reglagesInvitation = { actif: true };
 const reglagesNoAnim = { actif: true };
 const reglagesEchange = { actif: true };
@@ -834,7 +836,6 @@ async function envoyerEtat() {
     // produisent le meme silence: l en-tete doit dire lequel des deux.
     sansMaitre: superviseur.maitre === null,
     erreurComptes,
-    delai: favoris.delai(),
     hdvRythme: favoris.hdvRythme(),
     hdvGarde: favoris.hdvGarde(),
     hdvBornes: HDV_BORNES,
@@ -1067,9 +1068,6 @@ app.whenReady().then(async () => {
     racine: path.join(app.getPath('userData'), 'emblemes'),
     journal: (texte) => journal('emblemes', texte),
   });
-  // Le delai enregistre doit survivre au redemarrage de l'application, pas
-  // seulement a celui d'un client.
-  reglagesPasseTour.delaiMs = Math.round(favoris.delai() * 1000);
   // Meme raison pour le rythme des passes HDV, et pour ses garde-fous de prix.
   reglagesHdv.rythme = favoris.hdvRythme();
   reglagesHdv.garde = favoris.hdvGarde();
@@ -2304,21 +2302,13 @@ ipcMain.handle('basculerEchangeCompte', async (_e, idCompte, actif) => {
   await envoyerEtat();
 });
 
-ipcMain.handle('reglerDelai', async (_e, secondes) => {
-  const v = Number(secondes);
-  if (!Number.isFinite(v) || v < 0) return;
-  favoris.reglerDelai(v);
-  reglagesPasseTour.delaiMs = Math.round(v * 1000);
-  await envoyerEtat();
-});
-
 // Le panneau envoie le champ qui vient de bouger, pas les cinq: favoris fusionne
 // et BORNE, puis on relit la version bornee. Renvoyer ce qu'on vient de recevoir
 // afficherait une valeur que le disque ne porte pas.
 ipcMain.handle('reglerHdvRythme', async (_e, partiel) => {
   if (partiel === null || typeof partiel !== 'object') return;
-  // Les champs arrivent du DOM, donc en chaines. Meme conversion que
-  // reglerDelai, faite ici pour que favoris n'ait a connaitre que des nombres.
+  // Les champs arrivent du DOM, donc en chaines: on les convertit ici pour
+  // que favoris n'ait a connaitre que des nombres.
   const nombres = {};
   for (const [nom, valeur] of Object.entries(partiel)) {
     const v = Number(valeur);

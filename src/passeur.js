@@ -79,6 +79,16 @@ const URL_PASSE = 'type.ankama.com/jvv';
 // armees a l'aveugle sur le compteur de manche: celles-la partaient toutes.
 const RELANCES_MS = [400, 1000, 2000];
 
+// SANS delaiMs CONFIGURE (l'usage reel, hors tests), le passe-tour attend un
+// temps tire au hasard entre ces deux bornes plutot que d'emettre a l'instant
+// du jyj: un delai fixe se reperait a l'oeil, comme un clic mecanique.
+const DELAI_MIN_MS = 80;
+const DELAI_MAX_MS = 140;
+
+function tirerDelai() {
+  return DELAI_MIN_MS + Math.floor(Math.random() * (DELAI_MAX_MS - DELAI_MIN_MS + 1));
+}
+
 // La requete est CONSTANTE et vide. On la construit une fois pour toutes.
 const TRAME_PASSE = encodeRaw([
   { no: 1, wire: WIRE.LEN, kind: 'message', value: [
@@ -97,8 +107,11 @@ function personnageAnnonce(frame) {
 }
 
 // superviseur   — porte emettre(pid, octets) et comptes.get(pid)
-// reglages      — { actif, delaiMs }, RELU a chaque trame pour que
-//                 l'interrupteur general et le delai prennent effet aussitot
+// reglages      — { actif, delaiMs? }, RELU a chaque trame pour que
+//                 l'interrupteur general prenne effet aussitot. delaiMs est un
+//                 OVERRIDE reserve aux tests (0 y rend le passeur synchrone):
+//                 en usage reel il n'est pas fourni, et chaque trame tire son
+//                 propre delai entre DELAI_MIN_MS et DELAI_MAX_MS.
 // onCompteRendu — recoit ce qui a ete emis, ou refuse et pourquoi
 function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
   // Les relances en attente, par compte. Elles n'ont de sens que pendant NOTRE
@@ -164,7 +177,7 @@ function creerPasseur({ superviseur, reglages, onCompteRendu = () => {} }) {
     // Le characterId n'est plus exige. Il ne sert qu'a reconnaitre la fin de
     // notre tour, donc a arreter les relances: sans lui elles iront a leur
     // terme, ce qui coute quelques trames ignorees, pas un tour perdu.
-    const delai = Math.max(0, Number(reglages.delaiMs) || 0);
+    const delai = Number.isFinite(reglages.delaiMs) ? Math.max(0, reglages.delaiMs) : tirerDelai();
     if (delai === 0) emettre(pid, etat, TYPE_MON_TOUR);
     else programmer(pid, () => emettre(pid, etat, TYPE_MON_TOUR), delai);
 

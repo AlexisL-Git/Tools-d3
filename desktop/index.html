@@ -911,11 +911,11 @@
      -- plus de croix ni de bouton dans la barre du bas depuis le 16/09, ce
      panneau s'ouvre desormais depuis l'onglet Hotel de vente du rail
      (railHotel), pas dans le menu HDV d'une ligne. IL RESTE GLOBAL: le
-     reglage vaut pour tout OMNI (comme le delai du passe-tour, la pierre
-     d'ame, l'overlay), pas pour un seul compte -- un reglage general
-     accroche a la ligne d'un compte se lirait comme un reglage DE ce compte,
-     et c'est exactement le malentendu que les cinq interrupteurs generaux
-     avaient produit avant d'etre supprimes. -->
+     reglage vaut pour tout OMNI (comme la pierre d'ame, l'overlay), pas
+     pour un seul compte -- un reglage general accroche a la ligne d'un
+     compte se lirait comme un reglage DE ce compte, et c'est exactement le
+     malentendu que les cinq interrupteurs generaux avaient produit avant
+     d'etre supprimes. -->
 <div class="vue-archi" id="vueRythme" hidden>
   <div class="qdn-tete">
     <b>Réglages HDV</b>
@@ -989,7 +989,6 @@
 
 <div class="barre-nav">
   <span class="avis-nav" id="avisNav"></span>
-  <label class="champ-delai">Délai <input id="delai" type="number" min="0" step="0.1" value="0"> s</label>
   <!-- L'AVANCEMENT DE LA PASSE DE MARCHE EST ICI, PAS DANS LE PANNEAU DES
        PEPITES: la passe part toute seule a l'ouverture d'un etal, et un
        texte pose dans le panneau ne se voit que panneau ouvert -- mesure a
@@ -2463,10 +2462,6 @@
     });
   }
 
-  document.getElementById('delai').addEventListener('change', (e) => {
-    window.app.reglerDelai(e.target.value);
-  });
-
   // Confirmation en place plutot qu'une fenetre modale: un clic de travers
   // fermerait tous les clients, potentiellement en plein combat. Le premier
   // clic arme, le second ferme, et l'armement retombe seul.
@@ -2879,13 +2874,10 @@
     avisNav.classList.toggle('arme',
       typeof etat.avisBascule === 'string' && etat.avisBascule.endsWith('— activé'));
 
-    const champDelai = document.getElementById('delai');
-    if (document.activeElement !== champDelai) champDelai.value = etat.delai;
-
     // LE RYTHME AFFICHE EST CELUI DU DISQUE, PAS CELUI QU'ON VIENT D'ENVOYER:
     // favoris borne a l'ecriture, et un panneau qui montrerait la valeur emise
     // laisserait croire qu'un x9 a ete pris. Un curseur en cours de deplacement
-    // n'est pas ecrase, comme le champ de delai juste au-dessus.
+    // n'est pas ecrase.
     if (etat.hdvBornes) ryBornes = etat.hdvBornes;
     if (etat.hdvRythme) {
       const actif = document.activeElement;

@@ -193,6 +193,18 @@ test('le delai differe l emission', async () => {
   assert.strictEqual(sup.emis.length, 1);
 });
 
+// SANS delaiMs CONFIGURE (l'usage reel, hors tests): le passe-tour tire son
+// propre delai entre 80 et 140 ms plutot que d'emettre a l'instant du jyj.
+test('sans delaiMs configure, le passe-tour attend un delai tire au hasard', async () => {
+  const sup = fauxSuperviseur();
+  passeur(sup, { actif: true })(evenement(monTour()));
+  assert.strictEqual(sup.emis.length, 0);
+  await new Promise((r) => setTimeout(r, 70));
+  assert.strictEqual(sup.emis.length, 0, 'le delai minimal (80 ms) n a pas encore ete atteint');
+  await new Promise((r) => setTimeout(r, 150));
+  assert.strictEqual(sup.emis.length, 1, 'le delai maximal (140 ms) est depasse');
+});
+
 test('deux comptes sont independants', () => {
   const sup = fauxSuperviseur([[1, MOI], [2, AUTRE]]);
   const p = passeur(sup, { actif: true, delaiMs: 0 });

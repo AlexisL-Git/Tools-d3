@@ -144,12 +144,6 @@ function creerFauxApp(etatInitial, deps) {
     basculerOverlay: async () => { etat.overlayOuvert = !etat.overlayOuvert; emettre(); },
     boutonSouris: async (clic) => { inerte('boutonSouris', [clic]); },
 
-    reglerDelai: async (secondes) => {
-      const v = Number(secondes);
-      etat.delai = Number.isFinite(v) && v >= 0 ? v : 0;
-      emettre();
-    },
-
     // --- fermer des clients ----------------------------------------------
     fermerUnClient: async (id) => {
       const l = ligneParId(id);

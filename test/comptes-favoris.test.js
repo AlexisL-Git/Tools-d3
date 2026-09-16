@@ -50,13 +50,13 @@ test('le fichier enregistré ne contient que des identifiants', (t) => {
   f.marquer(10612457, true);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
   // Depuis les extensions au passe-tour et a l'invitation, le fichier porte
-  // aussi passeTour, invitation et delai (vides/nuls ici): voir le test
-  // dedie plus bas pour le contenu complet. `overlay` s'y est ajoute le
-  // 2026-08-29: une position d'ecran, un sens et un booleen, rien qui
-  // designe une personne. `hdvRythme` s'y ajoute le 2026-09-05: quatre
-  // facteurs sans unite et une expiration en millisecondes, cinq nombres.
-  // `hdvGarde` le meme jour: un facteur et un plafond en kamas, deux nombres.
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
+  // aussi passeTour et invitation (vides ici): voir le test dedie plus bas
+  // pour le contenu complet. `overlay` s'y est ajoute le 2026-08-29: une
+  // position d'ecran, un sens et un booleen, rien qui designe une personne.
+  // `hdvRythme` s'y ajoute le 2026-09-05: quatre facteurs sans unite et une
+  // expiration en millisecondes, cinq nombres. `hdvGarde` le meme jour: un
+  // facteur et un plafond en kamas, deux nombres.
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['combats', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
 });
 
@@ -82,38 +82,19 @@ test('le passe-tour par compte est enregistre et relu', (t) => {
   assert.strictEqual(b.passeTourActif(999), false);
 });
 
-test('le delai global est enregistre et relu', (t) => {
-  const p = fichierTemporaire(t);
-  const a = new Favoris(p);
-  a.charger();
-  a.reglerDelai(1.5);
-
-  const b = new Favoris(p);
-  b.charger();
-  assert.strictEqual(b.delai(), 1.5);
-});
-
-test('le delai par defaut est 0', (t) => {
-  const f = new Favoris(fichierTemporaire(t));
-  f.charger();
-  assert.strictEqual(f.delai(), 0);
-});
-
-test('le fichier ne contient que des identifiants, booleens et le delai', (t) => {
+test('le fichier ne contient que des identifiants et des booleens', (t) => {
   const p = fichierTemporaire(t);
   const f = new Favoris(p);
   f.charger();
   f.marquer(10612457, true);
   f.marquerPasseTour(10612457, true);
-  f.reglerDelai(0.5);
   const contenu = JSON.parse(fs.readFileSync(p, 'utf8'));
-  assert.deepStrictEqual(Object.keys(contenu).sort(), ['combats', 'delai', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
+  assert.deepStrictEqual(Object.keys(contenu).sort(), ['combats', 'echange', 'favoris', 'hdvGarde', 'hdvRythme', 'invitation', 'maitre', 'noAnim', 'ordre', 'overlay', 'passeTour', 'pdaArchi', 'pdaArchiRepli', 'touches']);
   assert.deepStrictEqual(contenu.favoris, [10612457]);
   assert.deepStrictEqual(contenu.passeTour, [10612457]);
   assert.deepStrictEqual(contenu.invitation, []);
   assert.deepStrictEqual(contenu.noAnim, []);
   assert.deepStrictEqual(contenu.echange, []);
-  assert.strictEqual(contenu.delai, 0.5);
 });
 
 test('l invitation se marque, se lit et se relit du fichier', (t) => {
@@ -284,14 +265,12 @@ test('épingler un maître préserve les autres réglages', (t) => {
   const f = new Favoris(chemin).charger();
   f.marquer(3, true);
   f.marquerPasseTour(4, true);
-  f.reglerDelai(1.5);
   f.reglerMaitre(5);
 
   const relu = new Favoris(chemin).charger();
   assert.strictEqual(relu.maitre(), 5);
   assert.deepStrictEqual(relu.tous(), [3]);
   assert.deepStrictEqual(relu.tousPasseTour(), [4]);
-  assert.strictEqual(relu.delai(), 1.5);
 });
 
 // --- l interrupteur unique, RETIRE le 08/09 --------------------------------
@@ -392,18 +371,16 @@ test('un fichier sans les nouvelles clés se lit sans erreur', (t) => {
 test('un fichier avec l ancienne clé nav se lit sans erreur, et nav disparaît à l écriture', (t) => {
   const chemin = fichierTemporaire(t);
   fs.writeFileSync(chemin, JSON.stringify({
-    delai: 5, favoris: [3], maitre: 3, nav: { curseur: 3, sens: 1 },
+    favoris: [3], maitre: 3, nav: { curseur: 3, sens: 1 },
   }), 'utf8');
 
   const f = new Favoris(chemin).charger();
-  assert.strictEqual(f.delai(), 5);
   assert.deepStrictEqual(f.tous(), [3]);
   assert.strictEqual(f.maitre(), 3);
 
   f.reglerOrdre([3]);
   const relu = JSON.parse(fs.readFileSync(chemin, 'utf8'));
   assert.strictEqual('nav' in relu, false);
-  assert.strictEqual(relu.delai, 5);
   assert.deepStrictEqual(relu.favoris, [3]);
   assert.strictEqual(relu.maitre, 3);
 });
@@ -449,10 +426,9 @@ test('oublier vide la liste et l enregistre', (t) => {
 
 test('une liste d un mauvais type dans le fichier est ignoree', (t) => {
   const chemin = fichierTemporaire(t);
-  fs.writeFileSync(chemin, JSON.stringify({ combats: 'ioy:1', delai: 3 }), 'utf8');
+  fs.writeFileSync(chemin, JSON.stringify({ combats: 'ioy:1' }), 'utf8');
   const f = new Favoris(chemin).charger();
   assert.deepStrictEqual(f.combats(), []);
-  assert.strictEqual(f.delai(), 3);
 });
 
 // Ce test verifiait autrefois qu'un melange de chaines et de valeurs

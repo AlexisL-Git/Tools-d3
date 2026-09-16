@@ -52,9 +52,9 @@
 #erreur { box-shadow: inset 4px 0 0 var(--acide-sur-contre); }
 
 /* ============================================================
-   LA BARRE DU BAS. Bascules GLOBALES (Overlay, Fermer les clients) et le
-   delai de la passe HDV -- pas un ecran: elle reste hors des .vue et
-   survit au changement d ecran. La maquette ne la dessine nulle part
+   LA BARRE DU BAS. Bascules GLOBALES (Overlay, Fermer les clients) -- pas un
+   ecran: elle reste hors des .vue et survit au changement d ecran. La
+   maquette ne la dessine nulle part
    (elle ne prevoit pas de barre persistante sous le rail), donc rien ici
    n est recopie d une section -- tout est traduit depuis l ancienne
    feuille (--v0-*).
@@ -79,18 +79,6 @@
   padding: 9px 15px; border-top: 1px solid var(--trait); background: var(--carte);
   font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--encre-douce); font-weight: 700;
-}
-
-.champ-delai {
-  display: inline-flex; align-items: center; gap: 7px;
-  font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--encre-douce); font-weight: 700;
-}
-.champ-delai input {
-  width: 52px; padding: 4px 6px; font: inherit; font-size: 13px;
-  background: var(--carte-creuse); color: var(--encre);
-  border: 1px solid var(--trait-fort); border-radius: 8px;
-  font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0;
 }
 
 /* L interrupteur maitre: SUSPEND une fonction sans rien effacer. Ce

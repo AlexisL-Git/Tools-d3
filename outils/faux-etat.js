@@ -305,7 +305,6 @@ function fabriquerEtat() {
     pdaArchiRepli: false,
     sansMaitre: false,
     erreurComptes: null,
-    delai: 0,
     hdvRythme: { ...RYTHME_HDV_DEFAUT },
     hdvGarde: { ...GARDE_HDV_DEFAUT },
     hdvBornes: BORNES,

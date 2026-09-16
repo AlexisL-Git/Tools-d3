@@ -123,12 +123,10 @@ test('basculerColonne sur un nom inconnu ne modifie rien et le journalise', () =
   assert.ok(dits[0].includes('nimportequoi'));
 });
 
-test('reglerDelai et reglerTouche ecrivent dans l etat', () => {
+test('reglerTouche ecrit dans l etat', () => {
   const app = creerFauxApp(fabriquerEtat());
   app.surEtat(() => {});
-  app.reglerDelai(3);
   app.reglerTouche(2, 'F7');
-  assert.strictEqual(app.__etat().delai, 3);
   assert.strictEqual(app.__etat().lignes.find((l) => l.id === 2).touche, 'F7');
 });
 
