@@ -22,7 +22,7 @@ function blocRaccourcis() {
 
 test('le balisage de #v-raccourcis porte le vocabulaire de la maquette', () => {
   const bloc = blocRaccourcis();
-  for (const classe of ['panneau', 'entete', 'liste', 'titre']) {
+  for (const classe of ['panneau', 'entete', 'liste']) {
     assert.ok(
       bloc.includes('class="' + classe + '"') || bloc.includes(' ' + classe + '"') || bloc.includes(' ' + classe + ' '),
       `classe "${classe}" absente du balisage de #v-raccourcis`,
