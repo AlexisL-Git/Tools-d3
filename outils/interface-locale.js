@@ -14,9 +14,6 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { construire: construireTableauArchi } = require('../src/pda-archi/tableau');
-const { classer, comparer, chercher } = require('../src/pepites/classement');
-const { nomDe } = require('../src/hdv/objets');
-const { JEU: JEU_DES_TAUX } = require('../src/pepites/taux');
 
 // Node met les modules en cache: sans cette invalidation, enregistrer
 // faux-etat.js rechargerait l'onglet pour y afficher l'etat d'avant. Le
@@ -203,46 +200,6 @@ function creerServeur() {
           comptes: chargerFauxEtat().comptesArchi(),
         });
         return repondre(res, 200, TYPES['.json'], JSON.stringify(table));
-      }
-
-      // LE CLASSEMENT DES PEPITES. Comme /faux/tableau-archi juste au-dessus:
-      // faux-etat.js ne fabrique que les prix (voir son commentaire), et ce
-      // sont classer()/comparer() de src/pepites/classement.js -- le vrai
-      // module de production, jamais une reecriture -- qui font le tri et la
-      // comparaison. Le banc reste fidele a ce que dessine desktop/main.js.
-      if (chemin === '/faux/tableau-pepites') {
-        const {
-          precedent, courant, marche, perso, quand, prixQuand,
-        } = chargerFauxEtat().pepites();
-        const lignesPrecedent = classer({ prixMoyens: precedent });
-        // LE MARCHE N'ENTRE QUE DANS LA PASSE COURANTE: c'est une donnee
-        // neuve de la tache 2, sans historique fabrique sur le banc -- la
-        // passe precedente reste fidele a ce qu'elle etait avant.
-        const lignesCourant = classer({ prixMoyens: courant, prixMarche: marche });
-        const { lignes, sorties } = comparer(lignesPrecedent, lignesCourant);
-        const table = {
-          // NOMMER ICI, COMME desktop/main.js: classer()/comparer() ne
-          // connaissent que des gid, nomDe() vit a cote de la table HDV.
-          lignes: lignes.map((l) => ({ ...l, nom: nomDe(l.gid) })),
-          sorties: sorties.map((l) => ({ ...l, nom: nomDe(l.gid) })),
-          quand,
-          prixQuand,
-          perso,
-          jeu: JEU_DES_TAUX,
-          raison: null,
-        };
-        return repondre(res, 200, TYPES['.json'], JSON.stringify(table));
-      }
-
-      // LA RECHERCHE LIBRE DES PEPITES. Meme lecture du parametre `texte` que
-      // `quoi` pour /faux/tableau-archi ci-dessus.
-      if (chemin === '/faux/chercher-pepites') {
-        const texte = new URL(req.url, 'http://127.0.0.1').searchParams.get('texte');
-        const { courant, marche } = chargerFauxEtat().pepites();
-        const resultats = chercher({
-          texte: typeof texte === 'string' ? texte : '', prixMoyens: courant, prixMarche: marche,
-        });
-        return repondre(res, 200, TYPES['.json'], JSON.stringify(resultats));
       }
 
       if (chemin === '/faux/devlog') return servirFichier(res, path.join(RACINE, 'devlog.json'));

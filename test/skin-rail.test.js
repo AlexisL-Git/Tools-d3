@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const url = require('node:url');
 
-// Assertion sur le SOURCE, comme pepites-panneau et pda-archi-panneau: le
+// Assertion sur le SOURCE, comme pda-archi-panneau: le
 // chemin concerne demanderait un vrai navigateur.
 
 const RACINE = path.join(__dirname, '..');

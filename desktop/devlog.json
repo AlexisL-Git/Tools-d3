@@ -3,8 +3,6 @@
     "version": "0.3.9",
     "le": "2026-09-13",
     "notes": [
-      "Nouveau, les Pepites : un panneau qui te dit quel objet coute le moins cher par pepite au prisme d alliance, et tient a jour les 50 meilleurs. Les 4 049 taux de recyclage sont dedans, avec une recherche libre sur tout le catalogue et une colonne qui montre ce qui a bouge depuis la passe precedente.",
-      "Les Pepites savent aussi aller chercher le VRAI prix du marche a l hotel de vente, etal par etal, au lieu des prix moyens du login. Chaque ligne dit d ou vient son prix, et l avancement de la passe se voit meme le panneau ferme, dans la barre du bas.",
       "Zaapi : quand tu cliques le zaapi, tes mules ouvrent leur panneau de destinations aussi, meme si elles ne sont pas encore arrivees a cote de toi. OMNI renvoie le clic pendant qu elles marchent, cinq fois en cinq secondes.",
       "Dialogue : quand tu prends la main sur une mule pour parler a un PNJ toi-meme, sa fenetre ne se referme plus toute seule. Elle se refermait environ une fois sur deux, 38 millisecondes apres s etre ouverte.",
       "Combat : une mule ne lance plus son propre combat en recopiant une reponse de quete du maitre. La protection existait depuis le 2 septembre mais ne voyait pas passer les dialogues, et elle annulait donc zero action sur le cas meme pour lequel elle avait ete ecrite.",

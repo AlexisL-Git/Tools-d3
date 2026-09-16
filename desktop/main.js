@@ -47,11 +47,6 @@ const { creerCollection } = require('../src/pda-archi/collection');
 const { trameLireInventaire } = require('../src/pda-archi/trames');
 const { estArchimonstre } = require('../src/pda-archi/archimonstres');
 const { construire: construireTableauArchi } = require('../src/pda-archi/tableau');
-const { creerPepites } = require('../src/pepites/pepites');
-const { creerMarche } = require('../src/pepites/marche');
-const { creerHistorique } = require('../src/pepites/historique');
-const { chercher: chercherPepite } = require('../src/pepites/classement');
-const { JEU: JEU_DES_TAUX } = require('../src/pepites/taux');
 const { composer } = require('../src/composer');
 const { lireComptes } = require('../src/comptes/zaap');
 const { listerClients, fermerClients } = require('../src/comptes/clients');
@@ -118,13 +113,6 @@ let vente = null;
 // La pierre d'ame equipee a l'entree en combat. Declaree ici comme la vente: le panneau lit son
 // etat, l'interrupteur l'arme, et la perte du droit doit pouvoir la desarmer.
 let pdaArchi = null;
-let pepites = null;
-// LA PASSE DE PRIX DE MARCHE, CREEE A COTE DE pepites -- voir plus bas.
-let marche = null;
-// LA DERNIERE PASSE DES PEPITES, MISE EN CACHE PAR onPasse. Voir le handler
-// 'tableauPepites' plus bas: ouvrir le panneau lit ce cache, il ne declenche
-// plus jamais passer() lui-meme.
-let pepitesResultat = null;
 
 // LES AMES CAPTUREES, POUR LE TABLEAU DES ARCHIMONSTRES.
 //
@@ -1227,60 +1215,6 @@ app.whenReady().then(async () => {
       }
     },
   });
-  // LE CLASSEMENT DES PEPITES.
-  //
-  // LE FICHIER VA DANS userData, a cote de favoris.json -- pas dans le depot:
-  // c'est de l'etat d'utilisateur, il survit aux mises a jour de code.
-  pepites = creerPepites({
-    historique: creerHistorique({
-      chemin: path.join(app.getPath('userData'), 'pepites.json'),
-      // UN HISTORIQUE PERDU NE VAUT PAS UN BLOCAGE, mais il ne se perd pas en
-      // silence: sans cette ligne, un fichier corrompu ferait disparaitre la
-      // colonne de variation sans que rien ne le dise.
-      onErreur: (e) => journal(0, `pepites : historique illisible — ${e.message}`),
-    }),
-    onPasse: (resultat) => {
-      // LE CACHE SE REMPLIT ICI, PAS DANS LE HANDLER IPC. onPasse ne tire que
-      // sur une vraie passe -- une ivi recue ou la fin d'une passe de marche,
-      // qui reclasse une fois pour toutes (voir onFin plus bas) -- jamais sur
-      // l'ouverture d'un panneau. C'est ce qui rend la lecture du handler
-      // sure: ouvrir le panneau deux fois de suite sans passe entre les deux
-      // doit relire la MEME comparaison, pas en calculer une nouvelle contre
-      // elle-meme.
-      pepitesResultat = resultat;
-      const { passe } = resultat;
-      // `journal(0, ...)` ET PAS `journal(null, ...)`: zero est le pid de
-      // convention pour ce qui ne vient d'aucun client, pose par signalerMajGit()
-      // plus bas dans ce fichier. `null` s'imprimerait tel quel entre
-      // crochets.
-      journal(0, `pepites : ${passe.lignes.length} lignes classees`
-        // LE CHIFFRE QUI MANQUE A LA SPEC. Combien des 4 049 objets
-        // recyclables ont un prix dans ivi n'a jamais pu etre mesure: le depot
-        // n'a aucune capture d'ivi reelle. Cette ligne est la mesure.
-        + `, sur ${pepites.etat().taille} prix connus`);
-    },
-  });
-  // LA PASSE PART A L'OUVERTURE D'UN ETAL, et c'est la premiere fois que ce
-  // projet emet sur un geste qui n'est pas un clic dans OMNI. Voir la section
-  // « Ce que ca change dans la nature du projet » de la conception.
-  marche = creerMarche({
-    superviseur,
-    candidats: () => pepites.candidats(),
-    reglages: { rythme: favoris.hdvRythme() },
-    onPrix: ({ gid, prix, quand }) => pepites.noterPrixMarche(gid, prix, quand),
-    onAvancement: ({ pid, fait, total }) => {
-      if (fenetre !== null) fenetre.webContents.send('pepitesAvancement', { pid, fait, total });
-    },
-    onFin: ({ pid, bilan }) => {
-      const b = bilan;
-      journal(pid, `pepites marche : ${b.tarifes} tarifes, ${b.sansOffre} sans offre, `
-        + `${b.echecs} echecs${b.raison ? ` — ${b.raison}` : ''}`);
-      // LE CLASSEMENT SE REFAIT A LA FIN, une seule fois: le refaire a chaque
-      // prix recalculerait cinquante fois pour cinquante lignes.
-      pepites.passer();
-      if (fenetre !== null) fenetre.webContents.send('pepitesAvancement', { pid, fait: 0, total: 0 });
-    },
-  });
   // LA CHASSE A L'ARCHIMONSTRE.
   //
   // Elle ecoute EN PERMANENCE elle aussi, et meme eteinte: sans cela, allumer
@@ -1618,13 +1552,6 @@ app.whenReady().then(async () => {
     protege('pda-archi', pdaArchi.onTrame),
     // Sans porte: elle ne fait que lire l'inventaire pour le tableau.
     collectionArchi.onTrame,
-    // Sans porte, comme collectionArchi: elle ne fait que lire les prix
-    // moyens que le serveur envoie de lui-meme au login. Rien n'est emis, donc
-    // il n'y a rien a verrouiller par cle.
-    pepites.onTrame,
-    // Sans porte, comme pepites.onTrame: la passe ne lit que des prix publics
-    // et ne change rien dans le jeu.
-    marche.onTrame,
     noterTrafic(),
     // DIAGNOSTIC TEMPORAIRE — voir diagnostic() plus haut.
     diagnostic(superviseur),
@@ -1928,65 +1855,6 @@ ipcMain.handle('tableauArchi', (_e, quoi) => construireTableauArchi({
       // et qu'il ne porte aucune ame. tableau.js compte sur la difference.
       ames: collectionArchi.etat().get(l.pid) || null,
     })),
-}));
-
-// LE TABLEAU DES PEPITES. Meme forme que tableauArchi: le panneau demande, le
-// principal croise, et rien n'est emis vers le jeu.
-//
-// LA PROVENANCE PART AVEC LES LIGNES, et ce n'est pas decoratif. Si aucun
-// compte ne s'est reconnecte, la passe des douze heures rend le meme
-// classement qu'avant -- un tableau sans date laisserait croire qu'il est
-// frais.
-ipcMain.handle('tableauPepites', () => {
-  const etat = pepites === null ? null : pepites.etat();
-  const PAS_ENCORE = {
-    lignes: [], sorties: [], quand: null, prixQuand: null, perso: null,
-    jeu: JEU_DES_TAUX,
-    raison: 'connecte un personnage une fois pour que je voie les prix',
-  };
-  if (etat === null) return PAS_ENCORE;
-  // OUVRIR LE PANNEAU N'EST PAS UNE PASSE. Une passe compare la table de prix
-  // courante a la derniere passe enregistree; l'appeler ici comparerait la
-  // table A ELLE-MEME des qu'aucune ivi n'est arrivee entre deux ouvertures,
-  // et une comparaison qui se compare a elle-meme ment: tout ressort
-  // 'stable', deltaCout a 0, alors que la verite est qu'il n'y a rien de neuf
-  // a comparer -- pas que rien n'a bouge. Passer() ecrit aussi une entree
-  // dans un historique borne a PASSES_GARDEES: dix ouvertures y couteraient
-  // dix entrees, et les quinze jours annonces tomberaient a la duree d'une
-  // session. Le cache rempli par onPasse ne bouge que sur une vraie passe --
-  // une ivi ou la minuterie des douze heures -- jamais sur un clic.
-  //
-  // PAS DE REPLI SUR pepites.passer() ICI: etat() et passer() rendent tous
-  // deux `null` exactement dans le meme cas (table interne a null), et on
-  // vient de verifier que ce n'est pas le notre. Si le cache est malgre tout
-  // vide a ce point, appeler passer() reintroduirait le bug corrige plus
-  // haut plutot que de le reparer -- la reponse honnete est « pas encore de
-  // classement », pas un calcul suspect.
-  if (pepitesResultat === null) return PAS_ENCORE;
-  const r = pepitesResultat;
-  const ligne = (dernieresLignes || []).find((l) => l.pid === etat.pid);
-  // NOMMER ICI, PAS DANS LE MODULE: src/pepites/ ne connait que des gids, et
-  // nomDe() vit deja a cote de la table HDV. Un gid sans nom rend `null`, et
-  // le panneau affiche le gid nu -- comme le tableau des ecartes.
-  return {
-    lignes: r.variation.lignes.map((l) => ({ ...l, nom: nomDe(l.gid) })),
-    sorties: r.variation.sorties.map((l) => ({ ...l, nom: nomDe(l.gid) })),
-    quand: r.passe.quand,
-    prixQuand: r.passe.prixQuand,
-    // Le nom se resout ICI et pas dans le module: la correspondance pid -> nom
-    // vit dans dernieresLignes, que src/pepites/ n'a pas a connaitre.
-    perso: ligne ? (ligne.personnage || ligne.nickname) : null,
-    jeu: JEU_DES_TAUX,
-    raison: null,
-  };
-});
-
-// LA RECHERCHE LIBRE. Elle passe par le principal plutot que de livrer les
-// 4 049 taux au rendu: la table vit deja ici, et la recopier a chaque frappe
-// serait absurde.
-ipcMain.handle('chercherPepite', (_e, texte) => chercherPepite({
-  texte: typeof texte === 'string' ? texte : '',
-  prixMoyens: pepites === null ? null : pepites.prixMoyens(),
 }));
 
 // REDEMANDER L'INVENTAIRE DE TOUS LES CLIENTS, sans se deconnecter.
