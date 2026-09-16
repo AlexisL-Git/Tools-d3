@@ -106,8 +106,7 @@
 .maitre-inter.on:hover { color: var(--acide); filter: brightness(1.15); }
 
 /* Le bouton de l overlay et les autres bascules non destructrices de la
-   barre (Pepites): un contour, pas une surface -- meme famille que
-   .bt-vide. */
+   barre : un contour, pas une surface -- meme famille que .bt-vide. */
 .pose {
   padding: 6px 13px; border-radius: 999px;
   border: 1px solid var(--trait-fort); background: transparent; color: var(--encre-douce);

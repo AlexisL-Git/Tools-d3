@@ -5,15 +5,6 @@ const path = require('node:path');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { creerServeur, injecter } = require('../outils/interface-locale');
-const { nomDe } = require('../src/hdv/objets');
-const { JEU: JEU_DES_TAUX } = require('../src/pepites/taux');
-
-// Noms REELS de deux objets fabriques par outils/faux-etat.js (voir son
-// commentaire sur pepites()), lus ici depuis la vraie table plutot que
-// recopies a la main: si src/hdv/objets.json change un jour, ce test change
-// avec lui au lieu de mentir.
-const NOM_FRENE = nomDe(303); // Bois de Frene
-const NOM_SAC_FRENE = nomDe(7950); // Sac de Bois de Frene
 
 let serveur;
 let base;
@@ -138,57 +129,6 @@ test('le tableau archi est calcule par le vrai module', async () => {
   assert.ok(table.comptes.some((c) => c.lu === true), 'aucun inventaire lu');
   assert.ok(table.comptes.some((c) => c.lu === false), 'aucun inventaire non lu');
   assert.ok(table.zones, 'la vue par zones manque');
-});
-
-// MEME PRINCIPE QUE LE TABLEAU ARCHI CI-DESSUS: faux-etat.js ne fabrique que
-// des prix, classer()/comparer() sont le vrai module de production. Ce test
-// verifie que les cinq etats que le panneau sait afficher sont bien tous
-// presents sur le banc -- une regression qui viderait un cas (par exemple
-// en changeant les prix fabriques de faux-etat.js sans verifier les etats
-// resultants) se verrait ici avant de se voir a l'ecran.
-test('le tableau pepites est calcule par le vrai module', async () => {
-  const r = await fetch(`${base}/faux/tableau-pepites`);
-  assert.strictEqual(r.status, 200);
-  const table = await r.json();
-  assert.strictEqual(table.raison, null, 'le panneau doit s afficher rempli sur le banc');
-  assert.ok(table.perso, 'aucun personnage vu par la derniere ivi');
-  assert.strictEqual(typeof table.quand, 'number');
-  assert.strictEqual(typeof table.prixQuand, 'number');
-  assert.strictEqual(table.jeu, JEU_DES_TAUX);
-  const etats = new Set(table.lignes.map((l) => l.etat));
-  for (const attendu of ['entree', 'montee', 'stable', 'descente']) {
-    assert.ok(etats.has(attendu), `etat absent des lignes : ${attendu}`);
-  }
-  assert.ok(table.sorties.some((l) => l.etat === 'sortie'), 'aucune sortie');
-  assert.ok(table.lignes.some((l) => l.suspect === true), 'aucune ligne suspecte');
-  // Les noms viennent de nomDe(), jamais d un gid nu, puisque tous les gid
-  // fabriques par faux-etat.js sont de vrais objets recyclables.
-  for (const l of [...table.lignes, ...table.sorties]) {
-    assert.strictEqual(typeof l.nom, 'string', `nom manquant pour le gid ${l.gid}`);
-  }
-  // LE MARCHE, AJOUTE A LA TACHE 2: le banc doit montrer au moins une ligne de
-  // chaque source, sans quoi la distinction qu'on vient d'ajouter ne se
-  // verrait jamais sur ce chemin -- voir outils/faux-etat.js, pepites().
-  assert.ok(table.lignes.some((l) => l.source === 'marche'), 'aucune ligne de marche');
-  assert.ok(table.lignes.some((l) => l.source === 'moyen'), 'aucune ligne de moyenne');
-});
-
-// La recherche libre. « frene », sans accent et en minuscules, doit retrouver
-// les objets recyclables dont le nom porte « Frene » -- et au moins l un
-// d eux doit rendre prix: null, le cas « prix inconnu » que le panneau
-// affiche autrement qu un zero.
-test('la recherche pepites ignore accents et casse, et montre un prix inconnu', async () => {
-  const r = await fetch(`${base}/faux/chercher-pepites?texte=frene`);
-  assert.strictEqual(r.status, 200);
-  const resultats = await r.json();
-  const noms = resultats.map((l) => l.nom);
-  // Noms REELS, verifies au prealable dans une console Node -- comparer sur
-  // des noms connus evite de reimplementer ici la regle d accents de
-  // sansAccent() (src/pepites/classement.js), qui n est pas exportee.
-  assert.ok(noms.includes(NOM_FRENE), `${NOM_FRENE} absent : ${JSON.stringify(noms)}`);
-  assert.ok(noms.includes(NOM_SAC_FRENE), `${NOM_SAC_FRENE} absent : ${JSON.stringify(noms)}`);
-  assert.ok(resultats.some((l) => l.prix === null), 'aucun resultat a prix inconnu');
-  assert.ok(resultats.some((l) => l.prix !== null), 'aucun resultat avec un prix connu');
 });
 
 // Meme repli que le handler d'OMNI: une valeur inconnue rend les

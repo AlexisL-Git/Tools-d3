@@ -1,10 +1,9 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { fabriquerEtat, comptesArchi, pepites } = require('../outils/faux-etat');
+const { fabriquerEtat, comptesArchi } = require('../outils/faux-etat');
 const { NOMS } = require('../src/droits/liste');
 const hdvReprix = require('../src/hdv/reprix');
-const { tauxDe } = require('../src/pepites/taux');
 
 // LES SIX ETATS SONT LA RAISON D'ETRE DU FAUX ETAT. Un banc qui ne montre que
 // des lignes « intercepte » laisserait passer une regression sur l'affichage
@@ -119,36 +118,4 @@ test('fabriquerEtat rend un objet neuf a chaque appel', () => {
   assert.notStrictEqual(a.lignes, b.lignes);
   a.lignes[0].passeTour = !a.lignes[0].passeTour;
   assert.notStrictEqual(a.lignes[0].passeTour, b.lignes[0].passeTour);
-});
-
-// LES PRIX DES PEPITES SONT FABRIQUES, LES GID NE LE SONT PAS. Un gid absent
-// de src/pepites/taux.json ferait tomber classer()/comparer() sur une
-// ligne muette (tauxDe() rend null, la ligne est ignoree) -- le panneau
-// paraitrait vide sans qu aucun test ne le remarque.
-test('les gid fabriques pour les pepites sont de vrais objets recyclables', () => {
-  const { precedent, courant } = pepites();
-  for (const gid of [...precedent.keys(), ...courant.keys()]) {
-    assert.notStrictEqual(tauxDe(gid), null, `gid ${gid} absent de taux.json`);
-  }
-});
-
-// Sans un ecart entre les deux passes, comparer() (src/pepites/classement.js)
-// rendrait tout 'entree' ou tout 'stable' selon le sens du bug -- la colonne
-// de variation resterait invisible sur ce banc, qui existe pour la montrer.
-test('les deux passes de pepites different assez pour nourrir comparer()', () => {
-  const { precedent, courant } = pepites();
-  const gidCommuns = [...precedent.keys()].filter((g) => courant.has(g));
-  assert.ok(gidCommuns.length > 0, 'aucun gid commun aux deux passes');
-  assert.ok(gidCommuns.some((g) => precedent.get(g) !== courant.get(g)),
-    'aucun prix ne change entre les deux passes');
-  assert.ok([...precedent.keys()].some((g) => !courant.has(g)), 'aucune sortie possible');
-  assert.ok([...courant.keys()].some((g) => !precedent.has(g)), 'aucune entree possible');
-});
-
-test('pepites fournit un personnage et deux horodatages distincts', () => {
-  const { perso, quand, prixQuand } = pepites();
-  assert.strictEqual(typeof perso, 'string');
-  assert.strictEqual(typeof quand, 'number');
-  assert.strictEqual(typeof prixQuand, 'number');
-  assert.notStrictEqual(quand, prixQuand);
 });
