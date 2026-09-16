@@ -1,5 +1,23 @@
 [
   {
+    "version": "0.4.0",
+    "le": "2026-09-16",
+    "notes": [
+      "OMNI change de tete. Toute la fenetre a ete redessinee par Alexis : une barre d icones a gauche pour passer d un ecran a l autre, une barre en haut, et le contenu au milieu. Plus d onglets empiles, et les panneaux ne recouvrent plus l ecran, ils le poussent.",
+      "Trois ecrans dans la barre de gauche : Raccourcis (tes personnages, c est celui qui s ouvre au demarrage), Hotel de vente, et Archimonstres. La quatrieme icone, Courses, est grisee : elle est en chantier et arrivera dans une prochaine version.",
+      "Nouveau : un theme clair et un theme sombre. Le bouton en haut fait tourner trois reglages, Systeme / Sombre / Clair. « Systeme » suit ce que Windows a choisi de son cote. Ton choix est retenu d une fois sur l autre.",
+      "Le cyan devient vert partout. Les deux couleurs se disputaient l ancienne fenetre ; il n en reste qu une, et les messages qui passaient au cyan (les droits au lancement, le profil HDV, la cadence signalee en jeu) passent au vert avec le reste.",
+      "Les polices de caracteres sont maintenant embarquees dans OMNI. Avant, il allait les chercher sur Internet : sans reseau, la fenetre s ouvrait dans une police de secours. Plus maintenant.",
+      "La chasse a l archimonstre quitte l onglet Raccourcis : elle a son propre ecran, atteignable par son icone dans la barre de gauche. Et dans ce panneau, « Equiper PdA » et « Monter en calibre » remontent en tete, la ou on les cherche.",
+      "Retire : le panneau Pepites. Il posait plus de questions qu il n en reglait ; je le reprendrai plus tard, autrement amene.",
+      "Retire : le champ « Delai » de la barre du bas. Le passe-tour tire desormais lui-meme un delai entre 80 et 140 millisecondes a chaque tour, au lieu de la valeur fixe que tu reglais. Un chiffre toujours identique ressemble moins a une main humaine qu un chiffre qui bouge.",
+      "Retire aussi : les boutons Reglages et l avatar en bas de la barre de gauche, qui n ouvraient rien, et le titre de l onglet Raccourcis avec son texte d introduction, qui prenaient de la place pour rien.",
+      "Corrige, hotel de vente : le champ « Prix plafond » accepte les espaces. Taper 1 000 000 comme on l ecrit ne donne plus un plafond de travers.",
+      "Corrige, finitions : la liste des personnages redevient lisible en theme clair, les colonnes Touche et Commande sont centrees, et les boutons de Raccourcis ne changent plus de largeur d une ligne a l autre.",
+      "Tout ce qui est au-dessus, a une ligne pres, est le travail d Alexis."
+    ]
+  },
+  {
     "version": "0.3.9",
     "le": "2026-09-13",
     "notes": [
