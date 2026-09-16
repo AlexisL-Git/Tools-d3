@@ -115,7 +115,7 @@
 .panneau .entete>*,.panneau .ligne>*{min-width:0}
 .panneau .entete{height:40px;flex:none;color:var(--encre-douce);font:600 11.5px/1 var(--ui);border-bottom:1px solid var(--trait)}
 .panneau .liste{flex:1;min-height:0;overflow:auto}
-.panneau .ligne{height:60px;border-bottom:1px solid var(--carte-creuse);font-size:13.5px}
+.panneau .ligne{min-height:60px;row-gap:4px;border-bottom:1px solid var(--carte-creuse);font-size:13.5px}
 .panneau .ligne:last-child{border-bottom:0}
 .panneau .ligne:hover{background:var(--carte-creuse)}
 .panneau .ligne b{font-weight:600}
