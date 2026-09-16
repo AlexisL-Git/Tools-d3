@@ -52,12 +52,18 @@
 #erreur { box-shadow: inset 4px 0 0 var(--acide-sur-contre); }
 
 /* ============================================================
-   LA BARRE DU BAS. Bascules GLOBALES (Overlay, Equiper PdA, Monter en
-   calibre, Fermer les clients) et le delai de la passe HDV -- pas un
-   ecran: elle reste hors des .vue et survit au changement d ecran. La
-   maquette ne la dessine nulle part (elle ne prevoit pas de barre
-   persistante sous le rail), donc rien ici n est recopie d une
-   section -- tout est traduit depuis l ancienne feuille (--v0-*).
+   LA BARRE DU BAS. Bascules GLOBALES (Overlay, Fermer les clients) et le
+   delai de la passe HDV -- pas un ecran: elle reste hors des .vue et
+   survit au changement d ecran. La maquette ne la dessine nulle part
+   (elle ne prevoit pas de barre persistante sous le rail), donc rien ici
+   n est recopie d une section -- tout est traduit depuis l ancienne
+   feuille (--v0-*).
+
+   Equiper PdA et Monter en calibre (.maitre-inter) l ont quittee le
+   16/09: elles n agissent que sur la chasse aux archimonstres, et vivent
+   maintenant en tete de #vueArchi (desktop/index.html, .qdn-tete
+   .maitre-inter). Les regles .maitre-inter restent ici: une classe ne
+   suit pas ses elements, seul le balisage a bouge.
 
    Mapping tenu par la tache: --v0-releve -> --carte, --v0-filet ->
    --trait, --v0-texte -> --encre, --v0-attenue -> --encre-douce,
@@ -89,7 +95,7 @@
 
 /* L interrupteur maitre: SUSPEND une fonction sans rien effacer. Ce
    n est pas la brique .inter -- .inter coche un reglage pose par
-   l ami, .maitre-inter arme une fonction globale de la barre -- donc
+   l ami, .maitre-inter arme une fonction globale de chasse -- donc
    il garde son propre dessin (pastille + temoin losange), seule sa
    couleur change ici. */
 .maitre-inter {
