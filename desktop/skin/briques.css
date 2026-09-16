@@ -139,6 +139,11 @@
 .pastille-etat.creux{background:var(--alarme);color:var(--sur-alarme)}
 .pastille-etat.creux i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--sur-alarme)}
 .pastille-etat.pleine{background:var(--acide);color:var(--sur-acide)}
+/* Meme raison que .d .bt-vide juste au-dessus: « hors ligne » et « attente »
+   n ont pas le meme nombre de lettres, un plancher en ch (qui suit la police
+   reellement rendue, pas un pixel devine) les aligne sans jamais rogner un
+   texte plus long comme « non intercepte ». */
+.d .pastille-etat{min-width:calc(10ch + 38px)}
 
 /* CETTE BRIQUE VIENT DE LA SECTION « raccourcis » DE LA MAQUETTE, qui l y a
    rangee parce que c est la qu elle s en sert d abord. Le §2 du README du
