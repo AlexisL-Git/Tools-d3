@@ -95,6 +95,10 @@
 .bt-noir{background:var(--encre);color:var(--carte);border:0;border-radius:999px;height:32px;padding:0 15px;font:600 12.5px/1 var(--ui);cursor:pointer}
 .bt-vide{background:transparent;color:var(--encre);border:1px solid var(--trait-fort);border-radius:999px;height:32px;padding:0 14px;font:600 12.5px/1 var(--ui);cursor:pointer}
 .bt-vide:hover{border-color:var(--encre);color:var(--encre)}
+/* « Commande » et « Désigner » sont le meme bouton, mais pas le meme mot: sans
+   largeur commune, celui qui commande est visiblement plus large que les
+   autres et le regard s arrete dessus pour la mauvaise raison. */
+.d .bt-vide{min-width:88px}
 
 .filtres{display:flex;gap:7px;align-items:center;flex:none;flex-wrap:wrap}
 .grp{display:flex;gap:5px;background:var(--carte);border-radius:999px;padding:4px}
