@@ -19,9 +19,11 @@
   }
 
   /* ============================================================
-     ENCRE ET CYAN. Trois couleurs, trois roles, aucun recouvrement.
+     ENCRE ET VERT. Trois couleurs, trois roles, aucun recouvrement.
 
-       cyan     #2FD4C4   ce qui est arme
+       vert     #E2F27C   ce qui est arme (= --acide de skin/jetons.css ;
+                          le cyan d origine a cede la place au vert de la
+                          nouvelle charte le 16/09)
        orange   #FF9F1C   qui commande
        rouge    #F2545B   anomalie et danger
 
@@ -33,20 +35,20 @@
        texte              15,83:1   (seuil 7)
        texte attenue       7,00:1   (seuil 4,5)
        qui commande        9,02:1   (seuil 4,5)
-       arme contre repos   4,83:1   (seuil 3)
+       arme contre repos   7,34:1   (seuil 3)
        alerte              5,46:1   (seuil 3)
        filet                1,52:1   (seuil 1,5)
 
      L ECART ARME / AU REPOS EST CE QUI COMPTE LE PLUS ICI, parce
      que c est lui qui separe une case cochee d une case vide. Il
-     vaut 4,83, la ou une palette rouge essayee avant tombait a
-     3,10 — juste au-dessus du seuil, sans marge. Toute teinte plus
-     sombre pour « arme » repasserait dessous.
+     vaut desormais 7,34 (il valait 4,83 avec le cyan) : le vert de
+     la nouvelle charte est plus clair, la marge au-dessus du seuil
+     s est agrandie.
 
-     Orange et cyan sont a 1,11:1 l un de l autre, donc presque
-     identiques en niveaux de gris. Ce qui les separe est leur
-     TEINTE, a 140 degres d ecart — le plus grand qu on ait eu — et
-     le fait qu ils ne se cotoient jamais sur un meme element.
+     Orange et vert sont a 1,68:1 l un de l autre : ils se distinguent
+     par leur CLARTE autant que par leur teinte (33 degres d ecart,
+     contre 140 avec le cyan) -- une double separation, plus sure
+     qu une teinte seule pour qui ne distingue pas bien les couleurs.
 
      Rien ici ne repose de toute facon sur la seule couleur: la case
      est un losange PLEIN quand elle est armee et CREUX sinon, le
@@ -68,8 +70,8 @@
     --v0-bord: #3E4B56;
     --v0-texte: #E8EEF2;
     --v0-attenue: #93A1AC;
-    --v0-arme: #2FD4C4;
-    --v0-arme-encre: #061C19;
+    --v0-arme: #E2F27C;
+    --v0-arme-encre: #16181A;
     --v0-commande: #FF9F1C;
     --v0-commande-encre: #211504;
     --v0-alerte: #F2545B;
@@ -129,7 +131,7 @@
   .version-lien:hover { color: var(--v0-texte); border-bottom-color: var(--v0-arme); }
 
   /* LE SEUL SIGNAL DANS LA BARRE quand le depot a avance: le numero passe au
-     cyan, comme tout ce qui est arme dans ce panneau. Pas de texte, pas de
+     vert, comme tout ce qui est arme dans ce panneau. Pas de texte, pas de
      bouton: la barre porte deja le nom, l'interrupteur, la version et l'etat,
      et une ligne de plus n'y etait plus lisible. Le detail est dans le panneau
      que ce meme numero ouvre. */
@@ -170,7 +172,7 @@
     border: 1px solid var(--v0-filet); border-radius: 6px;
     display: flex; align-items: center; gap: 12px;
   }
-  .qdn-maj.retard { border-color: var(--v0-arme); background: rgba(47,212,196,.08); }
+  .qdn-maj.retard { border-color: var(--v0-arme); background: rgba(226,242,124,.08); }
   .qdn-maj .texte { flex: 1; min-width: 0; }
   .qdn-maj .quoi { display: block; font-weight: 600; }
   .qdn-maj.retard .quoi { color: var(--v0-arme); }
@@ -632,7 +634,7 @@
     <button data-vue="courses" title="Courses — prochaine version" disabled>
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h2l2.2 10.5h9.3L20 8H7"/><circle cx="10" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg>
     </button>
-    <button data-vue="hotel" title="Hôtel de vente">
+    <button id="railHotel" data-vue="hotel" title="Hôtel de vente">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20v-7M12 20V9M18 20v-4"/></svg>
     </button>
     <button id="railArchi" data-vue="archi" title="Archimonstres">
@@ -863,18 +865,19 @@
 </div>
 
 <!-- LE RYTHME DES PASSES HDV. Meme forme que « Quoi de neuf »: un panneau DANS
-     la fenetre, ferme par Echap ou par la croix.
-     IL EST GLOBAL, ET SON BOUTON EST DANS LA BARRE DU BAS -- pas dans le menu
-     HDV d'une ligne. Cette barre porte deja les reglages qui valent pour tout
-     OMNI (le delai du passe-tour, la pierre d'ame, l'overlay); un reglage
-     general accroche a la ligne d'un compte se lirait comme un reglage DE ce
-     compte, et c'est exactement le malentendu que les cinq interrupteurs
-     generaux avaient produit avant d'etre supprimes. -->
+     la fenetre, ferme par Echap ou en revenant sur Raccourcis depuis le rail
+     -- plus de croix ni de bouton dans la barre du bas depuis le 16/09, ce
+     panneau s'ouvre desormais depuis l'onglet Hotel de vente du rail
+     (railHotel), pas dans le menu HDV d'une ligne. IL RESTE GLOBAL: le
+     reglage vaut pour tout OMNI (comme le delai du passe-tour, la pierre
+     d'ame, l'overlay), pas pour un seul compte -- un reglage general
+     accroche a la ligne d'un compte se lirait comme un reglage DE ce compte,
+     et c'est exactement le malentendu que les cinq interrupteurs generaux
+     avaient produit avant d'etre supprimes. -->
 <div class="vue-archi" id="vueRythme" hidden>
   <div class="qdn-tete">
     <b>Réglages HDV</b>
     <span class="avis-nav" id="ryProfil"></span>
-    <button id="ryFermer" title="Fermer (Échap)">✕</button>
   </div>
   <div class="ry-corps">
     <!-- LES GARDE-FOUS PASSENT AVANT LE RYTHME, et l'ordre est un choix: le
@@ -960,15 +963,13 @@
   <!-- Le repli de calibre, collé à l'interrupteur qu'il modifie: il ne veut
        rien dire seul, et le lire ailleurs ferait chercher ce qu'il règle. -->
   <button class="maitre-inter" id="interPdaRepli"><span class="temoin"></span><span>Monter en calibre</span></button>
-  <button class="pose" id="brythme" title="le rythme des passes HDV et les garde-fous de prix, communs aux deux fonctions">Réglage HDV</button>
   <!-- LE BOUTON PEPITES, dans la barre du bas a cote des autres bascules
-       GLOBALES -- pas sur une ligne de compte, sur le meme modele que
-       #brythme juste au-dessus: le panneau ne porte le compte d'aucun
-       personnage en particulier, tableauPepites() n'en demande pas. Le
-       poser sur une ligne aurait ajoute un 13e enfant a la grille figee de
-       .ligne (onze colonnes, une par colonne de #entete) et decale toute la
-       ligne sur une rangee implicite -- exactement le genre de rupture que
-       rien, ni le navigateur ni les tests, ne signale seul. -->
+       GLOBALES -- pas sur une ligne de compte : le panneau ne porte le
+       compte d'aucun personnage en particulier, tableauPepites() n'en
+       demande pas. Le poser sur une ligne aurait ajoute un 13e enfant a la
+       grille figee de .ligne (onze colonnes, une par colonne de #entete) et
+       decale toute la ligne sur une rangee implicite -- exactement le genre
+       de rupture que rien, ni le navigateur ni les tests, ne signale seul. -->
   <button class="pose" id="bpepites" title="le classement des objets par coût en kamas de la pépite">Pépites</button>
   <button class="pose" id="boverlay" title="la barre de pictos posée par-dessus le jeu">Overlay</button>
   <button class="coupe" id="boff" title="fermer tous les clients Dofus">Fermer les clients</button>
@@ -1122,7 +1123,7 @@
   // change pas de couleur. Surtout pas « a jour » -- ne pas savoir n'est pas
   // une reponse, c'est la regle que canal.js et veille.js tiennent deja.
   //
-  // Dans la barre, un seul signal: le numero passe au cyan. Tout le reste vit
+  // Dans la barre, un seul signal: le numero passe au vert. Tout le reste vit
   // dans le panneau que ce numero ouvre, parce que la barre de titre etait
   // devenue illisible avec un texte et un bouton de plus.
   // PAS DE BOUTON DE MISE A JOUR ICI, et c'est delibere. Il a existe le
@@ -1840,16 +1841,33 @@
 
   document.getElementById('arcRelire').onclick = relireArchi;
 
+  // LES ONGLETS DU RAIL SONT MUTUELLEMENT EXCLUSIFS : chacun ferme les
+  // panneaux des autres avant d'ouvrir le sien, pour qu'Archimonstres et
+  // Reglages HDV ne s'empilent jamais l'un sur l'autre. Raccourcis ne rouvre
+  // rien : c'est l'ecran de base, toujours dessous, il ferme les deux.
+  //
   // LE BOUTON ARCHIMONSTRES DU RAIL. Point d'entree unique depuis le 16/09 :
   // le badge par ligne de Raccourcis a disparu, ce bouton est desormais le
   // seul chemin vers ce panneau. Pas de pid : aucun personnage n'est vise,
   // le tableau s'ouvre sans colonne surlignee.
-  document.getElementById('railArchi').onclick = () => ouvrirArchi();
-  // LE BOUTON RACCOURCIS DU RAIL FERME LE PANNEAU. Sans lui, revenir sur
-  // Raccourcis depuis Archimonstres n'avait qu'un chemin : la croix. Elle a
-  // disparu le meme jour -- la navigation se fait desormais uniquement par
-  // le rail, dans les deux sens.
-  document.getElementById('railRaccourcis').onclick = fermerArchi;
+  document.getElementById('railArchi').onclick = () => {
+    fermerRythme();
+    ouvrirArchi();
+  };
+  // LE BOUTON HOTEL DE VENTE DU RAIL. Meme geste, pour le panneau qui vivait
+  // avant le 16/09 derriere le bouton "Reglage HDV" de la barre du bas.
+  document.getElementById('railHotel').onclick = () => {
+    fermerArchi();
+    ouvrirRythme();
+  };
+  // LE BOUTON RACCOURCIS DU RAIL FERME LES PANNEAUX. Sans lui, revenir sur
+  // Raccourcis depuis Archimonstres ou Hotel de vente n'avait qu'un chemin :
+  // la croix de chaque panneau. Elles ont disparu le 16/09 -- la navigation
+  // se fait desormais uniquement par le rail, dans les deux sens.
+  document.getElementById('railRaccourcis').onclick = () => {
+    fermerArchi();
+    fermerRythme();
+  };
 
   // `oninput` et non `addEventListener`, comme le bouton rond juste au-dessus:
   // le panneau s'execute aussi dans le DOM de facade des tests, qui sait
@@ -2158,16 +2176,12 @@
     ryDessiner();
     gfDessiner();
   }
-  document.getElementById('ryFermer').onclick = fermerRythme;
-  document.getElementById('brythme').onclick = () => {
-    if (document.getElementById('vueRythme').hidden) ouvrirRythme();
-    else fermerRythme();
-  };
   ryConstruire();
   gfConstruire();
 
-  // MEME BASCULE QUE brythme JUSTE AU-DESSUS: un clic ouvre ou ferme, sans
-  // jamais dependre d'une ligne de compte precise.
+  // MEME BASCULE QU'AVANT LE 16/09 (l'ancien bouton brythme de la barre du
+  // bas) : un clic ouvre ou ferme, sans jamais dependre d'une ligne de
+  // compte precise.
   document.getElementById('bpepites').onclick = () => {
     if (document.getElementById('vuePepites').hidden) ouvrirPepites();
     else fermerPepites();
@@ -2832,15 +2846,15 @@
     }
 
     // Meme porte que le menu HDV d'une ligne: au moins un des deux droits.
-    const bry = document.getElementById('brythme');
+    const railHotel = document.getElementById('railHotel');
     const droitRythme = droitsCourants.includes('hdv') || droitsCourants.includes('vente');
-    bry.disabled = !droitRythme;
-    bry.title = droitRythme
-      ? 'le rythme des passes HDV et les garde-fous de prix, communs aux deux fonctions'
-      : 'pas activé sur ta clé';
+    railHotel.disabled = !droitRythme;
+    railHotel.title = droitRythme
+      ? 'Hôtel de vente — le rythme des passes et les garde-fous de prix'
+      : 'Hôtel de vente — pas activé sur ta clé';
     if (!droitRythme) fermerRythme();
 
-    // Le bouton dit ce qu'il VA faire, et son cyan dit ce qui est. Un bouton
+    // Le bouton dit ce qu'il VA faire, et son vert dit ce qui est. Un bouton
     // « Overlay » qui reste identique ouverte ou fermee laisserait chercher
     // pourquoi le clic « ne fait rien » quand la barre est hors de l'ecran.
     const bov = document.getElementById('boverlay');

@@ -5,7 +5,7 @@
 <title>OMNI</title>
 <style>
   /* La palette du panneau, a l'identique. Une couleur, un role:
-     cyan = ce qui est arme, orange = qui commande, rouge = une anomalie. */
+     vert = ce qui est arme, orange = qui commande, rouge = une anomalie. */
   :root {
     --fond: #0F1418;
     --releve: #171E24;
@@ -13,14 +13,16 @@
     --bord: #3E4B56;
     --texte: #E8EEF2;
     --attenue: #93A1AC;
-    --arme: #2FD4C4;
-    --arme-encre: #061C19;
+    --arme: #E2F27C;
+    --arme-encre: #16181A;
     --commande: #FF9F1C;
     --alerte: #F2545B;
-    /* Ou l'on est en ce moment. Un vert franc, pas un cyan verdatre: il se
-       pose a cote des pastilles cyan et doit s'en distinguer sans hesitation.
-       Teinte a 95 degres contre 175 pour l'arme, soit 80 degres d'ecart. */
-    --ici: #8BD442;
+    /* Ou l'on est en ce moment. Le 16/09, --arme devient le vert-jaune de la
+       nouvelle charte (#E2F27C, ex-cyan) -- --ici doit rester a bonne
+       distance pour se distinguer sans hesitation des pastilles armees.
+       Teinte a 150 degres contre 68 pour l'arme, soit 82 degres d'ecart --
+       la meme marge qu'avant (80 degres, 95 contre 175 avec le cyan). */
+    --ici: #40D48A;
     --ui: Karla, "Segoe UI", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
@@ -126,11 +128,11 @@
     border: 1.5px solid var(--bord); background: transparent;
   }
 
-  /* Tous suivent: losange plein, cyan. */
+  /* Tous suivent: losange plein, vert. */
   .inter.tous { color: var(--arme); border-color: var(--arme); }
   .inter.tous .temoin {
     background: var(--arme); border-color: var(--arme);
-    box-shadow: 0 0 8px rgba(47,212,196,.65);
+    box-shadow: 0 0 8px rgba(226,242,124,.65);
   }
 
   /* Certains seulement: la diagonale du losange une fois redresse, donc une
@@ -175,7 +177,7 @@
   .moitie.arme { color: var(--arme); }
   .moitie.arme .temoin {
     background: var(--arme); border-color: var(--arme);
-    box-shadow: 0 0 8px rgba(47,212,196,.65);
+    box-shadow: 0 0 8px rgba(226,242,124,.65);
   }
   .moitie.mi { color: var(--arme); }
   .moitie.mi .temoin {
