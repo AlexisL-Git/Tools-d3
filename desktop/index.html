@@ -620,6 +620,8 @@
      profil courant, pas une alerte -- il reprend donc le vert des profils
      actifs (.ry-profils button.on) plutot que le rouge d'alerte. */
   #ryProfil { color: var(--v0-arme); }
+  /* #avisNav quand un droit vient de s'activer: meme raison qu'au-dessus. */
+  .avis-nav.arme { color: var(--v0-arme); }
 
 </style>
 
@@ -2869,7 +2871,13 @@
       ? '⚠ ' + enDouble.map(libelleTouche).join(', ') + ' en double'
       : '';
 
-    document.getElementById('avisNav').textContent = etat.avisBascule || '';
+    const avisNav = document.getElementById('avisNav');
+    avisNav.textContent = etat.avisBascule || '';
+    // « — activé » n'est pas un refus comme le reste de .avis-nav : c'est la
+    // confirmation qu'un droit vient de s'ouvrir, donc le vert plutot que le
+    // rouge d'alerte.
+    avisNav.classList.toggle('arme',
+      typeof etat.avisBascule === 'string' && etat.avisBascule.endsWith('— activé'));
 
     const champDelai = document.getElementById('delai');
     if (document.activeElement !== champDelai) champDelai.value = etat.delai;
