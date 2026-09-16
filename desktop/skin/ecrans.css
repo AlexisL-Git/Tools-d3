@@ -187,7 +187,7 @@
 }
 
 /* Le meneur se signale par une forme, pas par un aplat (README du labo,
-   §2, regle 2): un lisere de 3px, et le jeton de classe qui passe en
+   §2, regle 2): un lisere de 4px, et le jeton de classe qui passe en
    jaune -- exactement la regle deja tenue par .perso.mene dans
    briques.css, transposee a .ligne. */
 .ligne.commande::before {
@@ -233,12 +233,11 @@
    pas prevue; grisee, elle dit qu'elle existe et pourquoi elle n'agit pas. */
 .menu-hdv button.inerte { color: var(--encre-douce); cursor: default; }
 
-/* Fermer CE client. Deux clics, comme le bouton qui les ferme tous (barre
-   du bas) -- meme grammaire que .coupe/.coupe.confirme : arme puis jaune
-   au lieu d agir tout de suite. */
 /* Fermer CE client. Deux clics, comme le bouton qui les ferme tous: la
    colonne est etroite, la souris passe dessus en visant la commande, et un
-   clic de travers couterait une session — potentiellement en plein combat. */
+   clic de travers couterait une session — potentiellement en plein combat.
+   Meme grammaire que .coupe/.coupe.confirme (barre du bas): arme puis
+   jaune au lieu d agir tout de suite. */
 .fermer-un {
   width: 30px; height: 30px; flex: none; padding: 0; border: 0; border-radius: 8px;
   display: grid; place-items: center; background: transparent; color: var(--encre-douce); cursor: pointer;
