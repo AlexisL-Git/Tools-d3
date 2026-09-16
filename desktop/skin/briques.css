@@ -98,7 +98,7 @@
 /* « Commande » et « Désigner » sont le meme bouton, mais pas le meme mot: sans
    largeur commune, celui qui commande est visiblement plus large que les
    autres et le regard s arrete dessus pour la mauvaise raison. */
-.d .bt-vide{min-width:88px}
+.d .bt-vide{width:104px;text-align:center}
 
 .filtres{display:flex;gap:7px;align-items:center;flex:none;flex-wrap:wrap}
 .grp{display:flex;gap:5px;background:var(--carte);border-radius:999px;padding:4px}
