@@ -114,11 +114,11 @@ function creerRacine() {
   };
 }
 
-// LES CINQ BOUTONS DU RAIL ET LES CINQ .vue, avec les vraies valeurs
+// LES QUATRE BOUTONS DU RAIL ET LES QUATRE .vue, avec les vraies valeurs
 // data-vue de desktop/index.html (rail: raccourcis, courses [disabled],
-// hotel, archi, reglages) -- pas une liste inventee, pour que le test
-// bouge avec la page plutot que de la figer.
-const VUES = ['raccourcis', 'courses', 'hotel', 'archi', 'reglages'];
+// hotel, archi) -- pas une liste inventee, pour que le test bouge avec la
+// page plutot que de la figer.
+const VUES = ['raccourcis', 'courses', 'hotel', 'archi'];
 
 function creerFacade() {
   const racine = creerRacine();

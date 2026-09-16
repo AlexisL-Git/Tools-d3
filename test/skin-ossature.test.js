@@ -13,7 +13,7 @@ const path = require('node:path');
 const INDEX = path.join(__dirname, '..', 'desktop', 'index.html');
 const html = fs.readFileSync(INDEX, 'utf8');
 
-const VUES = ['raccourcis', 'courses', 'hotel', 'archi', 'reglages'];
+const VUES = ['raccourcis', 'courses', 'hotel', 'archi'];
 
 // LA PAGE PORTE DES data-vue QUI NE SONT PAS CEUX DU RAIL: le selecteur
 // segmente de l ecran Archimonstres en a deux, `liste` et `zones`
@@ -27,7 +27,7 @@ const blocRail = () => {
   return html.slice(d, f);
 };
 
-test('les cinq boutons du rail sont la, dans l ordre de la maquette', () => {
+test('les quatre boutons du rail sont la, dans l ordre de la maquette', () => {
   const trouves = [...blocRail().matchAll(/data-vue="([a-z]+)"/g)].map((m) => m[1]);
   assert.deepStrictEqual(trouves, VUES);
 });

@@ -36,8 +36,6 @@
 .rail button{width:40px;height:40px;border:0;background:transparent;border-radius:11px;display:grid;place-items:center;color:var(--rail-icone);cursor:pointer}
 .rail button:hover{background:rgba(255,255,255,.09);color:#E7EBE4}
 .rail button.actif{background:var(--acide);color:var(--sur-acide)}
-.rail .pousse{margin-top:auto}
-.rail .moi{width:36px;height:36px;border-radius:12px;background:linear-gradient(150deg,#5B6E4A,#2C3826);margin-top:8px;flex:none}
 
 .corps{flex:1;min-width:0;display:flex;flex-direction:column;gap:13px}
 .haut{display:flex;align-items:center;gap:10px;height:36px;flex:none}
