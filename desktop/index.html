@@ -571,7 +571,7 @@
   }
   .ry-absolu > span { color: var(--v0-attenue); }
   .ry-absolu input {
-    width: 78px; padding: 4px 6px; font: inherit; font-size: 13px;
+    width: 128px; padding: 4px 6px; font: inherit; font-size: 13px;
     background: var(--v0-fond); color: var(--v0-texte);
     border: 1px solid var(--v0-bord); border-radius: 8px;
     font-variant-numeric: tabular-nums;
@@ -945,7 +945,7 @@
       </div>
       <div class="ry-absolu">
         <span>Prix plafond</span>
-        <input id="gfPlafond" type="number" min="0" max="1000000000" step="100000" value="0">
+        <input id="gfPlafond" type="text" inputmode="numeric" autocomplete="off" value="0">
         <span class="gf-rapides">
           kamas par lot
           <button data-plafond="0">Aucun</button>
@@ -2148,6 +2148,13 @@
   // 1000000 se compte.
   const gfKamas = (n) => Number(n).toLocaleString('fr-FR');
 
+  // LE CHAMP MONTRE DES ESPACES, LE DISQUE NE VOIT QUE DES CHIFFRES. Le champ
+  // est un texte, pas un nombre, parce qu'un input number refuse l'espace
+  // qui rend 3000000 lisible; c'est ce meme espace qu'on retire avant
+  // d'envoyer la valeur.
+  const gfEspacer = (n) => String(n).replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const gfChiffres = (s) => s.replace(/\D/g, '');
+
   // CE QUE LE FACTEUR VEUT DIRE, SUR UN EXEMPLE PLUTOT QU'EN TOUTES LETTRES.
   // « x5 » ne dit rien tant qu'on n'a pas fait la multiplication de tete; la
   // Pierre medicinale a 152 kamas l'unite est l'objet de reference de tous les
@@ -2168,7 +2175,7 @@
       + gfKamas(Math.ceil(GF_EXEMPLE.moyen / g.facteur)) + ' kamas.';
 
     const champ = document.getElementById('gfPlafond');
-    if (document.activeElement !== champ) champ.value = String(g.plafond);
+    if (document.activeElement !== champ) champ.value = gfEspacer(g.plafond);
     document.getElementById('gfPlafondDetail').textContent = g.plafond > 0
       ? 'Aucun lot ne part au-dessus de ' + gfKamas(g.plafond)
         + ' kamas, quel que soit son prix moyen — c’est le prix du lot entier,'
@@ -2191,8 +2198,21 @@
     curseur.addEventListener('change', () => {
       window.app.reglerHdvGarde({ facteur: Number(curseur.value) });
     });
-    document.getElementById('gfPlafond').addEventListener('change', (e) => {
-      window.app.reglerHdvGarde({ plafond: e.target.value });
+    const champPlafond = document.getElementById('gfPlafond');
+    // Reformater a chaque frappe, en gardant le curseur au meme chiffre plutot
+    // qu'a la meme position: les espaces inseres avant lui le decalent sinon.
+    champPlafond.addEventListener('input', () => {
+      const posChiffres = gfChiffres(champPlafond.value.slice(0, champPlafond.selectionStart)).length;
+      champPlafond.value = gfEspacer(champPlafond.value);
+      let pos = 0, vus = 0;
+      while (pos < champPlafond.value.length && vus < posChiffres) {
+        if (/\d/.test(champPlafond.value[pos])) vus++;
+        pos++;
+      }
+      champPlafond.setSelectionRange(pos, pos);
+    });
+    champPlafond.addEventListener('change', (e) => {
+      window.app.reglerHdvGarde({ plafond: gfChiffres(e.target.value) });
     });
     for (const b of document.querySelectorAll('.gf-rapides button')) {
       b.addEventListener('click', () => {
