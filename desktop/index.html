@@ -616,6 +616,10 @@
     font-size: 12.5px; color: var(--v0-alerte);
   }
   .avis-nav:empty { display: none; }
+  /* #ryProfil n'est pas un refus comme les autres .avis-nav: c'est le nom du
+     profil courant, pas une alerte -- il reprend donc le vert des profils
+     actifs (.ry-profils button.on) plutot que le rouge d'alerte. */
+  #ryProfil { color: var(--v0-arme); }
 
 </style>
 
