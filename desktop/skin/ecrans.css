@@ -141,15 +141,16 @@
 /* ============================================================
    RACCOURCIS. Le panneau/entete/liste/ligne generiques sont dans
    briques.css (recopies de la maquette) ; ici, tout ce qui est propre a
-   CET ecran : sa grille a onze colonnes, et les briques qui n existaient
-   pas dans la maquette parce qu elle ne dessine pas le menu HDV, le
-   bouton Archi ni la fermeture d un client (deux ecarts assumes du plan
-   d ossature du 14/09 : HDV et Archi restent, la maquette les laisse
-   tomber). */
+   CET ecran : sa grille a dix colonnes, et les briques qui n existaient
+   pas dans la maquette parce qu elle ne dessine pas le menu HDV ni la
+   fermeture d un client (ecart assume du plan d ossature du 14/09 : HDV
+   reste, la maquette le laisse tomber). Le compte d'archimonstres a
+   disparu de cet ecran le 16/09 : plus de colonne, plus de badge -- le
+   panneau Archimonstres (#vueArchi) ne s'ouvre plus que depuis le rail. */
 
 #v-raccourcis .entete,
 #v-raccourcis .ligne {
-  grid-template-columns: 1.7fr 84px repeat(5, 56px) 116px 58px 54px 34px;
+  grid-template-columns: 1.7fr 84px repeat(5, 56px) 116px 58px 34px;
 }
 
 /* La cellule Touche: le cabochon prend la place, la corbeille se glisse a
@@ -210,13 +211,12 @@
 
 /* Le menu HDV de la ligne. Il s'ouvre AU CLIC, pas au survol: un menu qui
    surgit en passant la souris se declenche pendant qu'on vise autre chose. */
-#v-raccourcis .hdv, #v-raccourcis .archi { color: var(--encre-douce); }
-#v-raccourcis .hdv:hover:not(:disabled), #v-raccourcis .archi:hover:not(:disabled) { color: var(--encre); border-color: var(--encre-douce); }
-#v-raccourcis .hdv:disabled, #v-raccourcis .archi:disabled { opacity: .3; cursor: not-allowed; }
+#v-raccourcis .hdv { color: var(--encre-douce); }
+#v-raccourcis .hdv:hover:not(:disabled) { color: var(--encre); border-color: var(--encre-douce); }
+#v-raccourcis .hdv:disabled { opacity: .3; cursor: not-allowed; }
 /* Le jaune pour ce qui tourne (README §2, regle 2): une mise a jour ou une
    mise en vente en cours. */
 #v-raccourcis .hdv.tourne { background: var(--acide); border-color: var(--acide); color: var(--sur-acide); }
-#v-raccourcis .archi.pleine { color: var(--encre); border-color: var(--trait-fort); }
 
 .menu-hdv {
   position: absolute; right: 20px; top: 100%; margin-top: 6px; z-index: 2;

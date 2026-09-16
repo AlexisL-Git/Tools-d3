@@ -622,7 +622,7 @@
     <!-- Les pictos du rail restent des dessins OMNI: le README du labo le
          dit au §2, le dessin maison ne reste que la ou aucun picto du jeu
          ne dit la chose -- Raccourcis, Reglages, l icone de l app. -->
-    <button class="actif" data-vue="raccourcis" title="Raccourcis">
+    <button id="railRaccourcis" class="actif" data-vue="raccourcis" title="Raccourcis">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2.2"/><rect x="14" y="3" width="7" height="7" rx="2.2"/><rect x="3" y="14" width="7" height="7" rx="2.2"/><rect x="14" y="14" width="7" height="7" rx="2.2"/></svg>
     </button>
     <!-- COURSES N A PAS DE FONCTION DERRIERE. La maquette le dit elle-meme:
@@ -635,7 +635,7 @@
     <button data-vue="hotel" title="Hôtel de vente">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20v-7M12 20V9M18 20v-4"/></svg>
     </button>
-    <button data-vue="archi" title="Archimonstres">
+    <button id="railArchi" data-vue="archi" title="Archimonstres">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1.2 2.4-3.1 3.5-4.2 5.3a5.6 5.6 0 1 0 8.4 0C14.1 6.5 13.2 5.4 12 3Z"/></svg>
     </button>
     <button class="pousse" data-vue="reglages" title="Réglages">
@@ -700,7 +700,6 @@
           <span class="c"><button class="tete-colonne" data-colonne="echange"><span class="jauge"></span>Éch.</button></span>
           <span class="d">Commande</span>
           <span class="c">HDV</span>
-          <span class="c">Archi</span>
           <span></span>
         </div>
         <div class="liste" id="liste"></div>
@@ -728,7 +727,9 @@
 </div>
 
 <!-- LE TABLEAU DES ARCHIMONSTRES. Meme forme que « Quoi de neuf »: un panneau
-     dans la fenetre, ferme par Echap ou par la croix. -->
+     dans la fenetre, ferme par Echap ou en revenant sur Raccourcis depuis le
+     rail -- plus de croix depuis le 16/09, la navigation ne se fait qu'a
+     gauche (voir railRaccourcis plus bas). -->
 <div class="vue-archi" id="vueArchi" hidden>
   <div class="qdn-tete">
     <b id="arcTitre">Archimonstres</b>
@@ -741,7 +742,6 @@
         <path d="M4.1 14.8v-3h3"/>
       </svg>
     </button>
-    <button id="arcFermer" title="Fermer (Échap)">✕</button>
   </div>
   <div class="arc-filtres">
     <!-- TROIS AXES, TROIS FORMES: ce qu'on regarde, comment, et quel
@@ -1839,7 +1839,17 @@
   }
 
   document.getElementById('arcRelire').onclick = relireArchi;
-  document.getElementById('arcFermer').onclick = fermerArchi;
+
+  // LE BOUTON ARCHIMONSTRES DU RAIL. Point d'entree unique depuis le 16/09 :
+  // le badge par ligne de Raccourcis a disparu, ce bouton est desormais le
+  // seul chemin vers ce panneau. Pas de pid : aucun personnage n'est vise,
+  // le tableau s'ouvre sans colonne surlignee.
+  document.getElementById('railArchi').onclick = () => ouvrirArchi();
+  // LE BOUTON RACCOURCIS DU RAIL FERME LE PANNEAU. Sans lui, revenir sur
+  // Raccourcis depuis Archimonstres n'avait qu'un chemin : la croix. Elle a
+  // disparu le meme jour -- la navigation se fait desormais uniquement par
+  // le rail, dans les deux sens.
+  document.getElementById('railRaccourcis').onclick = fermerArchi;
 
   // `oninput` et non `addEventListener`, comme le bouton rond juste au-dessus:
   // le panneau s'execute aussi dans le DOM de facade des tests, qui sait
@@ -2582,18 +2592,6 @@
     });
     r.el.append(r.hdv, r.menuHdv);
 
-    // LE BOUTON ARCHI DE CETTE LIGNE. Il porte le compte de ce personnage et
-    // ouvre le tableau sur sa colonne. Il n'envoie AUCUN ordre au jeu: OMNI a
-    // deja tout ce qu'il faut, l'inventaire etant arrive seul a la connexion.
-    r.archi = document.createElement('button');
-    r.archi.className = 'archi bt-vide';
-    r.archi.addEventListener('click', () => {
-      const l = r.ligne;
-      if (!l || l.pid === null || l.pid === undefined) return;
-      ouvrirArchi(l.pid);
-    });
-    r.el.append(r.archi);
-
     // Le pouvoir de coupure de CE client. Premier clic arme, second ferme, et
     // l armement retombe seul: meme regle que le bouton qui les ferme tous.
     r.fermerUn = document.createElement('button');
@@ -2715,14 +2713,6 @@
     // et il s'affiche `—`: un zero le ferait passer pour un personnage sans une
     // seule ame, alors qu'on n'en sait rien. C'est la lecon du 03/09, un
     // silence qui ressemble a une reponse.
-    const archiLu = l.archi !== null && l.archi !== undefined;
-    r.archi.textContent = archiLu ? String(l.archi) : '—';
-    r.archi.disabled = !archiLu;
-    r.archi.classList.toggle('pleine', archiLu && l.archi > 0);
-    r.archi.title = archiLu
-      ? l.archi + ' archimonstre(s) en inventaire — ouvrir le tableau'
-      : 'inventaire pas encore lu : ce client a-t-il été lancé après OMNI ?';
-
     // Le menu n'a de sens que sur un client en jeu, et seulement si la cle a
     // AU MOINS UN des deux droits: ses deux entrees se verrouillent
     // separement. `hdvLots` a zero veut dire que kby n'est jamais passee.

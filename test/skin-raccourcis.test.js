@@ -53,7 +53,7 @@ test('les anciennes regles CSS -v0- de Raccourcis ont disparu de index.html', ()
 });
 
 test('le nouveau vocabulaire de Raccourcis vit dans skin/, pas dans index.html', () => {
-  for (const selecteur of ['.ligne.commande', '.hdv', '.menu-hdv', '.archi', '.fermer-un', '.motif']) {
+  for (const selecteur of ['.ligne.commande', '.hdv', '.menu-hdv', '.fermer-un', '.motif']) {
     assert.ok(ecrans.includes(selecteur), `"${selecteur}" attendu dans skin/ecrans.css`);
   }
   for (const selecteur of ['.ligne.hors-ligne', '.cabochon.risque', '.pastille-etat.attente', '.bt-vide.pleine']) {
