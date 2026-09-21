@@ -101,6 +101,12 @@ function connectAgentSource({
         host = o.join('.');
       } else if (family === AF_INET6) {
         host = readV6(sockaddr);
+        // readV6 ne rend la forme pointee que pour une IPv4 mappee. Une vraie
+        // IPv6 (CDN en AAAA) reste a sa destination: sur un poste sans IPv6
+        // routable, son echec naturel (ENETUNREACH) fait retomber le client sur
+        // l'IPv4. Detournee, elle « reussirait » vers le proxy, qui echouerait
+        // ensuite sans que le client puisse plus changer d'avis.
+        if (host.indexOf(':') >= 0) return null;
       } else {
         return null;
       }

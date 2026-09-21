@@ -112,6 +112,20 @@ test("l'adresse n'est réécrite qu'après la décision de détourner", () => {
   assert.ok(ecriture > filtre, "l'écriture de 127.0.0.1 doit suivre le filtre");
 });
 
+// Chez un ami sans IPv6 routable, le client tente d'abord l'adresse AAAA d'un
+// CDN (2600:9000:...:443). Sans detour, connect() echoue sur ENETUNREACH et le
+// client retombe aussitot sur l'IPv4. Detournee vers le proxy, la meme
+// connexion « reussit » localement, le proxy echoue ensuite sur ENETUNREACH,
+// et le client n'a plus aucune raison d'essayer l'IPv4: « Unable to complete
+// SSL connection » a la mise a jour. Seules les IPv4 mappees sont detournees.
+test("une vraie adresse IPv6 n'est pas détournée", () => {
+  const src = connectAgentSource({ proxyPort: 8105 });
+  const garde = src.indexOf("host.indexOf(':') >= 0");
+  const ecriture = src.indexOf('writeByteArray([127, 0, 0, 1])');
+  assert.ok(garde > 0, "la garde sur les adresses IPv6 non mappées doit exister");
+  assert.ok(garde < ecriture, "la garde doit précéder la réécriture de l'adresse");
+});
+
 // --- commande de fenetre ---------------------------------------------------
 
 // Le clic sur une ligne, et les raccourcis, doivent mettre la fenetre Dofus au
